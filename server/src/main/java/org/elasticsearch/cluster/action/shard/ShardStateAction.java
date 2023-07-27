@@ -36,7 +36,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -50,7 +49,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
@@ -129,36 +127,26 @@ public class ShardStateAction {
                 masterNode,
                 actionName,
                 request,
-                new EmptyTransportResponseHandler(EsExecutors.DIRECT_EXECUTOR_SERVICE) {
-                    @Override
-                    public void handleResponse(TransportResponse.Empty response) {
-                        listener.onResponse(null);
+                new EmptyTransportResponseHandler(listener.delegateResponse((l, exp) -> {
+                    if (isMasterChannelException(exp)) {
+                        waitForNewMasterAndRetry(actionName, observer, request, listener);
+                    } else {
+                        logger.warn(
+                            () -> format(
+                                "unexpected failure while sending request [%s]" + " to [%s] for shard entry [%s]",
+                                actionName,
+                                masterNode,
+                                request
+                            ),
+                            exp
+                        );
+                        listener.onFailure(
+                            exp instanceof RemoteTransportException
+                                ? (exp.getCause() instanceof Exception cause ? cause : new ElasticsearchException(exp.getCause()))
+                                : exp
+                        );
                     }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        if (isMasterChannelException(exp)) {
-                            waitForNewMasterAndRetry(actionName, observer, request, listener);
-                        } else {
-                            logger.warn(
-                                () -> format(
-                                    "unexpected failure while sending request [%s]" + " to [%s] for shard entry [%s]",
-                                    actionName,
-                                    masterNode,
-                                    request
-                                ),
-                                exp
-                            );
-                            listener.onFailure(
-                                exp instanceof RemoteTransportException
-                                    ? (Exception) (exp.getCause() instanceof Exception
-                                        ? exp.getCause()
-                                        : new ElasticsearchException(exp.getCause()))
-                                    : exp
-                            );
-                        }
-                    }
-                }
+                }))
             );
         }
     }
@@ -168,7 +156,7 @@ public class ShardStateAction {
         ConnectTransportException.class,
         FailedToCommitClusterStateException.class };
 
-    private static boolean isMasterChannelException(TransportException exp) {
+    private static boolean isMasterChannelException(Throwable exp) {
         return ExceptionsHelper.unwrap(exp, MASTER_CHANNEL_EXCEPTIONS) != null;
     }
 

@@ -33,7 +33,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQu
 /**
  * A request to get profiling details
  */
-public class GetProfilingRequest extends ActionRequest implements IndicesRequest {
+public class GetStackTracesRequest extends ActionRequest implements IndicesRequest {
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SAMPLE_SIZE_FIELD = new ParseField("sample_size");
 
@@ -41,16 +41,16 @@ public class GetProfilingRequest extends ActionRequest implements IndicesRequest
 
     private Integer sampleSize;
 
-    public GetProfilingRequest() {
+    public GetStackTracesRequest() {
         this(null, null);
     }
 
-    public GetProfilingRequest(Integer sampleSize, QueryBuilder query) {
+    public GetStackTracesRequest(Integer sampleSize, QueryBuilder query) {
         this.sampleSize = sampleSize;
         this.query = query;
     }
 
-    public GetProfilingRequest(StreamInput in) throws IOException {
+    public GetStackTracesRequest(StreamInput in) throws IOException {
         this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.sampleSize = in.readOptionalInt();
     }
@@ -152,7 +152,7 @@ public class GetProfilingRequest extends ActionRequest implements IndicesRequest
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        GetProfilingRequest that = (GetProfilingRequest) o;
+        GetStackTracesRequest that = (GetStackTracesRequest) o;
         return Objects.equals(query, that.query) && Objects.equals(sampleSize, that.sampleSize);
     }
 

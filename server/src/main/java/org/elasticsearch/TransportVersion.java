@@ -9,6 +9,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
@@ -63,7 +64,7 @@ import java.util.TreeMap;
  * different version value. If you need to know whether the cluster as a whole speaks a new enough {@link TransportVersion} to understand a
  * newly-added feature, use {@link org.elasticsearch.cluster.ClusterState#getMinTransportVersion}.
  */
-public record TransportVersion(int id) implements Comparable<TransportVersion> {
+public record TransportVersion(int id) implements VersionId<TransportVersion> {
 
     /*
      * NOTE: IntelliJ lies!
@@ -161,9 +162,13 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_500_037 = registerTransportVersion(8_500_037, "d76a4f22-8878-43e0-acfa-15e452195fa7");
     public static final TransportVersion V_8_500_038 = registerTransportVersion(8_500_038, "9ef93580-feae-409f-9989-b49e411ca7a9");
     public static final TransportVersion V_8_500_039 = registerTransportVersion(8_500_039, "c23722d7-6139-4cf2-b8a1-600fbd4ec359");
+    public static final TransportVersion V_8_500_040 = registerTransportVersion(8_500_040, "8F3AA068-A608-4A16-9683-2412A75BF2DD");
+    public static final TransportVersion V_8_500_041 = registerTransportVersion(8_500_041, "5b6a0fd0-ac0b-443f-baae-cffec140905c");
+    public static final TransportVersion V_8_500_042 = registerTransportVersion(8_500_042, "763b4801-a4fc-47c4-aff5-7f5a757b8a07");
+    public static final TransportVersion V_8_500_043 = registerTransportVersion(8_500_043, "50baabd14-7f5c-4f8c-9351-94e0d397aabc");
 
     private static class CurrentHolder {
-        private static final TransportVersion CURRENT = findCurrent(V_8_500_039);
+        private static final TransportVersion CURRENT = findCurrent(V_8_500_043);
 
         // finds the pluggable current version, or uses the given fallback
         private static TransportVersion findCurrent(TransportVersion fallback) {
@@ -286,34 +291,8 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
         return CurrentHolder.CURRENT;
     }
 
-    public boolean after(TransportVersion version) {
-        return version.id < id;
-    }
-
-    public boolean onOrAfter(TransportVersion version) {
-        return version.id <= id;
-    }
-
-    public boolean before(TransportVersion version) {
-        return version.id > id;
-    }
-
-    public boolean onOrBefore(TransportVersion version) {
-        return version.id >= id;
-    }
-
-    public boolean between(TransportVersion lowerInclusive, TransportVersion upperExclusive) {
-        if (upperExclusive.onOrBefore(lowerInclusive)) throw new IllegalArgumentException();
-        return onOrAfter(lowerInclusive) && before(upperExclusive);
-    }
-
     public static TransportVersion fromString(String str) {
         return TransportVersion.fromId(Integer.parseInt(str));
-    }
-
-    @Override
-    public int compareTo(TransportVersion other) {
-        return Integer.compare(this.id, other.id);
     }
 
     @Override

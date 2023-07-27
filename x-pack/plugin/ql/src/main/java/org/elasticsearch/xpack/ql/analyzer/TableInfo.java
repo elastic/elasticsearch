@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.analysis.analyzer;
+package org.elasticsearch.xpack.ql.analyzer;
 
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 
@@ -14,7 +14,7 @@ public class TableInfo {
     private final TableIdentifier id;
     private final boolean isFrozen;
 
-    TableInfo(TableIdentifier id, boolean isFrozen) {
+    public TableInfo(TableIdentifier id, boolean isFrozen) {
         this.id = id;
         this.isFrozen = isFrozen;
     }

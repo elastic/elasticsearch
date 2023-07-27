@@ -1376,7 +1376,7 @@ public final class TokenService {
                         RAW_TOKEN_BYTES_LENGTH,
                         RAW_TOKEN_DOC_ID_BYTES_LENGTH
                     );
-                    tokenDocId = Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
+                    tokenDocId = getTokenDocumentId(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest()));
                 } else {
                     tokenDocId = getTokenDocumentId(hashTokenString(decryptedTokens[0]));
                 }

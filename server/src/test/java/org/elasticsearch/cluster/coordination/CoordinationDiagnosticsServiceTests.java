@@ -1363,6 +1363,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
         TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(mock(ThreadPool.class));
         return new CoordinationDiagnosticsService(clusterService, transportService, coordinator, masterHistoryService);
     }
 

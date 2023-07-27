@@ -1,0 +1,5 @@
+pr: 97594
+summary: Improve wildcard query and terms query rewrite
+area: Search
+type: enhancement
+issues: []

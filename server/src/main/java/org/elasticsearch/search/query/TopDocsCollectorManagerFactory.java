@@ -59,6 +59,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_COUNT;
@@ -147,8 +148,9 @@ abstract class TopDocsCollectorManagerFactory {
     }
 
     static class CollapsingTopDocsCollectorManagerFactory extends TopDocsCollectorManagerFactory {
+        private final Collector collector;
         private final SinglePassGroupingCollector<?> topDocsCollector;
-        private final Supplier<Float> maxScoreSupplier;
+        private final Function<TopDocs, Float> maxScoreSupplier;
 
         /**
          * Ctr
@@ -170,24 +172,29 @@ abstract class TopDocsCollectorManagerFactory {
             Sort sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort;
             this.topDocsCollector = collapseContext.createTopDocs(sort, numHits, after);
 
-            MaxScoreCollector maxScoreCollector;
-            if (trackMaxScore) {
+            final MaxScoreCollector maxScoreCollector;
+            if (sortAndFormats == null) {
+                maxScoreCollector = null;
+                maxScoreSupplier = (topDocs) -> topDocs.scoreDocs.length == 0 ? Float.NaN : topDocs.scoreDocs[0].score;
+            } else if (trackMaxScore) {
                 maxScoreCollector = new MaxScoreCollector();
-                maxScoreSupplier = maxScoreCollector::getMaxScore;
+                maxScoreSupplier = (topDocs) -> maxScoreCollector.getMaxScore();
             } else {
-                maxScoreSupplier = () -> Float.NaN;
+                maxScoreCollector = null;
+                maxScoreSupplier = (topDocs) -> Float.NaN;
             }
+            this.collector = MultiCollector.wrap(topDocsCollector, maxScoreCollector);
         }
 
         @Override
         Collector collector() {
-            return topDocsCollector;
+            return collector;
         }
 
         @Override
         TopDocsAndMaxScore topDocsAndMaxScore() throws IOException {
             TopFieldGroups topDocs = topDocsCollector.getTopGroups(0);
-            return new TopDocsAndMaxScore(topDocs, maxScoreSupplier.get());
+            return new TopDocsAndMaxScore(topDocs, maxScoreSupplier.apply(topDocs));
         }
     }
 

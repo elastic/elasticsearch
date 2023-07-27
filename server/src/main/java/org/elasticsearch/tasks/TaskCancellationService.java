@@ -29,7 +29,6 @@ import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -181,15 +180,15 @@ public class TaskCancellationService {
                 BAN_PARENT_ACTION_NAME,
                 banRequest,
                 TransportRequestOptions.EMPTY,
-                new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                new EmptyTransportResponseHandler(new ActionListener<>() {
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public void onResponse(Void unused) {
                         logger.trace("sent ban for tasks with the parent [{}] for connection [{}]", taskId, connection);
                         countDownListener.onResponse(null);
                     }
 
                     @Override
-                    public void handleException(TransportException exp) {
+                    public void onFailure(Exception exp) {
                         final Throwable cause = ExceptionsHelper.unwrapCause(exp);
                         assert cause instanceof ElasticsearchSecurityException == false;
                         if (isUnimportantBanFailure(cause)) {
@@ -214,6 +213,8 @@ public class TaskCancellationService {
                         countDownListener.onFailure(exp);
                     }
                 }
+
+                )
             );
         }
     }
@@ -228,9 +229,12 @@ public class TaskCancellationService {
                 BAN_PARENT_ACTION_NAME,
                 request,
                 TransportRequestOptions.EMPTY,
-                new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                new EmptyTransportResponseHandler(new ActionListener<>() {
                     @Override
-                    public void handleException(TransportException exp) {
+                    public void onResponse(Void unused) {}
+
+                    @Override
+                    public void onFailure(Exception exp) {
                         final Throwable cause = ExceptionsHelper.unwrapCause(exp);
                         assert cause instanceof ElasticsearchSecurityException == false;
                         if (isUnimportantBanFailure(cause)) {
@@ -260,7 +264,7 @@ public class TaskCancellationService {
                             );
                         }
                     }
-                }
+                })
             );
         }
     }
@@ -391,6 +395,8 @@ public class TaskCancellationService {
         }
     }
 
+    private static final EmptyTransportResponseHandler NOOP_HANDLER = new EmptyTransportResponseHandler(ActionListener.noop());
+
     /**
      * Sends an action to cancel a child task, associated with the given request ID and parent task.
      */
@@ -405,13 +411,7 @@ public class TaskCancellationService {
                 reason
             );
             final CancelChildRequest request = CancelChildRequest.createCancelChildRequest(parentTask, childRequestId, reason);
-            transportService.sendRequest(
-                childNode,
-                CANCEL_CHILD_ACTION_NAME,
-                request,
-                TransportRequestOptions.EMPTY,
-                EmptyTransportResponseHandler.INSTANCE_SAME
-            );
+            transportService.sendRequest(childNode, CANCEL_CHILD_ACTION_NAME, request, TransportRequestOptions.EMPTY, NOOP_HANDLER);
         }
     }
 

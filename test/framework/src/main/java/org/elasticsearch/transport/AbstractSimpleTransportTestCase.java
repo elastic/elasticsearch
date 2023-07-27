@@ -39,6 +39,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -81,6 +82,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -335,8 +337,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public String executor() {
-                    return ThreadPool.Names.GENERIC;
+                public Executor executor(ThreadPool threadPool) {
+                    return threadPool.generic();
                 }
 
                 @Override
@@ -366,8 +368,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
+            public Executor executor(ThreadPool threadPool) {
+                return threadPool.generic();
             }
 
             @Override
@@ -418,8 +420,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public String executor() {
-                return executor;
+            public Executor executor(ThreadPool threadPool) {
+                return threadPool.executor(executor);
             }
 
             @Override
@@ -492,8 +494,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public String executor() {
-                    return ThreadPool.Names.GENERIC;
+                public Executor executor(ThreadPool threadPool) {
+                    return threadPool.generic();
                 }
             }
         );
@@ -574,7 +576,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceB.addMessageListener(tracerB);
 
         try {
-            submitRequest(serviceA, nodeB, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
+            submitRequest(serviceA, nodeB, ACTION, TransportRequest.Empty.INSTANCE, NOOP_HANDLER).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
@@ -593,7 +595,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         });
 
         try {
-            submitRequest(serviceB, nodeA, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
+            submitRequest(serviceB, nodeA, ACTION, TransportRequest.Empty.INSTANCE, NOOP_HANDLER).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
@@ -613,7 +615,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         // use assert busy as callbacks are called on a different thread
         try {
-            submitRequest(serviceA, nodeA, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
+            submitRequest(serviceA, nodeA, ACTION, TransportRequest.Empty.INSTANCE, NOOP_HANDLER).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
@@ -670,8 +672,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
 
                     @Override
-                    public String executor() {
-                        return ThreadPool.Names.GENERIC;
+                    public Executor executor(ThreadPool threadPool) {
+                        return threadPool.generic();
                     }
 
                     @Override
@@ -727,8 +729,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
 
                     @Override
-                    public String executor() {
-                        return ThreadPool.Names.GENERIC;
+                    public Executor executor(ThreadPool threadPool) {
+                        return threadPool.generic();
                     }
 
                     @Override
@@ -783,8 +785,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public String executor() {
-                    return ThreadPool.Names.GENERIC;
+                public Executor executor(ThreadPool threadPool) {
+                    return threadPool.generic();
                 }
 
                 @Override
@@ -847,8 +849,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public String executor() {
-                    return ThreadPool.Names.GENERIC;
+                public Executor executor(ThreadPool threadPool) {
+                    return threadPool.generic();
                 }
 
                 @Override
@@ -1043,7 +1045,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 nodeA,
                 "internal:foobar",
                 new StringMessageRequest(""),
-                EmptyTransportResponseHandler.INSTANCE_SAME
+                NOOP_HANDLER
             );
             latch2.countDown();
             assertThat(expectThrows(ExecutionException.class, foobar::get).getCause(), instanceOf(TransportException.class));
@@ -1075,8 +1077,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public String executor() {
-                    return ThreadPool.Names.GENERIC;
+                public Executor executor(ThreadPool threadPool) {
+                    return threadPool.generic();
                 }
 
                 @Override
@@ -1142,8 +1144,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public String executor() {
-                    return ThreadPool.Names.GENERIC;
+                public Executor executor(ThreadPool threadPool) {
+                    return threadPool.generic();
                 }
 
                 @Override
@@ -1181,8 +1183,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
 
                     @Override
-                    public String executor() {
-                        return ThreadPool.Names.GENERIC;
+                    public Executor executor(ThreadPool threadPool) {
+                        return threadPool.generic();
                     }
 
                     @Override
@@ -1746,8 +1748,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public String executor() {
-                    return ThreadPool.Names.GENERIC;
+                public Executor executor(ThreadPool threadPool) {
+                    return threadPool.generic();
                 }
 
                 @Override
@@ -1803,8 +1805,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public String executor() {
-                    return ThreadPool.Names.GENERIC;
+                public Executor executor(ThreadPool threadPool) {
+                    return threadPool.generic();
                 }
 
                 @Override
@@ -2054,7 +2056,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         TransportRequestOptions.EMPTY,
                         new TransportResponseHandler<TestResponse>() {
 
-                            private final String executor = randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+                            private final Executor executor = randomBoolean()
+                                ? EsExecutors.DIRECT_EXECUTOR_SERVICE
+                                : service.getThreadPool().generic();
 
                             @Override
                             public TestResponse read(StreamInput in) throws IOException {
@@ -2086,7 +2090,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                             }
 
                             @Override
-                            public String executor() {
+                            public Executor executor(ThreadPool threadPool) {
                                 return executor;
                             }
                         }
@@ -2149,8 +2153,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public String executor() {
-                return executor;
+            public Executor executor(ThreadPool threadPool) {
+                return threadPool.executor(executor);
             }
         }
 
@@ -2453,8 +2457,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public String executor() {
-                return executor;
+            public Executor executor(ThreadPool threadPool) {
+                return threadPool.executor(executor);
             }
         };
 
@@ -2501,8 +2505,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public String executor() {
-                return randomFrom(executors);
+            public Executor executor(ThreadPool threadPool) {
+                return threadPool.executor(randomFrom(executors));
             }
         };
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
@@ -3360,7 +3364,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final TransportResponseHandler<T> futureHandler = new ActionListenerResponseHandler<>(
             responseListener,
             handler,
-            handler.executor()
+            handler.executor(transportService.threadPool)
         );
         responseListener.addListener(ActionListener.wrap(handler::handleResponse, e -> handler.handleException((TransportException) e)));
         final PlainActionFuture<T> future = PlainActionFuture.newFuture();
@@ -3368,4 +3372,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         transportService.sendRequest(node, action, request, options, futureHandler);
         return future;
     }
+
+    private static final EmptyTransportResponseHandler NOOP_HANDLER = new EmptyTransportResponseHandler(ActionListener.noop());
 }

@@ -53,7 +53,16 @@ if (BuildParams.inFipsJvm){
 }
 
 if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("test").configure {
+    systemProperty 'es.dlm_feature_flag_enabled', 'true'
+  }
   tasks.named("internalClusterTest").configure {
+    systemProperty 'es.dlm_feature_flag_enabled', 'true'
+  }
+  tasks.named("yamlRestTest").configure {
+    systemProperty 'es.dlm_feature_flag_enabled', 'true'
+  }
+  tasks.named("javaRestTest").configure {
     systemProperty 'es.dlm_feature_flag_enabled', 'true'
   }
 }

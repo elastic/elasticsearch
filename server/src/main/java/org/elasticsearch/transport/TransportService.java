@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Booleans;
@@ -56,6 +57,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -378,11 +380,11 @@ public class TransportService extends AbstractLifecycleComponent
                         holderToNotify.action(),
                         new NodeClosedException(localNode)
                     );
-                    final var executor = handler.executor();
-                    if (executor.equals(ThreadPool.Names.SAME)) {
+                    final var executor = handler.executor(threadPool);
+                    if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                         handler.handleException(exception);
                     } else {
-                        threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, exception) {
+                        executor.execute(new ForkingResponseHandlerRunnable(handler, exception, threadPool) {
                             @Override
                             protected void doRun() {
                                 handler.handleException(exception);
@@ -597,7 +599,7 @@ public class TransportService extends AbstractLifecycleComponent
                 } else {
                     l.onResponse(response);
                 }
-            }), HandshakeResponse::new, ThreadPool.Names.GENERIC)
+            }), HandshakeResponse::new, threadPool.generic())
         );
     }
 
@@ -1421,8 +1423,8 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public String executor() {
-            return delegate.executor();
+        public Executor executor(ThreadPool threadPool) {
+            return delegate.executor(threadPool);
         }
 
         @Override
@@ -1474,12 +1476,12 @@ public class TransportService extends AbstractLifecycleComponent
                         // handler already completed, likely by a timeout which is logged elsewhere
                         return;
                     }
-                    final String executor = handler.executor();
-                    if (ThreadPool.Names.SAME.equals(executor)) {
+                    final var executor = handler.executor(threadPool);
+                    if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                         processResponse(handler, response);
                     } else {
                         response.incRef();
-                        threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, null) {
+                        executor.execute(new ForkingResponseHandlerRunnable(handler, null, threadPool) {
                             @Override
                             protected void doRun() {
                                 processResponse(handler, response);
@@ -1525,11 +1527,11 @@ public class TransportService extends AbstractLifecycleComponent
                     return;
                 }
                 final RemoteTransportException rtx = wrapInRemote(exception);
-                final String executor = handler.executor();
-                if (ThreadPool.Names.SAME.equals(executor)) {
+                final var executor = handler.executor(threadPool);
+                if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                     processException(handler, rtx);
                 } else {
-                    threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, rtx) {
+                    executor.execute(new ForkingResponseHandlerRunnable(handler, rtx, threadPool) {
                         @Override
                         protected void doRun() {
                             processException(handler, rtx);
@@ -1703,8 +1705,8 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public String executor() {
-            return handler.executor();
+        public Executor executor(ThreadPool threadPool) {
+            return handler.executor(threadPool);
         }
 
         @Override

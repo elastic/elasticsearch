@@ -783,7 +783,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                     builder.endObject();
                 }
                 if (failures != null && failures.isEmpty() == false) {
-                    builder.startArray("errors");
+                    builder.startArray("failures");
                     for (ShardSearchFailure failure : failures) {
                         failure.toXContent(builder, params);
                     }

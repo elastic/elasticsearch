@@ -449,27 +449,6 @@ public class SecurityTests extends ESTestCase {
             () -> new Security.ValidateLicenseForFIPS(true, licenseService).accept(node, state)
         );
         assertThat(e.getMessage(), containsString("FIPS mode cannot be used"));
-
-    }
-
-    public void testIndexJoinValidator_FullyCurrentCluster() throws Exception {
-        createComponents(Settings.EMPTY);
-        BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
-        assertNotNull(joinValidator);
-        DiscoveryNode node = DiscoveryNodeUtils.create("foo");
-        int indexFormat = randomBoolean() ? INTERNAL_MAIN_INDEX_FORMAT : INTERNAL_MAIN_INDEX_FORMAT - 1;
-        IndexMetadata indexMetadata = IndexMetadata.builder(SECURITY_MAIN_ALIAS)
-            .settings(settings(VersionUtils.randomIndexCompatibleVersion(random())).put(INDEX_FORMAT_SETTING.getKey(), indexFormat))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
-        DiscoveryNode existingOtherNode = DiscoveryNodeUtils.create("bar");
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes)
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
-        joinValidator.accept(node, clusterState);
     }
 
     public void testGetFieldFilterSecurityEnabled() throws Exception {

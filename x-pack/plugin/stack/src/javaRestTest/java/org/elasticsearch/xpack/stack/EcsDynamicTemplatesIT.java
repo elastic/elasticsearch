@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -31,6 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -38,6 +40,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -142,44 +146,39 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         }
     }
 
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     public void testFlattenedFields() throws IOException {
         String indexName = "test-flattened-fields";
-        try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
-            bodyBuilder.startObject();
-            bodyBuilder.startObject("settings");
-            bodyBuilder.field("index.mapping.total_fields.limit", 10000);
-            bodyBuilder.endObject();
-            bodyBuilder.field("mappings", ecsDynamicTemplates);
-            bodyBuilder.endObject();
+        createTestIndex(indexName);
+        Map<String, Object> flattenedFieldsMap = createTestDocument(true);
+        indexDocument(indexName, flattenedFieldsMap);
+        Map<String, String> flattenedMappings = getMappingsFlattened(indexName);
+        verifyEcsMappings(flattenedMappings);
+    }
 
-            Request createIndexRequest = new Request("PUT", "/" + indexName);
-            createIndexRequest.setJsonEntity(Strings.toString(bodyBuilder));
-            // noinspection resource
-            Response response = ESRestTestCase.client().performRequest(createIndexRequest);
-            assertEquals(HttpStatus.SC_OK, response.getStatusLine().getStatusCode());
-        }
+    public void testFlattenedFieldsWithoutSubobjects() throws IOException {
+        String indexName = "test_flattened_fields_subobjects_false";
+        createTestIndex(indexName, Map.of("subobjects", false));
+        Map<String, Object> flattenedFieldsMap = createTestDocument(true);
+        indexDocument(indexName, flattenedFieldsMap);
+        Map<String, String> flattenedMappings = getMappingsFlattened(indexName);
+        verifyEcsMappings(flattenedMappings);
+    }
 
-        Map<String, Object> flattenedFieldsMap = new HashMap<>();
-        for (Map.Entry<String, Map<String, Object>> fieldEntry : ecsFlatFieldDefinitions.entrySet()) {
-            String fieldName = fieldEntry.getKey();
-            Map<String, Object> fieldDefinitions = fieldEntry.getValue();
-            String type = (String) fieldDefinitions.get("type");
-            assertNotNull(
-                String.format(Locale.ENGLISH, "Can't find type for field '%s' in %s file", fieldName, ECS_DYNAMIC_TEMPLATES_FILE),
-                type
-            );
-            Object testValue = generateTestValue(type);
-            flattenedFieldsMap.put(fieldName, testValue);
-        }
+    public void testNestedFields() throws IOException {
+        String indexName = "test-nested-fields";
+        createTestIndex(indexName);
+        Map<String, Object> nestedFieldsMap = createTestDocument(false);
+        indexDocument(indexName, nestedFieldsMap);
+        Map<String, String> flattenedMappings = getMappingsFlattened(indexName);
+        verifyEcsMappings(flattenedMappings);
+    }
 
-        try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
-            Request indexRequest = new Request("POST", "/" + indexName + "/_doc");
-            indexRequest.setJsonEntity(Strings.toString(bodyBuilder.map(flattenedFieldsMap)));
-            // noinspection resource
-            Response response = ESRestTestCase.client().performRequest(indexRequest);
-            assertEquals(HttpStatus.SC_CREATED, response.getStatusLine().getStatusCode());
-        }
-
+    private Map<String, String> getMappingsFlattened(String indexName) throws IOException {
         Request getMappingRequest = new Request("GET", "/" + indexName + "/_mapping");
         // noinspection resource
         Response response = ESRestTestCase.client().performRequest(getMappingRequest);
@@ -196,8 +195,73 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         assertNotNull(indexMap);
         Map<String, Object> mappings = (Map<String, Object>) indexMap.get("mappings");
         assertNotNull(mappings);
-        Map<String, String> flattenedMappings = processMappings((Map<String, Object>) mappings.get("properties"));
-        verifyEcsMappings(flattenedMappings);
+        return processMappings((Map<String, Object>) mappings.get("properties"));
+    }
+
+    private static void indexDocument(String indexName, Map<String, Object> flattenedFieldsMap) throws IOException {
+        try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
+            Request indexRequest = new Request("POST", "/" + indexName + "/_doc");
+            indexRequest.setJsonEntity(Strings.toString(bodyBuilder.map(flattenedFieldsMap)));
+            // noinspection resource
+            Response response = ESRestTestCase.client().performRequest(indexRequest);
+            assertEquals(HttpStatus.SC_CREATED, response.getStatusLine().getStatusCode());
+        }
+    }
+
+    private Map<String, Object> createTestDocument(boolean flattened) {
+        Map<String, Object> flattenedFieldsMap = new HashMap<>();
+        for (Map.Entry<String, Map<String, Object>> fieldEntry : ecsFlatFieldDefinitions.entrySet()) {
+            String flattenedFieldName = fieldEntry.getKey();
+            Map<String, Object> fieldDefinitions = fieldEntry.getValue();
+            String type = (String) fieldDefinitions.get("type");
+            assertNotNull(
+                String.format(Locale.ENGLISH, "Can't find type for field '%s' in %s file", flattenedFieldName, ECS_DYNAMIC_TEMPLATES_FILE),
+                type
+            );
+            Object testValue = generateTestValue(type);
+            if (flattened) {
+                flattenedFieldsMap.put(flattenedFieldName, testValue);
+            } else {
+                Map<String, Object> currentFiled = flattenedFieldsMap;
+                Iterator<String> fieldPathPartsIterator = Arrays.stream(flattenedFieldName.split("\\.")).iterator();
+                String subfield = fieldPathPartsIterator.next();
+                while (fieldPathPartsIterator.hasNext()) {
+                    currentFiled = (Map<String, Object>) currentFiled.computeIfAbsent(subfield, ignore -> new HashMap<>());
+                    subfield = fieldPathPartsIterator.next();
+                }
+                currentFiled.put(subfield, testValue);
+            }
+        }
+        return flattenedFieldsMap;
+    }
+
+    private static void createTestIndex(String indexName) throws IOException {
+        createTestIndex(indexName, null);
+    }
+
+    private static void createTestIndex(String indexName, @Nullable Map<String, Object> customMappings) throws IOException {
+        final Map<String, Object> indexMappings;
+        if (customMappings != null) {
+            indexMappings = Stream.concat(ecsDynamicTemplates.entrySet().stream(), customMappings.entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        } else {
+            indexMappings = ecsDynamicTemplates;
+        }
+        try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
+            bodyBuilder.startObject();
+            bodyBuilder.startObject("settings");
+            bodyBuilder.field("index.mapping.total_fields.limit", 10000);
+            bodyBuilder.endObject();
+            bodyBuilder.field("mappings", indexMappings);
+            bodyBuilder.endObject();
+
+            Request createIndexRequest = new Request("PUT", "/" + indexName);
+            createIndexRequest.setJsonEntity(Strings.toString(bodyBuilder));
+            // noinspection resource
+            Response response = ESRestTestCase.client().performRequest(createIndexRequest);
+            assertEquals(HttpStatus.SC_OK, response.getStatusLine().getStatusCode());
+        }
     }
 
     private Object generateTestValue(String type) {
@@ -295,10 +359,5 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         assertTrue("The test document contains non-ECS fields, see details above", nonEcsFields.isEmpty());
 
         // todo - look for the "multi_fields" entry in ecsFlatFieldDefinitions and verify that as well
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
     }
 }

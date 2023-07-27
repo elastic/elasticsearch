@@ -23,8 +23,8 @@ public interface DocumentReporter {
     };
 
     /**
-     * Decorates a provided xContentParser with a metering logic. The Decorator parser should use a state from DocumentReporter
-     * in order to allow a reportDocumentParsed method to use that state (metric value)
+     * Decorates a provided xContentParser with additional logic (gather some state). The Decorator parser should use a state from DocumentReporter
+     * in order to allow a reportDocumentParsed method to use that state
      * @param xContentParser to be decorated
      * @return a decorator xContentParser
      */
@@ -34,7 +34,7 @@ public interface DocumentReporter {
 
     /**
      * Reports (perhaps to some external components) the state that was gathered by a decorated wrap
-     * @param indexName an index name to be reported along the state (metric value)
+     * @param indexName an index name to be reported along with the state
      */
     default void reportDocumentParsed(String indexName) {}
 }

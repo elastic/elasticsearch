@@ -43,7 +43,7 @@ import static org.elasticsearch.TransportVersion.V_8_500_044;
  */
 public final class AnalysisStats implements ToXContentFragment, Writeable {
 
-    static final String[] SYNONYM_RULES_TYPES = { "synonyms_set", "synonyms_path", "synonyms" };
+    static final String[] NON_INLINE_SYNONYM_RULES_TYPES = { "synonyms_set", "synonyms_path" };
     private static final TransportVersion SYNONYM_SETS_VERSION = V_8_500_044;
 
     private static final Set<String> SYNONYM_FILTER_TYPES = Set.of("synonym", "synonym_graph");
@@ -206,19 +206,24 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         for (Settings filterComponentSettings : filterSettings) {
             final String type = filterComponentSettings.get("type");
             if (SYNONYM_FILTER_TYPES.contains(type)) {
-                for (String synonymRuleType : SYNONYM_RULES_TYPES) {
-                    String synonymId = filterComponentSettings.get(synonymRuleType);
-                    if (synonymId != null) {
-                        boolean isInline = "synonyms".equals(synonymRuleType);
-                        SynonymsStats stat = synonymsStats.computeIfAbsent(synonymRuleType, id -> new SynonymsStats());
-                        if (synonymIdsUsedInIndices.add(synonymRuleType + indexName)) {
-                            stat.indexCount++;
-                        }
-                        if (isInline || synonymsIdsUsed.add(synonymRuleType + synonymId)) {
-                            stat.count++;
-                        }
-                        break;
-                    }
+                boolean isInline = false;
+                String synonymRuleType = "synonyms_set";
+                // Avoid requesting settings for synonyms rule type, as it transforms to string a potentially large number of synonym rules
+                String synonymId = filterComponentSettings.get(synonymRuleType);
+                if (synonymId == null) {
+                    synonymRuleType = "synonyms_path";
+                    synonymId = filterComponentSettings.get(synonymRuleType);
+                }
+                if (synonymId == null) {
+                    synonymRuleType = "synonyms";
+                    isInline = true;
+                }
+                SynonymsStats stat = synonymsStats.computeIfAbsent(synonymRuleType, id -> new SynonymsStats());
+                if (synonymIdsUsedInIndices.add(synonymRuleType + indexName)) {
+                    stat.indexCount++;
+                }
+                if (isInline || synonymsIdsUsed.add(synonymRuleType + synonymId)) {
+                    stat.count++;
                 }
             }
         }

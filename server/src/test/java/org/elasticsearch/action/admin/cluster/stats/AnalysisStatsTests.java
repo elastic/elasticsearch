@@ -27,6 +27,8 @@ import java.util.TreeMap;
 
 public class AnalysisStatsTests extends AbstractWireSerializingTestCase<AnalysisStats> {
 
+    private static final String[] SYNONYM_RULES_TYPES = {"synonyms", "synonyms_set", "synonyms_path"};
+
     @Override
     protected Reader<AnalysisStats> instanceReader() {
         return AnalysisStats::new;
@@ -41,7 +43,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
 
     private static Map<String, SynonymsStats> randomSynonymsStats() {
         Map<String, SynonymsStats> result = new HashMap<>();
-        for (String ruleType : AnalysisStats.SYNONYM_RULES_TYPES) {
+        for (String ruleType : SYNONYM_RULES_TYPES) {
             if (randomBoolean()) {
                 SynonymsStats stats = new SynonymsStats();
                 stats.indexCount = randomIntBetween(1, 10);

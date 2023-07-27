@@ -9,6 +9,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
@@ -63,7 +64,7 @@ import java.util.TreeMap;
  * different version value. If you need to know whether the cluster as a whole speaks a new enough {@link TransportVersion} to understand a
  * newly-added feature, use {@link org.elasticsearch.cluster.ClusterState#getMinTransportVersion}.
  */
-public record TransportVersion(int id) implements Comparable<TransportVersion> {
+public record TransportVersion(int id) implements VersionId, Comparable<TransportVersion> {
 
     /*
      * NOTE: IntelliJ lies!

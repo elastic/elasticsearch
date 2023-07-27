@@ -39,6 +39,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -64,6 +65,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
 
     private static Map<String, Object> ecsDynamicTemplates;
     private static Map<String, Map<String, Object>> ecsFlatFieldDefinitions;
+    private static Map<String, String> ecsFlatMultiFieldDefinitions;
 
     @BeforeClass
     public static void setupSuiteScopeCluster() throws Exception {
@@ -132,6 +134,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
 
         // noinspection
         ecsFlatFieldDefinitions = (Map<String, Map<String, Object>>) ecsFlatFieldsRawMap;
+        ecsFlatMultiFieldDefinitions = new HashMap<>();
         Iterator<Map.Entry<String, Map<String, Object>>> iterator = ecsFlatFieldDefinitions.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Map<String, Object>> entry = iterator.next();
@@ -142,6 +145,15 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             } else if ("bool".equals(type)) {
                 // for some reason, 'container.security_context.privileged' has a type "bool" in ECS definitions so we are standardizing
                 definitions.put("type", "boolean");
+            }
+
+            List<Map<String, String>> multiFields = (List<Map<String, String>>) definitions.get("multi_fields");
+            if (multiFields != null) {
+                multiFields.forEach(multiFieldsDefinitions -> {
+                    String subfieldFlatName = Objects.requireNonNull(multiFieldsDefinitions.get("flat_name"));
+                    String subfieldType = Objects.requireNonNull(multiFieldsDefinitions.get("type"));
+                    ecsFlatMultiFieldDefinitions.put(subfieldFlatName, subfieldType);
+                });
             }
         }
     }
@@ -156,8 +168,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         createTestIndex(indexName);
         Map<String, Object> flattenedFieldsMap = createTestDocument(true);
         indexDocument(indexName, flattenedFieldsMap);
-        Map<String, String> flattenedMappings = getMappingsFlattened(indexName);
-        verifyEcsMappings(flattenedMappings);
+        verifyEcsMappings(indexName);
     }
 
     public void testFlattenedFieldsWithoutSubobjects() throws IOException {
@@ -165,8 +176,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         createTestIndex(indexName, Map.of("subobjects", false));
         Map<String, Object> flattenedFieldsMap = createTestDocument(true);
         indexDocument(indexName, flattenedFieldsMap);
-        Map<String, String> flattenedMappings = getMappingsFlattened(indexName);
-        verifyEcsMappings(flattenedMappings);
+        verifyEcsMappings(indexName);
     }
 
     public void testNestedFields() throws IOException {
@@ -174,28 +184,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         createTestIndex(indexName);
         Map<String, Object> nestedFieldsMap = createTestDocument(false);
         indexDocument(indexName, nestedFieldsMap);
-        Map<String, String> flattenedMappings = getMappingsFlattened(indexName);
-        verifyEcsMappings(flattenedMappings);
-    }
-
-    private Map<String, String> getMappingsFlattened(String indexName) throws IOException {
-        Request getMappingRequest = new Request("GET", "/" + indexName + "/_mapping");
-        // noinspection resource
-        Response response = ESRestTestCase.client().performRequest(getMappingRequest);
-        assertEquals(response.getStatusLine().getStatusCode(), HttpStatus.SC_OK);
-        Map<String, Object> mappingResponse;
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(XContentParserConfiguration.EMPTY, EntityUtils.toByteArray(response.getEntity()))
-        ) {
-            mappingResponse = parser.map();
-        }
-        assertThat(mappingResponse.size(), equalTo(1));
-        Map<String, Object> indexMap = (Map<String, Object>) mappingResponse.get(indexName);
-        assertNotNull(indexMap);
-        Map<String, Object> mappings = (Map<String, Object>) indexMap.get("mappings");
-        assertNotNull(mappings);
-        return processMappings((Map<String, Object>) mappings.get("properties"));
+        verifyEcsMappings(indexName);
     }
 
     private static void indexDocument(String indexName, Map<String, Object> flattenedFieldsMap) throws IOException {
@@ -209,7 +198,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
     }
 
     private Map<String, Object> createTestDocument(boolean flattened) {
-        Map<String, Object> flattenedFieldsMap = new HashMap<>();
+        Map<String, Object> testFieldsMap = new HashMap<>();
         for (Map.Entry<String, Map<String, Object>> fieldEntry : ecsFlatFieldDefinitions.entrySet()) {
             String flattenedFieldName = fieldEntry.getKey();
             Map<String, Object> fieldDefinitions = fieldEntry.getValue();
@@ -220,9 +209,9 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             );
             Object testValue = generateTestValue(type);
             if (flattened) {
-                flattenedFieldsMap.put(flattenedFieldName, testValue);
+                testFieldsMap.put(flattenedFieldName, testValue);
             } else {
-                Map<String, Object> currentFiled = flattenedFieldsMap;
+                Map<String, Object> currentFiled = testFieldsMap;
                 Iterator<String> fieldPathPartsIterator = Arrays.stream(flattenedFieldName.split("\\.")).iterator();
                 String subfield = fieldPathPartsIterator.next();
                 while (fieldPathPartsIterator.hasNext()) {
@@ -232,7 +221,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
                 currentFiled.put(subfield, testValue);
             }
         }
-        return flattenedFieldsMap;
+        return testFieldsMap;
     }
 
     private static void createTestIndex(String indexName) throws IOException {
@@ -297,15 +286,30 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         throw new IllegalArgumentException("Unknown field type: " + type);
     }
 
-    private Map<String, String> processMappings(final Map<String, Object> rawMappings) {
-        Map<String, String> processedMappings = new HashMap<>();
-        processRawMappingsSubtree(rawMappings, processedMappings, "");
-        return processedMappings;
+    private Map<String, Object> getMappings(String indexName) throws IOException {
+        Request getMappingRequest = new Request("GET", "/" + indexName + "/_mapping");
+        // noinspection resource
+        Response response = ESRestTestCase.client().performRequest(getMappingRequest);
+        assertEquals(response.getStatusLine().getStatusCode(), HttpStatus.SC_OK);
+        Map<String, Object> mappingResponse;
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(XContentParserConfiguration.EMPTY, EntityUtils.toByteArray(response.getEntity()))
+        ) {
+            mappingResponse = parser.map();
+        }
+        assertThat(mappingResponse.size(), equalTo(1));
+        Map<String, Object> indexMap = (Map<String, Object>) mappingResponse.get(indexName);
+        assertNotNull(indexMap);
+        Map<String, Object> mappings = (Map<String, Object>) indexMap.get("mappings");
+        assertNotNull(mappings);
+        return (Map<String, Object>) mappings.get("properties");
     }
 
     private void processRawMappingsSubtree(
         final Map<String, Object> fieldSubtrees,
-        final Map<String, String> processedMappings,
+        final Map<String, String> flatFieldMappings,
+        final Map<String, String> flatMultiFieldsMappings,
         final String subtreePrefix
     ) {
         fieldSubtrees.forEach((fieldName, fieldMappings) -> {
@@ -313,22 +317,36 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             Map<String, Object> fieldMappingsMap = ((Map<String, Object>) fieldMappings);
             String type = (String) fieldMappingsMap.get("type");
             if (type != null) {
-                processedMappings.put(fieldFullPath, type);
+                flatFieldMappings.put(fieldFullPath, type);
             }
             Map<String, Object> subfields = (Map<String, Object>) fieldMappingsMap.get("properties");
             if (subfields != null) {
-                processRawMappingsSubtree(subfields, processedMappings, fieldFullPath + ".");
+                processRawMappingsSubtree(subfields, flatFieldMappings, flatMultiFieldsMappings, fieldFullPath + ".");
+            }
+
+            Map<String, Map<String, String>> fields = (Map<String, Map<String, String>>) fieldMappingsMap.get("fields");
+            if (fields != null) {
+                fields.forEach((subFieldName, multiFieldMappings) -> {
+                    String subFieldFullPath = fieldFullPath + "." + subFieldName;
+                    String subFieldType = Objects.requireNonNull(multiFieldMappings.get("type"));
+                    flatMultiFieldsMappings.put(subFieldFullPath, subFieldType);
+                });
             }
         });
     }
 
-    private void verifyEcsMappings(Map<String, String> flattenedActualMappings) {
-        HashMap<String, Map<String, Object>> shallowCopy = new HashMap<>(ecsFlatFieldDefinitions);
-        logger.info("Testing mapping of {} ECS fields", shallowCopy.size());
+    private void verifyEcsMappings(String indexName) throws IOException {
+        final Map<String, Object> rawMappings = getMappings(indexName);
+        final Map<String, String> flatFieldMappings = new HashMap<>();
+        final Map<String, String> flatMultiFieldsMappings = new HashMap<>();
+        processRawMappingsSubtree(rawMappings, flatFieldMappings, flatMultiFieldsMappings, "");
+
+        Map<String, Map<String, Object>> shallowFieldMapCopy = new HashMap<>(ecsFlatFieldDefinitions);
+        logger.info("Testing mapping of {} ECS fields", shallowFieldMapCopy.size());
         List<String> nonEcsFields = new ArrayList<>();
         Map<String, String> fieldToWrongMappingType = new HashMap<>();
-        flattenedActualMappings.forEach((fieldName, actualMappingType) -> {
-            Map<String, Object> expectedMappings = shallowCopy.remove(fieldName);
+        flatFieldMappings.forEach((fieldName, actualMappingType) -> {
+            Map<String, Object> expectedMappings = shallowFieldMapCopy.remove(fieldName);
             if (expectedMappings == null) {
                 nonEcsFields.add(fieldName);
             } else {
@@ -339,7 +357,28 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             }
         });
 
-        shallowCopy.keySet().forEach(field -> logger.error("ECS field '{}' is not covered by this test", field));
+        Map<String, String> shallowMultiFieldMapCopy = new HashMap<>(ecsFlatMultiFieldDefinitions);
+        logger.info("Testing mapping of {} ECS multi-fields", shallowMultiFieldMapCopy.size());
+        flatMultiFieldsMappings.forEach((fieldName, actualMappingType) -> {
+            String expectedType = shallowMultiFieldMapCopy.remove(fieldName);
+            if (expectedType != null) {
+                // not finding an entry in the expected multi-field mappings map is acceptable: our dynamic templates are required to
+                // ensure multi-field mapping for all fields with such ECS definitions. However, the patterns in these templates may lead
+                // to multi-field mapping for ECS fields for which such are not defined
+                if (actualMappingType.equals(expectedType) == false) {
+                    fieldToWrongMappingType.put(fieldName, actualMappingType);
+                }
+            }
+        });
+
+        shallowFieldMapCopy.keySet()
+            .forEach(field -> logger.error("ECS field '{}' is not covered by the current ECS dynamic templates", field));
+        shallowMultiFieldMapCopy.keySet().forEach(field -> {
+            int lastDotIndex = field.lastIndexOf('.');
+            String parentField = field.substring(0, lastDotIndex);
+            String subfield = field.substring(lastDotIndex + 1);
+            logger.error("ECS field '{}' is expected to have a multi-field mapping with subfield '{}'", parentField, subfield);
+        });
         fieldToWrongMappingType.forEach((fieldName, actualMappingType) -> {
             String ecsExpectedType = (String) ecsFlatFieldDefinitions.get(fieldName).get("type");
             logger.error(
@@ -351,13 +390,15 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         });
         nonEcsFields.forEach(field -> logger.error("The test document contains '{}', which is not an ECS field", field));
 
-        assertTrue("ECS is not fully covered by this test, see details above", shallowCopy.isEmpty());
+        assertTrue("ECS is not fully covered by the current ECS dynamic templates, see details above", shallowFieldMapCopy.isEmpty());
+        assertTrue(
+            "ECS is not fully covered by the current ECS dynamic templates' multi-fields definitions, see details above",
+            shallowMultiFieldMapCopy.isEmpty()
+        );
         assertTrue(
             "At least one field was mapped with a type that mismatches the ECS definitions, see details above",
             fieldToWrongMappingType.isEmpty()
         );
         assertTrue("The test document contains non-ECS fields, see details above", nonEcsFields.isEmpty());
-
-        // todo - look for the "multi_fields" entry in ecsFlatFieldDefinitions and verify that as well
     }
 }

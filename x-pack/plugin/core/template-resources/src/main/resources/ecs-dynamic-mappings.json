@@ -114,7 +114,9 @@
               "*.executable",
               "*.name",
               "*.working_directory",
-              "*.full_name"
+              "*.full_name",
+              "email.subject",
+              "vulnerability.description"
             ]
           }
         },

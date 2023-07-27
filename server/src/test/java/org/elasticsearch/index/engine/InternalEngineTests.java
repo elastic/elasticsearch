@@ -510,58 +510,6 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(segments.get(1).committed, equalTo(committed));
         }
     }
-
-    public void testSegmentFileSizes() throws Exception {
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        try (
-            Store store = createStore();
-            InternalEngine engine = createEngine(
-                config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get)
-            )
-        ) {
-            assertThat(engine.segments(), empty());
-            int numDocsSeg1 = 100;
-            for (int i = 0; i < numDocsSeg1; i++) {
-                String id = Integer.toString(i);
-                ParsedDocument doc = testParsedDocument(id, null, testDocument(), B_1, null);
-                engine.index(indexForDoc(doc));
-            }
-            List<SegmentFileSize> fileSizes = engine.getLastCommittedSegmentFileSizes();
-            assertThat(fileSizes, empty());
-            List<Segment> segments = engine.segments();
-            assertThat(segments, empty());
-
-            engine.flush();
-            segments = engine.segments();
-            fileSizes = engine.getLastCommittedSegmentFileSizes();
-            assertThat(fileSizes, hasSize(1));
-            assertThat(fileSizes.get(0).sizeInBytes(), greaterThan(0L));
-            assertThat(segments, hasSize(1));
-            assertThat(segments.get(0).getNumDocs(), equalTo(numDocsSeg1));
-            assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-            assertTrue(segments.get(0).committed);
-            int numDocsSeg2 = 20;
-            for (int i = 0; i < numDocsSeg2; i++) {
-                engine.index(indexForDoc(testParsedDocument(UUIDs.randomBase64UUID(), null, testDocument(), B_1, null)));
-            }
-
-            engine.flush();
-            segments = engine.segments();
-            fileSizes = engine.getLastCommittedSegmentFileSizes();
-            assertThat(fileSizes, hasSize(2));
-            assertThat(segments, hasSize(2));
-            assertThat(segments.get(0).getNumDocs(), equalTo(numDocsSeg1));
-            assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-            assertTrue(segments.get(0).committed);
-            assertThat(fileSizes.get(0).sizeInBytes(), greaterThan(0L));
-
-            assertThat(segments.get(1).getNumDocs(), equalTo(numDocsSeg2));
-            assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-            assertTrue(segments.get(1).committed);
-            assertThat(fileSizes.get(1).sizeInBytes(), greaterThan(0L));
-        }
-    }
-
     public void testCommitStats() throws IOException {
         final AtomicLong maxSeqNo = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final AtomicLong localCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);

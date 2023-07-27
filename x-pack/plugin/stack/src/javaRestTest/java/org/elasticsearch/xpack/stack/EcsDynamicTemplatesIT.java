@@ -44,10 +44,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class EcsDynamicTemplatesIT extends ESRestTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("mapper-extras")
-        .module("wildcard")
-        .build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("mapper-extras").module("wildcard").build();
 
     // The dynamic templates we test against
     public static final String ECS_DYNAMIC_TEMPLATES_FILE = "/ecs-dynamic-mappings.json";
@@ -105,8 +102,10 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         Map<String, ?> ecsFlatFieldsRawMap;
         URL ecsDefinitionsFlatFileUrl = new URL(ECS_FLAT_FILE_URL);
         try (InputStream ecsDynamicTemplatesIS = ecsDefinitionsFlatFileUrl.openStream()) {
-            try (XContentParser parser = XContentFactory.xContent(XContentType.YAML)
-                    .createParser(XContentParserConfiguration.EMPTY, ecsDynamicTemplatesIS)) {
+            try (
+                XContentParser parser = XContentFactory.xContent(XContentType.YAML)
+                    .createParser(XContentParserConfiguration.EMPTY, ecsDynamicTemplatesIS)
+            ) {
                 ecsFlatFieldsRawMap = parser.map();
             }
         }

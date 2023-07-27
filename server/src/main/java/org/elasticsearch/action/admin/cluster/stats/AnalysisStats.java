@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.synonyms.SynonymsAPI;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,7 +36,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
-import static org.elasticsearch.TransportVersion.V_8_500_040;
+import static org.elasticsearch.TransportVersion.V_8_500_044;
 
 /**
  * Statistics about analysis usage.
@@ -45,7 +44,7 @@ import static org.elasticsearch.TransportVersion.V_8_500_040;
 public final class AnalysisStats implements ToXContentFragment, Writeable {
 
     static final String[] SYNONYM_RULES_TYPES = { "synonyms_set", "synonyms_path", "synonyms" };
-    private static final TransportVersion SYNONYM_SETS_VERSION = V_8_500_040;
+    private static final TransportVersion SYNONYM_SETS_VERSION = V_8_500_044;
 
     private static final Set<String> SYNONYM_FILTER_TYPES = Set.of("synonym", "synonym_graph");
 
@@ -131,15 +130,13 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             Map<String, Settings> tokenFilterSettings = indexSettings.getGroups("index.analysis.filter");
             usedBuiltInTokenFilters.keySet().removeAll(tokenFilterSettings.keySet());
             aggregateAnalysisTypes(tokenFilterSettings.values(), usedTokenFilterTypes, indexTokenFilterTypes);
-            if (SynonymsAPI.isEnabled()) {
-                aggregateSynonymsSetStats(
-                    tokenFilterSettings.values(),
-                    usedSynonyms,
-                    indexMetadata.getIndex().getName(),
-                    synonymsIdsUsed,
-                    synonymsIdsUsedInIndices
-                );
-            }
+            aggregateSynonymsSetStats(
+                tokenFilterSettings.values(),
+                usedSynonyms,
+                indexMetadata.getIndex().getName(),
+                synonymsIdsUsed,
+                synonymsIdsUsedInIndices
+            );
             countMapping(mappingCounts, indexMetadata);
         }
         for (Map.Entry<MappingMetadata, Integer> mappingAndCount : mappingCounts.entrySet()) {

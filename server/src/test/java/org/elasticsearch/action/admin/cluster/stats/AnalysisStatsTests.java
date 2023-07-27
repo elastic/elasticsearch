@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;

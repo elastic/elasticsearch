@@ -18,8 +18,10 @@ Deletes an existing trained {infer} model.
 [[ml-delete-trained-models-prereq]]
 == {api-prereq-title}
 
-Requires the `manage_ml` cluster privilege. This privilege is included in the 
+* Requires the `manage_ml` cluster privilege. This privilege is included in the
 `machine_learning_admin` built-in role.
+* If the {es} {security-features} are enabled, you must have the `monitor` or `manage`, and
+`task_cancel` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 
 [[ml-delete-trained-models-path-params]]

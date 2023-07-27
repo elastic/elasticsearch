@@ -3,10 +3,6 @@ minimal:
     # This is always required because the REST client uses it to find the version of
     # Elasticsearch it's talking to
     - cluster:monitor/main
-    # This is needed to list the tasks for the put and delete trained model apis
-    - manage
-    # This is need for the delete trained model api
-    - cancel_task
   indices:
     # Give all users involved in these tests access to the indices where the data to
     # be analyzed is stored, because the ML roles alone do not provide access to
@@ -20,3 +16,10 @@ minimal:
         - view_index_metadata
         - indices:data/write/bulk
         - indices:data/write/index
+
+task-management:
+  cluster:
+    # This is needed to list the tasks for the put and delete trained model apis
+    - manage
+    # This is need for the delete trained model api
+    - cancel_task

@@ -23,8 +23,10 @@ WARNING: Models created in version 7.8.0 are not backwards compatible
 [[ml-put-trained-models-prereq]]
 == {api-prereq-title}
 
-Requires the `manage_ml` cluster privilege. This privilege is included in the
+* Requires the `manage_ml` cluster privilege. This privilege is included in the
 `machine_learning_admin` built-in role.
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 
 [[ml-put-trained-models-desc]]

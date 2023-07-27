@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.Version
+
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
@@ -253,7 +254,7 @@ testClusters.configureEach {
   testDistribution = 'DEFAULT'
   rolesFile file('roles.yml')
   user username: "x_pack_rest_user", password: "x-pack-test-password"
-  user username: "ml_admin", password: "x-pack-test-password", role: "minimal,machine_learning_admin,ingest_admin"
+  user username: "ml_admin", password: "x-pack-test-password", role: "task-management,minimal,machine_learning_admin,ingest_admin"
   user username: "ml_user", password: "x-pack-test-password", role: "minimal,machine_learning_user"
   user username: "no_ml", password: "x-pack-test-password", role: "minimal"
   setting 'xpack.license.self_generated.type', 'trial'

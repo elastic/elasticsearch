@@ -23,7 +23,8 @@ public interface DocumentReporter {
     };
 
     /**
-     * Decorates a provided xContentParser with additional logic (gather some state). The Decorator parser should use a state from DocumentReporter
+     * Decorates a provided xContentParser with additional logic (gather some state).
+     * The Decorator parser should use a state from DocumentReporter
      * in order to allow a reportDocumentParsed method to use that state
      * @param xContentParser to be decorated
      * @return a decorator xContentParser

@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
@@ -63,7 +64,7 @@ import java.util.TreeMap;
  * If you revert a commit with a ML config version change, you <em>must</em> ensure there is a <em>new</em> ML config version
  * representing the reverted change. <em>Do not</em> let the ML config version go backwards, it must <em>always</em> be incremented.
  */
-public record MlConfigVersion(int id, boolean isLegacy) implements Comparable<MlConfigVersion>, ToXContentFragment {
+public record MlConfigVersion(int id, boolean isLegacy) implements VersionId, Comparable<MlConfigVersion>, ToXContentFragment {
 
     public MlConfigVersion(int id) {
         this(id, false);

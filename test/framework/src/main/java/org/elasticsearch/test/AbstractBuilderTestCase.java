@@ -65,7 +65,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.plugins.internal.metering.DocumentReporterFactory;
+import org.elasticsearch.plugins.internal.documentreporting.DocumentReporterFactory;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptService;

@@ -14,7 +14,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
-import org.elasticsearch.plugins.internal.metering.DocumentReporterFactory;
+import org.elasticsearch.plugins.internal.documentreporting.DocumentReporterFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;

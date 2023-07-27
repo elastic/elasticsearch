@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.internal.metering;
+package org.elasticsearch.plugins.internal.documentreporting;
 
 /**
  * An internal plugin that will return a DocumentReporterFactory. This allows to implement a reporting upon document parsing

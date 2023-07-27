@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.internal.metering;
+package org.elasticsearch.plugins.internal.documentreporting;
 
 import org.elasticsearch.xcontent.XContentParser;
 

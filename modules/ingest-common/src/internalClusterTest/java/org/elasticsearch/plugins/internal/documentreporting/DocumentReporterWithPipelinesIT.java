@@ -15,9 +15,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.internal.metering.DocumentReporter;
-import org.elasticsearch.plugins.internal.metering.DocumentReporterFactory;
-import org.elasticsearch.plugins.internal.metering.DocumentReporterPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,7 +25,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xcontent.XContentFactory.cborBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -38,7 +34,7 @@ public class DocumentReporterWithPipelinesIT extends ESIntegTestCase {
     private static String TEST_INDEX_NAME = "test-index-name";
 
     public void testDocumentIsReportedWithPipelines() throws IOException {
-        //pipeline adding fields, changing destination is not affecting reporting
+        // pipeline adding fields, changing destination is not affecting reporting
         final BytesReference pipelineBody = new BytesArray("""
             {
               "processors": [
@@ -59,16 +55,13 @@ public class DocumentReporterWithPipelinesIT extends ESIntegTestCase {
             """);
         clusterAdmin().putPipeline(new PutPipelineRequest("pipeline", pipelineBody, XContentType.JSON)).actionGet();
 
-
-        client().index(new IndexRequest(TEST_INDEX_NAME)
-                .setPipeline("pipeline")
+        client().index(
+            new IndexRequest(TEST_INDEX_NAME).setPipeline("pipeline")
                 .id("1")
-                .source(jsonBuilder().startObject()
-                    .field("test", "I am sam i am")
-                    .endObject()))
-            .actionGet();
+                .source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
+        ).actionGet();
 
-        //assertion in a TestDocumentReporter
+        // assertion in a TestDocumentReporter
     }
 
     @Override
@@ -78,25 +71,30 @@ public class DocumentReporterWithPipelinesIT extends ESIntegTestCase {
 
     public static class TestDocumentReporterPlugin extends Plugin implements DocumentReporterPlugin, IngestPlugin {
 
-        public TestDocumentReporterPlugin() {
-        }
+        private static final TestDocumentReporter documentReporter = new TestDocumentReporter();
+
+        public TestDocumentReporterPlugin() {}
 
         @Override
         public DocumentReporterFactory getDocumentReporter() {
-            return () -> new TestDocumentReporter();
+            // returns a static instance, because we want to assert that the wrapping is called only once
+            return () -> documentReporter;
         }
 
     }
 
     public static class TestDocumentReporter implements DocumentReporter {
-        public long counter = 0;
+        long mapCounter = 0;
+        long wrapperCounter = 0;
 
         @Override
         public XContentParser wrapParser(XContentParser xContentParser) {
+            wrapperCounter++;
+
             return new FilterXContentParserWrapper(xContentParser) {
                 @Override
                 public Map<String, Object> map() throws IOException {
-                    counter++;
+                    mapCounter++;
                     return super.map();
                 }
             };
@@ -105,10 +103,14 @@ public class DocumentReporterWithPipelinesIT extends ESIntegTestCase {
         @Override
         public void reportDocumentParsed(String indexName) {
             assertThat(indexName, equalTo(TEST_INDEX_NAME));
-            assertThat(counter, equalTo(1L));
+            assertThat(mapCounter, equalTo(1L));
+
+            assertThat(
+                "we only want to use a wrapped counter once, once document is reported it no longer needs to wrap",
+                wrapperCounter,
+                equalTo(1L)
+            );
         }
     }
-
-
 
 }

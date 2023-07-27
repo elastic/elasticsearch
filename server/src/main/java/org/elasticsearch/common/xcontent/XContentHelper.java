@@ -20,7 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.plugins.internal.metering.DocumentReporter;
+import org.elasticsearch.plugins.internal.documentreporting.DocumentReporter;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -139,7 +139,7 @@ public class XContentHelper {
      * Exactly the same as {@link XContentHelper#convertToMap(BytesReference, boolean, XContentType, Set, Set)} but
      * none of the fields are filtered
      */
-    public static Tuple<XContentType, Map<String, Object>> convertToMapAndMeter(
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(
         BytesReference bytes,
         boolean ordered,
         XContentType xContentType,

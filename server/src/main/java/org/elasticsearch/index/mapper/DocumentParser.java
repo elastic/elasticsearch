@@ -19,8 +19,8 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.plugins.internal.metering.DocumentReporter;
-import org.elasticsearch.plugins.internal.metering.DocumentReporterFactory;
+import org.elasticsearch.plugins.internal.documentreporting.DocumentReporter;
+import org.elasticsearch.plugins.internal.documentreporting.DocumentReporterFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -73,7 +73,11 @@ public final class DocumentParser {
         }
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
-        DocumentReporter documentReporter = documentReporterFactory.createDocumentReporter();
+
+        // only report a document if it was not already reported (done in IngestService)
+        DocumentReporter documentReporter = source.isAlreadyReported()
+            ? DocumentReporter.EMPTY_INSTANCE
+            : documentReporterFactory.createDocumentReporter();
         try (
             XContentParser parser = documentReporter.wrapParser(
                 XContentHelper.createParser(parserConfiguration, source.source(), xContentType)
@@ -93,7 +97,9 @@ public final class DocumentParser {
         assert context.path.pathAsText("").isEmpty() : "found leftover path elements: " + context.path.pathAsText("");
 
         Mapping dynamicUpdate = createDynamicUpdate(context);
-        if (shouldReportDocumentParsed(source, dynamicUpdate)) {
+
+        // if a mappingUpdate is required, the parsing will be triggered again
+        if (dynamicUpdate == null) {
             documentReporter.reportDocumentParsed(mappingParserContext.getIndexSettings().getIndex().getName());
         }
         return new ParsedDocument(
@@ -112,12 +118,6 @@ public final class DocumentParser {
                 return idMapper.documentDescription(this);
             }
         };
-    }
-
-    // only report a document if it was not already reported (ingestService) or there will be no mapping update (requires a second parsing)
-    private static boolean shouldReportDocumentParsed(SourceToParse source, Mapping dynamicUpdate) {
-        return source.isAlreadyReported() == false // metering was done in ingestService
-            && dynamicUpdate == null; // if a mappingUpdate is required, the parsing will be triggered again
     }
 
     private static void internalParseDocument(MetadataFieldMapper[] metadataFieldsMappers, DocumentParserContext context) {

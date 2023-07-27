@@ -28,7 +28,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.ProcessorInfo;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.metering.DocumentReporterFactory;
+import org.elasticsearch.plugins.internal.documentreporting.DocumentReporterFactory;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;

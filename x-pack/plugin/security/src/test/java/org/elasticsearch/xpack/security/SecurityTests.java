@@ -49,7 +49,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.internal.metering.DocumentReporterFactory;
+import org.elasticsearch.plugins.internal.documentreporting.DocumentReporterFactory;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;

@@ -9,14 +9,8 @@
 package org.elasticsearch.plugins.internal.documentreporting;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.internal.metering.DocumentReporter;
-import org.elasticsearch.plugins.internal.metering.DocumentReporterFactory;
-import org.elasticsearch.plugins.internal.metering.DocumentReporterPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
@@ -36,32 +30,25 @@ public class DocumentReporterIT extends ESIntegTestCase {
     private static String TEST_INDEX_NAME = "test-index-name";
 
     public void testDocumentIsReportedUponBulk() throws IOException {
-        client().index(new IndexRequest(TEST_INDEX_NAME).id("1")
-                .source(jsonBuilder().startObject()
-                    .field("test", "I am sam i am")
-                    .endObject()))
-            .actionGet();
+        client().index(
+            new IndexRequest(TEST_INDEX_NAME).id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
+        ).actionGet();
 
         // the format of the request does not matter
-        client().index(new IndexRequest(TEST_INDEX_NAME).id("2")
-                .source(cborBuilder().startObject()
-                    .field("test", "I am sam i am")
-                    .endObject()))
-            .actionGet();
+        client().index(
+            new IndexRequest(TEST_INDEX_NAME).id("2").source(cborBuilder().startObject().field("test", "I am sam i am").endObject())
+        ).actionGet();
 
         // white spaces does not matter
-        client().index(new IndexRequest(TEST_INDEX_NAME).id("3")
-                .source(
-                    """
-                        {
-                        "test":
+        client().index(new IndexRequest(TEST_INDEX_NAME).id("3").source("""
+            {
+            "test":
 
-                        "I am sam i am"
-                        }
-                        """, XContentType.JSON))
-            .actionGet();
+            "I am sam i am"
+            }
+            """, XContentType.JSON)).actionGet();
 
-        //assertion in a TestDocumentReporter
+        // assertion in a TestDocumentReporter
     }
 
     @Override
@@ -71,8 +58,7 @@ public class DocumentReporterIT extends ESIntegTestCase {
 
     public static class TestDocumentReporterPlugin extends Plugin implements DocumentReporterPlugin, IngestPlugin {
 
-        public TestDocumentReporterPlugin() {
-        }
+        public TestDocumentReporterPlugin() {}
 
         @Override
         public DocumentReporterFactory getDocumentReporter() {

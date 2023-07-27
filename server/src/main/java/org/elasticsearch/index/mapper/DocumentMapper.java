@@ -10,7 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.plugins.internal.metering.DocumentReporterFactory;
+import org.elasticsearch.plugins.internal.documentreporting.DocumentReporterFactory;
 
 import java.util.List;
 

@@ -1,0 +1,91 @@
+[[delete-synoyms-set]]
+=== Delete Synonyms Set
+
+beta::[]
+
+++++
+<titleabbrev>Delete Synonyms Set</titleabbrev>
+++++
+
+Deletes a Synonyms Set.
+
+[[delete-synonyms-set-request]]
+==== {api-request-title}
+
+`DELETE _synonyms/<synonyms_set>`
+
+[[delete-synonyms-set-prereqs]]
+==== {api-prereq-title}
+
+* Requires the `manage_search_synonyms` cluster privilege.
+* You can only delete a Synonym Set that is not in use by any <<analysis-synonym-graph-tokenfilter,synonym graph token filters>> and <<analysis-synonym-tokenfilter,synonym token filters>> that are included in an analyzer. See <<delete-synonym-set-analyzer-requirements>> for more information.
+
+[[delete-synonyms-set-path-params]]
+==== {api-path-parms-title}
+
+`<synonyms_set>`::
+(Required, string)
+Synonyms set identifier to delete.
+
+
+[[delete-synonyms-set-response-codes]]
+==== {api-response-codes-title}
+
+`400`::
+The `synonyms_set` identifier was not provided, or the Synonyms Set can't be deleted because it does not meet the <<delete-synonym-set-analyzer-requirements>>.
+
+`404` (Missing resources)::
+No Synonyms Set with the identifier `synonyms_set` was found.
+
+[[delete-synonyms-set-example]]
+==== {api-examples-title}
+
+The following example deletes a Synonyms Set called `my-synonyms-set`:
+
+[source,console]
+----
+DELETE _synonyms/my-synonyms-set
+----
+
+
+[discrete]
+[[delete-synonym-set-analyzer-requirements]]
+==== Delete Synonyms Set analyzer requirements
+
+Synonyms Sets can be used in  <<analysis-synonym-graph-tokenfilter,synonym graph token filters>> and <<analysis-synonym-tokenfilter,synonym token filters>>.
+These synonym filters can be used as part of <<search-analyzer, search analyzers>>.
+
+Analyzers need to be loaded when an index is restored (such as when a node starts, or the index becomes open).
+Even if the analyzer is not used on any field mapping, it still needs to be loaded on the index recovery phase.
+
+In case analyzers can't be loaded, the index would not be made available and the cluster status would become <<red-yellow-cluster-status,red or yellow>> as index shards would not be available.
+
+To prevent that, Synonyms Sets that are used in analyzers can't be deleted.
+A delete request in this case will return a `400` response code with the following error message:
+
+[source,console-result]
+----
+{
+  "error": {
+    "root_cause": [
+      {
+        "type": "illegal_argument_exception",
+        "reason": "Synonym set [my-synonyms-set] cannot be deleted as it is used in the following indices: index-1, index-2"
+      }
+    ],
+    "type": "illegal_argument_exception",
+    "reason": "Synonym set [my-synonyms-set] cannot be deleted as it is used in the following indices: index-1, index-2"
+  },
+  "status": 400
+}
+----
+// TEST[skip:TBD]
+
+In order to remove a Synonyms Set that is being used in a token filter used by an analyzer, the only option would be to remove the index that contains the analyzer.
+You can create a new index that does not contain the token filter with the Synonyms Set, and use the <<docs-reindex>> in order to copy over the index data.
+Once finished, you can delete the index.
+
+When the Synonyms Set is not used in analyzers, you will be able to delete it.
+
+
+

@@ -56,6 +56,8 @@ public class DateHistorgramFieldCollectorTests extends ESTestCase {
     final double MAX_TIMESTAMP_VALUE = 302_525;
     final double EXPECTED_LOWER_BOUND = 120_000;
 
+    final double EXPECTED_UPPER_BOUND = 360_000;
+
     @Before
     public void setUpDateHistogramFieldCollectorTests() {
         when(minTimestamp.getName()).thenReturn("_transform_change_collector.output_timestamp.min");
@@ -83,7 +85,7 @@ public class DateHistorgramFieldCollectorTests extends ESTestCase {
         // checkpoints are provided although are not used in this case
         QueryBuilder queryBuilder = buildFilterQuery(collector);
 
-        assertQuery(queryBuilder, EXPECTED_LOWER_BOUND, MAX_TIMESTAMP_VALUE, TIMESTAMP);
+        assertQuery(queryBuilder, EXPECTED_LOWER_BOUND, EXPECTED_UPPER_BOUND, TIMESTAMP);
     }
 
     public void testWhenOutputAndSyncFieldSame() {
@@ -95,7 +97,7 @@ public class DateHistorgramFieldCollectorTests extends ESTestCase {
         collector.processSearchResponse(response);
         QueryBuilder queryBuilder = buildFilterQuery(collector);
 
-        assertQuery(queryBuilder, EXPECTED_LOWER_BOUND, MAX_TIMESTAMP_VALUE, TIMESTAMP);
+        assertQuery(queryBuilder, EXPECTED_LOWER_BOUND, EXPECTED_UPPER_BOUND, TIMESTAMP);
     }
 
     public void testMissingBucketDisablesOptimization() {

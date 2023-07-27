@@ -12,7 +12,9 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -96,6 +98,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         ecsDynamicTemplates = (Map<String, Object>) dynamicTemplates;
     }
 
+    @SuppressForbidden(reason = "Opening socket connection to read ECS definitions from ECS GitHub repo")
     private static void prepareEcsDefinitions() throws IOException {
         Map<String, ?> ecsFlatFieldsRawMap;
         URL ecsDefinitionsFlatFileUrl = new URL(ECS_FLAT_FILE_URL);
@@ -221,7 +224,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
                 return DateFormatter.forPattern("strict_date_optional_time").formatMillis(System.currentTimeMillis());
             }
             case "ip" -> {
-                return randomIp(true).getHostAddress();
+                return NetworkAddress.format(randomIp(true));
             }
             case "boolean", "bool" -> {
                 return randomBoolean();
@@ -261,17 +264,17 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             Map<String, Object> actualMappings = shallowCopy.remove(fieldName);
             if (actualMappings == null) {
                 // todo - replace with counting
-                System.out.println("Field " + fieldName + " doesn't have mappings");
+                logger.error("Field " + fieldName + " doesn't have mappings");
             } else {
                 String actualType = (String) actualMappings.get("type");
                 if (fieldType.equals(actualType) == false) {
                     // todo - replace with counting
-                    System.out.printf("Field %s should have type %s but has type %s\n", fieldName, fieldType, actualType);
+                    logger.error("Field {} should have type {} but has type {}", fieldName, fieldType, actualType);
                 }
             }
         });
         if (shallowCopy.isEmpty() == false) {
-            shallowCopy.keySet().forEach(field -> System.out.println("field " + field + " doesn't have ECS definitions"));
+            shallowCopy.keySet().forEach(field -> logger.error("field " + field + " doesn't have ECS definitions"));
         }
         // todo - count all misses and prepare a single report, only then assert for all misses
         // todo - look for the "multi_fields" entry in ecsFlatFieldDefinitions and verify that as well

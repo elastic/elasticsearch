@@ -25,7 +25,6 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
-import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
@@ -68,6 +67,7 @@ import org.elasticsearch.transport.Transports;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -178,25 +178,9 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    /**
-     * Returns the file sizes for the current commit
-     */
-    public long getLastCommitSizeInBytes() {
-        SegmentInfos segmentInfos = getLastCommittedSegmentInfos();
-        long total = 0;
-        for (final SegmentCommitInfo commitInfo : segmentInfos) {
-            try {
-                total += commitInfo.sizeInBytes();
-            } catch (IOException err) {
-                logger.warn(
-                    "Failed to read file size for shard: [{}], id: [{}], err: [{}]",
-                    shardId,
-                    StringHelper.idToString(commitInfo.getId()),
-                    err
-                );
-            }
-        }
-        return total;
+    /** Returns the SegmentCommitInfo list for the current commit */
+    public List<SegmentCommitInfo> getLastCommittedSegmentInfoList() {
+        return new ArrayList<>(getLastCommittedSegmentInfos().asList());
     }
 
     protected final DocsStats docsStats(IndexReader indexReader) {

@@ -11,7 +11,7 @@
     "mappings": {
       "_meta": {
         "version": "${fleet.version}",
-        "system-index-mappings-version": ${fleet.system.index.version}
+        "system_index_mappings_version": ${fleet.system.index.version}
       },
       "dynamic": false,
       "properties": {

@@ -85,7 +85,8 @@ class ModelImporter {
                 definition,
                 part,
                 size,
-                totalParts
+                totalParts,
+                true
             );
 
             executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest);
@@ -119,7 +120,8 @@ class ModelImporter {
             definition,
             totalParts - 1,
             size,
-            totalParts
+            totalParts,
+            true
         );
 
         executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, finalModelPartRequest);
@@ -135,7 +137,8 @@ class ModelImporter {
             modelId,
             vocabularyAndMerges.v1(),
             vocabularyAndMerges.v2(),
-            List.of()
+            List.of(),
+            true
         );
 
         executeRequestIfNotCancelled(PutTrainedModelVocabularyAction.INSTANCE, request);

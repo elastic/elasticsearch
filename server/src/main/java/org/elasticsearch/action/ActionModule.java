@@ -456,7 +456,6 @@ import org.elasticsearch.rest.action.synonyms.RestGetSynonymsAction;
 import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
-import org.elasticsearch.synonyms.SynonymsAPI;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
@@ -799,15 +798,13 @@ public class ActionModule extends AbstractModule {
         actions.register(FetchHealthInfoCacheAction.INSTANCE, FetchHealthInfoCacheAction.TransportAction.class);
 
         // Synonyms
-        if (SynonymsAPI.isEnabled()) {
-            actions.register(PutSynonymsAction.INSTANCE, TransportPutSynonymsAction.class);
-            actions.register(GetSynonymsAction.INSTANCE, TransportGetSynonymsAction.class);
-            actions.register(DeleteSynonymsAction.INSTANCE, TransportDeleteSynonymsAction.class);
-            actions.register(GetSynonymsSetsAction.INSTANCE, TransportGetSynonymsSetsAction.class);
-            actions.register(PutSynonymRuleAction.INSTANCE, TransportPutSynonymRuleAction.class);
-            actions.register(GetSynonymRuleAction.INSTANCE, TransportGetSynonymRuleAction.class);
-            actions.register(DeleteSynonymRuleAction.INSTANCE, TransportDeleteSynonymRuleAction.class);
-        }
+        actions.register(PutSynonymsAction.INSTANCE, TransportPutSynonymsAction.class);
+        actions.register(GetSynonymsAction.INSTANCE, TransportGetSynonymsAction.class);
+        actions.register(DeleteSynonymsAction.INSTANCE, TransportDeleteSynonymsAction.class);
+        actions.register(GetSynonymsSetsAction.INSTANCE, TransportGetSynonymsSetsAction.class);
+        actions.register(PutSynonymRuleAction.INSTANCE, TransportPutSynonymRuleAction.class);
+        actions.register(GetSynonymRuleAction.INSTANCE, TransportGetSynonymRuleAction.class);
+        actions.register(DeleteSynonymRuleAction.INSTANCE, TransportDeleteSynonymRuleAction.class);
 
         return unmodifiableMap(actions.getRegistry());
     }
@@ -1019,15 +1016,13 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCatAction(catActions));
 
         // Synonyms
-        if (SynonymsAPI.isEnabled()) {
-            registerHandler.accept(new RestPutSynonymsAction());
-            registerHandler.accept(new RestGetSynonymsAction());
-            registerHandler.accept(new RestDeleteSynonymsAction());
-            registerHandler.accept(new RestGetSynonymsSetsAction());
-            registerHandler.accept(new RestPutSynonymRuleAction());
-            registerHandler.accept(new RestGetSynonymRuleAction());
-            registerHandler.accept(new RestDeleteSynonymRuleAction());
-        }
+        registerHandler.accept(new RestPutSynonymsAction());
+        registerHandler.accept(new RestGetSynonymsAction());
+        registerHandler.accept(new RestDeleteSynonymsAction());
+        registerHandler.accept(new RestGetSynonymsSetsAction());
+        registerHandler.accept(new RestPutSynonymRuleAction());
+        registerHandler.accept(new RestGetSynonymRuleAction());
+        registerHandler.accept(new RestDeleteSynonymRuleAction());
     }
 
     /**

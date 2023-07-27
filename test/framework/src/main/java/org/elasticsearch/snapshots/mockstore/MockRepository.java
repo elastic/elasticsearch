@@ -60,6 +60,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 public class MockRepository extends FsRepository {
     private static final Logger logger = LogManager.getLogger(MockRepository.class);
@@ -107,10 +109,11 @@ public class MockRepository extends FsRepository {
     private volatile double randomControlIOExceptionRate;
 
     private volatile double randomDataFileIOExceptionRate;
+    private volatile Predicate<String> randomIOExceptionPattern;
 
-    private final boolean useLuceneCorruptionException;
+    private volatile boolean useLuceneCorruptionException;
 
-    private final long maximumNumberOfFailures;
+    private volatile long maximumNumberOfFailures;
 
     private final long waitAfterUnblock;
 
@@ -177,6 +180,7 @@ public class MockRepository extends FsRepository {
         super(overrideSettings(metadata, environment), environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         randomControlIOExceptionRate = metadata.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = metadata.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
+        randomIOExceptionPattern = Pattern.compile(metadata.settings().get("random_io_exception_pattern", ".*")).asMatchPredicate();
         useLuceneCorruptionException = metadata.settings().getAsBoolean("use_lucene_corruption", false);
         maximumNumberOfFailures = metadata.settings().getAsLong("max_failure_number", 100L);
         blockOnAnyFiles = metadata.settings().getAsBoolean("block_on_control", false);
@@ -250,14 +254,29 @@ public class MockRepository extends FsRepository {
         this.notifyAll();
     }
 
+    public void setMaximumNumberOfFailures(long maximumNumberOfFailures) {
+        logger.debug("Setting maximum number of failures to [{}]", maximumNumberOfFailures);
+        this.maximumNumberOfFailures = maximumNumberOfFailures;
+    }
+
+    public void setUseLuceneCorruptionException(boolean useLuceneCorruptionException) {
+        logger.debug("Setting using lucene corruption exception to [{}]", useLuceneCorruptionException);
+        this.useLuceneCorruptionException = useLuceneCorruptionException;
+    }
+
     public void setRandomControlIOExceptionRate(double randomControlIOExceptionRate) {
         logger.debug("Setting random control I/O exception rate to [{}]", randomControlIOExceptionRate);
         this.randomControlIOExceptionRate = randomControlIOExceptionRate;
     }
 
     public void setRandomDataFileIOExceptionRate(double randomDataFileIOExceptionRate) {
-        logger.debug("Setting data file I/O exception rate to [{}]", randomDataFileIOExceptionRate);
+        logger.debug("Setting random data file I/O exception rate to [{}]", randomDataFileIOExceptionRate);
         this.randomDataFileIOExceptionRate = randomDataFileIOExceptionRate;
+    }
+
+    public void setRandomIOExceptionPattern(String randomIOExceptionPattern) {
+        logger.debug("Setting random I/O exception pattern to [{}]", randomIOExceptionPattern);
+        this.randomIOExceptionPattern = Pattern.compile(randomIOExceptionPattern).asMatchPredicate();
     }
 
     public void blockOnDataFiles() {
@@ -401,11 +420,22 @@ public class MockRepository extends FsRepository {
                 if (probability > 0.0) {
                     String path = path().add(blobName).buildAsString() + randomPrefix;
                     path += "/" + incrementAndGet(path);
-                    logger.info("checking [{}] [{}]", path, Math.abs(hashCode(path)) < Integer.MAX_VALUE * probability);
-                    return Math.abs(hashCode(path)) < Integer.MAX_VALUE * probability;
-                } else {
-                    return false;
+                    if (Math.abs(hashCode(path)) < Integer.MAX_VALUE * probability) {
+                        if (randomIOExceptionPattern.test(path)) {
+                            if (incrementAndGetFailureCount() <= maximumNumberOfFailures) {
+                                logger.info("failing [{}]", path);
+                                return true;
+                            } else {
+                                logger.info("did not fail [{}] because failure count larger than maximum", path);
+                            }
+                        } else {
+                            logger.info("did not fail [{}] because it does not match the pattern", path);
+                        }
+                    } else {
+                        logger.info("did not fail [{}] due to probability", path);
+                    }
                 }
+                return false;
             }
 
             private int hashCode(String path) {
@@ -426,7 +456,7 @@ public class MockRepository extends FsRepository {
                     return;
                 }
                 if (blobName.startsWith("__")) {
-                    if (shouldFail(blobName, randomDataFileIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
+                    if (shouldFail(blobName, randomDataFileIOExceptionRate)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
                         if (useLuceneCorruptionException) {
                             throw new CorruptIndexException("Random corruption", "random file");
@@ -439,7 +469,7 @@ public class MockRepository extends FsRepository {
                         blockExecutionAndFail(blobName);
                     }
                 } else {
-                    if (shouldFail(blobName, randomControlIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
+                    if (shouldFail(blobName, randomControlIOExceptionRate)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
                         throw new IOException("Random IOException");
                     } else if (blockOnAnyFiles) {

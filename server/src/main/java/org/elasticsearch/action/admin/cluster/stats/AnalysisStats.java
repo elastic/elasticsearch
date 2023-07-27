@@ -130,7 +130,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             Map<String, Settings> tokenFilterSettings = indexSettings.getGroups("index.analysis.filter");
             usedBuiltInTokenFilters.keySet().removeAll(tokenFilterSettings.keySet());
             aggregateAnalysisTypes(tokenFilterSettings.values(), usedTokenFilterTypes, indexTokenFilterTypes);
-            aggregateSynonymsSetStats(
+            aggregateSynonymsStats(
                 tokenFilterSettings.values(),
                 usedSynonyms,
                 indexMetadata.getIndex().getName(),
@@ -196,7 +196,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         }
     }
 
-    private static void aggregateSynonymsSetStats(
+    private static void aggregateSynonymsStats(
         Collection<Settings> filterSettings,
         Map<String, SynonymsStats> synonymsStats,
         String indexName,

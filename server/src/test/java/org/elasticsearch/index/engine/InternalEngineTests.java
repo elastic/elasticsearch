@@ -510,6 +510,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(segments.get(1).committed, equalTo(committed));
         }
     }
+
     public void testCommitStats() throws IOException {
         final AtomicLong maxSeqNo = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final AtomicLong localCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);

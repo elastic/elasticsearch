@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -28,9 +29,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -225,15 +230,24 @@ public class IngestLoadSampler implements ClusterStateListener {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn("Unable to publish the latest index load", e);
+                        logger.log(getExceptionLogLevel(e), () -> "Unable to publish the latest index load", e);
                     }
                 });
             }
         } catch (Exception e) {
-            assert false : "unexpected exception";
+            logger.error("Unable to publish latest ingestion load", e);
+            assert false : e;
             clearInFlightPublicationTicket();
-            logger.warn("Unable to publish latest ingestion load", e);
         }
+    }
+
+    private static Level getExceptionLogLevel(Exception exception) {
+        return ExceptionsHelper.unwrap(
+            exception,
+            NodeClosedException.class,
+            ConnectTransportException.class,
+            MasterNotDiscoveredException.class
+        ) == null ? Level.WARN : Level.DEBUG;
     }
 
     private void clearInFlightPublicationTicket() {

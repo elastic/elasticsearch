@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -53,6 +54,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.ml.utils.TaskRetriever.getExistingTaskInfo;
 
 /**
@@ -176,6 +178,8 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
     static void cancelDownloadTask(Client client, String modelId, ActionListener<CancelTasksResponse> listener) {
         logger.debug(format("[%s] Checking if download task exists and cancelling it", modelId));
 
+        OriginSettingClient mlClient = new OriginSettingClient(client, ML_ORIGIN);
+
         ActionListener<TaskInfo> taskListener = ActionListener.wrap(taskInfo -> {
             if (taskInfo != null) {
                 ActionListener<CancelTasksResponse> cancelListener = ActionListener.wrap(
@@ -192,7 +196,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
 
                 logger.debug(format("[%s] Download task exists, cancelling it", modelId));
                 // setting waitForCompletion here to wait for the cancellation to complete before executing the listener
-                client.admin()
+                mlClient.admin()
                     .cluster()
                     .prepareCancelTasks()
                     .setTargetTaskId(taskInfo.taskId())
@@ -214,7 +218,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         );
 
         // setting waitForCompletion to false here so that we don't block waiting for an existing task to complete before returning it
-        getExistingTaskInfo(client, modelId, false, taskListener);
+        getExistingTaskInfo(mlClient, modelId, false, taskListener);
     }
 
     static Set<String> getReferencedModelKeys(IngestMetadata ingestMetadata, IngestService ingestService) {
@@ -259,7 +263,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
     private void forceStopDeployment(String modelId, ActionListener<StopTrainedModelDeploymentAction.Response> listener) {
         StopTrainedModelDeploymentAction.Request request = new StopTrainedModelDeploymentAction.Request(modelId);
         request.setForce(true);
-        ClientHelper.executeAsyncWithOrigin(client, ClientHelper.ML_ORIGIN, StopTrainedModelDeploymentAction.INSTANCE, request, listener);
+        ClientHelper.executeAsyncWithOrigin(client, ML_ORIGIN, StopTrainedModelDeploymentAction.INSTANCE, request, listener);
     }
 
     private void deleteAliasesAndModel(

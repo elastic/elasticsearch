@@ -80,9 +80,16 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<LifecyclePolicy> loadLifecycleConfigurations() {
-        return this.ilmHistoryEnabled
-            ? List.of(LIFECYCLE_POLICY_CONFIG.load(new NamedXContentRegistry(IndexLifecycle.NAMED_X_CONTENT_ENTRIES)))
-            : List.of();
+        return List.of(LIFECYCLE_POLICY_CONFIG.load(new NamedXContentRegistry(IndexLifecycle.NAMED_X_CONTENT_ENTRIES)));
+    }
+
+    @Override
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
+        if (ilmHistoryEnabled) {
+            return super.getLifecyclePolicies();
+        } else {
+            return List.of();
+        }
     }
 
     @Override

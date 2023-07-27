@@ -141,6 +141,11 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
+        return super.getLifecyclePolicies();
+    }
+
+    @Override
     protected boolean requiresMasterNode() {
         // We are using the composable index template and component APIs,
         // these APIs aren't supported in 7.7 and earlier and in mixed cluster

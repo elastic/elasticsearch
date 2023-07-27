@@ -26,10 +26,10 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.ALWAYS;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.CONTAINS;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.EXACT;
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.EXACT_FUZZY;
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.GLOBAL;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.FUZZY;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.GT;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.GTE;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.LT;
@@ -57,9 +57,9 @@ public class QueryRuleCriteriaTests extends ESTestCase {
         }
     }
 
-    public final void testGlobalSerialization() throws IOException {
+    public final void testAlwaysSerialization() throws IOException {
         for (int runs = 0; runs < 10; runs++) {
-            QueryRuleCriteria testInstance = SearchApplicationTestUtils.randomGlobalQueryRuleCriteria();
+            QueryRuleCriteria testInstance = new QueryRuleCriteria(ALWAYS, null, null);
             assertTransportSerialization(testInstance);
             assertXContent(testInstance, randomBoolean());
         }
@@ -83,10 +83,10 @@ public class QueryRuleCriteriaTests extends ESTestCase {
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
-    public void testGlobalToXContent() throws IOException {
+    public void testAlwaysToXContent() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
-              "type": "global"
+              "type": "always"
             }""");
 
         QueryRuleCriteria queryRuleCriteria = QueryRuleCriteria.fromXContentBytes(new BytesArray(content), XContentType.JSON);
@@ -112,7 +112,7 @@ public class QueryRuleCriteriaTests extends ESTestCase {
     }
 
     public void testFuzzyExactMatch() {
-        QueryRuleCriteriaType type = EXACT_FUZZY;
+        QueryRuleCriteriaType type = FUZZY;
         QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "query", List.of("elastic"));
         assertTrue(queryRuleCriteria.isMatch("elastic", type));
         assertTrue(queryRuleCriteria.isMatch("elasticc", type));
@@ -180,15 +180,15 @@ public class QueryRuleCriteriaTests extends ESTestCase {
         assertFalse(queryRuleCriteria.isMatch(5, type));
     }
 
-    public void testGlobalMatch() {
-        QueryRuleCriteriaType type = GLOBAL;
+    public void testAlwaysMatch() {
+        QueryRuleCriteriaType type = ALWAYS;
         QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, null, null);
         assertTrue(queryRuleCriteria.isMatch("elastic", type));
         assertTrue(queryRuleCriteria.isMatch(42, type));
     }
 
     public void testInvalidCriteriaInput() {
-        for (QueryRuleCriteriaType type : List.of(EXACT_FUZZY, PREFIX, SUFFIX, CONTAINS)) {
+        for (QueryRuleCriteriaType type : List.of(FUZZY, PREFIX, SUFFIX, CONTAINS)) {
             QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "foo", List.of("bar"));
             expectThrows(IllegalArgumentException.class, () -> queryRuleCriteria.isMatch(42, type));
         }

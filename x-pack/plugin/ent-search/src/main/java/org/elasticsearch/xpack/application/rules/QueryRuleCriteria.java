@@ -31,7 +31,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.GLOBAL;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.ALWAYS;
 
 public class QueryRuleCriteria implements Writeable, ToXContentObject {
     private final QueryRuleCriteriaType criteriaType;
@@ -44,15 +44,15 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
      *
      * @param criteriaType The {@link QueryRuleCriteriaType}, indicating how the criteria is matched
      * @param criteriaMetadata The metadata for this identifier, indicating the criteria key of what is matched against.
-     *                         Required unless the CriteriaType is GLOBAL.
+     *                         Required unless the CriteriaType is ALWAYS.
      * @param criteriaValues The values to match against when evaluating {@link QueryRuleCriteria} against a {@link QueryRule}
-     *                      Required unless the CriteriaType is GLOBAL.
+     *                      Required unless the CriteriaType is ALWAYS.
      */
     public QueryRuleCriteria(QueryRuleCriteriaType criteriaType, @Nullable String criteriaMetadata, @Nullable List<Object> criteriaValues) {
 
         Objects.requireNonNull(criteriaType);
 
-        if (criteriaType != GLOBAL) {
+        if (criteriaType != ALWAYS) {
             if (Strings.isNullOrEmpty(criteriaMetadata)) {
                 throw new IllegalArgumentException("criteriaMetadata cannot be blank");
             }
@@ -177,7 +177,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     }
 
     public boolean isMatch(Object matchValue, QueryRuleCriteriaType matchType) {
-        if (matchType == GLOBAL) {
+        if (matchType == ALWAYS) {
             return true;
         }
         final String matchString = matchValue.toString();

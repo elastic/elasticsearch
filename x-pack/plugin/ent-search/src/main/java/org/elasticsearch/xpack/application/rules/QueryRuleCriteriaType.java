@@ -16,7 +16,7 @@ import java.util.Locale;
  * Defines the different types of query rule criteria and their rules for matching input against the criteria.
  */
 public enum QueryRuleCriteriaType {
-    GLOBAL {
+    ALWAYS {
         @Override
         public boolean isMatch(Object input, Object criteriaValue) {
             return true;
@@ -32,7 +32,7 @@ public enum QueryRuleCriteriaType {
             }
         }
     },
-    EXACT_FUZZY {
+    FUZZY {
         @Override
         public boolean isMatch(Object input, Object criteriaValue) {
             final LevenshteinDistance ld = new LevenshteinDistance();
@@ -112,7 +112,7 @@ public enum QueryRuleCriteriaType {
     private boolean isValidForInput(Object input) {
         if (this == EXACT) {
             return input instanceof String || input instanceof Number;
-        } else if (List.of(EXACT_FUZZY, PREFIX, SUFFIX, CONTAINS).contains(this)) {
+        } else if (List.of(FUZZY, PREFIX, SUFFIX, CONTAINS).contains(this)) {
             return input instanceof String;
         } else if (List.of(LT, LTE, GT, GTE).contains(this)) {
             try {

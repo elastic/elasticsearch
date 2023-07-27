@@ -144,6 +144,10 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             return debug;
         }
 
+        public Map<String, List<String>> headers() {
+            return headers;
+        }
+
         private String header(String header) {
             final List<String> values = headers.get(header);
             if (values != null && values.isEmpty() == false) {
@@ -200,7 +204,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
                 && debug == that.debug
                 && eventTime == that.eventTime
                 && Objects.equals(eventType, that.eventType)
-                && Objects.equals(xContentType, that.xContentType)
+                && Objects.equals(xContentType.canonical(), that.xContentType.canonical())
                 && Objects.equals(payload, that.payload)
                 && Objects.equals(headers, that.headers)
                 && Objects.equals(clientAddress, that.clientAddress);
@@ -208,7 +212,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         @Override
         public int hashCode() {
-            return Objects.hash(eventCollectionName, eventType, debug, eventTime, xContentType, payload, headers, clientAddress);
+            return Objects.hash(eventCollectionName, eventType, debug, eventTime, xContentType.canonical(), payload, headers, clientAddress);
         }
 
         @Override

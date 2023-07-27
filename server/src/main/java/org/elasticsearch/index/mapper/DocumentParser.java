@@ -453,7 +453,28 @@ public final class DocumentParser {
                 dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
                 context.addDynamicMapper(dynamicObjectMapper);
             }
-
+            if (context.parent().subobjects() == false) {
+                if (dynamicObjectMapper instanceof NestedObjectMapper) {
+                    throw new DocumentParsingException(
+                        context.parser().getTokenLocation(),
+                        "Tried to add nested object ["
+                            + dynamicObjectMapper.simpleName()
+                            + "] to object ["
+                            + context.parent().name()
+                            + "] which does not support subobjects"
+                    );
+                }
+                if (dynamicObjectMapper instanceof ObjectMapper) {
+                    throw new DocumentParsingException(
+                        context.parser().getTokenLocation(),
+                        "Tried to add subobject ["
+                            + dynamicObjectMapper.simpleName()
+                            + "] to object ["
+                            + context.parent().name()
+                            + "] which does not support subobjects"
+                    );
+                }
+            }
             if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
                 throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper, context);
             }

@@ -653,7 +653,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             }
         }
 
-        private int getUploadIndex(String targetUploadId, List<MultipartUpload> multipartUploads) {
+        private static int getUploadIndex(String targetUploadId, List<MultipartUpload> multipartUploads) {
             var uploadIndex = 0;
             var found = false;
             for (MultipartUpload multipartUpload : multipartUploads) {

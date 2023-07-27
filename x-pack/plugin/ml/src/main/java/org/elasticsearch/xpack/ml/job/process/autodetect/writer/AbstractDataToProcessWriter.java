@@ -266,7 +266,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     /**
      * Find the indexes of the input fields from the header
      */
-    protected final Map<String, Integer> inputFieldIndexes(String[] header, Collection<String> inputFields) {
+    protected static Map<String, Integer> inputFieldIndexes(String[] header, Collection<String> inputFields) {
         List<String> headerList = Arrays.asList(header);  // TODO header could be empty
 
         Map<String, Integer> fieldIndexes = new HashMap<>();

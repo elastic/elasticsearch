@@ -94,7 +94,7 @@ public class TestingConventionsPrecommitPlugin extends PrecommitPlugin {
         });
     }
 
-    private void setupTaskForSourceSet(
+    private static void setupTaskForSourceSet(
         Project project,
         NamedDomainObjectProvider<SourceSet> sourceSetProvider,
         Action<TestingConventionsCheckTask> config

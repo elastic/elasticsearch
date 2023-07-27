@@ -83,7 +83,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     }
 
     @SuppressWarnings("unchecked")
-    private Object doTransformExpression(Object arg, Function<Expression, ? extends Expression> traversal) {
+    private static Object doTransformExpression(Object arg, Function<Expression, ? extends Expression> traversal) {
         if (arg instanceof Expression) {
             return traversal.apply((Expression) arg);
         }
@@ -138,7 +138,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     }
 
     @SuppressWarnings("unchecked")
-    private void doForEachExpression(Object arg, Consumer<Expression> traversal) {
+    private static void doForEachExpression(Object arg, Consumer<Expression> traversal) {
         if (arg instanceof Expression) {
             traversal.accept((Expression) arg);
         } else if (arg instanceof Collection<?> c) {

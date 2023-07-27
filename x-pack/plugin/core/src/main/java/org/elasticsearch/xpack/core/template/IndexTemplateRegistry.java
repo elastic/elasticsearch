@@ -628,7 +628,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         }
     }
 
-    private boolean pipelineDependenciesExist(ClusterState state, List<String> dependencies) {
+    private static boolean pipelineDependenciesExist(ClusterState state, List<String> dependencies) {
         for (String dependency : dependencies) {
             if (findInstalledPipeline(state, dependency) == null) {
                 return false;

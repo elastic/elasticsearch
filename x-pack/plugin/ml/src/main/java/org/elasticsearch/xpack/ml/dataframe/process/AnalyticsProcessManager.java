@@ -235,8 +235,11 @@ public class AnalyticsProcessManager {
         }
     }
 
-    private void writeDataRows(DataFrameDataExtractor dataExtractor, AnalyticsProcess<AnalyticsResult> process, DataFrameAnalyticsTask task)
-        throws IOException {
+    private static void writeDataRows(
+        DataFrameDataExtractor dataExtractor,
+        AnalyticsProcess<AnalyticsResult> process,
+        DataFrameAnalyticsTask task
+    ) throws IOException {
         ProgressTracker progressTracker = task.getStatsHolder().getProgressTracker();
         DataCountsTracker dataCountsTracker = task.getStatsHolder().getDataCountsTracker();
 
@@ -270,7 +273,7 @@ public class AnalyticsProcessManager {
         }
     }
 
-    private void writeHeaderRecord(
+    private static void writeHeaderRecord(
         DataFrameDataExtractor dataExtractor,
         AnalyticsProcess<AnalyticsResult> process,
         DataFrameAnalyticsTask task

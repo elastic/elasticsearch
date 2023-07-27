@@ -125,7 +125,7 @@ class S3BlobStore implements BlobStore {
         protected abstract void collectMetrics(Request<?> request);
     }
 
-    private long getRequestCount(Request<?> request) {
+    private static long getRequestCount(Request<?> request) {
         Number requestCount = request.getAWSRequestMetrics().getTimingInfo().getCounter(AWSRequestMetrics.Field.RequestCount.name());
         if (requestCount == null) {
             logger.warn("Expected request count to be tracked for request [{}] but found not count.", request);

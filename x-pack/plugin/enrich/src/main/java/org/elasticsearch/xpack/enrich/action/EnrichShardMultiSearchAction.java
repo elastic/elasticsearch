@@ -155,7 +155,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             return true;
         }
 
-        private SearchSourceBuilder copy(SearchSourceBuilder source) {
+        private static SearchSourceBuilder copy(SearchSourceBuilder source) {
             NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 source.writeTo(output);

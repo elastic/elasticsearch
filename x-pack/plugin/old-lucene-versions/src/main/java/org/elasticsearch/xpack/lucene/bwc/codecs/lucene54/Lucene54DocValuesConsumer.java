@@ -706,7 +706,7 @@ final class Lucene54DocValuesConsumer extends DocValuesConsumer implements Close
         }
     }
 
-    private SortedSet<LongsRef> uniqueValueSets(Iterable<Number> docToValueCount, Iterable<Number> values) {
+    private static SortedSet<LongsRef> uniqueValueSets(Iterable<Number> docToValueCount, Iterable<Number> values) {
         Set<LongsRef> uniqueValueSet = new HashSet<>();
         LongsRef docValues = new LongsRef(256);
 
@@ -753,7 +753,11 @@ final class Lucene54DocValuesConsumer extends DocValuesConsumer implements Close
         }
     }
 
-    private Iterable<Number> docToSetId(SortedSet<LongsRef> uniqueValueSets, Iterable<Number> docToValueCount, Iterable<Number> values) {
+    private static Iterable<Number> docToSetId(
+        SortedSet<LongsRef> uniqueValueSets,
+        Iterable<Number> docToValueCount,
+        Iterable<Number> values
+    ) {
         final Map<LongsRef, Integer> setIds = new HashMap<>();
         int i = 0;
         for (LongsRef set : uniqueValueSets) {

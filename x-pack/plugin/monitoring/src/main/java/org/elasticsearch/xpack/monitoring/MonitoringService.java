@@ -158,7 +158,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
         return isElasticsearchCollectionEnabled() && isMonitoringActive();
     }
 
-    private String threadPoolName() {
+    private static String threadPoolName() {
         return ThreadPool.Names.GENERIC;
     }
 

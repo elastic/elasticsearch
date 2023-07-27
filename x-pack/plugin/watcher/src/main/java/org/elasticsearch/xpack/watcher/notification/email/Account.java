@@ -173,7 +173,7 @@ public class Account {
         }
     }
 
-    private void setContextClassLoader(final ClassLoader classLoader) {
+    private static void setContextClassLoader(final ClassLoader classLoader) {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             // unprivileged code such as scripts do not have SpecialPermission

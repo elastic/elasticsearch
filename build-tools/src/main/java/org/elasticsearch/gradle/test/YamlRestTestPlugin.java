@@ -112,7 +112,7 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         );
     }
 
-    private TaskProvider<StandaloneRestIntegTestTask> setupTestTask(
+    private static TaskProvider<StandaloneRestIntegTestTask> setupTestTask(
         Project project,
         SourceSet testSourceSet,
         NamedDomainObjectProvider<ElasticsearchCluster> clusterProvider

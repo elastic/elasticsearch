@@ -45,7 +45,7 @@ public class ShapeQueryPointProcessor {
         return getVectorQueryFromShape(shape, fieldName, relation, context);
     }
 
-    private void validateIsPointFieldType(String fieldName, SearchExecutionContext context) {
+    private static void validateIsPointFieldType(String fieldName, SearchExecutionContext context) {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType instanceof PointFieldMapper.PointFieldType == false) {
             throw new QueryShardException(

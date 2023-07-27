@@ -165,7 +165,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         }));
     }
 
-    private SourceToParse createDocument(String fieldValue) throws Exception {
+    private static SourceToParse createDocument(String fieldValue) throws Exception {
         return source(b -> b.field("test", fieldValue));
     }
 

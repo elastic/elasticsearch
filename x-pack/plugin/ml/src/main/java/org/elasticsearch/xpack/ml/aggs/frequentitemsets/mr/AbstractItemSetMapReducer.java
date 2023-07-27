@@ -218,7 +218,7 @@ public abstract class AbstractItemSetMapReducer<
      * Signal the framework if the {@linkplain InternalAggregation#reduce(List, AggregationReduceContext)} phase needs to be called
      * when there is only one {@linkplain InternalAggregation}.
      */
-    final boolean mustReduceOnSingleInternalAgg() {
+    static boolean mustReduceOnSingleInternalAgg() {
         return true;
     }
 

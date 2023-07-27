@@ -103,7 +103,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
      *          }
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private Map getFeaturesMetrics(Map perNodeStats) {
+    private static Map getFeaturesMetrics(Map perNodeStats) {
         Map featuresMetrics = (Map) ((Map) perNodeStats.get("stats")).get("features");
         featuresMetrics.putAll((Map) featuresMetrics.get("keys"));
         featuresMetrics.putAll((Map) featuresMetrics.get("sequences"));
@@ -298,15 +298,15 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
     }
 
-    private void assertAllQueryMetrics(int allTotalQueries, Map<String, Object> responseAsMap) {
+    private static void assertAllQueryMetrics(int allTotalQueries, Map<String, Object> responseAsMap) {
         assertAllQueryMetric(allTotalQueries, responseAsMap, "total");
     }
 
-    private void assertAllFailedQueryMetrics(int allFailedQueries, Map<String, Object> responseAsMap) {
+    private static void assertAllFailedQueryMetrics(int allFailedQueries, Map<String, Object> responseAsMap) {
         assertAllQueryMetric(allFailedQueries, responseAsMap, "failed");
     }
 
-    private Map<String, Object> getStats() throws UnsupportedOperationException, IOException {
+    private static Map<String, Object> getStats() throws UnsupportedOperationException, IOException {
         Request request = new Request("GET", "/_eql/stats");
         Map<String, Object> responseAsMap;
         try (InputStream content = client().performRequest(request).getEntity().getContent()) {
@@ -349,7 +349,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void assertQueryMetric(int expected, Map<String, Object> responseAsMap, String queryType, String metric) {
+    private static void assertQueryMetric(int expected, Map<String, Object> responseAsMap, String queryType, String metric) {
         List<Map<String, Map<String, Map>>> nodesListStats = (List) responseAsMap.get("stats");
         int actualMetricValue = 0;
         for (Map perNodeStats : nodesListStats) {
@@ -360,7 +360,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         assertEquals(expected, actualMetricValue);
     }
 
-    private void assertAllQueryMetric(int expected, Map<String, Object> responseAsMap, String metric) {
+    private static void assertAllQueryMetric(int expected, Map<String, Object> responseAsMap, String metric) {
         assertQueryMetric(expected, responseAsMap, "_all", metric);
     }
 

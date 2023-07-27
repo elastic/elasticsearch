@@ -88,14 +88,14 @@ public class Reaper implements Closeable {
         }
     }
 
-    private void logFailure(String message, Throwable e) {
+    private static void logFailure(String message, Throwable e) {
         System.err.println(message);
         if (e != null) {
             e.printStackTrace(System.err);
         }
     }
 
-    private void delete(Path toDelete) {
+    private static void delete(Path toDelete) {
         try {
             Files.delete(toDelete);
         } catch (IOException e) {
@@ -107,7 +107,7 @@ public class Reaper implements Closeable {
     public void close() {
         if (failed == false) {
             try (Stream<Path> stream = Files.walk(inputDir)) {
-                stream.sorted(Comparator.reverseOrder()).forEach(this::delete);
+                stream.sorted(Comparator.reverseOrder()).forEach(Reaper::delete);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

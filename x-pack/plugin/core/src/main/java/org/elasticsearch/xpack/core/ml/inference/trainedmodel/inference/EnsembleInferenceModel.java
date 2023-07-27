@@ -176,7 +176,7 @@ public class EnsembleInferenceModel implements InferenceModel {
         return featureInfluence;
     }
 
-    private void addFeatureImportance(double[][] featureInfluence, RawInferenceResults inferenceResult) {
+    private static void addFeatureImportance(double[][] featureInfluence, RawInferenceResults inferenceResult) {
         double[][] modelFeatureImportance = inferenceResult.getFeatureImportance();
         assert modelFeatureImportance.length == featureInfluence.length;
         for (int j = 0; j < modelFeatureImportance.length; j++) {

@@ -174,7 +174,7 @@ public class ObjectParser<Value, Context> extends AbstractObjectParser<Value, Co
         return value;
     }
 
-    private void maybeMarkRequiredField(String currentFieldName, List<String[]> requiredFields) {
+    private static void maybeMarkRequiredField(String currentFieldName, List<String[]> requiredFields) {
         Iterator<String[]> iter = requiredFields.iterator();
         while (iter.hasNext()) {
             String[] requiredFieldNames = iter.next();
@@ -232,7 +232,7 @@ public class ObjectParser<Value, Context> extends AbstractObjectParser<Value, Co
         }
     }
 
-    private void throwMustEndOn(JsonParser parser, String currentFieldName, JsonToken token) {
+    private static void throwMustEndOn(JsonParser parser, String currentFieldName, JsonToken token) {
         throw new ParseException(location(parser), "parser for [" + currentFieldName + "] did not end on " + token);
     }
 
@@ -258,7 +258,7 @@ public class ObjectParser<Value, Context> extends AbstractObjectParser<Value, Co
         throw new ParseException(location(parser), "[" + name + "] failed to parse field [" + currentFieldName + "]", ex);
     }
 
-    private void throwMissingRequiredFields(List<String[]> requiredFields) {
+    private static void throwMissingRequiredFields(List<String[]> requiredFields) {
         final StringBuilder message = new StringBuilder();
         for (String[] fields : requiredFields) {
             message.append("Required one of fields ").append(Arrays.toString(fields)).append(", but none were specified. ");

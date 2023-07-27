@@ -78,7 +78,7 @@ class JULBridge extends Handler {
         }
     }
 
-    private Level translateJulLevel(java.util.logging.Level julLevel) {
+    private static Level translateJulLevel(java.util.logging.Level julLevel) {
         Level esLevel = levelMap.get(julLevel);
         if (esLevel != null) {
             return esLevel;

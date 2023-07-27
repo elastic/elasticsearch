@@ -211,7 +211,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         );
     }
 
-    private void writeFile(File file, String content) {
+    private static void writeFile(File file, String content) {
         try {
             Files.writeString(file.toPath(), content, CREATE, TRUNCATE_EXISTING);
         } catch (IOException e) {

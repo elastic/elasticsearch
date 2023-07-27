@@ -124,7 +124,7 @@ public class BwcSetupExtension {
         });
     }
 
-    private String minimumCompilerVersionPath(Version bwcVersion) {
+    private static String minimumCompilerVersionPath(Version bwcVersion) {
         return (bwcVersion.onOrAfter(BUILD_TOOL_MINIMUM_VERSION))
             ? "build-tools-internal/" + MINIMUM_COMPILER_VERSION_PATH
             : "buildSrc/" + MINIMUM_COMPILER_VERSION_PATH;

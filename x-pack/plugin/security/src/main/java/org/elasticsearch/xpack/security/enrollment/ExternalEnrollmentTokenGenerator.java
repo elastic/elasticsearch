@@ -75,7 +75,7 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         return new EnrollmentToken(apiKey, fingerprint, httpInfo.v2(), httpInfo.v1());
     }
 
-    private HttpResponse.HttpResponseBuilder responseBuilder(InputStream is) throws IOException {
+    private static HttpResponse.HttpResponseBuilder responseBuilder(InputStream is) throws IOException {
         final HttpResponse.HttpResponseBuilder httpResponseBuilder = new HttpResponse.HttpResponseBuilder();
         if (is != null) {
             String responseBody = Streams.readFully(is).utf8ToString();

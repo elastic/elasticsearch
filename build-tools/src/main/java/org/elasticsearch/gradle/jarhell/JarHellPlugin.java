@@ -38,7 +38,7 @@ public class JarHellPlugin implements Plugin<Project> {
             );
     }
 
-    private TaskProvider<? extends Task> createTask(Configuration jarHellConfig, Project project) {
+    private static TaskProvider<? extends Task> createTask(Configuration jarHellConfig, Project project) {
         TaskProvider<JarHellTask> jarHell = project.getTasks().register("jarHell", JarHellTask.class);
 
         project.getPluginManager().withPlugin("java", p -> {

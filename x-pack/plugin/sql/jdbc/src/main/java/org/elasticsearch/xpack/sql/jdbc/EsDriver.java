@@ -42,7 +42,7 @@ public class EsDriver implements Driver {
 
     public static EsDriver register() throws SQLException {
         // no closing callback
-        DriverManager.registerDriver(INSTANCE, INSTANCE::close);
+        DriverManager.registerDriver(INSTANCE, EsDriver::close);
         return INSTANCE;
     }
 
@@ -124,7 +124,7 @@ public class EsDriver implements Driver {
      * Since this happens typically when the JDBC driver gets unloaded (from the classloader)
      * cleaning all debug information is a good safety check.
      */
-    private void close() {
+    private static void close() {
         Debug.close();
     }
 }

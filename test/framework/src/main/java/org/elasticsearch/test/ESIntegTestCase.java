@@ -839,7 +839,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas), index);
     }
 
-    private Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {
+    private static Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {
         String exclude = String.join(",", internalCluster().allDataNodesButN(num));
         builder.put("index.routing.allocation.exclude._name", exclude);
         return builder;
@@ -1281,7 +1281,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
-    private void ensureClusterInfoServiceRunning() {
+    private static void ensureClusterInfoServiceRunning() {
         if (isInternalCluster() && cluster().size() > 0) {
             // ensures that the cluster info service didn't leak its async task, which would prevent future refreshes
             refreshClusterInfo();
@@ -1365,7 +1365,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *   client().prepareIndex(index).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, XContentBuilder source) {
+    protected static IndexResponse index(String index, XContentBuilder source) {
         return client().prepareIndex(index).setSource(source).execute().actionGet();
     }
 
@@ -1375,11 +1375,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *   client().prepareIndex(index).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, String id, Map<String, Object> source) {
+    protected static IndexResponse index(String index, String id, Map<String, Object> source) {
         return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
-    protected final ActionFuture<IndexResponse> startIndex(String index, String id, BytesReference source, XContentType type) {
+    protected static ActionFuture<IndexResponse> startIndex(String index, String id, BytesReference source, XContentType type) {
         return client().prepareIndex(index).setId(id).setSource(source, type).execute();
     }
 
@@ -1389,7 +1389,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, String id, XContentBuilder source) {
+    protected static IndexResponse index(String index, String id, XContentBuilder source) {
         return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
@@ -1399,7 +1399,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse indexDoc(String index, String id, Object... source) {
+    protected static IndexResponse indexDoc(String index, String id, Object... source) {
         return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
@@ -1411,7 +1411,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * <p>
      * where source is a JSON String.
      */
-    protected final IndexResponse index(String index, String id, String source) {
+    protected static IndexResponse index(String index, String id, String source) {
         return client().prepareIndex(index).setId(id).setSource(source, XContentType.JSON).execute().actionGet();
     }
 
@@ -1484,7 +1484,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Syntactic sugar for enabling allocation for <code>indices</code>
      */
-    protected final void enableAllocation(String... indices) {
+    protected static void enableAllocation(String... indices) {
         updateIndexSettings(
             Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all"),
             indices
@@ -1494,7 +1494,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Syntactic sugar for disabling allocation for <code>indices</code>
      */
-    protected final void disableAllocation(String... indices) {
+    protected static void disableAllocation(String... indices) {
         updateIndexSettings(
             Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"),
             indices

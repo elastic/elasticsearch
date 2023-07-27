@@ -400,7 +400,7 @@ class JdbcConnection implements Connection, JdbcWrapper {
         throw new SQLFeatureNotSupportedException();
     }
 
-    private void checkResultSet(int resultSetType, int resultSetConcurrency) throws SQLException {
+    private static void checkResultSet(int resultSetType, int resultSetConcurrency) throws SQLException {
         if (ResultSet.TYPE_FORWARD_ONLY != resultSetType) {
             throw new SQLFeatureNotSupportedException("ResultSet type can only be TYPE_FORWARD_ONLY");
         }
@@ -409,7 +409,7 @@ class JdbcConnection implements Connection, JdbcWrapper {
         }
     }
 
-    private void checkHoldability(int resultSetHoldability) throws SQLException {
+    private static void checkHoldability(int resultSetHoldability) throws SQLException {
         if (ResultSet.HOLD_CURSORS_OVER_COMMIT != resultSetHoldability) {
             throw new SQLFeatureNotSupportedException("Holdability can only be HOLD_CURSORS_OVER_COMMIT");
         }

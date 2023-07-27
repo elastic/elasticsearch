@@ -404,7 +404,7 @@ public class ExecutionService {
         }
     }
 
-    private WatchRecord createWatchRecord(WatchRecord existingRecord, WatchExecutionContext ctx, Exception e) {
+    private static WatchRecord createWatchRecord(WatchRecord existingRecord, WatchExecutionContext ctx, Exception e) {
         // it is possible that the watch store update failed, the execution phase is finished
         if (ctx.executionPhase().sealed()) {
             if (existingRecord == null) {
@@ -417,7 +417,7 @@ public class ExecutionService {
         }
     }
 
-    private void logWatchRecord(WatchExecutionContext ctx, Exception e) {
+    private static void logWatchRecord(WatchExecutionContext ctx, Exception e) {
         // failed watches stack traces are only logged in debug, otherwise they should be checked out in the history
         if (logger.isDebugEnabled()) {
             logger.debug(() -> "failed to execute watch [" + ctx.id().watchId() + "]", e);

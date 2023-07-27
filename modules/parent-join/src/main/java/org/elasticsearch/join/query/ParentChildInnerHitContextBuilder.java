@@ -156,7 +156,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
             }
         }
 
-        private String getSortedDocValue(String field, SearchContext context, int docId) {
+        private static String getSortedDocValue(String field, SearchContext context, int docId) {
             try {
                 List<LeafReaderContext> ctxs = context.searcher().getIndexReader().leaves();
                 LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(docId, ctxs));

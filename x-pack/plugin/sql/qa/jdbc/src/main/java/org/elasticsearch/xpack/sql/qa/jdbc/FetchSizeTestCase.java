@@ -184,7 +184,7 @@ public abstract class FetchSizeTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    private void assertNestedDocuments(ResultSet rs, int i) throws SQLException {
+    private static void assertNestedDocuments(ResultSet rs, int i) throws SQLException {
         for (int j = 0; j <= i % 5; j++) {
             assertEquals(i, rs.getInt(1));
             assertEquals(j, rs.getInt(2));
@@ -259,7 +259,7 @@ public abstract class FetchSizeTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    private void addPivotData() throws IOException {
+    private static void addPivotData() throws IOException {
         Request request = new Request("PUT", "/test_pivot/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();

@@ -321,7 +321,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         throw new IllegalStateException();
     }
 
-    private ActionListener<InferTrainedModelDeploymentAction.Response> collectingListener(
+    private static ActionListener<InferTrainedModelDeploymentAction.Response> collectingListener(
         AtomicInteger count,
         AtomicArray<List<InferenceResults>> results,
         AtomicReference<Exception> failure,

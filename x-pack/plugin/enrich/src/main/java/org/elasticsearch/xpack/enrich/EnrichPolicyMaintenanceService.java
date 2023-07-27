@@ -165,7 +165,11 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
         deleteIndices(removeIndices);
     }
 
-    private boolean indexUsedByPolicy(IndexMetadata indexMetadata, Map<String, EnrichPolicy> policies, Set<String> inflightPolicyIndices) {
+    private static boolean indexUsedByPolicy(
+        IndexMetadata indexMetadata,
+        Map<String, EnrichPolicy> policies,
+        Set<String> inflightPolicyIndices
+    ) {
         String indexName = indexMetadata.getIndex().getName();
         logger.debug("Checking if should remove enrich index [{}]", indexName);
         // First ignore the index entirely if it is in the inflightPolicyIndices set as it is actively being worked on

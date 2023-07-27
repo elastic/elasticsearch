@@ -69,11 +69,11 @@ class HttpClient {
     }
 
     @SuppressForbidden(reason = "we need socket connection to download data from internet")
-    private InputStream getInputStream(HttpURLConnection conn) throws IOException {
+    private static InputStream getInputStream(HttpURLConnection conn) throws IOException {
         return conn.getInputStream();
     }
 
-    private HttpURLConnection createConnection(String url) throws IOException {
+    private static HttpURLConnection createConnection(String url) throws IOException {
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setConnectTimeout(10000);
         conn.setReadTimeout(10000);

@@ -629,7 +629,7 @@ public class TumblingWindow implements Executable {
     /**
      * Trim hits outside the (upper) limit.
      */
-    private List<SearchHit> trim(List<SearchHit> searchHits, SequenceCriterion criterion, Ordinal boundary) {
+    private static List<SearchHit> trim(List<SearchHit> searchHits, SequenceCriterion criterion, Ordinal boundary) {
         int offset = 0;
 
         for (int i = searchHits.size() - 1; i >= 0; i--) {

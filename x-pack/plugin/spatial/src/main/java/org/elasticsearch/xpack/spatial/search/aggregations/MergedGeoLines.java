@@ -140,19 +140,19 @@ abstract class MergedGeoLines {
             return valI < valJ;
         }
 
-        private int getParentIndex(int i) {
+        private static int getParentIndex(int i) {
             return (i - 1) / 2;
         }
 
-        private int getLeftChildIndex(int i) {
+        private static int getLeftChildIndex(int i) {
             return 2 * i + 1;
         }
 
-        private int getRightChildIndex(int i) {
+        private static int getRightChildIndex(int i) {
             return 2 * i + 2;
         }
 
-        private boolean hasParent(int i) {
+        private static boolean hasParent(int i) {
             return i > 0;
         }
 

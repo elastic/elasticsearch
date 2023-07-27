@@ -2272,8 +2272,11 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         doWithQuery(() -> esJdbc(tz), query, consumer);
     }
 
-    private void doWithQuery(CheckedSupplier<Connection, SQLException> con, String query, CheckedConsumer<ResultSet, SQLException> consumer)
-        throws SQLException {
+    private static void doWithQuery(
+        CheckedSupplier<Connection, SQLException> con,
+        String query,
+        CheckedConsumer<ResultSet, SQLException> consumer
+    ) throws SQLException {
         try (Connection connection = con.get()) {
             try (PreparedStatement statement = connection.prepareStatement(query)) {
                 try (ResultSet results = statement.executeQuery()) {
@@ -2291,7 +2294,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         doWithQuery(() -> esJdbc(timeZoneId), query, testValues, biConsumer);
     }
 
-    private <T extends Number> void doWithQuery(
+    private static <T extends Number> void doWithQuery(
         CheckedSupplier<Connection, SQLException> con,
         String query,
         List<T> testValues,
@@ -2338,7 +2341,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         client().performRequest(request);
     }
 
-    private void createTestDataForMultiValueTests() throws IOException {
+    private static void createTestDataForMultiValueTests() throws IOException {
         createIndexWithMapping("test");
         updateMapping("test", builder -> {
             builder.startObject("int").field("type", "integer").endObject();
@@ -2360,7 +2363,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    private void createTestDataForMultiValuesInObjectsTests() throws IOException {
+    private static void createTestDataForMultiValuesInObjectsTests() throws IOException {
         createIndexWithMapping("test");
         updateMapping("test", builder -> {
             builder.startObject("object")
@@ -2403,7 +2406,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     /**
      * Creates test data for type specific get* method. It returns a list with the randomly generated test values.
      */
-    private <T extends Number> List<T> createTestDataForNumericValueTests(Supplier<T> numberGenerator) throws IOException {
+    private static <T extends Number> List<T> createTestDataForNumericValueTests(Supplier<T> numberGenerator) throws IOException {
         T random1 = numberGenerator.get();
         T random2 = randomValueOtherThan(random1, numberGenerator);
         T random3 = randomValueOtherThanMany(Arrays.asList(random1, random2)::contains, numberGenerator);
@@ -2431,7 +2434,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         return Arrays.asList(random1, random2, random3);
     }
 
-    private void createTestDataForBooleanValueTests() throws IOException {
+    private static void createTestDataForBooleanValueTests() throws IOException {
         createIndexWithMapping("test");
         updateMapping("test", builder -> {
             builder.startObject("test_boolean").field("type", "boolean").endObject();
@@ -2490,7 +2493,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    private void createTestDataForVersionType() throws IOException {
+    private static void createTestDataForVersionType() throws IOException {
         createIndexWithMapping("test");
         updateMapping("test", builder -> {
             builder.startObject("name").field("type", "keyword").endObject();
@@ -2536,7 +2539,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
      * Creates test data for all numeric get* methods. All values random and different from the other numeric fields already generated.
      * It returns a map containing the field name and its randomly generated value to be later used in checking the returned values.
      */
-    private Map<String, Number> createTestDataForNumericValueTypes(Supplier<Number> randomGenerator) throws IOException {
+    private static Map<String, Number> createTestDataForNumericValueTypes(Supplier<Number> randomGenerator) throws IOException {
         Map<String, Number> map = new HashMap<>();
         createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test");
@@ -2587,20 +2590,20 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         updateMappingForNumericValuesTests(indexName, FIELDS_NAMES);
     }
 
-    private void assertThrowsUnsupportedAndExpectErrorMessage(ThrowingRunnable runnable, String message) {
+    private static void assertThrowsUnsupportedAndExpectErrorMessage(ThrowingRunnable runnable, String message) {
         SQLException sqle = expectThrows(SQLFeatureNotSupportedException.class, runnable);
         assertEquals(message, sqle.getMessage());
     }
 
-    private void assertThrowsWritesUnsupportedForUpdate(ThrowingRunnable r) {
+    private static void assertThrowsWritesUnsupportedForUpdate(ThrowingRunnable r) {
         assertThrowsUnsupportedAndExpectErrorMessage(r, "Writes not supported");
     }
 
-    private void assertErrorMessageForDateTimeValues(Exception ex, Class<?> expectedType, long epochMillis) {
+    private static void assertErrorMessageForDateTimeValues(Exception ex, Class<?> expectedType, long epochMillis) {
         assertErrorMessageForDateTimeValues(ex, expectedType, epochMillis, null);
     }
 
-    private void assertErrorMessageForDateTimeValues(Exception ex, Class<?> expectedType, long epochMillis, Integer nanos) {
+    private static void assertErrorMessageForDateTimeValues(Exception ex, Class<?> expectedType, long epochMillis, Integer nanos) {
         Pattern expectedPattern = compile(
             quote("Unable to convert value [") + "(?<instant>.*?)" + quote("] of type [DATETIME] to [" + expectedType.getSimpleName() + "]")
         );
@@ -2613,7 +2616,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    private void validateErrorsForDateTimeTestsWithoutCalendar(CheckedFunction<String, Object, SQLException> method, String type) {
+    private static void validateErrorsForDateTimeTestsWithoutCalendar(CheckedFunction<String, Object, SQLException> method, String type) {
         SQLException sqle;
         for (Entry<Tuple<String, Object>, SQLType> field : dateTimeTestingFields.entrySet()) {
             sqle = expectThrows(SQLException.class, () -> method.apply(field.getKey().v1()));
@@ -2624,7 +2627,10 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    private void validateErrorsForDateTimeTestsWithCalendar(Calendar c, CheckedBiFunction<String, Calendar, Object, SQLException> method) {
+    private static void validateErrorsForDateTimeTestsWithCalendar(
+        Calendar c,
+        CheckedBiFunction<String, Calendar, Object, SQLException> method
+    ) {
         SQLException sqle;
         for (Entry<Tuple<String, Object>, SQLType> field : dateTimeTestingFields.entrySet()) {
             sqle = expectThrows(SQLException.class, () -> method.apply(field.getKey().v1(), c));
@@ -2642,7 +2648,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    private float randomFloatBetween(float start, float end) {
+    private static float randomFloatBetween(float start, float end) {
         float result = 0.0f;
         while (result < start || result > end || Float.isNaN(result)) {
             result = start + randomFloat() * (end - start);
@@ -2651,11 +2657,11 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         return result;
     }
 
-    private Long getMaxIntPlusOne() {
+    private static Long getMaxIntPlusOne() {
         return Long.valueOf(Integer.MAX_VALUE) + 1L;
     }
 
-    private Double getMaxLongPlusOne() {
+    private static Double getMaxLongPlusOne() {
         return Double.valueOf(Long.MAX_VALUE) + 1d;
     }
 
@@ -2684,7 +2690,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         return ZoneId.of(ZoneId.of(timeZoneId).getRules().getOffset(Instant.ofEpochMilli(randomLongDate)).toString());
     }
 
-    private Calendar randomCalendar() {
+    private static Calendar randomCalendar() {
         return Calendar.getInstance(randomTimeZone(), Locale.ROOT);
     }
 

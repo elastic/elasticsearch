@@ -146,7 +146,7 @@ public abstract class GeoHashGridTiler extends GeoGridTiler {
         return valuesIndex;
     }
 
-    private int getNewSize(int valuesIndex, int increment) {
+    private static int getNewSize(int valuesIndex, int increment) {
         long newSize = (long) valuesIndex + increment;
         if (newSize > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("Tile aggregation array overflow");

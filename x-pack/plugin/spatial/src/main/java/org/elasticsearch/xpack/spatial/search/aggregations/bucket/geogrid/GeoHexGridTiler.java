@@ -98,7 +98,7 @@ public abstract class GeoHexGridTiler extends GeoGridTiler {
         return valueIndex;
     }
 
-    private long boundsInSameCell(GeoShapeValues.BoundingBox bounds, int res) {
+    private static long boundsInSameCell(GeoShapeValues.BoundingBox bounds, int res) {
         final long minH3 = H3.geoToH3(bounds.minY(), bounds.minX(), res);
         final long maxH3 = H3.geoToH3(bounds.maxY(), bounds.maxX(), res);
         if (minH3 != maxH3) {
@@ -121,7 +121,7 @@ public abstract class GeoHexGridTiler extends GeoGridTiler {
      * Adds {@code h3} to {@link GeoShapeCellValues} if {@link #relateTile(GeoShapeValues.GeoShapeValue, long)} returns
      * a relation different to {@link GeoRelation#QUERY_DISJOINT}.
      */
-    private int maybeAdd(long h3, GeoRelation relation, GeoShapeCellValues values, int valueIndex) {
+    private static int maybeAdd(long h3, GeoRelation relation, GeoShapeCellValues values, int valueIndex) {
         if (relation != GeoRelation.QUERY_DISJOINT) {
             values.resizeCell(valueIndex + 1);
             values.add(valueIndex++, h3);

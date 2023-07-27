@@ -198,7 +198,7 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         return builder;
     }
 
-    private double roundDegrees(double degree) {
+    private static double roundDegrees(double degree) {
         return Math.round(degree * SCALE) / SCALE;
     }
 

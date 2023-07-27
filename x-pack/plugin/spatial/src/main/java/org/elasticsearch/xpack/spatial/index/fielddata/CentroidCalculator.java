@@ -235,7 +235,7 @@ public class CentroidCalculator {
             }
         }
 
-        private void visitLinearRing(
+        private static void visitLinearRing(
             int length,
             CoordinateSupplier x,
             CoordinateSupplier y,

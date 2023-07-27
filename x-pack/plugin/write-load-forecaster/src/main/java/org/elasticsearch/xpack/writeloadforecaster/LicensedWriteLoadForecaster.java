@@ -97,7 +97,7 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
         return metadata;
     }
 
-    private void clearPreviousForecast(DataStream dataStream, Metadata.Builder metadata) {
+    private static void clearPreviousForecast(DataStream dataStream, Metadata.Builder metadata) {
         if (dataStream.getIndices().size() > 1) {
             final Index previousWriteIndex = dataStream.getIndices().get(dataStream.getIndices().size() - 2);
             final IndexMetadata previousWriteIndexMetadata = metadata.getSafe(previousWriteIndex);

@@ -78,7 +78,7 @@ public class BuildPlugin implements Plugin<Project> {
         updateJarTasksMetaInf(project);
     }
 
-    private void updateJarTasksMetaInf(Project project) {
+    private static void updateJarTasksMetaInf(Project project) {
         final ExtraPropertiesExtension ext = project.getExtensions().getByType(ExtraPropertiesExtension.class);
         project.getTasks().withType(Jar.class).configureEach(jar -> {
             final RegularFileProperty licenseFileExtProperty = (RegularFileProperty) ext.get("licenseFile");

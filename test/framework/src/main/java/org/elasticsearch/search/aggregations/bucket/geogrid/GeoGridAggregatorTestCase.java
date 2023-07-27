@@ -264,7 +264,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         return new double[] { lat, lon };
     }
 
-    private boolean validPoint(double x, double y, GeoBoundingBox bbox) {
+    private static boolean validPoint(double x, double y, GeoBoundingBox bbox) {
         if (bbox == null) {
             return true;
         }
@@ -279,7 +279,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         return false;
     }
 
-    private boolean intersectsBounds(Rectangle pointTile, GeoBoundingBox bbox) {
+    private static boolean intersectsBounds(Rectangle pointTile, GeoBoundingBox bbox) {
         if (bbox == null) {
             return true;
         }

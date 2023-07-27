@@ -146,7 +146,7 @@ public class ProcessReaper {
         }
     }
 
-    private Path findJavaHome() {
+    private static Path findJavaHome() {
         Path javaBase = Path.of(System.getProperty("java.home"));
         return javaBase.endsWith("jre") && Files.exists(javaBase.getParent().resolve("bin/java")) ? javaBase.getParent() : javaBase;
     }

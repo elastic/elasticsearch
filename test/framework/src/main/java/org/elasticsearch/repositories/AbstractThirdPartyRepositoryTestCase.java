@@ -200,7 +200,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         assertThat(response.result().bytes(), equalTo(3L + 2 * 3L));
     }
 
-    private void createDanglingIndex(final BlobStoreRepository repo, final Executor genericExec) throws Exception {
+    private static void createDanglingIndex(final BlobStoreRepository repo, final Executor genericExec) throws Exception {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         genericExec.execute(ActionRunnable.run(future, () -> {
             final BlobStore blobStore = repo.blobStore();

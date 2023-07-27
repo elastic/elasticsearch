@@ -364,7 +364,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         };
     }
 
-    private void markAsFailed(TransformTask task, String reason) {
+    private static void markAsFailed(TransformTask task, String reason) {
         CountDownLatch latch = new CountDownLatch(1);
 
         task.fail(

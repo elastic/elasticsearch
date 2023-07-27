@@ -259,7 +259,7 @@ public class BwcVersions {
         getWireCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
-    private List<Version> filterSupportedVersions(List<Version> wireCompat) {
+    private static List<Version> filterSupportedVersions(List<Version> wireCompat) {
         Predicate<Version> supported = v -> true;
         if (Architecture.current() == Architecture.AARCH64) {
             final String version;

@@ -741,7 +741,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         return catalog == null || catalog.equals(EMPTY) || catalog.equals(WILDCARD) || catalog.equals(defaultCatalog());
     }
 
-    private boolean isDefaultSchema(String schema) {
+    private static boolean isDefaultSchema(String schema) {
         // null means schema info is irrelevant
         // % means return all schemas`
         // EMPTY means return those without a schema

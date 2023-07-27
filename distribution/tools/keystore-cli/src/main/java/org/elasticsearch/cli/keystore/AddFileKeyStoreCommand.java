@@ -77,7 +77,7 @@ class AddFileKeyStoreCommand extends BaseKeyStoreCommand {
     }
 
     @SuppressForbidden(reason = "file arg for cli")
-    private Path getPath(String file) {
+    private static Path getPath(String file) {
         return PathUtils.get(file);
     }
 

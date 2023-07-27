@@ -37,7 +37,7 @@ public class WorkflowService {
         return threadContext.getHeader(WORKFLOW_HEADER);
     }
 
-    private Workflow resolveWorkflow(RestHandler restHandler) {
+    private static Workflow resolveWorkflow(RestHandler restHandler) {
         final String restHandlerName = resolveRestHandlerName(restHandler);
         if (restHandlerName == null) {
             logger.trace(() -> format("unable to resolve name of REST handler [%s]", restHandler.getClass()));

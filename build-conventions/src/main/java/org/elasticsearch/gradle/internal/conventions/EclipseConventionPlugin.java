@@ -130,7 +130,7 @@ public class EclipseConventionPlugin implements Plugin<Project> {
         });
     }
 
-    private File root(Project project) {
+    private static File root(Project project) {
         return project.getRootProject().getName().equals("elasticsearch") ?
                 project.getRootProject().getRootDir() :
                 project.getRootDir().getParentFile();

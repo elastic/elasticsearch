@@ -748,7 +748,7 @@ public class JobConfigProvider {
         return MlStrings.findMatching(jobIdPatterns, MlTasks.openJobIds(tasksMetadata));
     }
 
-    private void parseJobLenientlyFromSource(BytesReference source, ActionListener<Job.Builder> jobListener) {
+    private static void parseJobLenientlyFromSource(BytesReference source, ActionListener<Job.Builder> jobListener) {
         try (
             InputStream stream = source.streamInput();
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
@@ -760,7 +760,7 @@ public class JobConfigProvider {
         }
     }
 
-    private Job.Builder parseJobLenientlyFromSource(BytesReference source) throws IOException {
+    private static Job.Builder parseJobLenientlyFromSource(BytesReference source) throws IOException {
         try (
             InputStream stream = source.streamInput();
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)

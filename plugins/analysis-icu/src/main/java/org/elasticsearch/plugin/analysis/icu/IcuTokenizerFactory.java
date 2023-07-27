@@ -51,7 +51,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
         }
     }
 
-    private ICUTokenizerConfig getIcuConfig(Environment env, Settings settings) {
+    private static ICUTokenizerConfig getIcuConfig(Environment env, Settings settings) {
         Map<Integer, String> tailored = new HashMap<>();
 
         try {
@@ -96,7 +96,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     // parse a single RBBi rule file
-    private BreakIterator parseRules(String filename, Environment env) throws IOException {
+    private static BreakIterator parseRules(String filename, Environment env) throws IOException {
 
         final Path path = env.configFile().resolve(filename);
         String rules = Files.readAllLines(path).stream().filter((v) -> v.startsWith("#") == false).collect(Collectors.joining("\n"));

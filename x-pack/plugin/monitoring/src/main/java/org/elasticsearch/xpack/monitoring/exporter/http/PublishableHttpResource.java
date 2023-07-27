@@ -531,10 +531,10 @@ public abstract class PublishableHttpResource extends HttpResource {
     }
 
     private void addDefaultParameters(final Request request) {
-        this.addParameters(request, defaultParameters);
+        PublishableHttpResource.addParameters(request, defaultParameters);
     }
 
-    private void addParameters(final Request request, final Map<String, String> parameters) {
+    private static void addParameters(final Request request, final Map<String, String> parameters) {
         for (final Map.Entry<String, String> param : parameters.entrySet()) {
             request.addParameter(param.getKey(), param.getValue());
         }

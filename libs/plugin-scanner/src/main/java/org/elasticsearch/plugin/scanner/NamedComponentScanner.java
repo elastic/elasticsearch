@@ -95,7 +95,7 @@ public class NamedComponentScanner {
         return componentInfo;
     }
 
-    private String pathToClassName(String classWithSlashes) {
+    private static String pathToClassName(String classWithSlashes) {
         return classWithSlashes.replace('/', '.');
     }
 

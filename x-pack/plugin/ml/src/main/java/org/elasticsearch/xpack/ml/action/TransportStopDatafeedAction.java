@@ -450,7 +450,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         }));
     }
 
-    private void sendResponseOrFailure(
+    private static void sendResponseOrFailure(
         String datafeedId,
         ActionListener<StopDatafeedAction.Response> listener,
         AtomicArray<Exception> failures

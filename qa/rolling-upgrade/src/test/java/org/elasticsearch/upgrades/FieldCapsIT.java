@@ -265,7 +265,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
 
     @SuppressWarnings("unchecked")
     // Returns a client connected to one of the upgraded nodes.
-    private RestClient getUpgradedNodeClient() throws IOException {
+    private static RestClient getUpgradedNodeClient() throws IOException {
         for (HttpHost host : getClusterHosts()) {
             RestClient client = RestClient.builder(host).build();
             Request nodesRequest = new Request("GET", "_nodes/_local/_none");

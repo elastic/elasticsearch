@@ -64,7 +64,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
      * <p>
      * BWC versions are resolved as project to projects under `:distribution:bwc`.
      */
-    private void registerInternalDistributionResolutions(NamedDomainObjectContainer<DistributionResolution> resolutions) {
+    private static void registerInternalDistributionResolutions(NamedDomainObjectContainer<DistributionResolution> resolutions) {
         resolutions.register("localBuild", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
             if (isCurrentVersion(distribution)) {
                 // non-external project, so depend on local build
@@ -96,7 +96,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         }));
     }
 
-    private boolean isCurrentVersion(ElasticsearchDistribution distribution) {
+    private static boolean isCurrentVersion(ElasticsearchDistribution distribution) {
         Version currentVersionNumber = Version.fromString(VersionProperties.getElasticsearch());
         Version parsedDistVersionNumber = Version.fromString(distribution.getVersion());
         return currentVersionNumber.equals(parsedDistVersionNumber);

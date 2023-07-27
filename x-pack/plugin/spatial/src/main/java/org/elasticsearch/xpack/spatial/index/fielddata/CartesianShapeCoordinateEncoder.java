@@ -11,7 +11,7 @@ import org.apache.lucene.geo.XYEncodingUtils;
 
 final class CartesianShapeCoordinateEncoder implements CoordinateEncoder {
 
-    private int encode(double value) {
+    private static int encode(double value) {
         if (value == Double.NEGATIVE_INFINITY) {
             return Integer.MIN_VALUE;
         }
@@ -21,7 +21,7 @@ final class CartesianShapeCoordinateEncoder implements CoordinateEncoder {
         return XYEncodingUtils.encode((float) value);
     }
 
-    private double decode(int value) {
+    private static double decode(int value) {
         if (value == Integer.MIN_VALUE) {
             return Double.NEGATIVE_INFINITY;
         }

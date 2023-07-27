@@ -54,7 +54,7 @@ public class DraResolvePlugin implements Plugin<Project> {
         }
     }
 
-    private void configureDraRepository(
+    private static void configureDraRepository(
         Project project,
         String repositoryName,
         String draKey,

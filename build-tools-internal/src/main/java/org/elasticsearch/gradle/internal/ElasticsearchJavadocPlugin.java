@@ -75,7 +75,7 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
         }));
     }
 
-    private void configureJavadocForConfiguration(Project project, boolean shadow, Configuration configuration) {
+    private static void configureJavadocForConfiguration(Project project, boolean shadow, Configuration configuration) {
         configuration.getAllDependencies()
             .stream()
             .sorted(Comparator.comparing(Dependency::getGroup))
@@ -85,7 +85,7 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
             .forEach(projectDependency -> configureDependency(project, shadow, projectDependency));
     }
 
-    private void configureDependency(Project project, boolean shadowed, ProjectDependency dep) {
+    private static void configureDependency(Project project, boolean shadowed, ProjectDependency dep) {
         var upstreamProject = dep.getDependencyProject();
         if (shadowed) {
             /*
@@ -136,7 +136,7 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
         }
     }
 
-    private String artifactHost(Project project) {
+    private static String artifactHost(Project project) {
         return project.getVersion().toString().endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co";
     }
 }

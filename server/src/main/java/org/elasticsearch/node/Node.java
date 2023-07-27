@@ -1250,7 +1250,7 @@ public class Node implements Closeable {
         };
     }
 
-    private Tracer getTracer(PluginsService pluginsService, Settings settings) {
+    private static Tracer getTracer(PluginsService pluginsService, Settings settings) {
         final List<TracerPlugin> tracerPlugins = pluginsService.filterPlugins(TracerPlugin.class);
 
         if (tracerPlugins.size() > 1) {
@@ -1289,7 +1289,7 @@ public class Node implements Closeable {
         );
     }
 
-    private HealthPeriodicLogger createHealthPeriodicLogger(
+    private static HealthPeriodicLogger createHealthPeriodicLogger(
         ClusterService clusterService,
         Settings settings,
         NodeClient client,

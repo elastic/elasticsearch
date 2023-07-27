@@ -78,7 +78,7 @@ public class SamlFactory {
         return cast(type, elementName, obj);
     }
 
-    private <T extends XMLObject> T cast(Class<T> type, QName elementName, XMLObject obj) {
+    private static <T extends XMLObject> T cast(Class<T> type, QName elementName, XMLObject obj) {
         if (type.isInstance(obj)) {
             return type.cast(obj);
         } else {

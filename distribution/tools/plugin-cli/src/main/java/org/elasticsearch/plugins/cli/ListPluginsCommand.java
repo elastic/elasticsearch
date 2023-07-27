@@ -57,7 +57,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private void printPlugin(Environment env, Terminal terminal, Path plugin, String prefix) throws IOException {
+    private static void printPlugin(Environment env, Terminal terminal, Path plugin, String prefix) throws IOException {
         terminal.println(Terminal.Verbosity.SILENT, prefix + plugin.getFileName().toString());
         PluginDescriptor info = PluginDescriptor.readFromProperties(env.pluginsFile().resolve(plugin));
         terminal.println(Terminal.Verbosity.VERBOSE, info.toString(prefix));

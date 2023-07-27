@@ -102,7 +102,10 @@ class MlProcessorAutoscalingDecider {
             .build();
     }
 
-    private boolean hasUnsatisfiedDeployments(TrainedModelAssignmentMetadata trainedModelAssignmentMetadata, List<DiscoveryNode> mlNodes) {
+    private static boolean hasUnsatisfiedDeployments(
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata,
+        List<DiscoveryNode> mlNodes
+    ) {
         final Set<String> mlNodeIds = mlNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         return trainedModelAssignmentMetadata.allAssignments()
             .values()
@@ -111,7 +114,9 @@ class MlProcessorAutoscalingDecider {
             .anyMatch(deployment -> deployment.isSatisfied(mlNodeIds) == false);
     }
 
-    private MlProcessorAutoscalingCapacity.Builder computeRequiredCapacity(TrainedModelAssignmentMetadata trainedModelAssignmentMetadata) {
+    private static MlProcessorAutoscalingCapacity.Builder computeRequiredCapacity(
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata
+    ) {
         int maxThreadsPerAllocation = 0;
         double processorCount = 0;
         boolean hasLowPriorityDeployments = false;

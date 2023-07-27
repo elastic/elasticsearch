@@ -418,7 +418,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
     /**
      * Check that the given realmName is not yet used by the given list of realms.
      */
-    private void ensureRealmNameIsAvailable(List<Realm> realms, String realmName) {
+    private static void ensureRealmNameIsAvailable(List<Realm> realms, String realmName) {
         assert realms.size() == realms.stream().map(Realm::name).collect(Collectors.toUnmodifiableSet()).size()
             : "existing realm names must be unique";
         final Realm misNamedRealm = realms.stream().filter(realm -> realmName.equals(realm.name())).findFirst().orElse(null);
@@ -449,7 +449,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         }
     }
 
-    private void ensureUniqueExplicitlyConfiguredRealmNames(Map<String, Set<String>> nameToRealmIdentifier) {
+    private static void ensureUniqueExplicitlyConfiguredRealmNames(Map<String, Set<String>> nameToRealmIdentifier) {
         String duplicateRealms = nameToRealmIdentifier.entrySet()
             .stream()
             .filter(entry -> entry.getValue().size() > 1)

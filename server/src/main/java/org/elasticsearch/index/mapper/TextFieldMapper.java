@@ -375,7 +375,7 @@ public class TextFieldMapper extends FieldMapper {
             return ft;
         }
 
-        private KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(FieldType fieldType, MultiFields multiFields) {
+        private static KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(FieldType fieldType, MultiFields multiFields) {
             if (fieldType.stored()) {
                 return null;
             }

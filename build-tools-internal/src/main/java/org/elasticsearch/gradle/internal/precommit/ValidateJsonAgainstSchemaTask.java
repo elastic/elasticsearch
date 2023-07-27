@@ -133,7 +133,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
         }
     }
 
-    private JsonSchema buildSchemaObject(File jsonSchemaOnDisk) throws IOException {
+    private static JsonSchema buildSchemaObject(File jsonSchemaOnDisk) throws IOException {
         final ObjectMapper jsonMapper = new ObjectMapper();
         final SchemaValidatorsConfig config = new SchemaValidatorsConfig();
         final JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);

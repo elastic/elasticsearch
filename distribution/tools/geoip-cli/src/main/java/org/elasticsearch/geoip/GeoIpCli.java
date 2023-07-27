@@ -64,11 +64,11 @@ public class GeoIpCli extends Command {
     }
 
     @SuppressForbidden(reason = "file arg for cli")
-    private Path getPath(String file) {
+    private static Path getPath(String file) {
         return PathUtils.get(file);
     }
 
-    private void copyTgzToTarget(Path source, Path target) throws IOException {
+    private static void copyTgzToTarget(Path source, Path target) throws IOException {
         if (source.equals(target)) {
             return;
         }
@@ -79,7 +79,7 @@ public class GeoIpCli extends Command {
         }
     }
 
-    private void packDatabasesToTgz(Terminal terminal, Path source, Path target) throws IOException {
+    private static void packDatabasesToTgz(Terminal terminal, Path source, Path target) throws IOException {
         try (Stream<Path> files = Files.list(source)) {
             for (Path path : files.filter(p -> p.getFileName().toString().endsWith(".mmdb")).toList()) {
                 String fileName = path.getFileName().toString();
@@ -102,7 +102,7 @@ public class GeoIpCli extends Command {
         }
     }
 
-    private void createOverviewJson(Terminal terminal, Path directory) throws IOException {
+    private static void createOverviewJson(Terminal terminal, Path directory) throws IOException {
         Path overview = directory.resolve("overview.json");
         try (
             Stream<Path> files = Files.list(directory);
@@ -130,7 +130,7 @@ public class GeoIpCli extends Command {
         terminal.println("overview.json created");
     }
 
-    private byte[] createTarHeader(String name, long size) {
+    private static byte[] createTarHeader(String name, long size) {
         byte[] buf = new byte[512];
         byte[] sizeBytes = String.format(Locale.ROOT, "%1$012o", size).getBytes(StandardCharsets.UTF_8);
         byte[] nameBytes = name.substring(Math.max(0, name.length() - 100)).getBytes(StandardCharsets.US_ASCII);

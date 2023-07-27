@@ -227,7 +227,14 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
     /**
      * Extracts the specified field out of data map, or alternative falls back to the action value
      */
-    private String getField(String actionId, String watchId, String name, Map<String, Object> data, String fieldName, String defaultValue) {
+    private static String getField(
+        String actionId,
+        String watchId,
+        String name,
+        Map<String, Object> data,
+        String fieldName,
+        String defaultValue
+    ) {
         Object obj;
         // map may be immutable - only try to remove if it's actually there
         if (data.containsKey(fieldName) && (obj = data.remove(fieldName)) != null) {
@@ -256,7 +263,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
      * @param data The map to make mutable
      * @return Always a {@linkplain HashMap}
      */
-    private Map<String, Object> mutableMap(Map<String, Object> data) {
+    private static Map<String, Object> mutableMap(Map<String, Object> data) {
         return data instanceof HashMap ? data : new HashMap<>(data);
     }
 

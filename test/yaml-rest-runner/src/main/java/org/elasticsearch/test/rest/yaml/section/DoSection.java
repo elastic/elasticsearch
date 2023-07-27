@@ -510,7 +510,7 @@ public class DoSection implements ExecutableSection {
         }
     }
 
-    private void appendBadHeaders(final StringBuilder sb, final List<String> headers, final String message) {
+    private static void appendBadHeaders(final StringBuilder sb, final List<String> headers, final String message) {
         if (headers.isEmpty() == false) {
             sb.append(message).append(" [\n");
             for (final String header : headers) {

@@ -277,7 +277,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         private final Set<String> blackholedNodes = new HashSet<>();
         private final Set<Tuple<String, String>> blackholedConnections = new HashSet<>();
         private final Map<Long, ClusterState> committedStatesByVersion = new HashMap<>();
-        private final LinearizabilityChecker linearizabilityChecker = new LinearizabilityChecker();
         private final History history = new History();
         private final CountingPageCacheRecycler countingPageCacheRecycler;
         private final Recycler<BytesRef> recycler;
@@ -745,7 +744,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 if (history.size() > 300) {
                     scheduler.schedule(() -> abort.set(true), 10, TimeUnit.SECONDS);
                 }
-                final boolean linearizable = linearizabilityChecker.isLinearizable(spec, history, i -> null, abort::get);
+                final boolean linearizable = LinearizabilityChecker.isLinearizable(spec, history, i -> null, abort::get);
                 if (abort.get() == false) {
                     assertTrue("history not linearizable: " + history, linearizable);
                 }

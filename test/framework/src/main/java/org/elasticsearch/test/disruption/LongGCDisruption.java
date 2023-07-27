@@ -188,7 +188,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
         return threadName.contains("[" + disruptedNode + "]");
     }
 
-    private String stackTrace(StackTraceElement[] stackTraceElements) {
+    private static String stackTrace(StackTraceElement[] stackTraceElements) {
         return Arrays.stream(stackTraceElements).map(Object::toString).collect(Collectors.joining("\n"));
     }
 

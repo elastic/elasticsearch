@@ -384,7 +384,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         });
     }
 
-    private List<ElasticsearchDistribution> configureDistributions(Project project) {
+    private static List<ElasticsearchDistribution> configureDistributions(Project project) {
         NamedDomainObjectContainer<ElasticsearchDistribution> distributions = DistributionDownloadPlugin.getContainer(project);
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
 

@@ -338,7 +338,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         return AllocateUnassignedDecision.NOT_TAKEN;
     }
 
-    private boolean isDelayedDueToNodeRestart(RoutingAllocation allocation, ShardRouting shardRouting) {
+    private static boolean isDelayedDueToNodeRestart(RoutingAllocation allocation, ShardRouting shardRouting) {
         if (shardRouting.unassignedInfo().isDelayed()) {
             String lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
             if (lastAllocatedNodeId != null) {

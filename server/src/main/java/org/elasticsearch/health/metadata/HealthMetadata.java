@@ -292,7 +292,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
             return builder;
         }
 
-        private ByteSizeValue getFreeBytes(ByteSizeValue total, RelativeByteSizeValue watermark, ByteSizeValue maxHeadroom) {
+        private static ByteSizeValue getFreeBytes(ByteSizeValue total, RelativeByteSizeValue watermark, ByteSizeValue maxHeadroom) {
             if (watermark.isAbsolute()) {
                 return watermark.getAbsolute();
             }
@@ -311,7 +311,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
             return getFreeBytes(total, frozenFloodStageWatermark, frozenFloodStageMaxHeadroom);
         }
 
-        private String getThresholdStringRep(RelativeByteSizeValue relativeByteSizeValue) {
+        private static String getThresholdStringRep(RelativeByteSizeValue relativeByteSizeValue) {
             if (relativeByteSizeValue.isAbsolute()) {
                 return relativeByteSizeValue.getAbsolute().getStringRep();
             } else {

@@ -163,7 +163,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
      * Maven coordinates point to either the integ-test-zip coordinates on maven central, or a set of artificial
      * coordinates that resolve to the Elastic download service through an ivy repository.
      */
-    private String dependencyNotation(ElasticsearchDistribution distribution) {
+    private static String dependencyNotation(ElasticsearchDistribution distribution) {
         if (distribution.getType() == ElasticsearchDistributionTypes.INTEG_TEST_ZIP) {
             return "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + distribution.getVersion() + "@zip";
         }

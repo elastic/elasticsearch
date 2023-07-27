@@ -119,7 +119,7 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
         return new SamlLogoutResponse(logout.getID(), uri);
     }
 
-    private String getMetadataString(Map<String, Object> metadata, String key) {
+    private static String getMetadataString(Map<String, Object> metadata, String key) {
         final Object value = metadata.get(key);
         if (value == null) {
             if (metadata.containsKey(key)) {

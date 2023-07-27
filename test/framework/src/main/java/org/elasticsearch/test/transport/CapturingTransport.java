@@ -49,7 +49,7 @@ public class CapturingTransport extends MockTransport implements Transport {
         return requests.toArray(new CapturedRequest[0]);
     }
 
-    private Map<String, List<CapturedRequest>> groupRequestsByTargetNode(Collection<CapturedRequest> requests) {
+    private static Map<String, List<CapturedRequest>> groupRequestsByTargetNode(Collection<CapturedRequest> requests) {
         Map<String, List<CapturedRequest>> result = new HashMap<>();
         for (CapturedRequest request : requests) {
             result.computeIfAbsent(request.node.getId(), node -> new ArrayList<>()).add(request);

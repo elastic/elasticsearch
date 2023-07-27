@@ -133,7 +133,7 @@ public class SamlObjectHandler {
         return new ChainingKeyInfoCredentialResolver(Arrays.asList(localKeyInfoCredentialResolver, collectionKeyInfoCredentialResolver));
     }
 
-    private EncryptedKeyResolver createResolverForEncryptedKeyElements() {
+    private static EncryptedKeyResolver createResolverForEncryptedKeyElements() {
         return new ChainingEncryptedKeyResolver(
             Arrays.asList(
                 new InlineEncryptedKeyResolver(),
@@ -245,7 +245,7 @@ public class SamlObjectHandler {
         return samlException(msg, signature, describeCredentials(credentials));
     }
 
-    private String describeCredentials(List<Credential> credentials) {
+    private static String describeCredentials(List<Credential> credentials) {
         return credentials.stream().map(c -> {
             if (c == null) {
                 return "<null>";

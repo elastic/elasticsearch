@@ -61,7 +61,7 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private void submitUnbatchedTask(
+    private static void submitUnbatchedTask(
         ClusterService clusterService,
         @SuppressWarnings("SameParameterValue") String source,
         ClusterStateUpdateTask task

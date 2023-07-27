@@ -94,12 +94,12 @@ public class SamlResponseHandler extends SamlObjectHandler {
         return StatusCode.SUCCESS.equals(status.getStatusCode().getValue());
     }
 
-    private String getMessage(Status status) {
+    private static String getMessage(Status status) {
         final StatusMessage sm = status.getStatusMessage();
         return sm == null ? null : sm.getValue();
     }
 
-    private String getDetail(Status status) {
+    private static String getDetail(Status status) {
         final StatusDetail sd = status.getStatusDetail();
         return sd == null ? null : SamlUtils.toString(sd.getDOM());
     }

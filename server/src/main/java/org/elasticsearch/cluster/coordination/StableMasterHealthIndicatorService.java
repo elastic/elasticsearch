@@ -216,7 +216,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * @param explain If true, the returned list includes a UserAction to contact support, otherwise an empty list
      * @return a single UserAction instructing users to contact support.
      */
-    private List<Diagnosis> getContactSupportUserActions(boolean explain) {
+    private static List<Diagnosis> getContactSupportUserActions(boolean explain) {
         if (explain) {
             return List.of(CONTACT_SUPPORT);
         } else {

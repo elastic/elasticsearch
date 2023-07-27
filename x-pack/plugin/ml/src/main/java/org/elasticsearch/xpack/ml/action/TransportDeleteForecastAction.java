@@ -209,7 +209,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         return new Tuple<>(status, reason);
     }
 
-    private DeleteByQueryRequest buildDeleteByQuery(String jobId, List<String> forecastsToDelete) {
+    private static DeleteByQueryRequest buildDeleteByQuery(String jobId, List<String> forecastsToDelete) {
         BoolQueryBuilder innerBoolQuery = QueryBuilders.boolQuery()
             .must(
                 QueryBuilders.termsQuery(

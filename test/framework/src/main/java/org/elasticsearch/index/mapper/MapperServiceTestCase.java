@@ -124,7 +124,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return IndexAnalyzers.of(Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())));
     }
 
-    protected final String randomIndexOptions() {
+    protected static String randomIndexOptions() {
         return randomFrom("docs", "freqs", "positions", "offsets");
     }
 
@@ -233,7 +233,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return new IndexSettings(meta, settings);
     }
 
-    protected final void withLuceneIndex(
+    protected static void withLuceneIndex(
         MapperService mapperService,
         CheckedConsumer<RandomIndexWriter, IOException> builder,
         CheckedConsumer<DirectoryReader, IOException> test
@@ -250,22 +250,25 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     /**
      * Build a {@link SourceToParse} with the id {@code "1"} and without any dynamic templates.
      */
-    protected final SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+    protected static SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
         return source("1", build, null);
     }
 
     /**
      * Build a {@link SourceToParse} without any dynamic templates.
      */
-    protected final SourceToParse source(@Nullable String id, CheckedConsumer<XContentBuilder, IOException> build, @Nullable String routing)
-        throws IOException {
+    protected static SourceToParse source(
+        @Nullable String id,
+        CheckedConsumer<XContentBuilder, IOException> build,
+        @Nullable String routing
+    ) throws IOException {
         return source(id, build, routing, Map.of());
     }
 
     /**
      * Build a {@link SourceToParse}.
      */
-    protected final SourceToParse source(
+    protected static SourceToParse source(
         @Nullable String id,
         CheckedConsumer<XContentBuilder, IOException> build,
         @Nullable String routing,
@@ -287,35 +290,35 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     /**
      * Merge a new mapping into the one in the provided {@link MapperService}.
      */
-    protected final void merge(MapperService mapperService, XContentBuilder mapping) throws IOException {
+    protected static void merge(MapperService mapperService, XContentBuilder mapping) throws IOException {
         merge(mapperService, MapperService.MergeReason.MAPPING_UPDATE, mapping);
     }
 
     /**
      * Merge a new mapping into the one in the provided {@link MapperService}.
      */
-    protected final void merge(MapperService mapperService, String mapping) throws IOException {
+    protected static void merge(MapperService mapperService, String mapping) throws IOException {
         mapperService.merge(null, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
-    protected final void merge(MapperService mapperService, MapperService.MergeReason reason, String mapping) throws IOException {
+    protected static void merge(MapperService mapperService, MapperService.MergeReason reason, String mapping) throws IOException {
         mapperService.merge(null, new CompressedXContent(mapping), reason);
     }
 
     /**
      * Merge a new mapping into the one in the provided {@link MapperService} with a specific {@code MergeReason}
      */
-    protected final void merge(MapperService mapperService, MapperService.MergeReason reason, XContentBuilder mapping) throws IOException {
+    protected static void merge(MapperService mapperService, MapperService.MergeReason reason, XContentBuilder mapping) throws IOException {
         mapperService.merge(null, new CompressedXContent(BytesReference.bytes(mapping)), reason);
     }
 
-    protected final XContentBuilder topMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+    protected static XContentBuilder topMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
         buildFields.accept(builder);
         return builder.endObject().endObject();
     }
 
-    protected final XContentBuilder mappingNoSubobjects(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+    protected static XContentBuilder mappingNoSubobjects(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
         return topMapping(xContentBuilder -> {
             xContentBuilder.field("subobjects", false);
             xContentBuilder.startObject("properties");
@@ -324,19 +327,19 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         });
     }
 
-    protected final XContentBuilder mapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+    protected static XContentBuilder mapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
         buildFields.accept(builder);
         return builder.endObject().endObject().endObject();
     }
 
-    protected final XContentBuilder dynamicMapping(Mapping dynamicMapping) throws IOException {
+    protected static XContentBuilder dynamicMapping(Mapping dynamicMapping) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         dynamicMapping.toXContent(builder, ToXContent.EMPTY_PARAMS);
         return builder.endObject();
     }
 
-    protected final XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
+    protected static XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
         return mapping(b -> {
             b.startObject("field");
             buildField.accept(b);
@@ -344,7 +347,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         });
     }
 
-    protected final XContentBuilder runtimeFieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
+    protected static XContentBuilder runtimeFieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
         return runtimeMapping(b -> {
             b.startObject("field");
             buildField.accept(b);
@@ -352,7 +355,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         });
     }
 
-    protected final XContentBuilder runtimeMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+    protected static XContentBuilder runtimeMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("runtime");
         buildFields.accept(builder);
         return builder.endObject().endObject().endObject();
@@ -722,7 +725,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         }
     }
 
-    private String syntheticSource(DocumentMapper mapper, IndexReader reader, int docId) throws IOException {
+    private static String syntheticSource(DocumentMapper mapper, IndexReader reader, int docId) throws IOException {
         SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
         LeafReader leafReader = getOnlyLeafReader(reader);
         SourceLoader.Leaf leafLoader = loader.leaf(leafReader, new int[] { docId });
@@ -753,7 +756,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         );
     }
 
-    protected final XContentBuilder syntheticSourceMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+    protected static XContentBuilder syntheticSourceMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
         return topMapping(b -> {
             b.startObject("_source").field("mode", "synthetic").endObject();
             b.startObject("properties");
@@ -762,7 +765,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         });
     }
 
-    protected final XContentBuilder syntheticSourceFieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField)
+    protected static XContentBuilder syntheticSourceFieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField)
         throws IOException {
         return syntheticSourceMapping(b -> {
             b.startObject("field");

@@ -360,7 +360,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         return result;
     }
 
-    private void addInputFieldsToMap(Map<String, LinkedHashSet<String>> inputFields, String inputFieldName, String fieldValue) {
+    private static void addInputFieldsToMap(Map<String, LinkedHashSet<String>> inputFields, String inputFieldName, String fieldValue) {
         if (Strings.isNullOrEmpty(inputFieldName) == false && fieldValue != null) {
             if (ReservedFieldNames.isValidFieldName(inputFieldName)) {
                 inputFields.computeIfAbsent(inputFieldName, k -> new LinkedHashSet<>()).add(fieldValue);

@@ -94,7 +94,7 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
         project.getExtensions().add("distribution_archives", container);
     }
 
-    private void configureGeneralTaskDefaults(Project project) {
+    private static void configureGeneralTaskDefaults(Project project) {
         // common config across all copy / archive tasks
         project.getTasks().withType(AbstractCopyTask.class).configureEach(t -> {
             t.dependsOn(project.getTasks().withType(EmptyDirTask.class));
@@ -111,7 +111,7 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
         });
     }
 
-    private void configureTarDefaults(Project project) {
+    private static void configureTarDefaults(Project project) {
         // common config across all tars
         project.getTasks().withType(SymbolicLinkPreservingTar.class).configureEach(t -> {
             t.getArchiveExtension().set("tar.gz");
@@ -119,7 +119,7 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
         });
     }
 
-    private void registerEmptyDirectoryTasks(Project project) {
+    private static void registerEmptyDirectoryTasks(Project project) {
         // CopySpec does not make it easy to create an empty directory so we
         // create the directory that we want, and then point CopySpec to its
         // parent to copy to the root of the distribution

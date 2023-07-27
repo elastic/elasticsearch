@@ -437,7 +437,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
         );
     }
 
-    private void checkKnownUnsupportedTypes(Object x) throws SQLFeatureNotSupportedException {
+    private static void checkKnownUnsupportedTypes(Object x) throws SQLFeatureNotSupportedException {
         List<Class<?>> unsupportedTypes = new ArrayList<>(
             Arrays.asList(
                 Struct.class,

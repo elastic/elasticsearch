@@ -99,7 +99,7 @@ public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase 
         }
     }
 
-    private void assertColumnNamesAndLabels(ResultSetMetaData metaData, List<String> names) throws SQLException {
+    private static void assertColumnNamesAndLabels(ResultSetMetaData metaData, List<String> names) throws SQLException {
         assertEquals(names.size(), metaData.getColumnCount());
         for (int i = 0; i < names.size(); i++) {
             assertEquals(names.get(i), metaData.getColumnName(i + 1));

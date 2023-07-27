@@ -141,7 +141,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         return container;
     }
 
-    private void createListClustersTask(Project project, NamedDomainObjectContainer<ElasticsearchCluster> container) {
+    private static void createListClustersTask(Project project, NamedDomainObjectContainer<ElasticsearchCluster> container) {
         // Task is never up to date so we can pass an lambda for the task action
         project.getTasks().register(LIST_TASK_NAME, task -> {
             task.setGroup("ES cluster formation");

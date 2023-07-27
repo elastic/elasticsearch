@@ -95,11 +95,11 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
         testCase(iw -> buildIndex.accept(iw, dft), verify, new AggTestConfig(builder, k1ft, k2ft, nft, dft));
     }
 
-    protected final DateFieldMapper.DateFieldType aggregableDateFieldType(boolean useNanosecondResolution, boolean isSearchable) {
+    protected static DateFieldMapper.DateFieldType aggregableDateFieldType(boolean useNanosecondResolution, boolean isSearchable) {
         return aggregableDateFieldType(useNanosecondResolution, isSearchable, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
     }
 
-    protected final DateFieldMapper.DateFieldType aggregableDateFieldType(
+    protected static DateFieldMapper.DateFieldType aggregableDateFieldType(
         boolean useNanosecondResolution,
         boolean isSearchable,
         DateFormatter formatter

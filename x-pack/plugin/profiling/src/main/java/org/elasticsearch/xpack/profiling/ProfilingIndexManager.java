@@ -336,7 +336,7 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
             return indexName.startsWith(expectedPrefix) && isVersionNumber(indexName, expectedPrefix.length());
         }
 
-        private boolean isVersionNumber(String name, int startIndex) {
+        private static boolean isVersionNumber(String name, int startIndex) {
             final int versionNumberLength = 3;
             String versionNumberCandidate = name.substring(startIndex, Math.min(startIndex + versionNumberLength, name.length()));
             return versionNumberCandidate.length() == versionNumberLength

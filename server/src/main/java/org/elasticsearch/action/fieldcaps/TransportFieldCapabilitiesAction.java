@@ -276,7 +276,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             && r1.getIndexMappingHash().equals(r2.getIndexMappingHash());
     }
 
-    private FieldCapabilitiesResponse merge(
+    private static FieldCapabilitiesResponse merge(
         Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
         CancellableTask task,
         FieldCapabilitiesRequest request,
@@ -351,7 +351,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         return Optional.empty();
     }
 
-    private void innerMerge(
+    private static void innerMerge(
         String[] indices,
         Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
         FieldCapabilitiesRequest request,

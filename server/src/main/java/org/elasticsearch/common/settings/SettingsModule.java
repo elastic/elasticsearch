@@ -193,7 +193,7 @@ public class SettingsModule implements Module {
 
     // TODO: remove this hack once we remove the deprecated ability to use repository settings in the cluster state in the S3 snapshot
     // module
-    private boolean isS3InsecureCredentials(Setting<?> setting) {
+    private static boolean isS3InsecureCredentials(Setting<?> setting) {
         final String settingKey = setting.getKey();
         return settingKey.equals("access_key") || settingKey.equals("secret_key");
     }

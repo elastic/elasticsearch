@@ -111,7 +111,7 @@ final class PluginIntrospector {
 
     // finds the subset of given methods that are overridden by the given class
     // returns a map of method name to interface name the method was declared in
-    private Map<String, String> findOverriddenMethods(final Class<?> pluginClass, Map<Class<?>, List<MethodType>> methodsMap) {
+    private static Map<String, String> findOverriddenMethods(final Class<?> pluginClass, Map<Class<?>, List<MethodType>> methodsMap) {
         assert Plugin.class.isAssignableFrom(pluginClass);
         List<Class<?>> clazzes = Stream.concat(Stream.of(Plugin.class), interfaceClasses(pluginClass, methodsMap::containsKey)).toList();
         if (clazzes.isEmpty()) {

@@ -81,7 +81,7 @@ public class ObjectPath {
     }
 
     @SuppressWarnings("unchecked")
-    private Object evaluate(String key, Object objectToEvaluate, Stash stash) throws IOException {
+    private static Object evaluate(String key, Object objectToEvaluate, Stash stash) throws IOException {
         if (stash.containsStashedValue(key)) {
             key = stash.getValue(key).toString();
         }
@@ -118,7 +118,7 @@ public class ObjectPath {
         );
     }
 
-    private String[] parsePath(String path) {
+    private static String[] parsePath(String path) {
         List<String> list = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean escape = false;

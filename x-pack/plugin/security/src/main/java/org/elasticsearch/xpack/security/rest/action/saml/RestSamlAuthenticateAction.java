@@ -115,7 +115,7 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
         }
     }
 
-    private byte[] decodeBase64(String content) {
+    private static byte[] decodeBase64(String content) {
         content = content.replaceAll("\\s+", "");
         try {
             return Base64.getDecoder().decode(content);

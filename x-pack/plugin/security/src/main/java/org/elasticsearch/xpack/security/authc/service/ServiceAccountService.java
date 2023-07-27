@@ -179,7 +179,7 @@ public class ServiceAccountService {
         listener.onResponse(account.roleDescriptor());
     }
 
-    private Authentication createAuthentication(
+    private static Authentication createAuthentication(
         ServiceAccount account,
         ServiceAccountToken token,
         TokenSource tokenSource,
@@ -193,7 +193,7 @@ public class ServiceAccountService {
         );
     }
 
-    private ElasticsearchSecurityException createAuthenticationException(ServiceAccountToken serviceAccountToken) {
+    private static ElasticsearchSecurityException createAuthenticationException(ServiceAccountToken serviceAccountToken) {
         return new ElasticsearchSecurityException(
             "failed to authenticate service account [{}] with token name [{}]",
             RestStatus.UNAUTHORIZED,

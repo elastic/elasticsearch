@@ -124,7 +124,7 @@ public final class RerouteProcessor extends AbstractProcessor {
         return dataStreamName.substring(indexOfSecondDash + 1);
     }
 
-    private String determineDataStreamField(
+    private static String determineDataStreamField(
         IngestDocument ingestDocument,
         List<DataStreamValueSource> valueSources,
         String fallbackFromCurrentTarget

@@ -719,7 +719,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
     }
 
-    private List<Diagnosis.Definition> checkDataTierShouldMigrate(
+    private static List<Diagnosis.Definition> checkDataTierShouldMigrate(
         IndexMetadata indexMetadata,
         List<NodeAllocationResult> dataTierAllocationResults,
         @Nullable String preferredTier,
@@ -764,7 +764,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
     }
 
-    private Optional<Diagnosis.Definition> checkNotEnoughNodesInDataTier(
+    private static Optional<Diagnosis.Definition> checkNotEnoughNodesInDataTier(
         List<NodeAllocationResult> dataTierAllocationResults,
         @Nullable String preferredTier
     ) {

@@ -128,7 +128,7 @@ public class CrossClusterAccessAuthenticationService {
         listener.onFailure(ese);
     }
 
-    private void writeAuthToContext(
+    private static void writeAuthToContext(
         final Authenticator.Context context,
         final Authentication authentication,
         final ActionListener<Authentication> listener

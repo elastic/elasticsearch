@@ -285,7 +285,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
         );
     }
 
-    private void sleep(long sleepMillis, WatchExecutionContext context, ReportingAttachment attachment) {
+    private static void sleep(long sleepMillis, WatchExecutionContext context, ReportingAttachment attachment) {
         try {
             Thread.sleep(sleepMillis);
         } catch (InterruptedException e) {
@@ -343,7 +343,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     /**
      * Extract the id from JSON payload, so we know which ID to poll for
      */
-    private String extractIdFromJson(String watchId, String attachmentId, BytesReference body) throws IOException {
+    private static String extractIdFromJson(String watchId, String attachmentId, BytesReference body) throws IOException {
         // EMPTY is safe here becaus we never call namedObject
         try (
             InputStream stream = body.streamInput();

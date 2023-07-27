@@ -137,7 +137,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         return "Manages configuration for Fleet";
     }
 
-    private SystemIndexDescriptor fleetActionsSystemIndexDescriptor() {
+    private static SystemIndexDescriptor fleetActionsSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(loadTemplateSource("/fleet-actions.json"), XContentType.JSON);
 
@@ -155,7 +155,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private SystemIndexDescriptor fleetAgentsSystemIndexDescriptor() {
+    private static SystemIndexDescriptor fleetAgentsSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(loadTemplateSource("/fleet-agents.json"), XContentType.JSON);
 
@@ -173,7 +173,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private SystemIndexDescriptor fleetEnrollmentApiKeysSystemIndexDescriptor() {
+    private static SystemIndexDescriptor fleetEnrollmentApiKeysSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(loadTemplateSource("/fleet-enrollment-api-keys.json"), XContentType.JSON);
 
@@ -191,7 +191,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private SystemIndexDescriptor fleetSecretsSystemIndexDescriptor() {
+    private static SystemIndexDescriptor fleetSecretsSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(loadTemplateSource("/fleet-secrets.json"), XContentType.JSON);
         return SystemIndexDescriptor.builder()
@@ -208,7 +208,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private SystemIndexDescriptor fleetPoliciesSystemIndexDescriptor() {
+    private static SystemIndexDescriptor fleetPoliciesSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(loadTemplateSource("/fleet-policies.json"), XContentType.JSON);
 
@@ -226,7 +226,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private SystemIndexDescriptor fleetPoliciesLeaderSystemIndexDescriptor() {
+    private static SystemIndexDescriptor fleetPoliciesLeaderSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(loadTemplateSource("/fleet-policies-leader.json"), XContentType.JSON);
 
@@ -244,7 +244,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private SystemIndexDescriptor fleetServersSystemIndexDescriptors() {
+    private static SystemIndexDescriptor fleetServersSystemIndexDescriptors() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(loadTemplateSource("/fleet-servers.json"), XContentType.JSON);
 
@@ -262,7 +262,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private SystemIndexDescriptor fleetArtifactsSystemIndexDescriptors() {
+    private static SystemIndexDescriptor fleetArtifactsSystemIndexDescriptors() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(loadTemplateSource("/fleet-artifacts.json"), XContentType.JSON);
 
@@ -280,7 +280,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private SystemDataStreamDescriptor fleetActionsResultsDescriptor() {
+    private static SystemDataStreamDescriptor fleetActionsResultsDescriptor() {
         final String source = loadTemplateSource("/fleet-actions-results.json");
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, source)) {
             ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.parse(parser);
@@ -336,7 +336,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         }
     }
 
-    private String loadTemplateSource(String resource) {
+    private static String loadTemplateSource(String resource) {
         return TemplateUtils.loadTemplate(resource, Version.CURRENT.toString(), MAPPING_VERSION_VARIABLE);
     }
 

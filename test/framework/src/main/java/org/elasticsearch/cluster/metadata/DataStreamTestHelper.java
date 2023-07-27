@@ -455,11 +455,11 @@ public final class DataStreamTestHelper {
                     .appendValue(generation);
             }
 
-            private String parseDataStreamName(String backingIndexName, int indexOfLastDash) {
+            private static String parseDataStreamName(String backingIndexName, int indexOfLastDash) {
                 return backingIndexName.substring(4, backingIndexName.lastIndexOf('-', indexOfLastDash - 1));
             }
 
-            private int parseGeneration(String backingIndexName, int indexOfLastDash) {
+            private static int parseGeneration(String backingIndexName, int indexOfLastDash) {
                 return Integer.parseInt(backingIndexName.substring(indexOfLastDash + 1));
             }
         };

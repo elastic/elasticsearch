@@ -276,7 +276,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
-    private int getVersion(LifecyclePolicy policy, String logicalVersion) {
+    private static int getVersion(LifecyclePolicy policy, String logicalVersion) {
         Map<String, Object> meta = policy.getMetadata();
         try {
             return meta != null ? Integer.parseInt(meta.getOrDefault("version", Integer.MIN_VALUE).toString()) : Integer.MIN_VALUE;

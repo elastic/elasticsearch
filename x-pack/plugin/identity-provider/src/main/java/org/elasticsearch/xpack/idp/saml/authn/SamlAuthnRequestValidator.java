@@ -223,7 +223,7 @@ public class SamlAuthnRequestValidator {
         listener.onResponse(response);
     }
 
-    private void validateNameIdPolicy(AuthnRequest request, SamlServiceProvider sp, Map<String, Object> authnState) {
+    private static void validateNameIdPolicy(AuthnRequest request, SamlServiceProvider sp, Map<String, Object> authnState) {
         final NameIDPolicy nameIDPolicy = request.getNameIDPolicy();
         if (null != nameIDPolicy) {
             final String requestedFormat = nameIDPolicy.getFormat();
@@ -303,7 +303,7 @@ public class SamlAuthnRequestValidator {
         }
     }
 
-    private String checkAcs(AuthnRequest request, SamlServiceProvider sp, Map<String, Object> authnState) {
+    private static String checkAcs(AuthnRequest request, SamlServiceProvider sp, Map<String, Object> authnState) {
         final String acs = request.getAssertionConsumerServiceURL();
         if (Strings.hasText(acs) == false) {
             final String message = request.getAssertionConsumerServiceIndex() == null
@@ -347,7 +347,7 @@ public class SamlAuthnRequestValidator {
         }
     }
 
-    private byte[] inflate(byte[] bytes) {
+    private static byte[] inflate(byte[] bytes) {
         Inflater inflater = new Inflater(true);
         try (
             ByteArrayInputStream in = new ByteArrayInputStream(bytes);
@@ -361,7 +361,7 @@ public class SamlAuthnRequestValidator {
         }
     }
 
-    private String urlEncode(String param) {
+    private static String urlEncode(String param) {
         return URLEncoder.encode(param, StandardCharsets.UTF_8);
     }
 

@@ -174,15 +174,19 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
     }
 
-    private void maybeSkipTasks(TaskContainer tasks, Provider<DockerSupportService> dockerSupport, Class<? extends DefaultTask> taskClass) {
+    private static void maybeSkipTasks(
+        TaskContainer tasks,
+        Provider<DockerSupportService> dockerSupport,
+        Class<? extends DefaultTask> taskClass
+    ) {
         tasks.withType(taskClass).configureEach(t -> maybeSkipTask(dockerSupport, t));
     }
 
-    private void maybeSkipTask(Provider<DockerSupportService> dockerSupport, TaskProvider<Task> task) {
+    private static void maybeSkipTask(Provider<DockerSupportService> dockerSupport, TaskProvider<Task> task) {
         task.configure(t -> maybeSkipTask(dockerSupport, t));
     }
 
-    private void maybeSkipTask(Provider<DockerSupportService> dockerSupport, Task task) {
+    private static void maybeSkipTask(Provider<DockerSupportService> dockerSupport, Task task) {
         task.onlyIf("docker compose is available", spec -> {
             boolean isComposeAvailable = dockerSupport.get().getDockerAvailability().isComposeAvailable();
             if (isComposeAvailable == false) {
@@ -192,7 +196,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
         });
     }
 
-    private void configureServiceInfoForTask(
+    private static void configureServiceInfoForTask(
         Task task,
         Project fixtureProject,
         boolean enableFilter,
@@ -230,7 +234,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
     }
 
     @SuppressWarnings("unchecked")
-    private Class<? extends DefaultTask> getTaskClass(String type) {
+    private static Class<? extends DefaultTask> getTaskClass(String type) {
         Class<?> aClass;
         try {
             aClass = Class.forName(type);

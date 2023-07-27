@@ -234,7 +234,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             return plan;
         }
 
-        private Aggs addPipelineAggs(QueryContainer qContainer, QueryTranslation qt, FilterExec fexec) {
+        private static Aggs addPipelineAggs(QueryContainer qContainer, QueryTranslation qt, FilterExec fexec) {
             AggFilter filter = qt.aggFilter;
             Aggs aggs = qContainer.aggs();
 

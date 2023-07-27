@@ -142,7 +142,7 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
         assertEquals("All requests must respond, requests: " + requests, 0, latch.getCount());
     }
 
-    private Tuple<TransportService, TransportService> findDisruptedPair(NetworkDisruption.DisruptedLinks disruptedLinks) {
+    private static Tuple<TransportService, TransportService> findDisruptedPair(NetworkDisruption.DisruptedLinks disruptedLinks) {
         Optional<Tuple<TransportService, TransportService>> disruptedPair = disruptedLinks.nodes()
             .stream()
             .flatMap(n1 -> disruptedLinks.nodes().stream().map(n2 -> Tuple.tuple(n1, n2)))
@@ -159,7 +159,7 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
         return disruptedPair.get();
     }
 
-    private void sendRequest(TransportService source, TransportService target, CountDownLatch latch) {
+    private static void sendRequest(TransportService source, TransportService target, CountDownLatch latch) {
         source.sendRequest(target.getLocalNode(), ClusterHealthAction.NAME, new ClusterHealthRequest(), new TransportResponseHandler<>() {
             private AtomicBoolean responded = new AtomicBoolean();
 

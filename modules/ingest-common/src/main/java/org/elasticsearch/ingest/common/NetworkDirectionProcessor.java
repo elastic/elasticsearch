@@ -153,7 +153,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
         return DIRECTION_EXTERNAL;
     }
 
-    private boolean isInternal(List<String> networks, String ip) {
+    private static boolean isInternal(List<String> networks, String ip) {
         for (String network : networks) {
             if (inNetwork(ip, network)) {
                 return true;
@@ -162,7 +162,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
         return false;
     }
 
-    private boolean inNetwork(String ip, String network) {
+    private static boolean inNetwork(String ip, String network) {
         InetAddress address = InetAddresses.forString(ip);
         return switch (network) {
             case LOOPBACK_NAMED_NETWORK -> isLoopback(address);

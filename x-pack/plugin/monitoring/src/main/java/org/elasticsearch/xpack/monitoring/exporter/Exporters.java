@@ -281,7 +281,7 @@ public class Exporters extends AbstractLifecycleComponent {
      * @param docs The monitoring documents to send.
      * @param listener Returns {@code null} when complete, or failure where relevant.
      */
-    private void doExport(final ExportBulk bulk, final Collection<MonitoringDoc> docs, final ActionListener<Void> listener) {
+    private static void doExport(final ExportBulk bulk, final Collection<MonitoringDoc> docs, final ActionListener<Void> listener) {
         final AtomicReference<ExportException> exceptionRef = new AtomicReference<>();
 
         try {

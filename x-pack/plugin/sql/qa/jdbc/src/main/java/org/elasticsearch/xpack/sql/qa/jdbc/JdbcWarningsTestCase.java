@@ -88,7 +88,7 @@ public abstract class JdbcWarningsTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    private void assumeWarningHandlingDriverVersion() {
+    private static void assumeWarningHandlingDriverVersion() {
         assumeTrue("Driver does not yet handle deprecation warnings", JDBC_DRIVER_VERSION.onOrAfter(WARNING_HANDLING_ADDED_VERSION));
     }
 

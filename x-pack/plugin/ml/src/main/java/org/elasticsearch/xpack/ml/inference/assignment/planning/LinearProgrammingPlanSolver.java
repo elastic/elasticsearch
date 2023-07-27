@@ -200,11 +200,11 @@ class LinearProgrammingPlanSolver {
         return distance == Integer.MIN_VALUE ? Integer.MAX_VALUE : Math.abs(distance);
     }
 
-    private double minWeight(Deployment m, Node n, double w) {
+    private static double minWeight(Deployment m, Node n, double w) {
         return m.currentAllocationsByNodeId().containsKey(n.id()) ? w / 2 : 0;
     }
 
-    private double maxWeight(Deployment m, Node n, double w) {
+    private static double maxWeight(Deployment m, Node n, double w) {
         return m.currentAllocationsByNodeId().containsKey(n.id()) ? w : w / 2;
     }
 

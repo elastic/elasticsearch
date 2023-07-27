@@ -615,7 +615,7 @@ public final class IndicesPermission {
         return true;
     }
 
-    private void logDeprecatedBwcPrivilegeUsage(
+    private static void logDeprecatedBwcPrivilegeUsage(
         String action,
         IndexResource resource,
         Group group,

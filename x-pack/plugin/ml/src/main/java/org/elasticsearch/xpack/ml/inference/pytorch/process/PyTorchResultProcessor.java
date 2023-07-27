@@ -239,7 +239,7 @@ public class PyTorchResultProcessor {
         );
     }
 
-    private LongSummaryStatistics cloneSummaryStats(LongSummaryStatistics stats) {
+    private static LongSummaryStatistics cloneSummaryStats(LongSummaryStatistics stats) {
         return new LongSummaryStatistics(stats.getCount(), stats.getMin(), stats.getMax(), stats.getSum());
     }
 

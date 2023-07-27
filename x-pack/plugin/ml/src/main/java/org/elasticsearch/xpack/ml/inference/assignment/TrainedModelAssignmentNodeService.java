@@ -458,7 +458,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         }
     }
 
-    private boolean hasStartingAssignments(TrainedModelAssignment assignment) {
+    private static boolean hasStartingAssignments(TrainedModelAssignment assignment) {
         return assignment.getNodeRoutingTable()
             .values()
             .stream()

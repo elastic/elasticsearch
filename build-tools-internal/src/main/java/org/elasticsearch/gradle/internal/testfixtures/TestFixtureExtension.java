@@ -58,7 +58,7 @@ public class TestFixtureExtension {
         }
     }
 
-    private String getServiceNameKey(String fixtureProjectPath, String serviceName) {
+    private static String getServiceNameKey(String fixtureProjectPath, String serviceName) {
         return fixtureProjectPath + "::" + serviceName;
     }
 

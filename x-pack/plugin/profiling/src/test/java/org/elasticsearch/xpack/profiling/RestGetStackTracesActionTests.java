@@ -28,21 +28,21 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RestGetProfilingActionTests extends RestActionTestCase {
+public class RestGetStackTracesActionTests extends RestActionTestCase {
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestGetProfilingAction());
+        controller().registerHandler(new RestGetStackTracesAction());
     }
 
     public void testPrepareEmptyRequest() {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> {
-            assertThat(request, instanceOf(GetProfilingRequest.class));
-            GetProfilingRequest profilingRequest = (GetProfilingRequest) request;
-            assertThat(profilingRequest.getSampleSize(), nullValue());
-            assertThat(profilingRequest.getQuery(), nullValue());
+            assertThat(request, instanceOf(GetStackTracesRequest.class));
+            GetStackTracesRequest getStackTracesRequest = (GetStackTracesRequest) request;
+            assertThat(getStackTracesRequest.getSampleSize(), nullValue());
+            assertThat(getStackTracesRequest.getQuery(), nullValue());
             executeCalled.set(true);
-            return new GetProfilingResponse(
+            return new GetStackTracesResponse(
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 Collections.emptyMap(),
@@ -62,12 +62,12 @@ public class RestGetProfilingActionTests extends RestActionTestCase {
     public void testPrepareParameterizedRequest() {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> {
-            assertThat(request, instanceOf(GetProfilingRequest.class));
-            GetProfilingRequest profilingRequest = (GetProfilingRequest) request;
-            assertThat(profilingRequest.getSampleSize(), is(10000));
-            assertThat(profilingRequest.getQuery(), notNullValue(QueryBuilder.class));
+            assertThat(request, instanceOf(GetStackTracesRequest.class));
+            GetStackTracesRequest getStackTracesRequest = (GetStackTracesRequest) request;
+            assertThat(getStackTracesRequest.getSampleSize(), is(10000));
+            assertThat(getStackTracesRequest.getQuery(), notNullValue(QueryBuilder.class));
             executeCalled.set(true);
-            return new GetProfilingResponse(
+            return new GetStackTracesResponse(
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 Collections.emptyMap(),
@@ -76,7 +76,7 @@ public class RestGetProfilingActionTests extends RestActionTestCase {
                 0.0
             );
         });
-        RestRequest profilingRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/_profiling/stacktraces")
             .withContent(new BytesArray("""
                             {
@@ -98,7 +98,7 @@ public class RestGetProfilingActionTests extends RestActionTestCase {
                             }
                 """), XContentType.JSON)
             .build();
-        dispatchRequest(profilingRequest);
+        dispatchRequest(request);
         assertThat(executeCalled.get(), equalTo(true));
     }
 

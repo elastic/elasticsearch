@@ -54,6 +54,7 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginRuntimeInfo;
+import org.elasticsearch.test.BuildUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xcontent.XContentType;
@@ -365,8 +366,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockJvmInfo.getVmVendor()).thenReturn("_jvm_vm_vendor");
         when(mockJvmInfo.getUsingBundledJdk()).thenReturn(true);
 
-        final Build mockBuild = new Build("default", Build.Type.DOCKER, "", "", false, "");
-        when(mockNodeInfo.getBuild()).thenReturn(mockBuild);
+        when(mockNodeInfo.getBuild()).thenReturn(BuildUtils.newBuild(Build.current(), Map.of("type", Build.Type.DOCKER)));
 
         final NodeStats mockNodeStats = mock(NodeStats.class);
         when(mockNodeStats.getTimestamp()).thenReturn(0L);

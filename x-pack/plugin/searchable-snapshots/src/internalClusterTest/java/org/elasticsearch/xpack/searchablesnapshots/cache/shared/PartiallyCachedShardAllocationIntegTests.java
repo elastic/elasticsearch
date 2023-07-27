@@ -106,19 +106,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
     public void testPartialSearchableSnapshotNotAllocatedToNodesWithoutCache() throws Exception {
         final MountSearchableSnapshotRequest req = prepareMountRequest();
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
-        try {
-            assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(0));
-        } catch (NullPointerException | AssertionError e) {
-            var explain = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
-                .setIndex(req.mountedIndexName())
-                .setShard(0)
-                .setPrimary(true)
-                .get();
-            logger.error("Failed to mount searchable snapshot: {}", Strings.toString(explain.getExplanation(), true, true));
-            throw e;
-        }
+        assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(0));
         final ClusterState state = clusterAdmin().prepareState().clear().setRoutingTable(true).get().getState();
         assertTrue(state.toString(), state.routingTable().index(req.mountedIndexName()).allPrimaryShardsUnassigned());
 

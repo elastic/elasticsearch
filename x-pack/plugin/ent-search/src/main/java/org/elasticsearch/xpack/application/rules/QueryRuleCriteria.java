@@ -35,6 +35,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.ALWAYS;
 
 public class QueryRuleCriteria implements Writeable, ToXContentObject {
+
+    public static final TransportVersion CRITERIA_METADATA_VALUES_TRANSPORT_VERSION = TransportVersion.V_8_500_044;
     private final QueryRuleCriteriaType criteriaType;
     private final String criteriaMetadata;
     private final List<Object> criteriaValues;
@@ -70,7 +72,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
 
     public QueryRuleCriteria(StreamInput in) throws IOException {
         this.criteriaType = in.readEnum(QueryRuleCriteriaType.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_044)) {
+        if (in.getTransportVersion().onOrAfter(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
             this.criteriaMetadata = in.readOptionalString();
             this.criteriaValues = in.readOptionalList(StreamInput::readGenericValue);
         } else {
@@ -82,7 +84,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(criteriaType);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_044)) {
+        if (out.getTransportVersion().onOrAfter(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
             out.writeOptionalString(criteriaMetadata);
             out.writeOptionalCollection(criteriaValues, StreamOutput::writeGenericValue);
         } else {

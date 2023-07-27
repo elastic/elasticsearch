@@ -27,7 +27,7 @@ public class SourceToParse {
     private final XContentType xContentType;
 
     private final Map<String, String> dynamicTemplates;
-    private boolean alreadyReported;
+    private boolean toBeReported;
 
     public SourceToParse(
         @Nullable String id,
@@ -35,7 +35,7 @@ public class SourceToParse {
         XContentType xContentType,
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
-        boolean alreadyReported
+        boolean toBeReported
     ) {
         this.id = id;
         // we always convert back to byte array, since we store it and Field only supports bytes..
@@ -44,15 +44,15 @@ public class SourceToParse {
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
-        this.alreadyReported = alreadyReported;
+        this.toBeReported = toBeReported;
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
         this(id, source, xContentType, null, Map.of(), false);
     }
 
-    public boolean isAlreadyReported() {
-        return alreadyReported;
+    public boolean isToBeReported() {
+        return toBeReported;
     }
 
     public BytesReference source() {

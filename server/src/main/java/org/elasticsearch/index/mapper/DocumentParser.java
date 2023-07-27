@@ -75,9 +75,9 @@ public final class DocumentParser {
         final XContentType xContentType = source.getXContentType();
 
         // only report a document if it was not already reported (done in IngestService)
-        DocumentReporter documentReporter = source.isAlreadyReported()
-            ? DocumentReporter.EMPTY_INSTANCE
-            : documentReporterFactory.createDocumentReporter();
+        DocumentReporter documentReporter = source.isToBeReported()
+            ? documentReporterFactory.createDocumentReporter()
+            : DocumentReporter.EMPTY_INSTANCE;
         try (
             XContentParser parser = documentReporter.wrapParser(
                 XContentHelper.createParser(parserConfiguration, source.source(), xContentType)

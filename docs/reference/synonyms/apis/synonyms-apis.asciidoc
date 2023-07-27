@@ -21,9 +21,11 @@ The following APIs can be used to manage synonyms sets:
 
 * <<put-synoyms-set>>
 * <<get-synoyms-set>>
+* <<list-synoyms-set>>
 * <<delete-synoyms-set>>
 
 include::put-synonyms-set.asciidoc[]
 include::get-synonyms-set.asciidoc[]
+include::list-synonyms-set.asciidoc[]
 include::delete-synonyms-set.asciidoc[]
 

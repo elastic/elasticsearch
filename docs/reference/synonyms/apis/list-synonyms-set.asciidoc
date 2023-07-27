@@ -1,0 +1,67 @@
+[[list-synoyms-set]]
+=== List Synonyms Sets
+
+beta::[]
+
+++++
+<titleabbrev>List Synonyms Set</titleabbrev>
+++++
+
+Retrieves a summary of all defined Synonyms Sets.
+
+This API allows to retrieve the total number of Synonyms Sets defined.
+For each Synonyms Set, its identifier and the total number of rules defined is returned.
+
+[[list-synonyms-set-request]]
+==== {api-request-title}
+
+`GET _synonyms`
+
+[[list-synonyms-set-prereqs]]
+==== {api-prereq-title}
+
+Requires the `manage_search_synonyms` cluster privilege.
+
+[[list-synonyms-set-query-params]]
+==== {api-query-parms-title}
+
+`from`::
+(Optional, integer) Starting offset for Synonyms Sets to retrieve. Defaults to `0`.
+
+`size`::
+(Optional, integer) Specifies the maximum number of Synonyms Sets to retrieve. Defaults to `10`.
+
+[[list-synonyms-set-example]]
+==== {api-examples-title}
+
+The following example retrieves all defined Synonyms Set:
+
+[source,console]
+----
+GET _synonyms
+----
+// TEST[skip:TBD]
+
+A sample response:
+
+[source,console-result]
+----
+{
+  "count": 3,
+  "results": [
+    {
+      "synonyms_set": "ecommerce-synonyms",
+      "count": 3
+    },
+    {
+      "synonyms_set": "my-synonyms-set",
+      "count": 3
+    },
+    {
+      "synonyms_set": "new-ecommerce-synonyms",
+      "count": 1
+    }
+  ]
+}
+----
+// TEST[skip:TBD]

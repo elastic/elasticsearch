@@ -69,12 +69,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
         // but merged should
         DocumentParser documentParser = new DocumentParser(null, null, DocumentReporterFactory.EMPTY_INSTANCE);
-        DocumentMapper mergedMapper = new DocumentMapper(
-            documentParser,
-            merged,
-            merged.toCompressedXContent(),
-            DocumentReporterFactory.EMPTY_INSTANCE
-        );
+        DocumentMapper mergedMapper = new DocumentMapper(documentParser, merged, merged.toCompressedXContent());
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());
     }

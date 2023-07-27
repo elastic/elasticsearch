@@ -381,7 +381,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
-        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource, DocumentReporterFactory.EMPTY_INSTANCE);
+        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource);
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }
@@ -557,7 +557,4 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return documentMapper().mapping().getRoot().dynamicTemplates();
     }
 
-    public DocumentReporterFactory getDocumentReporter() {
-        return documentReporterFactory;
-    }
 }

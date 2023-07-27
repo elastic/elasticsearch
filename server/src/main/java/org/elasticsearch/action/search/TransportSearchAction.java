@@ -519,18 +519,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchResponse.getNumReducePhases()
                     );
                     SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
-                    if (searchResponse.getFailedShards() == 0) {
-                        cluster.setStatus(SearchResponse.Cluster.Status.SUCCESSFUL);
+                    /*
+                     * Cluster Status logic:
+                     * 1) FAILED if all shards failed
+                     * 2) PARTIAL if it timed out
+                     * 3) PARTIAL if it at least one of the shards succeeded (or skipped) but not all
+                     * 4) SUCCESSFUL if no shards failed (and did not time out)
+                     */
+                    if (searchResponse.getFailedShards() >= searchResponse.getTotalShards()) {
+                        cluster.setStatus(SearchResponse.Cluster.Status.FAILED);
+                    } else if (searchResponse.isTimedOut()) {
+                        cluster.markAsTimedOut();
+                        cluster.setStatus(SearchResponse.Cluster.Status.PARTIAL);
+                    } else if (searchResponse.getFailedShards() > 0) {
+                        cluster.setStatus(SearchResponse.Cluster.Status.PARTIAL);
                     } else {
-                        if (searchResponse.getTotalShards() > searchResponse.getFailedShards()) {
-                            cluster.setStatus(SearchResponse.Cluster.Status.PARTIAL);
-                        } else {
-                            cluster.setStatus(SearchResponse.Cluster.Status.FAILED);
-                        }
-                        for (ShardSearchFailure shardFailure : searchResponse.getShardFailures()) {
-                            cluster.addFailure(shardFailure);
-                        }
+                        cluster.setStatus(SearchResponse.Cluster.Status.SUCCESSFUL);
                     }
+                    for (ShardSearchFailure shardFailure : searchResponse.getShardFailures()) {
+                        cluster.addFailure(shardFailure);
+                    }
+
                     cluster.setTotalShards(searchResponse.getTotalShards());
                     cluster.setSuccessfulShards(searchResponse.getSuccessfulShards());
                     cluster.setSkippedShards(searchResponse.getSkippedShards());
@@ -768,9 +777,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
                 int total = searchResponse.getTotalShards();
-                int success = searchResponse.getSuccessfulShards();
                 cluster.setTotalShards(total);
-                cluster.setSuccessfulShards(success);
+                cluster.setSuccessfulShards(searchResponse.getSuccessfulShards());
                 cluster.setSkippedShards(searchResponse.getSkippedShards());
                 cluster.setFailedShards(searchResponse.getFailedShards());
 
@@ -778,20 +786,25 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 Instant start = Instant.ofEpochMilli(startTime);
                 cluster.setTook(Duration.between(start, now).toMillis());
 
-                if (total > success) {
-                    if (success == 0) {
-                        cluster.setStatus(SearchResponse.Cluster.Status.FAILED);
-                    } else {
-                        cluster.setStatus(SearchResponse.Cluster.Status.PARTIAL);
-                    }
-                    ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
-                    if (shardFailures != null) {
-                        for (ShardSearchFailure shardFailure : shardFailures) {
-                            cluster.addFailure(shardFailure);
-                        }
-                    }
+                /*
+                 * Cluster Status logic:
+                 * 1) FAILED if all shards failed
+                 * 2) PARTIAL if it timed out
+                 * 3) PARTIAL if it at least one of the shards succeeded (or skipped) but not all
+                 * 4) SUCCESSFUL if no shards failed (and did not time out)
+                 */
+                if (searchResponse.getFailedShards() >= total) {
+                    cluster.setStatus(SearchResponse.Cluster.Status.FAILED);
+                } else if (searchResponse.isTimedOut()) {
+                    cluster.markAsTimedOut();
+                    cluster.setStatus(SearchResponse.Cluster.Status.PARTIAL);
+                } else if (searchResponse.getFailedShards() > 0) {
+                    cluster.setStatus(SearchResponse.Cluster.Status.PARTIAL);
                 } else {
                     cluster.setStatus(SearchResponse.Cluster.Status.SUCCESSFUL);
+                }
+                for (ShardSearchFailure shardFailure : searchResponse.getShardFailures()) {
+                    cluster.addFailure(shardFailure);
                 }
                 searchResponseMerger.add(searchResponse);
             }

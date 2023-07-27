@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.internal.documentreporting;
+package org.elasticsearch.plugins.internal.document_reporting;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.plugins.IngestPlugin;

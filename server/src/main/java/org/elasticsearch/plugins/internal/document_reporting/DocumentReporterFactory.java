@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.internal.documentreporting;
+package org.elasticsearch.plugins.internal.document_reporting;
 
 /**
  * An interface of a factory to return a DocumentReporter.

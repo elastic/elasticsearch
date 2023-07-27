@@ -21,7 +21,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.plugins.internal.documentreporting.DocumentReporterFactory;
+import org.elasticsearch.plugins.internal.document_reporting.DocumentReporterFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 

@@ -24,7 +24,7 @@ import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.documentreporting.DocumentReporterFactory;
+import org.elasticsearch.plugins.internal.document_reporting.DocumentReporterFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;

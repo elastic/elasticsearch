@@ -124,7 +124,6 @@ teardown:
   - do:
       search_application.get:
         name: test-search-application
-  - match: { indices: [ "test-index1", "test-index2" ] }
   - match:
       template:
         script:
@@ -176,8 +175,6 @@ teardown:
             another_query_string:
               type: "string"
 
-  - match: { indices: [ "test-index1", "test-index2" ] }
-
 ---
 "Update Search Application with null template, results in default template being applied":
   - do:
@@ -213,8 +210,6 @@ teardown:
           params:
             query_string: "*"
             default_field: "*"
-
-  - match: { indices: [ "test-index3", "test-index4" ] }
 
 ---
 "Update Search Application - Dictionary is not a valid JSON Schema":

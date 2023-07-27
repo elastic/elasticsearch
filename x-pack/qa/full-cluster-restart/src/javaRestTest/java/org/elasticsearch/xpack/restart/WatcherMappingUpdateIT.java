@@ -16,6 +16,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 
 import java.nio.charset.StandardCharsets;
@@ -63,17 +64,17 @@ public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestC
             client().performRequest(putWatchRequest);
 
             if (getOldClusterVersion().onOrAfter(Version.V_7_13_0)) {
-                assertMappingVersion(".watches", getOldClusterVersion());
+                assertMappingVersion(".watches", getOldClusterVersion().toString());
             } else {
                 // watches indices from before 7.10 do not have mapping versions in _meta
                 assertNoMappingVersion(".watches");
             }
         } else {
-            assertMappingVersion(".watches", Version.CURRENT);
+            assertMappingVersion(".watches", SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION);
         }
     }
 
-    private void assertMappingVersion(String index, Version clusterVersion) throws Exception {
+    private void assertMappingVersion(String index, String clusterVersion) throws Exception {
         assertBusy(() -> {
             Request mappingRequest = new Request("GET", index + "/_mappings");
             mappingRequest.setOptions(getWarningHandlerOptions(index));

@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
@@ -131,7 +131,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             }
             assertNotNull(indexLevel);
 
-            assertEquals(SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION, extractValue("mappings._meta.version", indexLevel));
+            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
             assertEquals(
                 InferenceIndexConstants.INFERENCE_INDEX_MAPPINGS_VERSION,
                 extractValue("mappings._meta.system-index-mappings-version", indexLevel)
@@ -168,7 +168,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             }
             assertNotNull(indexLevel);
 
-            assertEquals(SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION, extractValue("mappings._meta.version", indexLevel));
+            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
             assertEquals(
                 AnnotationIndex.ANNOTATION_INDEX_MAPPINGS_VERSION,
                 extractValue("mappings._meta.system-index-mappings-version", indexLevel)
@@ -226,7 +226,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             Map<String, Object> indexLevel = (Map<String, Object>) responseLevel.get(".ml-config");
             assertNotNull(indexLevel);
 
-            assertEquals(SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION, extractValue("mappings._meta.version", indexLevel));
+            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
             assertEquals(
                 MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION,
                 extractValue("mappings._meta.system-index-mappings-version", indexLevel)

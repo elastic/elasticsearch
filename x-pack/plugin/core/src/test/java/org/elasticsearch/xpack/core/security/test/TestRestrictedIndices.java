@@ -8,6 +8,7 @@
 
 package org.elasticsearch.xpack.core.security.test;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -264,7 +265,7 @@ public class TestRestrictedIndices {
             XContentBuilder builder = jsonBuilder().startObject()
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
-                .field("version", SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION) // TODO[wrb]: remove
+                .field("version", Version.CURRENT) // TODO[wrb]: remove
                 .field(SystemIndexDescriptor.VERSION_META_KEY, 0)
                 .endObject()
                 .field("dynamic", "strict")

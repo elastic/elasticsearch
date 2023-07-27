@@ -140,10 +140,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     /** The version meta key for the integer system index mapping version */
     public static final String VERSION_META_KEY = "system-index-mappings-version";
 
-    // semantically valid version that will be greater than anything in the field
-    // older nodes will parse this version as "in the future"
-    public static final String LEGACY_PLACEHOLDER_VERSION = "8.99.99";
-
     /** For internally-managed indices, specifies the origin to use when creating or updating the index */
     private final String origin;
 

@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
@@ -224,7 +225,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             return jsonBuilder().startObject()
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
-                .field("version", SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION)
+                .field("version", Version.CURRENT)
                 .field(SystemIndexDescriptor.VERSION_META_KEY, GEOIP_INDEX_MAPPINGS_VERSION)
                 .endObject()
                 .field("dynamic", "strict")

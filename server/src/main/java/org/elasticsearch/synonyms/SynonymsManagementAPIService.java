@@ -11,6 +11,7 @@ package org.elasticsearch.synonyms;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -122,7 +123,7 @@ public class SynonymsManagementAPIService {
                 {
                     builder.startObject("_meta");
                     {
-                        builder.field("version", SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION);
+                        builder.field("version", Version.CURRENT.toString());
                         builder.field(SystemIndexDescriptor.VERSION_META_KEY, SYNONYMS_INDEX_MAPPINGS_VERSION);
                     }
                     builder.endObject();

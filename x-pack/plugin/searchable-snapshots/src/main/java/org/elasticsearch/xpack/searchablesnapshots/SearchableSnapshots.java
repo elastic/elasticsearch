@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -612,7 +613,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                     builder.field("dynamic", "strict");
                     {
                         builder.startObject("_meta");
-                        builder.field("version", SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION);
+                        builder.field("version", Version.CURRENT);
                         builder.field(SystemIndexDescriptor.VERSION_META_KEY, SEARCHABLE_SNAPSHOTS_INDEX_MAPPINGS_VERSION);
                         builder.endObject();
                     }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -358,7 +359,7 @@ public final class TransformInternalIndex {
      */
     private static XContentBuilder addMetaInformation(XContentBuilder builder) throws IOException {
         return builder.startObject("_meta")
-            .field("version", SystemIndexDescriptor.LEGACY_PLACEHOLDER_VERSION)
+            .field("version", Version.CURRENT)
             .field(SystemIndexDescriptor.VERSION_META_KEY, TRANSFORM_INDEX_MAPPINGS_VERSION)
             .endObject();
     }

@@ -8,16 +8,11 @@
 package org.elasticsearch.xpack.fleet.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestActionListener;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.fleet.action.DeleteSecretAction;
 import org.elasticsearch.xpack.fleet.action.DeleteSecretRequest;
-import org.elasticsearch.xpack.fleet.action.DeleteSecretResponse;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,13 +35,7 @@ public class RestDeleteSecretsAction extends BaseRestHandler {
         return restChannel -> client.execute(
             DeleteSecretAction.INSTANCE,
             new DeleteSecretRequest(id),
-            new RestActionListener<>(restChannel) {
-                @Override
-                protected void processResponse(DeleteSecretResponse response) {
-                    final RestStatus status = response.isDeleted() ? RestStatus.OK : RestStatus.NOT_FOUND;
-                    channel.sendResponse(new RestResponse(status, XContentType.JSON.mediaType(), BytesArray.EMPTY));
-                }
-            }
+            new RestToXContentListener<>(restChannel)
         );
     }
 }

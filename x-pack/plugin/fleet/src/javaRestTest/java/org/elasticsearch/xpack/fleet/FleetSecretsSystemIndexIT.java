@@ -63,9 +63,13 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
         Request deleteRequest = new Request("DELETE", "/_fleet/secrets/" + id);
         Response deleteResponse = client().performRequest(deleteRequest);
         assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
+        responseMap = getResponseMap(deleteResponse);
+        assertThat(responseMap.size(), is(1));
+        assertTrue(responseMap.containsKey("deleted"));
+        assertThat(responseMap.get("deleted"), is(true));
     }
 
-    public void testGetNonExistingSecret() throws Exception {
+    public void testGetNonExistingSecret() {
         Request getRequest = new Request("GET", "/_fleet/secrets/123");
         ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(getRequest));
         Response getResponse = re.getResponse();
@@ -75,8 +79,8 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
     public void testDeleteNonExistingSecret() {
         Request deleteRequest = new Request("DELETE", "/_fleet/secrets/123");
         ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(deleteRequest));
-        Response getResponse = re.getResponse();
-        assertThat(getResponse.getStatusLine().getStatusCode(), is(404));
+        Response deleteResponse = re.getResponse();
+        assertThat(deleteResponse.getStatusLine().getStatusCode(), is(404));
     }
 
     private String getPostSecretJson() throws IOException {

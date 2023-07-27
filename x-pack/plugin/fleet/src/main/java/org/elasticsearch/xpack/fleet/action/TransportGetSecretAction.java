@@ -36,6 +36,6 @@ public class TransportGetSecretAction extends HandledTransportAction<GetSecretRe
                 return;
             }
             listener.onResponse(new GetSecretResponse(getResponse.getId(), getResponse.getSource().get("value").toString()));
-        }, listener::onFailure)); // TODO: check impl and failure handling
+        }, listener::onFailure));
     }
 }

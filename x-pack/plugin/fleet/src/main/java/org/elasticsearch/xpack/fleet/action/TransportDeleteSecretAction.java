@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.fleet.action;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.support.ActionFilters;
@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -37,20 +36,12 @@ public class TransportDeleteSecretAction extends HandledTransportAction<DeleteSe
     protected void doExecute(Task task, DeleteSecretRequest request, ActionListener<DeleteSecretResponse> listener) {
         client.prepareDelete(FLEET_SECRETS_INDEX_NAME, request.id())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .execute(
-                ActionListener.wrap(
-                    deleteResponse -> listener.onResponse(new DeleteSecretResponse(deleteResponse.getResult() == Result.DELETED)),
-                    e -> handleFailure(e, listener)
-                )
-            ); // TODO: check impl and failure handling
-    }
-
-    private void handleFailure(Exception e, ActionListener<DeleteSecretResponse> listener) {
-        Throwable cause = ExceptionsHelper.unwrapCause(e);
-        if (cause instanceof IndexNotFoundException) {
-            listener.onResponse(new DeleteSecretResponse(false));
-        } else {
-            listener.onFailure(e);
-        }
+            .execute(ActionListener.wrap(deleteResponse -> {
+                if (deleteResponse.getResult() == Result.NOT_FOUND) {
+                    listener.onFailure(new ResourceNotFoundException("No secret with id [" + request.id() + "]"));
+                    return;
+                }
+                listener.onResponse(new DeleteSecretResponse(deleteResponse.getResult() == Result.DELETED));
+            }, listener::onFailure));
     }
 }

@@ -12,7 +12,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
-import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;

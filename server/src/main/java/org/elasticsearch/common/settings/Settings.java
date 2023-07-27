@@ -1044,7 +1044,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
          * @param version The version value
          * @return The builder
          */
-        public <T extends VersionId<T>> Builder put(String setting, T version) {
+        public Builder put(String setting, VersionId<?> version) {
             put(setting, version.id());
             return this;
         }

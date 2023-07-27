@@ -7,7 +7,7 @@
     "settings": {
       "index.lifecycle.name": ".fleet-actions-results-ilm-policy",
       "index.auto_expand_replicas": "0-1",
-      "index.fast_refresh": "true"
+      "index.fast_refresh": true
     },
     "mappings": {
       "_meta": {

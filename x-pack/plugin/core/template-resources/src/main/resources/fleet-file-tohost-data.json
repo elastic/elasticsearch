@@ -13,8 +13,7 @@
     "settings": {
       "index.auto_expand_replicas": "0-1",
       "index.hidden": true,
-      "index.lifecycle.name": ".fleet-file-tohost-data-ilm-policy",
-      "index.fast_refresh": "true"
+      "index.lifecycle.name": ".fleet-file-tohost-data-ilm-policy"
     },
     "mappings": {
       "_doc": {

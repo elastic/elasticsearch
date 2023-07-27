@@ -92,6 +92,10 @@ public class IndexVersionUtils {
         return ALL_VERSIONS.get(place - 1);
     }
 
+    public static IndexVersion getPreviousMajorVersion(IndexVersion version) {
+        return IndexVersion.fromId(((version.id() / 1_000_000) - 1) * 1_000_000);
+    }
+
     public static IndexVersion getNextVersion(IndexVersion version) {
         int place = Collections.binarySearch(ALL_VERSIONS, version);
         if (place < 0) {

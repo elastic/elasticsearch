@@ -1305,13 +1305,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /** Return consistent index settings for the provided index version, shard- and replica-count. */
-    @Deprecated
-    public static Settings.Builder indexSettings(Version indexVersionCreated, int shards, int replicas) {
-        return settings(indexVersionCreated).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
-    }
-
-    /** Return consistent index settings for the provided index version, shard- and replica-count. */
     public static Settings.Builder indexSettings(IndexVersion indexVersionCreated, int shards, int replicas) {
         return settings(indexVersionCreated).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);

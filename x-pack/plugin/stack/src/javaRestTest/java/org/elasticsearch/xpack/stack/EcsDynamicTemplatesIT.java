@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.stack;
 
 import org.apache.http.HttpStatus;
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -292,10 +291,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         Response response = ESRestTestCase.client().performRequest(getMappingRequest);
         assertEquals(response.getStatusLine().getStatusCode(), HttpStatus.SC_OK);
         Map<String, Object> mappingResponse;
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(XContentParserConfiguration.EMPTY, EntityUtils.toByteArray(response.getEntity()))
-        ) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, response.getEntity().getContent())) {
             mappingResponse = parser.map();
         }
         assertThat(mappingResponse.size(), equalTo(1));

@@ -1,0 +1,150 @@
+[[put-synoyms-set]]
+=== Put Synonyms Set
+
+beta::[]
+
+++++
+<titleabbrev>Put Synonyms Set</titleabbrev>
+++++
+
+Creates or updates a Synonyms Set.
+
+[[put-synonyms-set-request]]
+==== {api-request-title}
+
+`PUT _synonyms/<synonyms_set>`
+
+[[put-synonyms-set-prereqs]]
+==== {api-prereq-title}
+
+Requires the `manage_search_synonyms` cluster privilege.
+
+[[put-synonyms-set-path-params]]
+==== {api-path-parms-title}
+
+`<synonyms_set>`::
+(Required, string)
+Synonyms set identifier to create.
+This identifier will be used by other Synonyms Management APIs to manage the synonyms set.
+
+`<body>`::
+(Required, object)
+Contains the definition of the synonym rules that conform the synonym set:
++
+.Properties of `<body>` objects
+[%collapsible%open]
+====
+`synonyms_set`::
+(Required, array of synonym rules objects)
+The synonym rules definitions for the synonyms set.
+
+.Properties of `synonyms_set` objects
+[%collapsible%open]
+=====
+
+`id`::
+(Optional, string)
+// TODO link to synonym rules APIs
+The identifier associated to the synonym rule, that can be used to manage individual synonym rules via Synonym Rules APIs.
+In case a synonym rule id is not specified, an identifier will be created automatically by the API.
+
+`synonyms`::
+(Requried, string)
+The synonym rule. This needs to be in <<_solr_synonyms>> format. Some examples are:
+* "i-pod, i pod => ipod",
+* "universe, cosmos"
+
+=====
+====
+
+[[put-synonyms-set-example]]
+==== {api-examples-title}
+
+The following example creates a new Synonyms Set called `my-synonyms-set`:
+
+[source,console]
+----
+PUT _synonyms/my-synonyms-set
+{
+  "synonyms_set": [
+    {
+      "id": "test-1",
+      "synonyms": "hello, hi"
+    },
+    {
+      "synonyms": "bye, goodbye"
+    },
+    {
+      "id": "test-2",
+      "synonyms": "test => check"
+    }
+  ]
+}
+----
+// TEST[skip:TBD]
+
+If any of the synonym rules included is not valid, the API will return an error.
+
+[source,console]
+----
+PUT _synonyms/my-synonyms-set
+{
+  "synonyms_set": [
+    {
+      "synonyms": "hello => hi => howdy"
+    }
+  ]
+}
+----
+// TEST[skip:TBD]
+
+[source,console-result]
+----
+{
+  "error": {
+    "root_cause": [
+      {
+        "type": "action_request_validation_exception",
+        "reason": "Validation Failed: 1: More than one explicit mapping specified in the same synonyms rule: [hello => hi => howdy];"
+      }
+    ],
+    "type": "action_request_validation_exception",
+    "reason": "Validation Failed: 1: More than one explicit mapping specified in the same synonyms rule: [hello => hi => howdy];"
+  },
+  "status": 400
+}
+----
+// TEST[skip:TBD]
+
+[discrete]
+==== Analyzer reloading
+When an existing synonym set is updated, the <<search-analyzer, search analyzers>> that use the synonym set are reloaded automatically for all indices.
+This would be equivalent to invoke <<indices-reload-analyzers>> for all indices that use the synonym set.
+
+The reloading result is included as part of the response:
+
+[source,console-result]
+----
+{
+  "result": "updated",
+  "reload_analyzers_details": {
+    "_shards": {
+      "total": 12,
+      "successful": 10,
+      "failed": 0
+    },
+    "reload_details": [
+      {
+        "index": "my-index",
+        "reloaded_analyzers": [
+          "my_search_analyzer"
+        ],
+        "reloaded_node_ids": [
+          "1wYFZzq8Sxeu_Jvt9mlbkg"
+        ]
+      }
+    ]
+  }
+}
+----
+// TEST[skip:TBD]

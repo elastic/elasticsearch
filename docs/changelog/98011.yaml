@@ -1,5 +1,0 @@
-pr: 98011
-summary: Fix concurrent refresh for access tokens
-area: Authentication
-type: bug
-issues: []

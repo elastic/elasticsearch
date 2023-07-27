@@ -60,6 +60,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
+
+import static org.elasticsearch.xpack.ccr.Ccr.CCR_THREAD_POOL_NAME;
 
 public class TransportResumeFollowAction extends AcknowledgedTransportMasterNodeAction<ResumeFollowAction.Request> {
 
@@ -76,6 +79,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
 
     private final Client client;
     private final ThreadPool threadPool;
+    private final Executor remoteClientResponseExecutor;
     private final PersistentTasksService persistentTasksService;
     private final IndicesService indicesService;
     private final CcrLicenseChecker ccrLicenseChecker;
@@ -105,6 +109,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         );
         this.client = client;
         this.threadPool = threadPool;
+        this.remoteClientResponseExecutor = threadPool.executor(CCR_THREAD_POOL_NAME);
         this.persistentTasksService = persistentTasksService;
         this.indicesService = indicesService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
@@ -139,7 +144,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         }
         final String leaderCluster = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
         // Validates whether the leader cluster has been configured properly:
-        client.getRemoteClusterClient(leaderCluster);
+        client.getRemoteClusterClient(leaderCluster, remoteClientResponseExecutor);
         final String leaderIndex = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
             client,

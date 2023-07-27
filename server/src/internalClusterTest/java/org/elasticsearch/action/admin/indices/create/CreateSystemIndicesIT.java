@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.TestSystemIndexDescriptor;
 import org.elasticsearch.indices.TestSystemIndexDescriptorAllowsTemplates;
 import org.elasticsearch.indices.TestSystemIndexPlugin;
@@ -352,7 +353,6 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
 
     /**
      * Fetch the mappings and settings for {@link TestSystemIndexDescriptor#INDEX_NAME} and verify that they match the expected values.
-     * Note that in the case of the mappings, this is just a dumb string comparison, so order of keys matters.
      */
     private void assertMappingsAndSettings(String expectedMappings, String concreteIndex) {
         final GetMappingsResponse getMappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(INDEX_NAME))
@@ -366,11 +366,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         );
         final Map<String, Object> sourceAsMap = mappings.get(concreteIndex).getSourceAsMap();
 
-        try {
-            assertThat(convertToXContent(sourceAsMap, XContentType.JSON).utf8ToString(), equalTo(expectedMappings));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        assertThat(sourceAsMap, equalTo(XContentHelper.convertToMap(XContentType.JSON.xContent(), expectedMappings, false)));
 
         final GetSettingsResponse getSettingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(INDEX_NAME))
             .actionGet();

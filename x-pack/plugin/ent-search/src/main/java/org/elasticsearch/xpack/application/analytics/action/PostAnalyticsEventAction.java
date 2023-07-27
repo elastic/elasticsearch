@@ -212,7 +212,16 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         @Override
         public int hashCode() {
-            return Objects.hash(eventCollectionName, eventType, debug, eventTime, xContentType.canonical(), payload, headers, clientAddress);
+            return Objects.hash(
+                eventCollectionName,
+                eventType,
+                debug,
+                eventTime,
+                xContentType.canonical(),
+                payload,
+                headers,
+                clientAddress
+            );
         }
 
         @Override

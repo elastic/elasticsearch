@@ -82,7 +82,7 @@ public class SearchApplicationListItem implements Writeable, ToXContentObject {
     }
 
     private static final ConstructingObjectParser<SearchApplicationListItem, String> PARSER = new ConstructingObjectParser<>(
-        "search_application_list_item",
+        "search_application_list_item`",
         false,
         (params) -> {
             final String name = (String) params[0];

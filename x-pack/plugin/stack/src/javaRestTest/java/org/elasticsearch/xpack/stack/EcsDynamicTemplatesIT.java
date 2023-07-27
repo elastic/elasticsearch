@@ -43,7 +43,6 @@ import static org.hamcrest.Matchers.instanceOf;
 
 @SuppressWarnings("unchecked")
 public class EcsDynamicTemplatesIT extends ESRestTestCase {
-
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("mapper-extras").module("wildcard").build();
 

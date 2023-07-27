@@ -47,7 +47,6 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .user(USER, PASS)
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.DATA_STREAM_LIFECYCLE_ENABLED)
-        .feature(FeatureFlag.SYNONYMS_ENABLED)
         .build();
 
     public CoreWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

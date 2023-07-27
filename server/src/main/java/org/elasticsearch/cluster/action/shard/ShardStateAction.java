@@ -49,7 +49,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
@@ -124,14 +123,11 @@ public class ShardStateAction {
             waitForNewMasterAndRetry(actionName, observer, request, listener);
         } else {
             logger.debug("sending [{}] to [{}] for shard entry [{}]", actionName, masterNode.getId(), request);
-            transportService.sendRequest(masterNode, actionName, request, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
-                @Override
-                public void handleResponse(TransportResponse.Empty response) {
-                    listener.onResponse(null);
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
+            transportService.sendRequest(
+                masterNode,
+                actionName,
+                request,
+                new EmptyTransportResponseHandler(listener.delegateResponse((l, exp) -> {
                     if (isMasterChannelException(exp)) {
                         waitForNewMasterAndRetry(actionName, observer, request, listener);
                     } else {
@@ -146,14 +142,12 @@ public class ShardStateAction {
                         );
                         listener.onFailure(
                             exp instanceof RemoteTransportException
-                                ? (Exception) (exp.getCause() instanceof Exception
-                                    ? exp.getCause()
-                                    : new ElasticsearchException(exp.getCause()))
+                                ? (exp.getCause() instanceof Exception cause ? cause : new ElasticsearchException(exp.getCause()))
                                 : exp
                         );
                     }
-                }
-            });
+                }))
+            );
         }
     }
 
@@ -162,7 +156,7 @@ public class ShardStateAction {
         ConnectTransportException.class,
         FailedToCommitClusterStateException.class };
 
-    private static boolean isMasterChannelException(TransportException exp) {
+    private static boolean isMasterChannelException(Throwable exp) {
         return ExceptionsHelper.unwrap(exp, MASTER_CHANNEL_EXCEPTIONS) != null;
     }
 

@@ -136,6 +136,7 @@ final class DefaultSearchContext extends SearchContext {
         SearchShardTarget shardTarget,
         LongSupplier relativeTimeSupplier,
         TimeValue timeout,
+        int minimumDocsPerSlice,
         FetchPhase fetchPhase,
         boolean lowLevelCancellation
     ) throws IOException {
@@ -153,7 +154,9 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getSimilarity(),
             engineSearcher.getQueryCache(),
             engineSearcher.getQueryCachingPolicy(),
-            lowLevelCancellation
+            minimumDocsPerSlice,
+            lowLevelCancellation,
+            null
         );
         releasables.addAll(List.of(engineSearcher, searcher));
 

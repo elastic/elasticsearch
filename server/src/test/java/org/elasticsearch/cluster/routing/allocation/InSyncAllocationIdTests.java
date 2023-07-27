@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimary
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.IndexVersion;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -54,11 +54,11 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
     public void testInSyncAllocationIdsUpdated() {
         logger.info("creating an index with 1 shard, 2 replicas");
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(2))
             // add index metadata where we have no routing nodes to check that allocation ids are not removed
             .put(
                 IndexMetadata.builder("test-old")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(2)
                     .putInSyncAllocationIds(0, Set.of("x", "y"))
@@ -387,7 +387,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
     private ClusterState createOnePrimaryOneReplicaClusterState(AllocationService allocation) {
         logger.info("creating an index with 1 shard, 1 replica");
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))

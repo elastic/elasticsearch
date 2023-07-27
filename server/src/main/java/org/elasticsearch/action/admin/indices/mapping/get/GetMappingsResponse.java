@@ -70,7 +70,7 @@ public class GetMappingsResponse extends ActionResponse implements ChunkedToXCon
     public Iterator<ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         return Iterators.concat(
             Iterators.single((b, p) -> b.startObject()),
-            getMappings().entrySet().stream().map(indexEntry -> (ToXContent) (builder, params) -> {
+            Iterators.map(getMappings().entrySet().iterator(), indexEntry -> (builder, params) -> {
                 builder.startObject(indexEntry.getKey());
                 boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
                 if (builder.getRestApiVersion() == RestApiVersion.V_7 && includeTypeName && indexEntry.getValue() != null) {
@@ -88,7 +88,7 @@ public class GetMappingsResponse extends ActionResponse implements ChunkedToXCon
                 }
                 builder.endObject();
                 return builder;
-            }).iterator(),
+            }),
             Iterators.single((b, p) -> b.endObject())
         );
     }

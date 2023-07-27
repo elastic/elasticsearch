@@ -20,6 +20,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,8 +39,21 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TaskRetrieverTests extends ESTestCase {
+
+    private ThreadPool threadPool;
+
+    @Before
+    public void setUpThreadPool() {
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @After
+    public void tearDownThreadPool() {
+        terminate(threadPool);
+    }
+
     public void testGetExistingTaskInfoCallsOnFailureForAnError() {
-        var client = mockListTasksClient();
+        var client = mockListTasksClient(threadPool);
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -56,7 +73,7 @@ public class TaskRetrieverTests extends ESTestCase {
     }
 
     public void testGetExistingTaskInfoCallsListenerWithNullWhenNoTasksExist() {
-        var client = mockClientWithTasksResponse(Collections.emptyList());
+        var client = mockClientWithTasksResponse(Collections.emptyList(), threadPool);
         var listener = new PlainActionFuture<TaskInfo>();
 
         getExistingTaskInfo(client, "modelId", false, listener);
@@ -66,7 +83,7 @@ public class TaskRetrieverTests extends ESTestCase {
 
     public void testGetExistingTaskInfoCallsListenerWithTaskInfoWhenTaskExists() {
         List<TaskInfo> listTaskInfo = getTaskInfoListOfOne();
-        var client = mockClientWithTasksResponse(listTaskInfo);
+        var client = mockClientWithTasksResponse(listTaskInfo, threadPool);
         var listener = new PlainActionFuture<TaskInfo>();
 
         getExistingTaskInfo(client, "modelId", false, listener);
@@ -76,7 +93,7 @@ public class TaskRetrieverTests extends ESTestCase {
 
     public void testGetExistingTaskInfoCallsListenerWithFirstTaskInfoWhenMultipleTasksExist() {
         List<TaskInfo> listTaskInfo = getTaskInfoList(2);
-        var client = mockClientWithTasksResponse(listTaskInfo);
+        var client = mockClientWithTasksResponse(listTaskInfo, threadPool);
         var listener = new PlainActionFuture<TaskInfo>();
 
         getExistingTaskInfo(client, "modelId", false, listener);
@@ -89,10 +106,11 @@ public class TaskRetrieverTests extends ESTestCase {
      *
      * @param taskInfo a list of {@link TaskInfo} objects representing the tasks to return
      *                 when {@code Client.execute(ListTasksAction.INSTANCE, ...)} is called
+     * @param threadPool a test thread pool to associate with the client
      * @return the mocked {@link Client}
      */
-    public static Client mockClientWithTasksResponse(List<TaskInfo> taskInfo) {
-        var client = mockListTasksClient();
+    public static Client mockClientWithTasksResponse(List<TaskInfo> taskInfo, ThreadPool threadPool) {
+        var client = mockListTasksClient(threadPool);
 
         var listTasksResponse = mock(ListTasksResponse.class);
         when(listTasksResponse.getTasks()).thenReturn(taskInfo);
@@ -111,10 +129,11 @@ public class TaskRetrieverTests extends ESTestCase {
     /**
      * A helper method for setting up the mock cluster client so that it will return a valid {@link ListTasksRequestBuilder}.
      *
+     * @param threadPool a test thread pool to associate with the client
      * @return a mocked Client
      */
-    public static Client mockListTasksClient() {
-        var client = mockClusterClient();
+    public static Client mockListTasksClient(ThreadPool threadPool) {
+        var client = mockClusterClient(threadPool);
         mockListTasksClient(client);
 
         return client;
@@ -137,13 +156,15 @@ public class TaskRetrieverTests extends ESTestCase {
     /**
      * A helper method for setting up the mock cluster client.
      *
+     * @param threadPool a test thread pool to associate with the client
      * @return a mocked Client
      */
-    public static Client mockClusterClient() {
+    public static Client mockClusterClient(ThreadPool threadPool) {
         var client = mock(Client.class);
         var cluster = mock(ClusterAdminClient.class);
         var admin = mock(AdminClient.class);
 
+        when(client.threadPool()).thenReturn(threadPool);
         when(client.admin()).thenReturn(admin);
         when(admin.cluster()).thenReturn(cluster);
 

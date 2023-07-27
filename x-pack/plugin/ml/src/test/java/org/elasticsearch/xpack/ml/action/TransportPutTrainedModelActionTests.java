@@ -18,6 +18,8 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -45,6 +47,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassification
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigTests;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -61,6 +65,17 @@ import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 
 public class TransportPutTrainedModelActionTests extends ESTestCase {
+    private ThreadPool threadPool;
+
+    @Before
+    public void setUpThreadPool() {
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @After
+    public void tearDownThreadPool() {
+        terminate(threadPool);
+    }
 
     public void testParseInferenceConfigFromModelPackage() throws IOException {
 
@@ -124,7 +139,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
     }
 
     public void testCheckForExistingTaskCallsOnFailureForAnError() {
-        var client = mockListTasksClient();
+        var client = mockListTasksClient(threadPool);
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -143,7 +158,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
     }
 
     public void testCheckForExistingTaskCallsStoreModelListenerWhenNoTasksExist() {
-        var client = mockClientWithTasksResponse(Collections.emptyList());
+        var client = mockClientWithTasksResponse(Collections.emptyList(), threadPool);
 
         var storeListener = new PlainActionFuture<Void>();
 
@@ -153,7 +168,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
     }
 
     public void testCheckForExistingTaskThrowsNoModelFoundError() {
-        var client = mockClientWithTasksResponse(getTaskInfoListOfOne());
+        var client = mockClientWithTasksResponse(getTaskInfoListOfOne(), threadPool);
         prepareGetTrainedModelResponse(client, Collections.emptyList());
 
         var respListener = new PlainActionFuture<PutTrainedModelAction.Response>();
@@ -164,7 +179,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
     }
 
     public void testCheckForExistingTaskReturnsTask() {
-        var client = mockClientWithTasksResponse(getTaskInfoListOfOne());
+        var client = mockClientWithTasksResponse(getTaskInfoListOfOne(), threadPool);
 
         TrainedModelConfig trainedModel = TrainedModelConfigTests.createTestInstance("modelId")
             .setTags(Collections.singletonList("prepackaged"))

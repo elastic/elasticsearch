@@ -18,6 +18,10 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collections;
 
@@ -34,8 +38,20 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportDeleteTrainedModelActionTests extends ESTestCase {
+    private ThreadPool threadPool;
+
+    @Before
+    public void setUpThreadPool() {
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @After
+    public void tearDownThreadPool() {
+        terminate(threadPool);
+    }
+
     public void testCancelDownloadTaskCallsListenerWithNullWhenNoTasksExist() {
-        var client = mockClientWithTasksResponse(Collections.emptyList());
+        var client = mockClientWithTasksResponse(Collections.emptyList(), threadPool);
         var listener = new PlainActionFuture<CancelTasksResponse>();
 
         cancelDownloadTask(client, "modelId", listener);
@@ -44,7 +60,7 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
     }
 
     public void testCancelDownloadTaskCallsOnFailureWithErrorWhenCancellingFailsWithAnError() {
-        var client = mockClientWithTasksResponse(getTaskInfoListOfOne());
+        var client = mockClientWithTasksResponse(getTaskInfoListOfOne(), threadPool);
         mockCancelTask(client);
 
         doAnswer(invocationOnMock -> {
@@ -65,7 +81,7 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
     }
 
     public void testCancelDownloadTasksCallsGetsUnableToRetrieveTaskInfoError() {
-        var client = mockListTasksClient();
+        var client = mockListTasksClient(threadPool);
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -85,7 +101,7 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
     }
 
     public void testCancelDownloadTaskCallsOnResponseWithTheCancelResponseWhenATaskExists() {
-        var client = mockClientWithTasksResponse(getTaskInfoListOfOne());
+        var client = mockClientWithTasksResponse(getTaskInfoListOfOne(), threadPool);
 
         var cancelResponse = mock(CancelTasksResponse.class);
         mockCancelTasksResponse(client, cancelResponse);

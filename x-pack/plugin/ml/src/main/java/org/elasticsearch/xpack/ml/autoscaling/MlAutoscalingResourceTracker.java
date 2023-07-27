@@ -64,6 +64,7 @@ public final class MlAutoscalingResourceTracker {
             .map(DiscoveryNode::getId)
             .toArray(String[]::new);
 
+        // this value is only used iff > 0 and iff all nodes have the same container size
         long modelMemoryAvailableFirstNode = mlNodes.length > 0
             ? NativeMemoryCalculator.allowedBytesForMl(clusterState.nodes().get(mlNodes[0]), settings).orElse(0L)
             : 0L;

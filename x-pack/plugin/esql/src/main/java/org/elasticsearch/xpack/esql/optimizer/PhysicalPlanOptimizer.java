@@ -135,7 +135,8 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                                 new FragmentExec(
                                     Source.EMPTY,
                                     new Project(logicalFragment.source(), logicalFragment, output),
-                                    fragmentExec.esFilter()
+                                    fragmentExec.esFilter(),
+                                    fragmentExec.estimatedRowSize()
                                 )
                             );
                         }

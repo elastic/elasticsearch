@@ -9,7 +9,9 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.Describable;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -25,6 +27,20 @@ import org.elasticsearch.xcontent.ToXContentObject;
  * {@link org.elasticsearch.compute}
  */
 public interface Operator extends Releasable {
+    /**
+     * Target number of bytes in a page. By default we'll try and size pages
+     * so that they contain this many bytes.
+     */
+    int TARGET_PAGE_SIZE = Math.toIntExact(ByteSizeValue.ofKb(256).getBytes());
+
+    /**
+     * The minimum number of positions for a {@link SourceOperator} to
+     * target generating. This isn't 1 because {@link Block}s have
+     * non-trivial overhead and it's just not worth building even
+     * smaller blocks without under normal circumstances.
+     */
+    int MIN_TARGET_PAGE_SIZE = 10;
+
     /**
      * whether the given operator can accept more input pages
      */

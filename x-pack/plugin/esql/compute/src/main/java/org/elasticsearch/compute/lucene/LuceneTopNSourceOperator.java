@@ -143,6 +143,8 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
             String notPrettySorts = sorts.stream().map(s -> Strings.toString(s)).collect(Collectors.joining(","));
             return "LuceneTopNSourceOperator[dataPartitioning = "
                 + dataPartitioning
+                + ", maxPageSize = "
+                + maxPageSize
                 + ", limit = "
                 + limit
                 + ", sorts = ["

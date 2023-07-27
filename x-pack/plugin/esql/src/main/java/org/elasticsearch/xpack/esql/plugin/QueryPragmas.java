@@ -23,7 +23,6 @@ import java.util.Objects;
  * Holds the pragmas for an ESQL query. Just a wrapper of settings for now.
  */
 public final class QueryPragmas implements Writeable {
-    public static final int DEFAULT_PAGE_SIZE = 16 * 1024;
     public static final Setting<Integer> EXCHANGE_BUFFER_SIZE = Setting.intSetting("exchange_buffer_size", 10);
     public static final Setting<Integer> EXCHANGE_CONCURRENT_CLIENTS = Setting.intSetting("exchange_concurrent_clients", 3);
     private static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
@@ -37,7 +36,11 @@ public final class QueryPragmas implements Writeable {
         DataPartitioning.SEGMENT
     );
 
-    public static final Setting<Integer> PAGE_SIZE = Setting.intSetting("page_size", DEFAULT_PAGE_SIZE, 1);
+    /**
+     * Size of a page in entries with {@code 0} being a special value asking
+     * to adaptively size based on the number of columns in the page.
+     */
+    public static final Setting<Integer> PAGE_SIZE = Setting.intSetting("page_size", 0, 0);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -72,6 +75,10 @@ public final class QueryPragmas implements Writeable {
         return TASK_CONCURRENCY.get(settings);
     }
 
+    /**
+     * Size of a page in entries with {@code 0} being a special value asking
+     * to adaptively size based on the number of columns in the page.
+     */
     public int pageSize() {
         return PAGE_SIZE.get(settings);
     }

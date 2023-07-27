@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.Page;
  * A source operator - produces output, accepts no input.
  */
 public abstract class SourceOperator implements Operator {
-
     /**
      * A source operator needs no input - unconditionally returns false.
      * @return false

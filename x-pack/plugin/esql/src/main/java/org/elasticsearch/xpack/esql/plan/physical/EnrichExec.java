@@ -17,7 +17,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class EnrichExec extends UnaryExec {
+public class EnrichExec extends UnaryExec implements EstimatesRowSize {
 
     private final NamedExpression matchField;
     private final String policyName;
@@ -85,6 +85,12 @@ public class EnrichExec extends UnaryExec {
     @Override
     public List<Attribute> output() {
         return mergeOutputAttributes(enrichFields, child().output());
+    }
+
+    @Override
+    public PhysicalPlan estimateRowSize(State state) {
+        state.add(false, enrichFields);
+        return this;
     }
 
     @Override

@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
@@ -290,7 +291,7 @@ public class CsvTests extends ESTestCase {
         var analyzed = analyzer.analyze(parsed);
         var logicalOptimized = logicalPlanOptimizer.optimize(analyzed);
         var physicalPlan = mapper.map(logicalOptimized);
-        var optimizedPlan = physicalPlanOptimizer.optimize(physicalPlan);
+        var optimizedPlan = EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(physicalPlan));
         opportunisticallyAssertPlanSerialization(physicalPlan, optimizedPlan); // comment out to disable serialization
         return optimizedPlan;
     }
@@ -395,7 +396,7 @@ public class CsvTests extends ESTestCase {
 
             // ugly hack to get the layout
             var dummyConfig = new EsqlConfiguration(DateUtils.UTC, StringUtils.EMPTY, StringUtils.EMPTY, QueryPragmas.EMPTY, 1000);
-            var planContainingTheLayout = CSVlocalPlan(List.of(), dummyConfig, subplan, optimizer);
+            var planContainingTheLayout = EstimatesRowSize.estimateRowSize(0, CSVlocalPlan(List.of(), dummyConfig, subplan, optimizer));
             // replace the subnode with an exchange source
             return new ExchangeSourceExec(e.source(), e.output(), planContainingTheLayout);
         });
@@ -413,12 +414,10 @@ public class CsvTests extends ESTestCase {
         var localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
             var optimizedFragment = new LocalLogicalPlanOptimizer().localOptimize(f.fragment());
             var physicalFragment = mapper.map(optimizedFragment);
-            return physicalFragment;
+            return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), physicalFragment);
         });
         return optimizer.localOptimize(localPhysicalPlan);
     }
-
-    //
 
     private Throwable reworkException(Throwable th) {
         StackTraceElement[] stackTrace = th.getStackTrace();

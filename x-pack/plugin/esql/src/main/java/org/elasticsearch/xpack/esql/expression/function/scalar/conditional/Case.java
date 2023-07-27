@@ -190,7 +190,11 @@ public class Case extends ScalarFunction implements Mappable {
                     IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
                 );
                 for (ConditionEvaluator condition : conditions) {
-                    BooleanBlock b = (BooleanBlock) condition.condition.eval(limited);
+                    Block e = condition.condition.eval(limited);
+                    if (e.areAllValuesNull()) {
+                        continue;
+                    }
+                    BooleanBlock b = (BooleanBlock) e;
                     if (b.isNull(0)) {
                         continue;
                     }

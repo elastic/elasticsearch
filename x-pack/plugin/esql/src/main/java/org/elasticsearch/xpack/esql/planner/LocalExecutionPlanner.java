@@ -187,7 +187,7 @@ public class LocalExecutionPlanner {
         } else if (node instanceof ShowExec show) {
             return planShow(show);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
-            return planExchangeSource(exchangeSource);
+            return planExchangeSource(exchangeSource, context);
         }
         // lookups and joins
         else if (node instanceof EnrichExec enrich) {
@@ -215,7 +215,8 @@ public class LocalExecutionPlanner {
                 esQuery.output(),
                 new MatchAllQueryBuilder(),
                 esQuery.limit(),
-                esQuery.sorts()
+                esQuery.sorts(),
+                esQuery.estimatedRowSize()
             );
         }
         return physicalOperationProviders.sourcePhysicalOperation(esQuery, context);
@@ -292,7 +293,7 @@ public class LocalExecutionPlanner {
         return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkHandler::createExchangeSink), source.layout);
     }
 
-    private PhysicalOperation planExchangeSource(ExchangeSourceExec exchangeSource) {
+    private PhysicalOperation planExchangeSource(ExchangeSourceExec exchangeSource, LocalExecutionPlannerContext context) {
         // TODO: ugly hack for now to get the same layout - need to properly support it and have it exposed in the plan and over the wire
         LocalExecutionPlannerContext dummyContext = new LocalExecutionPlannerContext(
             new ArrayList<>(),
@@ -336,7 +337,16 @@ public class LocalExecutionPlanner {
             throw new UnsupportedOperationException();
         }
 
-        return source.with(new TopNOperatorFactory(limit, orders, context.pageSize), source.layout);
+        // TODO Replace page size with passing estimatedRowSize down
+        /*
+         * The 2000 below is a hack to account for incoming size and to make
+         * sure the estimated row size is never 0 which'd cause a divide by 0.
+         * But we should replace this with passing the estimate into the real
+         * topn and letting it actually measure the size of rows it produces.
+         * That'll be more accurate. And we don't have a path for estimating
+         * incoming rows. And we don't need one because we can estimate.
+         */
+        return source.with(new TopNOperatorFactory(limit, orders, context.pageSize(2000 + topNExec.estimatedRowSize())), source.layout);
     }
 
     private PhysicalOperation planEval(EvalExec eval, LocalExecutionPlannerContext context) {
@@ -631,7 +641,7 @@ public class LocalExecutionPlanner {
         Holder<DriverParallelism> driverParallelism,
         int taskConcurrency,
         DataPartitioning dataPartitioning,
-        int pageSize,
+        int configuredPageSize,
         BigArrays bigArrays
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
@@ -640,6 +650,19 @@ public class LocalExecutionPlanner {
 
         void driverParallelism(DriverParallelism parallelism) {
             driverParallelism.set(parallelism);
+        }
+
+        int pageSize(Integer estimatedRowSize) {
+            if (estimatedRowSize == null) {
+                throw new IllegalStateException("estimated row size hasn't been set");
+            }
+            if (estimatedRowSize == 0) {
+                throw new IllegalStateException("estimated row size can't be 0");
+            }
+            if (configuredPageSize != 0) {
+                return configuredPageSize;
+            }
+            return Math.min(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize);
         }
     }
 

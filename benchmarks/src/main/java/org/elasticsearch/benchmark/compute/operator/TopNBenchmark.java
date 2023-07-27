@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.TopNOperator;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -81,7 +80,7 @@ public class TopNBenchmark {
         return new TopNOperator(
             topCount,
             IntStream.range(0, count).mapToObj(c -> new TopNOperator.SortOrder(c, false, false)).toList(),
-            QueryPragmas.DEFAULT_PAGE_SIZE
+            16 * 1024
         );
     }
 

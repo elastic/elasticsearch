@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.List;
 import java.util.Objects;
 
-public class ProjectExec extends UnaryExec {
+public class ProjectExec extends UnaryExec {  // TODO implement EstimatesRowSize *somehow*
 
     private final List<? extends NamedExpression> projections;
 

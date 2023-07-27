@@ -13,6 +13,12 @@ import org.apache.lucene.util.IntroSorter;
  * {@link Vector} where each entry references a lucene document.
  */
 public class DocVector extends AbstractVector implements Vector {
+    /**
+     * Per position memory cost to build the shard segment doc map required
+     * to load fields out of order.
+     */
+    public static final int SHARD_SEGMENT_DOC_MAP_PER_ROW_OVERHEAD = Integer.BYTES * 2;
+
     private final IntVector shards;
     private final IntVector segments;
     private final IntVector docs;

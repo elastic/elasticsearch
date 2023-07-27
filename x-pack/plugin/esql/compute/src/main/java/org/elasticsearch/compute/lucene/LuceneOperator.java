@@ -298,6 +298,7 @@ public abstract class LuceneOperator extends SourceOperator {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
         sb.append("shardId=").append(shardId);
+        sb.append(", maxPageSize=").append(maxPageSize);
         sb.append("]");
         return sb.toString();
     }

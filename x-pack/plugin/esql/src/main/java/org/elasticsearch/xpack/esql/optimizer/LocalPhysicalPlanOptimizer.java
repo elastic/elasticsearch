@@ -198,7 +198,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                         queryExec.output(),
                         query,
                         queryExec.limit(),
-                        queryExec.sorts()
+                        queryExec.sorts(),
+                        queryExec.estimatedRowSize()
                     );
                     if (nonPushable.size() > 0) { // update filter with remaining non-pushable conditions
                         plan = new FilterExec(filterExec.source(), queryExec, Predicates.combineAnd(nonPushable));
@@ -242,7 +243,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     private static class PushTopNToSource extends OptimizerRule<TopNExec> {
-
         @Override
         protected PhysicalPlan rule(TopNExec topNExec) {
             PhysicalPlan plan = topNExec;

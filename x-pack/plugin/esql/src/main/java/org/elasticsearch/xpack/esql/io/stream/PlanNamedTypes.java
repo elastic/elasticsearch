@@ -341,7 +341,8 @@ public final class PlanNamedTypes {
             in.readPhysicalPlanNode(),
             in.readList(readerFromPlanReader(PlanStreamInput::readExpression)),
             readNamedExpressions(in),
-            in.readEnum(AggregateExec.Mode.class)
+            in.readEnum(AggregateExec.Mode.class),
+            in.readOptionalVInt()
         );
     }
 
@@ -350,6 +351,7 @@ public final class PlanNamedTypes {
         out.writeCollection(aggregateExec.groupings(), writerFromPlanWriter(PlanStreamOutput::writeExpression));
         writeNamedExpressions(out, aggregateExec.aggregates());
         out.writeEnum(aggregateExec.getMode());
+        out.writeOptionalVInt(aggregateExec.estimatedRowSize());
     }
 
     static DissectExec readDissectExec(PlanStreamInput in) throws IOException {
@@ -370,7 +372,8 @@ public final class PlanNamedTypes {
             readAttributes(in),
             in.readOptionalNamedWriteable(QueryBuilder.class),
             in.readOptionalNamed(Expression.class),
-            in.readOptionalList(readerFromPlanReader(PlanNamedTypes::readFieldSort))
+            in.readOptionalList(readerFromPlanReader(PlanNamedTypes::readFieldSort)),
+            in.readOptionalVInt()
         );
     }
 
@@ -381,6 +384,7 @@ public final class PlanNamedTypes {
         out.writeOptionalNamedWriteable(esQueryExec.query());
         out.writeOptionalExpression(esQueryExec.limit());
         out.writeOptionalCollection(esQueryExec.sorts(), writerFromPlanWriter(PlanNamedTypes::writeFieldSort));
+        out.writeOptionalInt(esQueryExec.estimatedRowSize());
     }
 
     static EsSourceExec readEsSourceExec(PlanStreamInput in) throws IOException {
@@ -467,12 +471,18 @@ public final class PlanNamedTypes {
     }
 
     static FragmentExec readFragmentExec(PlanStreamInput in) throws IOException {
-        return new FragmentExec(Source.EMPTY, in.readLogicalPlanNode(), in.readOptionalNamedWriteable(QueryBuilder.class));
+        return new FragmentExec(
+            Source.EMPTY,
+            in.readLogicalPlanNode(),
+            in.readOptionalNamedWriteable(QueryBuilder.class),
+            in.readOptionalVInt()
+        );
     }
 
     static void writeFragmentExec(PlanStreamOutput out, FragmentExec fragmentExec) throws IOException {
         out.writeLogicalPlanNode(fragmentExec.fragment());
         out.writeOptionalNamedWriteable(fragmentExec.esFilter());
+        out.writeOptionalVInt(fragmentExec.estimatedRowSize());
     }
 
     static GrokExec readGrokExec(PlanStreamInput in) throws IOException {
@@ -552,7 +562,8 @@ public final class PlanNamedTypes {
             Source.EMPTY,
             in.readPhysicalPlanNode(),
             in.readList(readerFromPlanReader(PlanNamedTypes::readOrder)),
-            in.readNamed(Expression.class)
+            in.readNamed(Expression.class),
+            in.readOptionalVInt()
         );
     }
 
@@ -560,6 +571,7 @@ public final class PlanNamedTypes {
         out.writePhysicalPlanNode(topNExec.child());
         out.writeCollection(topNExec.order(), writerFromPlanWriter(PlanNamedTypes::writeOrder));
         out.writeExpression(topNExec.limit());
+        out.writeOptionalVInt(topNExec.estimatedRowSize());
     }
 
     // -- Logical plan nodes

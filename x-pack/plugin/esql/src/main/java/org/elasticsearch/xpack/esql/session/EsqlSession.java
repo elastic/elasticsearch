@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
@@ -92,19 +93,22 @@ public class EsqlSession {
 
     public void execute(EsqlQueryRequest request, ActionListener<PhysicalPlan> listener) {
         LOGGER.debug("ESQL query:\n{}", request.query());
-        optimizedPhysicalPlan(parse(request.query(), request.params()), listener.map(plan -> plan.transformUp(FragmentExec.class, f -> {
-            QueryBuilder filter = request.filter();
-            if (filter != null) {
-                var fragmentFilter = f.esFilter();
-                // TODO: have an ESFilter and push down to EsQueryExec / EsSource
-                // This is an ugly hack to push the filter parameter to Lucene
-                // TODO: filter integration testing
-                filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
-                LOGGER.debug("Fold filter {} to EsQueryExec", filter);
-                f = new FragmentExec(f.source(), f.fragment(), filter);
-            }
-            return f;
-        })));
+        optimizedPhysicalPlan(
+            parse(request.query(), request.params()),
+            listener.map(plan -> EstimatesRowSize.estimateRowSize(0, plan.transformUp(FragmentExec.class, f -> {
+                QueryBuilder filter = request.filter();
+                if (filter != null) {
+                    var fragmentFilter = f.esFilter();
+                    // TODO: have an ESFilter and push down to EsQueryExec / EsSource
+                    // This is an ugly hack to push the filter parameter to Lucene
+                    // TODO: filter integration testing
+                    filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
+                    LOGGER.debug("Fold filter {} to EsQueryExec", filter);
+                    f = new FragmentExec(f.source(), f.fragment(), filter, f.estimatedRowSize());
+                }
+                return f;
+            })))
+        );
     }
 
     private LogicalPlan parse(String query, List<TypedParamValue> params) {

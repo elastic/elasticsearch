@@ -152,7 +152,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                 operatorFactory = new HashAggregationOperatorFactory(
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     aggregatorFactories,
-                    context.pageSize(),
+                    context.pageSize(aggregateExec.estimatedRowSize()),
                     context.bigArrays()
                 );
             }

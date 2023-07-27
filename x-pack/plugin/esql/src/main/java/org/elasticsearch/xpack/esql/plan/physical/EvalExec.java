@@ -17,8 +17,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class EvalExec extends UnaryExec {
-
+public class EvalExec extends UnaryExec implements EstimatesRowSize {
     private final List<NamedExpression> fields;
 
     public EvalExec(Source source, PhysicalPlan child, List<NamedExpression> fields) {
@@ -43,6 +42,12 @@ public class EvalExec extends UnaryExec {
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
         return NodeInfo.create(this, EvalExec::new, child(), fields);
+    }
+
+    @Override
+    public PhysicalPlan estimateRowSize(State state) {
+        state.add(false, fields);
+        return this;
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
@@ -44,7 +45,7 @@ public class PlannerUtils {
             dataNodePlan.set(new ExchangeSinkExec(e.source(), subplan));
 
             // ugly hack to get the layout
-            var planContainingTheLayout = localPlan(List.of(), config, subplan);
+            var planContainingTheLayout = EstimatesRowSize.estimateRowSize(0, localPlan(List.of(), config, subplan));
             // replace the subnode with an exchange source
             return new ExchangeSourceExec(e.source(), e.output(), planContainingTheLayout);
         });
@@ -93,11 +94,10 @@ public class PlannerUtils {
                     query -> new EsSourceExec(Source.EMPTY, query.index(), query.output(), filter)
                 );
             }
-            return physicalFragment;
+            var optimizer = new LocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration));
+            return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), optimizer.localOptimize(physicalFragment));
         });
-        return isCoordPlan.get()
-            ? plan
-            : new LocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration)).localOptimize(localPhysicalPlan);
+        return isCoordPlan.get() ? plan : localPhysicalPlan;
     }
 
     /**

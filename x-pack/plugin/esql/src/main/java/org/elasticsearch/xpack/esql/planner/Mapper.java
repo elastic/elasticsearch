@@ -195,7 +195,7 @@ public class Mapper {
     }
 
     private static AggregateExec aggExec(Aggregate aggregate, PhysicalPlan child, Mode aggMode) {
-        return new AggregateExec(aggregate.source(), child, aggregate.groupings(), aggregate.aggregates(), aggMode);
+        return new AggregateExec(aggregate.source(), child, aggregate.groupings(), aggregate.aggregates(), aggMode, null);
     }
 
     private PhysicalPlan map(Limit limit, PhysicalPlan child) {
@@ -210,7 +210,7 @@ public class Mapper {
 
     private PhysicalPlan map(TopN topN, PhysicalPlan child) {
         child = addExchangeForFragment(topN, child);
-        return new TopNExec(topN.source(), child, topN.order(), topN.limit());
+        return new TopNExec(topN.source(), child, topN.order(), topN.limit(), null);
     }
 
     private PhysicalPlan addExchangeForFragment(LogicalPlan logical, PhysicalPlan child) {

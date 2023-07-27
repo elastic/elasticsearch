@@ -61,16 +61,8 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
     private static int PAGE_SIZE;
     private static int NUM_DOCS;
 
-    private static final String READ_DESCRIPTION = """
-        \\_LuceneSourceOperator[dataPartitioning = SHARD, limit = 2147483647]
-        \\_ValuesSourceReaderOperator[field = pause_me]
-        \\_AggregationOperator[mode = INITIAL, aggs = sum of longs]
-        \\_ExchangeSinkOperator""";
-    private static final String MERGE_DESCRIPTION = """
-        \\_ExchangeSourceOperator[]
-        \\_AggregationOperator[mode = FINAL, aggs = sum of longs]
-        \\_LimitOperator[limit = 10000]
-        \\_OutputOperator[columns = sum(pause_me)]""";
+    private static String READ_DESCRIPTION;
+    private static String MERGE_DESCRIPTION;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -81,6 +73,16 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
     public void setupIndex() throws IOException {
         PAGE_SIZE = between(10, 100);
         NUM_DOCS = between(4 * PAGE_SIZE, 5 * PAGE_SIZE);
+        READ_DESCRIPTION = """
+            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = PAGE_SIZE, limit = 2147483647]
+            \\_ValuesSourceReaderOperator[field = pause_me]
+            \\_AggregationOperator[mode = INITIAL, aggs = sum of longs]
+            \\_ExchangeSinkOperator""".replace("PAGE_SIZE", Integer.toString(PAGE_SIZE));
+        MERGE_DESCRIPTION = """
+            \\_ExchangeSourceOperator[]
+            \\_AggregationOperator[mode = FINAL, aggs = sum of longs]
+            \\_LimitOperator[limit = 10000]
+            \\_OutputOperator[columns = sum(pause_me)]""";
 
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
         mapping.startObject("runtime");
@@ -115,7 +117,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
             DriverStatus status = (DriverStatus) task.status();
             assertThat(status.sessionId(), not(emptyOrNullString()));
             for (DriverStatus.OperatorStatus o : status.activeOperators()) {
-                if (o.operator().equals("LuceneSourceOperator[shardId=0]")) {
+                if (o.operator().equals("LuceneSourceOperator[shardId=0, maxPageSize=" + PAGE_SIZE + "]")) {
                     LuceneSourceOperator.Status oStatus = (LuceneSourceOperator.Status) o.status();
                     assertThat(oStatus.currentLeaf(), lessThanOrEqualTo(oStatus.totalLeaves()));
                     assertThat(oStatus.leafPosition(), lessThanOrEqualTo(oStatus.leafSize()));

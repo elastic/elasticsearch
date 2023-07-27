@@ -6,8 +6,8 @@
     "_doc" : {
       "dynamic": false,
       "_meta": {
-        "version": "8.99.99",
-        "system-index-mappings-version": ${fleet.version}
+        "version": "${fleet.version}",
+        "system-index-mappings-version": 1
       },
       "properties": {
         "agent": {

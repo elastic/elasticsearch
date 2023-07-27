@@ -238,8 +238,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         });
 
         List.of(
-            ".fleet-" + randomAlphaOfLengthBetween(1, 20),
-            ".fleet-action" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-actions" + randomAlphaOfLengthBetween(1, 20),
             ".fleet-agents" + randomAlphaOfLengthBetween(1, 20),
             ".fleet-enrollment-api-keys" + randomAlphaOfLengthBetween(1, 20),
             ".fleet-policies" + randomAlphaOfLengthBetween(1, 20),
@@ -262,6 +261,20 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotFleetIndex), is(false));
             assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(dotFleetIndex), is(false));
         });
+
+        final IndexAbstraction dotFleetSecretsIndex = mockIndexAbstraction(".fleet-secrets" + randomAlphaOfLengthBetween(1, 20));
+        assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(dotFleetSecretsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(dotFleetSecretsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(dotFleetSecretsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(dotFleetSecretsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(dotFleetSecretsIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(dotFleetSecretsIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(dotFleetSecretsIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(dotFleetSecretsIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(dotFleetSecretsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(dotFleetSecretsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotFleetSecretsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(dotFleetSecretsIndex), is(false));
 
         final IndexAbstraction apmSampledTracesIndex = mockIndexAbstraction("traces-apm.sampled-" + randomAlphaOfLengthBetween(1, 20));
         assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(apmSampledTracesIndex), is(true));

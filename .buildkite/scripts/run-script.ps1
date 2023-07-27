@@ -1,3 +1,24 @@
+# Usage: .buildkite/scripts/run-script.ps1 <script-or-simple-command>
+# Example: .buildkite/scripts/run-script.ps1 bash .buildkite/scripts/tests.sh
+# Example: .buildkite/scripts/run-script.ps1 .buildkite/scripts/other-tests.ps1
+#
+# NOTE: Apparently passing arguments in powershell is a nightmare, so you shouldn't do it unless it's really simple. Just use the wrapper to call a script instead.
+# See: https://stackoverflow.com/questions/6714165/powershell-stripping-double-quotes-from-command-line-arguments
+# and: https://github.com/PowerShell/PowerShell/issues/3223#issuecomment-487975049
+#
+# See here: https://github.com/buildkite/agent/issues/2202
+# Background processes after the buildkite step script finishes causes the job to hang.
+# So, until this is fixed/changed in buildkite-agent (if ever), we can use this wrapper.
+
+# This wrapper:
+# - Creates a Windows job object (which is like a process group)
+# - Sets JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, which means that when the job object is closed, all processes in the job object are killed
+# - Starts running your given script, and assigns it to the job object
+# - Now, any child processes created by your script will also end up in the job object
+# - Waits for your script (and only your script, not child processes) to finish
+# - Closes the job object, which kills all processes in the job object (including any leftover child processes)
+# - Exits with the exit status from your script
+
 Add-Type -TypeDefinition @'
 using Microsoft.Win32.SafeHandles;
 using System;

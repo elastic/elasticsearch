@@ -523,11 +523,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 ActionListener.wrap(r -> fail("no response expected"), failure::set),
                 latch
             );
-            Set<String> clusterAliases = new HashSet<>(remoteClusterService.getRegisteredRemoteClusterNames());
-            if (localIndices != null) {
-                clusterAliases.add("");
-            }
-            SearchResponse.Clusters initClusters = new SearchResponse.Clusters(clusterAliases, true);
+            SearchResponse.Clusters initClusters = new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true);
 
             TransportSearchAction.ccsRemoteReduce(
                 new TaskId("n", 1),
@@ -595,11 +591,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     ActionTestUtils.assertNoFailureListener(response::set),
                     latch
                 );
-                Set<String> clusterAliases = new HashSet<>(remoteClusterService.getRegisteredRemoteClusterNames());
-                if (localIndices != null) {
-                    clusterAliases.add("");
-                }
-                SearchResponse.Clusters initClusters = new SearchResponse.Clusters(clusterAliases, true);
+                SearchResponse.Clusters initClusters = new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true);
 
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
@@ -640,11 +632,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     ActionListener.wrap(r -> fail("no response expected"), failure::set),
                     latch
                 );
-                Set<String> clusterAliases = new HashSet<>(remoteClusterService.getRegisteredRemoteClusterNames());
-                if (localIndices != null) {
-                    clusterAliases.add("");
-                }
-                SearchResponse.Clusters initClusters = new SearchResponse.Clusters(clusterAliases, true);
+                SearchResponse.Clusters initClusters = new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true);
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
                     searchRequest,
@@ -705,11 +693,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     ActionListener.wrap(r -> fail("no response expected"), failure::set),
                     latch
                 );
-                Set<String> clusterAliases = new HashSet<>(remoteClusterService.getRegisteredRemoteClusterNames());
-                if (localIndices != null) {
-                    clusterAliases.add("");
-                }
-                SearchResponse.Clusters initClusters = new SearchResponse.Clusters(clusterAliases, true);
+                SearchResponse.Clusters initClusters = new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true);
 
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
@@ -757,7 +741,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 if (localIndices != null) {
                     clusterAliases.add("");
                 }
-                SearchResponse.Clusters initClusters = new SearchResponse.Clusters(clusterAliases, true);
+                SearchResponse.Clusters initClusters = new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true);
 
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
@@ -817,7 +801,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 if (localIndices != null) {
                     clusterAliases.add("");
                 }
-                SearchResponse.Clusters initClusters = new SearchResponse.Clusters(clusterAliases, true);
+                SearchResponse.Clusters initClusters = new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true);
 
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),

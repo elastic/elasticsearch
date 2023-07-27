@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +31,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -39,7 +41,7 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -48,6 +50,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -499,7 +502,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          * @param remoteClusters number of remote clusters in the search
          * @param ccsMinimizeRoundtrips specifies whether a CCS search is using minimizeRoundtrips feature
          */
-        @Deprecated  // for CCS use the Clusters(Collection<String>, boolean) constructor
+        @Deprecated  // for CCS use the Clusters(OriginalIndices, Map<String, OriginalIndices>, boolean) constructor
         public Clusters(int total, int successful, int skipped, int remoteClusters, boolean ccsMinimizeRoundtrips) {
             assert total >= 0 && successful >= 0 && skipped >= 0 && remoteClusters >= 0
                 : "total: " + total + " successful: " + successful + " skipped: " + skipped + " remote: " + remoteClusters;
@@ -517,28 +520,39 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         /**
-         * For use with cross-cluster searches with ccs_minimize_roundtrips=true.
+         * For use with cross-cluster searches.
          * When minimizing roundtrips, the number of successful and skipped clusters is not known until
          * the end of the search and it the information in SearchResponse.Cluster object will be updated
          * as each cluster returns.
-         * @param clusterAliases
-         * @param ccsMinimizeRoundtrips
+         * @param localIndices The localIndices to be searched - null if no local indices are to be searched
+         * @param remoteClusterIndices mapping of clusterAlias -> OriginalIndices for each remote cluster
+         * @param ccsMinimizeRoundtrips whether minimizing roundtrips for the CCS
          */
-        public Clusters(Collection<String> clusterAliases, boolean ccsMinimizeRoundtrips) {
-            this.total = clusterAliases.size();
-            assert total >= 1 : "Cluster aliases collection passed in has size 0";
+        public Clusters(
+            @Nullable OriginalIndices localIndices,
+            Map<String, OriginalIndices> remoteClusterIndices,
+            boolean ccsMinimizeRoundtrips
+        ) {
+            this.total = remoteClusterIndices.size() + (localIndices == null ? 0 : 1);
+            assert total >= 1 : "No local indices or remote clusters passed in";
             this.successful = 0; // calculated from clusterInfo map for minimize_roundtrips
             this.skipped = 0;    // calculated from clusterInfo map for minimize_roundtrips
             this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
             this.clusterInfo = new ConcurrentHashMap<>();
-            for (String clusterAlias : clusterAliases) {
-                clusterInfo.put(clusterAlias, new Cluster(clusterAlias));
+            if (localIndices != null) {
+                String localKey = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+                clusterInfo.put(localKey, new Cluster(localKey, Arrays.stream(localIndices.indices()).collect(Collectors.joining(","))));
+            }
+            for (Map.Entry<String, OriginalIndices> remote : remoteClusterIndices.entrySet()) {
+                String clusterAlias = remote.getKey();
+                Cluster c = new Cluster(clusterAlias, Arrays.stream(remote.getValue().indices()).collect(Collectors.joining(",")));
+                clusterInfo.put(clusterAlias, c);
             }
         }
 
         /**
          * Used for searches that are either not cross-cluster or CCS with minimize_roundtrips=false.
-         * For CCS minimize_roundtrips=true use {@code Clusters(Collection<String>, boolean)}.
+         * For CCS minimize_roundtrips=true use {@code Clusters(OriginalIndices, Map<String, OriginalIndices>, boolean)}
          * @param total total number of clusters in the search
          * @param successful number of successful clusters in the search
          * @param skipped number of skipped clusters (skipped can only happen for remote clusters with skip_unavailable=true)
@@ -698,11 +712,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * The Cluster object can represent both the local cluster and a remote cluster.
      * For the local cluster, clusterAlias should be specified as RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.
      * Its XContent is put into the "details" section the "_clusters" entry in the SearchResponse.
-     * This is not an immutable class, since it needs to be updated as the search progress
+     * This is not an immutable class, since it needs to be updated as the search progresses
      * (especially important for async CCS searches).
      */
     public static class Cluster implements ToXContentFragment, Writeable {
         private final String clusterAlias;
+        private final String indexExpression; // original index expression from the user for this cluster
         private Status status;
         private final List<ShardSearchFailure> failures;
         private Integer totalShards;  /// MP TODO: use these to update the _shards fields (otherwise skipped clusters aren't counted)
@@ -727,14 +742,27 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             }
         }
 
-        public Cluster(String clusterAlias) {
+        /**
+         * If the user provided "*,remote1:blogs*,remote2:web_traffic" as the multi-target syntax, then three
+         * Cluster objects would be created:
+         * 1. Cluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "*")
+         * 2. Cluster("remote1", "blogs*")
+         * 3. Cluster("remote2", "web_traffic")
+         *
+         * @param clusterAlias clusterAlias as defined in the remote cluster settings or RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
+         *                     for the local cluster
+         * @param indexExpression the original (not resolved/concrete) indices expression provided for this cluster.
+         */
+        public Cluster(String clusterAlias, String indexExpression) {
             this.clusterAlias = clusterAlias;
+            this.indexExpression = indexExpression;
             this.failures = new ArrayList<>();
             this.status = Status.RUNNING;
         }
 
         public Cluster(StreamInput in) throws IOException {
             this.clusterAlias = in.readString();
+            this.indexExpression = in.readString();
             this.status = Status.valueOf(in.readString().toUpperCase(Locale.ROOT));
             this.totalShards = in.readOptionalVInt();
             this.successfulShards = in.readOptionalVInt();
@@ -747,6 +775,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(clusterAlias);
+            out.writeString(indexExpression);
             out.writeString(status.toString());
             out.writeOptionalVInt(totalShards);
             out.writeOptionalVInt(successfulShards);
@@ -762,7 +791,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             if (clusterAlias.equals("")) {
                 name = "(local)";
             }
-            builder.startObject(name);
+            builder.startObject(name + ":" + indexExpression);
             {
                 builder.field("status", status.toString());
                 if (took != null) {
@@ -796,6 +825,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
         public String getClusterAlias() {
             return clusterAlias;
+        }
+
+        public String getIndexExpression() {
+            return indexExpression;
         }
 
         public Status getStatus() {

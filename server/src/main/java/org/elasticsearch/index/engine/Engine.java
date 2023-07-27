@@ -151,6 +151,9 @@ public abstract class Engine implements Closeable {
 
     protected abstract SegmentInfos getLastCommittedSegmentInfos();
 
+    /**
+     * Get the a lazily loaded file size for all segments in the last commit
+     */
     public List<SegmentFileSize> getLastCommittedSegmentFileSizes() {
         return StreamSupport.stream(getLastCommittedSegmentInfos().spliterator(), false)
             .map(SegmentFileSize::new)
@@ -184,11 +187,6 @@ public abstract class Engine implements Closeable {
         try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL)) {
             return docsStats(searcher.getIndexReader());
         }
-    }
-
-    /** Returns the SegmentCommitInfo list for the current commit */
-    public List<SegmentCommitInfo> getLastCommittedSegmentInfoList() {
-        return new ArrayList<>(getLastCommittedSegmentInfos().asList());
     }
 
     protected final DocsStats docsStats(IndexReader indexReader) {

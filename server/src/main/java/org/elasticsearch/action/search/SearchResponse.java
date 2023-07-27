@@ -49,6 +49,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -681,7 +684,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         @Override
         public int hashCode() {
             /// MP TODO: not sure what to do about successful and skipped here, since they are calculated differently
-            /// MP TODO: between CCS MRT=true and other search types
+            /// MP TODO: between CCS MRT=true and other search types and are not immutable for CCS
             return Objects.hash(total, successful, skipped);
         }
 
@@ -718,13 +721,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     public static class Cluster implements ToXContentFragment, Writeable {
         private final String clusterAlias;
         private final String indexExpression; // original index expression from the user for this cluster
-        private Status status;
+        private volatile Status status;  // can be updated in different threads
         private final List<ShardSearchFailure> failures;
-        private Integer totalShards;  /// MP TODO: use these to update the _shards fields (otherwise skipped clusters aren't counted)
-        private Integer successfulShards;
-        private Integer skippedShards;
-        private Integer failedShards;
-        private Long took;  // search latency in millis for this cluster sub-search
+        private final AtomicInteger totalShards;
+        private final AtomicInteger successfulShards;
+        private final AtomicInteger skippedShards;
+        private final AtomicInteger failedShards;
+        private final AtomicLong took;  // search latency in millis for this cluster sub-search
+        private final AtomicBoolean timedOut;
 
         /**
          * Marks the status of a Cluster search involved in a Cross-Cluster search.
@@ -756,20 +760,27 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         public Cluster(String clusterAlias, String indexExpression) {
             this.clusterAlias = clusterAlias;
             this.indexExpression = indexExpression;
-            this.failures = new ArrayList<>();
+            this.failures = Collections.synchronizedList(new ArrayList<>());
             this.status = Status.RUNNING;
+            this.timedOut = new AtomicBoolean(false);
+            this.totalShards = new AtomicInteger(-1);
+            this.successfulShards = new AtomicInteger(-1);
+            this.skippedShards = new AtomicInteger(-1);
+            this.failedShards = new AtomicInteger(-1);
+            this.took = new AtomicLong(-1);
         }
 
         public Cluster(StreamInput in) throws IOException {
             this.clusterAlias = in.readString();
             this.indexExpression = in.readString();
             this.status = Status.valueOf(in.readString().toUpperCase(Locale.ROOT));
-            this.totalShards = in.readOptionalVInt();
-            this.successfulShards = in.readOptionalVInt();
-            this.skippedShards = in.readOptionalVInt();
-            this.failedShards = in.readOptionalVInt();
-            this.took = in.readOptionalVLong();
-            this.failures = in.readList(ShardSearchFailure::readShardSearchFailure);
+            this.totalShards = new AtomicInteger((int) in.readZLong());
+            this.successfulShards = new AtomicInteger((int) in.readZLong());
+            this.skippedShards = new AtomicInteger((int) in.readZLong());
+            this.failedShards = new AtomicInteger((int) in.readZLong());
+            this.took = new AtomicLong(in.readZLong());
+            this.timedOut = new AtomicBoolean(in.readBoolean());
+            this.failures = Collections.synchronizedList(in.readList(ShardSearchFailure::readShardSearchFailure));
         }
 
         @Override
@@ -777,11 +788,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeString(clusterAlias);
             out.writeString(indexExpression);
             out.writeString(status.toString());
-            out.writeOptionalVInt(totalShards);
-            out.writeOptionalVInt(successfulShards);
-            out.writeOptionalVInt(skippedShards);
-            out.writeOptionalVInt(failedShards);
-            out.writeOptionalVLong(took);
+            out.writeZLong(totalShards.get());
+            out.writeZLong(successfulShards.get());
+            out.writeZLong(skippedShards.get());
+            out.writeZLong(failedShards.get());
+            out.writeZLong(took.get());
+            out.writeBoolean(timedOut.get());
             out.writeList(failures);
         }
 
@@ -793,21 +805,25 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             }
             builder.startObject(name + ":" + indexExpression);
             {
-                builder.field("status", status.toString());
-                if (took != null) {
+                builder.field("status", getStatus().toString());
+                if (took.get() > 0) {
                     builder.field("took", took.doubleValue());
                 }
-                if (totalShards != null) {
+                builder.field("timed_out", timedOut.get());
+                if (totalShards.get() > 0) {
                     builder.startObject("_shards");
-                    builder.field("total", totalShards);
-                    if (successfulShards != null) {
-                        builder.field("successful", successfulShards);
+                    builder.field("total", getTotalShards());
+                    int successful = successfulShards.get();
+                    if (successful >= 0) {
+                        builder.field("successful", successful);
                     }
-                    if (skippedShards != null) {
-                        builder.field("skipped", skippedShards);
+                    int skipped = skippedShards.get();
+                    if (skipped >= 0) {
+                        builder.field("skipped", skipped);
                     }
-                    if (failedShards != null) {
-                        builder.field("failed", failedShards);
+                    int failed = failedShards.get();
+                    if (failed >= 0) {
+                        builder.field("failed", failed);
                     }
                     builder.endObject();
                 }
@@ -839,6 +855,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.status = status;
         }
 
+        public boolean isTimedOut() {
+            return timedOut.get();
+        }
+
+        public void markAsTimedOut() {
+            this.timedOut.set(true);
+        }
+
         public List<ShardSearchFailure> getFailures() {
             return failures;
         }
@@ -848,43 +872,43 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         public Long getTook() {
-            return took;
+            return took.get();
         }
 
         public void setTook(Long took) {
-            this.took = took;
+            this.took.set(took);
         }
 
         public Integer getTotalShards() {
-            return totalShards;
+            return totalShards.get();
         }
 
         public void setTotalShards(int totalShards) {
-            this.totalShards = totalShards;
+            this.totalShards.set(totalShards);
         }
 
         public Integer getSuccessfulShards() {
-            return successfulShards;
+            return successfulShards.get();
         }
 
         public void setSuccessfulShards(int successfulShards) {
-            this.successfulShards = successfulShards;
+            this.successfulShards.set(successfulShards);
         }
 
         public Integer getSkippedShards() {
-            return skippedShards;
+            return skippedShards.get();
         }
 
         public void setSkippedShards(int skippedShards) {
-            this.skippedShards = skippedShards;
+            this.skippedShards.set(skippedShards);
         }
 
         public Integer getFailedShards() {
-            return failedShards;
+            return failedShards.get();
         }
 
         public void setFailedShards(int failedShards) {
-            this.failedShards = failedShards;
+            this.failedShards.set(failedShards);
         }
 
         @Override
@@ -898,13 +922,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 + ", failures="
                 + failures
                 + ", totalShards="
-                + totalShards
+                + totalShards.get()
                 + ", successfulShards="
-                + successfulShards
+                + successfulShards.get()
                 + ", skippedShards="
-                + skippedShards
+                + skippedShards.get()
                 + ", failedShards="
-                + failedShards
+                + failedShards.get()
                 + ", searchLatencyMillis="
                 + took
                 + '}';

@@ -181,18 +181,22 @@ public abstract class Engine implements Closeable {
     /**
      * Returns the file sizes for the current commit
      */
-    public Map<String, Long> getLastCommittedSegmentFileSizes() {
+    public long getLastCommitSizeInBytes() {
         SegmentInfos segmentInfos = getLastCommittedSegmentInfos();
-        Map<String, Long> segmentFileSizes = new HashMap<>();
+        long total = 0;
         for (final SegmentCommitInfo commitInfo : segmentInfos) {
-            String commitId = StringHelper.idToString(commitInfo.getId());
             try {
-                segmentFileSizes.put(commitId, commitInfo.sizeInBytes());
+                total += commitInfo.sizeInBytes();
             } catch (IOException err) {
-                logger.warn("Failed to read file size for shard: [{}], id: [{}], err: [{}]", shardId, commitId, err);
+                logger.warn(
+                    "Failed to read file size for shard: [{}], id: [{}], err: [{}]",
+                    shardId,
+                    StringHelper.idToString(commitInfo.getId()),
+                    err
+                );
             }
         }
-        return segmentFileSizes;
+        return total;
     }
 
     protected final DocsStats docsStats(IndexReader indexReader) {

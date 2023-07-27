@@ -188,8 +188,6 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
-import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
@@ -528,17 +526,15 @@ public class InternalEngineTests extends EngineTestCase {
                 ParsedDocument doc = testParsedDocument(id, null, testDocument(), B_1, null);
                 engine.index(indexForDoc(doc));
             }
-            Map<String, Long> fileSizes = engine.getLastCommittedSegmentFileSizes();
-            assertThat(fileSizes, anEmptyMap());
+            long sizes = engine.getLastCommitSizeInBytes();
+            assertThat(sizes, equalTo(0L));
             List<Segment> segments = engine.segments();
             assertThat(segments, empty());
 
             engine.flush();
             segments = engine.segments();
-            fileSizes = engine.getLastCommittedSegmentFileSizes();
-            assertThat(fileSizes, aMapWithSize(1));
-            Map.Entry<String, Long> seg1 = fileSizes.entrySet().iterator().next();
-            assertThat(seg1.getValue(), greaterThan(0L));
+            sizes = engine.getLastCommitSizeInBytes();
+            assertThat(sizes, greaterThan(0L));
             assertThat(segments, hasSize(1));
             assertThat(segments.get(0).getNumDocs(), equalTo(numDocsSeg1));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
@@ -550,23 +546,12 @@ public class InternalEngineTests extends EngineTestCase {
 
             engine.flush();
             segments = engine.segments();
-            fileSizes = engine.getLastCommittedSegmentFileSizes();
-            assertThat(fileSizes, aMapWithSize(2));
+            sizes = engine.getLastCommitSizeInBytes();
+            assertThat(sizes, greaterThan(0L));
             assertThat(segments, hasSize(2));
             assertThat(segments.get(0).getNumDocs(), equalTo(numDocsSeg1));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
             assertTrue(segments.get(0).committed);
-
-            Map.Entry<String, Long> seg2 = null;
-            for (Map.Entry<String, Long> seg : fileSizes.entrySet()) {
-                if (seg1.getKey().equals(seg.getKey()) == false) {
-                    seg2 = seg;
-                }
-            }
-            assertNotNull(seg2);
-            assertThat(segments.get(1).getNumDocs(), equalTo(numDocsSeg2));
-            assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-            assertTrue(segments.get(1).committed);
         }
     }
 

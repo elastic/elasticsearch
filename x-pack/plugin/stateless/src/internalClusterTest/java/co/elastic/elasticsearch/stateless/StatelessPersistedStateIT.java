@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.ByteUtils;
+import org.hamcrest.Matcher;
 
 import java.io.InputStream;
 import java.util.List;
@@ -85,12 +86,18 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
         String indexNode2 = startIndexNode();
         ensureStableCluster(3);
 
-        final long nodeLeftGenerationBeforeNodeLeft;
+        final Matcher<Long> nodeLeftGenerationMatcher;
         try (InputStream inputStream = blobContainerForTermLease.readBlob("lease")) {
             BytesArray rootBlob = new BytesArray(inputStream.readAllBytes());
             StreamInput input = rootBlob.streamInput();
             assertThat(input.readLong(), greaterThan(termBeforeRootDeleted + 1));
-            nodeLeftGenerationBeforeNodeLeft = input.readLong();
+            if (rootBlob.length() == Long.BYTES) {
+                // rarely no node-left event occurs during the master failover, in which case we just check the node-left gen exists
+                nodeLeftGenerationMatcher = greaterThan(0L);
+            } else {
+                assertEquals(2 * Long.BYTES, rootBlob.length());
+                nodeLeftGenerationMatcher = equalTo(input.readLong() + 1L);
+            }
         }
 
         internalCluster().stopNode(indexNode2);
@@ -100,7 +107,7 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
             BytesArray rootBlob = new BytesArray(inputStream.readAllBytes());
             StreamInput input = rootBlob.streamInput();
             input.readLong();
-            assertEquals(nodeLeftGenerationBeforeNodeLeft + 1, input.readLong());
+            assertThat(input.readLong(), nodeLeftGenerationMatcher);
         }
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -47,6 +48,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -1283,17 +1285,22 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
-    public static Setting<Version> versionSetting(final String key, final Version defaultValue, Property... properties) {
-        return new Setting<>(key, Integer.toString(defaultValue.id), s -> Version.fromId(Integer.parseInt(s)), properties);
-    }
-
-    public static Setting<Version> versionSetting(
-        final String key,
-        Setting<Version> fallbackSetting,
-        Validator<Version> validator,
+    public static <T extends VersionId> Setting<T> versionIdSetting(
+        String key,
+        T defaultValue,
+        IntFunction<T> parseVersion,
         Property... properties
     ) {
-        return new Setting<>(key, fallbackSetting, s -> Version.fromId(Integer.parseInt(s)), validator, properties);
+        return new Setting<>(key, Integer.toString(defaultValue.id()), s -> parseVersion.apply(Integer.parseInt(s)), properties);
+    }
+
+    public static <T extends VersionId> Setting<T> versionIdSetting(
+        final String key,
+        Setting<T> fallbackSetting,
+        Validator<T> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, fallbackSetting, fallbackSetting.parser, validator, properties);
     }
 
     public static Setting<Float> floatSetting(String key, float defaultValue, Property... properties) {

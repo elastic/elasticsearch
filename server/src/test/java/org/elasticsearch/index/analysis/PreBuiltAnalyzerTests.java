@@ -78,7 +78,7 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
         String analyzerName = randomPreBuiltAnalyzer.name().toLowerCase(Locale.ROOT);
 
         IndexVersion randomVersion = IndexVersionUtils.randomVersion(random());
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion.id()).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion).build();
 
         NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(
             analyzerName,

@@ -106,10 +106,8 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         Map<String, ?> ecsFlatFieldsRawMap;
         URL ecsDefinitionsFlatFileUrl = new URL(ECS_FLAT_FILE_URL);
         try (InputStream ecsDynamicTemplatesIS = ecsDefinitionsFlatFileUrl.openStream()) {
-            try (
-                XContentParser parser = XContentFactory.xContent(XContentType.YAML)
-                    .createParser(XContentParserConfiguration.EMPTY, ecsDynamicTemplatesIS)
-            ) {
+            try (XContentParser parser = XContentFactory.xContent(XContentType.YAML)
+                    .createParser(XContentParserConfiguration.EMPTY, ecsDynamicTemplatesIS)) {
                 ecsFlatFieldsRawMap = parser.map();
             }
         }

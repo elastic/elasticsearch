@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.AL
 
 public class QueryRuleCriteria implements Writeable, ToXContentObject {
 
-    public static final TransportVersion CRITERIA_METADATA_VALUES_TRANSPORT_VERSION = TransportVersion.V_8_500_045;
+    public static final TransportVersion CRITERIA_METADATA_VALUES_TRANSPORT_VERSION = TransportVersion.V_8_500_046;
     private final QueryRuleCriteriaType criteriaType;
     private final String criteriaMetadata;
     private final List<Object> criteriaValues;

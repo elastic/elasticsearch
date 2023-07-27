@@ -30,9 +30,11 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -258,23 +260,40 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
 
     private void verifyEcsMappings(Map<String, String> flattenedActualMappings) {
         HashMap<String, Map<String, Object>> shallowCopy = new HashMap<>(ecsFlatFieldDefinitions);
-        flattenedActualMappings.forEach((fieldName, fieldType) -> {
-            Map<String, Object> actualMappings = shallowCopy.remove(fieldName);
-            if (actualMappings == null) {
-                // todo - replace with counting
-                logger.error("Field " + fieldName + " doesn't have mappings");
+        logger.info("Testing mapping of {} ECS fields", shallowCopy.size());
+        List<String> nonEcsFields = new ArrayList<>();
+        Map<String, String> fieldToWrongMappingType = new HashMap<>();
+        flattenedActualMappings.forEach((fieldName, actualMappingType) -> {
+            Map<String, Object> expectedMappings = shallowCopy.remove(fieldName);
+            if (expectedMappings == null) {
+                nonEcsFields.add(fieldName);
             } else {
-                String actualType = (String) actualMappings.get("type");
-                if (fieldType.equals(actualType) == false) {
-                    // todo - replace with counting
-                    logger.error("Field {} should have type {} but has type {}", fieldName, fieldType, actualType);
+                String expectedType = (String) expectedMappings.get("type");
+                if (actualMappingType.equals(expectedType) == false) {
+                    fieldToWrongMappingType.put(fieldName, actualMappingType);
                 }
             }
         });
-        if (shallowCopy.isEmpty() == false) {
-            shallowCopy.keySet().forEach(field -> logger.error("field " + field + " doesn't have ECS definitions"));
-        }
-        // todo - count all misses and prepare a single report, only then assert for all misses
+
+        shallowCopy.keySet().forEach(field -> logger.error("ECS field '{}' is not covered by this test", field));
+        fieldToWrongMappingType.forEach((fieldName, actualMappingType) -> {
+            String ecsExpectedType = (String) ecsFlatFieldDefinitions.get(fieldName).get("type");
+            logger.error(
+                "ECS field '{}' should be mapped to type '{}' but is mapped to type '{}'",
+                fieldName,
+                ecsExpectedType,
+                actualMappingType
+            );
+        });
+        nonEcsFields.forEach(field -> logger.error("The test document contains '{}', which is not an ECS field", field));
+
+        assertTrue("ECS is not fully covered by this test, see details above", shallowCopy.isEmpty());
+        assertTrue(
+            "At least one field was mapped with a type that mismatches the ECS definitions, see details above",
+            fieldToWrongMappingType.isEmpty()
+        );
+        assertTrue("The test document contains non-ECS fields, see details above", nonEcsFields.isEmpty());
+
         // todo - look for the "multi_fields" entry in ecsFlatFieldDefinitions and verify that as well
     }
 

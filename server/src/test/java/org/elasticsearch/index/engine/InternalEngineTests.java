@@ -40,7 +40,6 @@ import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
@@ -527,17 +526,16 @@ public class InternalEngineTests extends EngineTestCase {
                 ParsedDocument doc = testParsedDocument(id, null, testDocument(), B_1, null);
                 engine.index(indexForDoc(doc));
             }
-            List<SegmentCommitInfo> commits = engine.getLastCommittedSegmentInfoList();
-            assertThat(commits, empty());
+            List<SegmentFileSize> fileSizes = engine.getLastCommittedSegmentFileSizes();
+            assertThat(fileSizes, empty());
             List<Segment> segments = engine.segments();
             assertThat(segments, empty());
 
             engine.flush();
             segments = engine.segments();
-            commits = engine.getLastCommittedSegmentInfoList();
-            assertThat(commits, hasSize(1));
-            SegmentCommitInfo seg1 = commits.get(0);
-            assertThat(seg1.sizeInBytes(), greaterThan(0L));
+            fileSizes = engine.getLastCommittedSegmentFileSizes();
+            assertThat(fileSizes, hasSize(1));
+            assertThat(fileSizes.get(0).sizeInBytes(), greaterThan(0L));
             assertThat(segments, hasSize(1));
             assertThat(segments.get(0).getNumDocs(), equalTo(numDocsSeg1));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
@@ -549,20 +547,21 @@ public class InternalEngineTests extends EngineTestCase {
 
             engine.flush();
             segments = engine.segments();
-            commits = engine.getLastCommittedSegmentInfoList();
-            assertThat(commits, hasSize(2));
+            fileSizes = engine.getLastCommittedSegmentFileSizes();
+            assertThat(fileSizes, hasSize(2));
             assertThat(segments, hasSize(2));
             assertThat(segments.get(0).getNumDocs(), equalTo(numDocsSeg1));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
             assertTrue(segments.get(0).committed);
+            assertThat(fileSizes.get(0).sizeInBytes(), greaterThan(0L));
 
-            SegmentCommitInfo seg2 = commits.get(0).getId().equals(seg1.getId()) ? commits.get(1) : commits.get(0);
-            assertNotNull(seg2);
             assertThat(segments.get(1).getNumDocs(), equalTo(numDocsSeg2));
             assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
             assertTrue(segments.get(1).committed);
+            assertThat(fileSizes.get(1).sizeInBytes(), greaterThan(0L));
         }
     }
+
     public void testCommitStats() throws IOException {
         final AtomicLong maxSeqNo = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final AtomicLong localCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);

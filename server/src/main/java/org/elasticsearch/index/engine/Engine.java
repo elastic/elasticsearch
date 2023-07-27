@@ -88,6 +88,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -148,6 +150,12 @@ public abstract class Engine implements Closeable {
     }
 
     protected abstract SegmentInfos getLastCommittedSegmentInfos();
+
+    public List<SegmentFileSize> getLastCommittedSegmentFileSizes() {
+        return StreamSupport.stream(getLastCommittedSegmentInfos().spliterator(), false)
+            .map(SegmentFileSize::new)
+            .collect(Collectors.toList());
+    }
 
     public MergeStats getMergeStats() {
         return new MergeStats();

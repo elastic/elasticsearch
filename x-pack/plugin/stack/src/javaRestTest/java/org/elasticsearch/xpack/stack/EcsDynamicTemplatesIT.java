@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
@@ -89,15 +88,15 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             "ECS mappings component template '%s' structure has changed, this test needs to be adjusted",
             ECS_DYNAMIC_TEMPLATES_FILE
         );
-        Assert.assertFalse(errorMessage, rawEcsComponentTemplate.isEmpty());
+        assertFalse(errorMessage, rawEcsComponentTemplate.isEmpty());
         Object mappings = ecsDynamicTemplatesRaw.get("template");
-        Assert.assertNotNull(errorMessage, mappings);
-        Assert.assertThat(errorMessage, mappings, instanceOf(Map.class));
+        assertNotNull(errorMessage, mappings);
+        assertThat(errorMessage, mappings, instanceOf(Map.class));
         Object dynamicTemplates = ((Map<?, ?>) mappings).get("mappings");
-        Assert.assertNotNull(errorMessage, dynamicTemplates);
-        Assert.assertThat(errorMessage, dynamicTemplates, instanceOf(Map.class));
-        Assert.assertEquals(errorMessage, 1, ((Map<?, ?>) dynamicTemplates).size());
-        Assert.assertTrue(errorMessage, ((Map<?, ?>) dynamicTemplates).containsKey("dynamic_templates"));
+        assertNotNull(errorMessage, dynamicTemplates);
+        assertThat(errorMessage, dynamicTemplates, instanceOf(Map.class));
+        assertEquals(errorMessage, 1, ((Map<?, ?>) dynamicTemplates).size());
+        assertTrue(errorMessage, ((Map<?, ?>) dynamicTemplates).containsKey("dynamic_templates"));
         ecsDynamicTemplates = (Map<String, Object>) dynamicTemplates;
     }
 
@@ -116,13 +115,13 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             "ECS flat mapping file at %s has changed, this test needs to be adjusted",
             ECS_FLAT_FILE_URL
         );
-        Assert.assertFalse(errorMessage, ecsFlatFieldsRawMap.isEmpty());
+        assertFalse(errorMessage, ecsFlatFieldsRawMap.isEmpty());
         Map.Entry<String, ?> fieldEntry = ecsFlatFieldsRawMap.entrySet().iterator().next();
-        Assert.assertThat(errorMessage, fieldEntry.getValue(), instanceOf(Map.class));
+        assertThat(errorMessage, fieldEntry.getValue(), instanceOf(Map.class));
         Map<?, ?> fieldProperties = (Map<?, ?>) fieldEntry.getValue();
-        Assert.assertFalse(errorMessage, fieldProperties.isEmpty());
+        assertFalse(errorMessage, fieldProperties.isEmpty());
         Map.Entry<?, ?> fieldProperty = fieldProperties.entrySet().iterator().next();
-        Assert.assertThat(errorMessage, fieldProperty.getKey(), instanceOf(String.class));
+        assertThat(errorMessage, fieldProperty.getKey(), instanceOf(String.class));
 
         OMIT_FIELDS.forEach(ecsFlatFieldsRawMap::remove);
 
@@ -156,16 +155,15 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             createIndexRequest.setJsonEntity(Strings.toString(bodyBuilder));
             // noinspection resource
             Response response = ESRestTestCase.client().performRequest(createIndexRequest);
-            Assert.assertEquals(HttpStatus.SC_OK, response.getStatusLine().getStatusCode());
+            assertEquals(HttpStatus.SC_OK, response.getStatusLine().getStatusCode());
         }
-        // ensureGreen(indexName);
 
         Map<String, Object> flattenedFieldsMap = new HashMap<>();
         for (Map.Entry<String, Map<String, Object>> fieldEntry : ecsFlatFieldDefinitions.entrySet()) {
             String fieldName = fieldEntry.getKey();
             Map<String, Object> fieldDefinitions = fieldEntry.getValue();
             String type = (String) fieldDefinitions.get("type");
-            Assert.assertNotNull(
+            assertNotNull(
                 String.format(Locale.ENGLISH, "Can't find type for field '%s' in %s file", fieldName, ECS_DYNAMIC_TEMPLATES_FILE),
                 type
             );
@@ -178,13 +176,13 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             indexRequest.setJsonEntity(Strings.toString(bodyBuilder.map(flattenedFieldsMap)));
             // noinspection resource
             Response response = ESRestTestCase.client().performRequest(indexRequest);
-            Assert.assertEquals(HttpStatus.SC_CREATED, response.getStatusLine().getStatusCode());
+            assertEquals(HttpStatus.SC_CREATED, response.getStatusLine().getStatusCode());
         }
 
         Request getMappingRequest = new Request("GET", "/" + indexName + "/_mapping");
         // noinspection resource
         Response response = ESRestTestCase.client().performRequest(getMappingRequest);
-        Assert.assertEquals(response.getStatusLine().getStatusCode(), HttpStatus.SC_OK);
+        assertEquals(response.getStatusLine().getStatusCode(), HttpStatus.SC_OK);
         Map<String, Object> mappingResponse;
         try (
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
@@ -192,7 +190,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         ) {
             mappingResponse = parser.map();
         }
-        Assert.assertThat(mappingResponse.size(), equalTo(1));
+        assertThat(mappingResponse.size(), equalTo(1));
         Map<String, Object> indexMap = (Map<String, Object>) mappingResponse.get(indexName);
         assertNotNull(indexMap);
         Map<String, Object> mappings = (Map<String, Object>) indexMap.get("mappings");

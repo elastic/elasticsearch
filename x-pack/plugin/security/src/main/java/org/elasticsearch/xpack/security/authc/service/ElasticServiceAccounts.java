@@ -84,14 +84,45 @@ final class ElasticServiceAccounts {
                     .indices("traces-apm.sampled-*")
                     .privileges("read", "monitor", "maintenance")
                     .build(),
+                // Fleet secrets. Fleet Server can only read from this index.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-secrets*")
                     .privileges("read")
                     .allowRestrictedIndices(true)
                     .build(),
+                // Other Fleet indices. Fleet Server needs "maintenance" privilege to be able to perform operations with "refresh".
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".fleet-*")
-                    // Fleet Server needs "maintenance" privilege to be able to perform operations with "refresh"
+                    .indices(".fleet-actions*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-agents*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-artifacts*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-enrollment-api-keys*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-policies*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-policies-leader*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-servers*")
                     .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
                     .allowRestrictedIndices(true)
                     .build(),

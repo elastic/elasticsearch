@@ -748,7 +748,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         Arrays.asList(
-            ".fleet",
             ".fleet-agents",
             ".fleet-actions",
             ".fleet-enrollment-api-keys",
@@ -756,6 +755,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".fleet-actions-results",
             ".fleet-servers"
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
+
+        final IndexAbstraction dotFleetSecretsIndex = mockIndexAbstraction(".fleet-secrets");
+        assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(dotFleetSecretsIndex), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(dotFleetSecretsIndex), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(dotFleetSecretsIndex), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(dotFleetSecretsIndex), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(dotFleetSecretsIndex), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(dotFleetSecretsIndex), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(dotFleetSecretsIndex), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(dotFleetSecretsIndex), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(dotFleetSecretsIndex), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotFleetSecretsIndex), is(false));
 
         // read-only indices for Fleet telemetry
         Arrays.asList("logs-elastic_agent-default", "logs-elastic_agent.fleet_server-default").forEach((index) -> {

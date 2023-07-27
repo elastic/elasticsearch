@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -242,6 +243,13 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                 : "end of range [" + range.end() + "] is not aligned with part end or with file length";
         }
         return true;
+    }
+
+    private void ensureContext(Predicate<IOContext> predicate) throws IOException {
+        if (predicate.test(context) == false) {
+            assert false : "this method should not be used with this context " + context;
+            throw new IOException("Cannot read the index input using context [context=" + context + ", input=" + this + ']');
+        }
     }
 
     @Override

@@ -183,6 +183,16 @@ public class IteratorsTests extends ESTestCase {
         assertEquals(expectedArray.length, index.get());
     }
 
+    public void testMap() {
+        assertEmptyIterator(Iterators.map(Iterators.concat(), i -> "foo"));
+
+        final var array = randomIntegerArray();
+        final var index = new AtomicInteger();
+        Iterators.map(Iterators.forArray(array), i -> i * 2)
+            .forEachRemaining(i -> assertEquals(array[index.getAndIncrement()] * 2, (long) i));
+        assertEquals(array.length, index.get());
+    }
+
     private static Integer[] randomIntegerArray() {
         return Randomness.get().ints(randomIntBetween(0, 1000)).boxed().toArray(Integer[]::new);
     }

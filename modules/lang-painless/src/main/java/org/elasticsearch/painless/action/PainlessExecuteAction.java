@@ -44,6 +44,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -527,7 +528,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             } else {
                 // forward to remote cluster
                 String clusterAlias = request.getContextSetup().getClusterAlias();
-                Client remoteClusterClient = transportService.getRemoteClusterService().getRemoteClusterClient(threadPool, clusterAlias);
+                Client remoteClusterClient = transportService.getRemoteClusterService()
+                    .getRemoteClusterClient(threadPool, clusterAlias, EsExecutors.DIRECT_EXECUTOR_SERVICE);
                 remoteClusterClient.admin().cluster().execute(PainlessExecuteAction.INSTANCE, request, listener);
             }
         }

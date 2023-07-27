@@ -50,7 +50,7 @@ public class IndexSettingsTests extends ESTestCase {
     public void testRunListener() {
         IndexVersion version = IndexVersionUtils.getPreviousVersion();
         Settings theSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(IndexMetadata.SETTING_INDEX_UUID, "0xdeadbeef")
             .build();
         final AtomicInteger integer = new AtomicInteger(0);
@@ -76,7 +76,7 @@ public class IndexSettingsTests extends ESTestCase {
     public void testSettingsUpdateValidator() {
         IndexVersion version = IndexVersionUtils.getPreviousVersion();
         Settings theSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(IndexMetadata.SETTING_INDEX_UUID, "0xdeadbeef")
             .build();
         final AtomicInteger integer = new AtomicInteger(0);
@@ -147,7 +147,7 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testSettingsConsistency() {
         IndexVersion version = IndexVersionUtils.getPreviousVersion();
-        IndexMetadata metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version.id()).build());
+        IndexMetadata metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build());
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(version, settings.getIndexVersionCreated());
         assertEquals("_na_", settings.getUUID());
@@ -169,7 +169,7 @@ public class IndexSettingsTests extends ESTestCase {
                     "index",
                     Settings.builder()
                         .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
-                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersion.current().id())
+                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersion.current())
                         .put("index.test.setting.int", 42)
                         .build()
                 )

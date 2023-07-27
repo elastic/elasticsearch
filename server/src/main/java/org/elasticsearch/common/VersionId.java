@@ -6,14 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.synonyms;
+package org.elasticsearch.common;
 
-import org.elasticsearch.common.util.FeatureFlag;
-
-public class SynonymsAPI {
-    private static final FeatureFlag SYNONYMS_API_FEATURE_FLAG = new FeatureFlag("synonyms_api");
-
-    public static boolean isEnabled() {
-        return SYNONYMS_API_FEATURE_FLAG.isEnabled();
-    }
+/**
+ * Indicates a class that represents a version id of some kind
+ */
+public interface VersionId {
+    /**
+     * The version id this object represents
+     */
+    int id();
 }

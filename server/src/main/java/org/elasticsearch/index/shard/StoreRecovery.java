@@ -21,7 +21,6 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -408,13 +407,14 @@ public final class StoreRecovery {
      * Recovers the state of the shard from the store.
      */
     private void internalRecoverFromStore(IndexShard indexShard, ActionListener<Void> outerListener) {
-        indexShard.preRecovery(outerListener.delegateFailure((listener, ignored) -> ActionRunnable.run(listener, () -> {
+        indexShard.preRecovery(outerListener.delegateFailureAndWrap((listener, ignored) -> {
             final RecoveryState recoveryState = indexShard.recoveryState();
             final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;
             indexShard.prepareForIndexRecovery();
             SegmentInfos si = null;
             final Store store = indexShard.store();
             store.incRef();
+            boolean triggeredPostRecovery = false;
             try {
                 try {
                     store.failIfCorrupted();
@@ -479,13 +479,16 @@ public final class StoreRecovery {
                 indexShard.openEngineAndRecoverFromTranslog();
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
-                indexShard.postRecovery("post recovery from shard_store");
+                indexShard.postRecovery("post recovery from shard_store", ActionListener.runBefore(listener, store::decRef));
+                triggeredPostRecovery = true;
             } catch (EngineException | IOException e) {
-                throw new IndexShardRecoveryException(shardId, "failed to recover from gateway", e);
+                listener.onFailure(new IndexShardRecoveryException(shardId, "failed to recover from gateway", e));
             } finally {
-                store.decRef();
+                if (triggeredPostRecovery == false) {
+                    store.decRef();
+                }
             }
-        }).run()));
+        }));
     }
 
     private static void writeEmptyRetentionLeasesFile(IndexShard indexShard) throws IOException {
@@ -531,8 +534,7 @@ public final class StoreRecovery {
                 indexShard.openEngineAndRecoverFromTranslog();
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
-                indexShard.postRecovery("restore done");
-                listener.onResponse(true);
+                indexShard.postRecovery("restore done", listener.map(voidValue -> true));
             }, e -> listener.onFailure(new IndexShardRestoreFailedException(shardId, "restore failed", e)));
             try {
                 translogState.totalOperations(0);

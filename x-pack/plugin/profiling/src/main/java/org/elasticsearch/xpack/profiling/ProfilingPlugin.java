@@ -125,7 +125,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestGetStatusAction());
         if (enabled) {
-            handlers.add(new RestGetProfilingAction());
+            handlers.add(new RestGetStackTracesAction());
         }
         return Collections.unmodifiableList(handlers);
     }
@@ -134,9 +134,9 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     public List<Setting<?>> getSettings() {
         return List.of(
             PROFILING_TEMPLATES_ENABLED,
-            TransportGetProfilingAction.PROFILING_MAX_STACKTRACE_QUERY_SLICES,
-            TransportGetProfilingAction.PROFILING_MAX_DETAIL_QUERY_SLICES,
-            TransportGetProfilingAction.PROFILING_QUERY_REALTIME
+            TransportGetStackTracesAction.PROFILING_MAX_STACKTRACE_QUERY_SLICES,
+            TransportGetStackTracesAction.PROFILING_MAX_DETAIL_QUERY_SLICES,
+            TransportGetStackTracesAction.PROFILING_QUERY_REALTIME
         );
     }
 
@@ -157,7 +157,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
-            new ActionHandler<>(GetProfilingAction.INSTANCE, TransportGetProfilingAction.class),
+            new ActionHandler<>(GetStackTracesAction.INSTANCE, TransportGetStackTracesAction.class),
             new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class)
         );
     }

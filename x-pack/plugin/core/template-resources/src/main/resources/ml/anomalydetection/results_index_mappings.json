@@ -1,6 +1,7 @@
 {
   "_meta" : {
-    "version" : "${xpack.ml.version}"
+    "version" : "${xpack.ml.version}",
+    "system-index-mappings-version": ${xpack.ml.system.index.version}
   },
   "dynamic_templates" : [
     {

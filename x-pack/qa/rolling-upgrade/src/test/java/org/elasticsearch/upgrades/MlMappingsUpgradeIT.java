@@ -13,6 +13,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
@@ -133,7 +134,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
             assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
             assertEquals(
-                InferenceIndexConstants.INFERENCE_INDEX_MAPPINGS_VERSION,
+                AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION,
                 extractValue("mappings._meta.system-index-mappings-version", indexLevel)
             );
 

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Describes the indices where ML is storing various stats about the users jobs.
@@ -38,8 +40,9 @@ public class MlStatsIndex {
     public static String mapping() {
         return TemplateUtils.loadTemplate(
             "/ml/stats_index_mappings.json",
-            Integer.toString(STATS_INDEX_MAPPINGS_VERSION),
-            MAPPINGS_VERSION_VARIABLE
+            Version.CURRENT.toString(),
+            MAPPINGS_VERSION_VARIABLE,
+            Map.of("xpack.ml.system.index.version", Integer.toString(STATS_INDEX_MAPPINGS_VERSION))
         );
     }
 

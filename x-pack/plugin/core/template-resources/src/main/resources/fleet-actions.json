@@ -7,7 +7,7 @@
       "dynamic": false,
       "_meta": {
         "version": "${fleet.version}",
-        "system-index-mappings-version": 1
+        "system-index-mappings-version": ${fleet.system.index.version}
       },
       "properties": {
         "action_id": {

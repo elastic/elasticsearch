@@ -6,10 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.persistence;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
+
+import java.util.Map;
 
 /**
  * Class containing the index constants so that the index version, name, and prefix are available to a wider audience.
@@ -48,8 +51,9 @@ public final class InferenceIndexConstants {
     public static String mapping() {
         return TemplateUtils.loadTemplate(
             "/ml/inference_index_mappings.json",
-            Integer.toString(INFERENCE_INDEX_MAPPINGS_VERSION),
-            MAPPINGS_VERSION_VARIABLE
+            Version.CURRENT.toString(),
+            MAPPINGS_VERSION_VARIABLE,
+            Map.of("xpack.ml.system.index.version", Integer.toString(INFERENCE_INDEX_MAPPINGS_VERSION))
         );
     }
 

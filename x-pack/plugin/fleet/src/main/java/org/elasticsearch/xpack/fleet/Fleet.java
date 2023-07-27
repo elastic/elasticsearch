@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.fleet;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -348,7 +349,12 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     private String loadTemplateSource(String resource, int mappingsVersion) {
-        return TemplateUtils.loadTemplate(resource, Integer.toString(mappingsVersion), MAPPING_VERSION_VARIABLE);
+        return TemplateUtils.loadTemplate(
+            resource,
+            Version.CURRENT.toString(),
+            MAPPING_VERSION_VARIABLE,
+            Map.of("fleet.system.index.version", Integer.toString(mappingsVersion))
+        );
     }
 
     @Override

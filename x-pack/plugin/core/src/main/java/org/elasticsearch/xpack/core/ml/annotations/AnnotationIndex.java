@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.annotations;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.List;
+import java.util.Map;
 import java.util.SortedMap;
 
 import static java.lang.Thread.currentThread;
@@ -210,8 +212,9 @@ public class AnnotationIndex {
     public static String annotationsMapping() {
         return TemplateUtils.loadTemplate(
             "/ml/annotations_index_mappings.json",
-            Integer.toString(ANNOTATION_INDEX_MAPPINGS_VERSION),
-            MAPPINGS_VERSION_VARIABLE
+            Version.CURRENT.toString(),
+            MAPPINGS_VERSION_VARIABLE,
+            Map.of("xpack.ml.system.index.version", Integer.toString(ANNOTATION_INDEX_MAPPINGS_VERSION))
         );
     }
 }

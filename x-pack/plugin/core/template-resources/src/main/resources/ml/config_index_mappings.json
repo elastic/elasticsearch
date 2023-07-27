@@ -1,8 +1,8 @@
 {
   "_doc" : {
     "_meta" : {
-      "version": "${xpack.ml.version",
-      "system-index-mappings-version": 1
+      "version": "${xpack.ml.version}",
+      "system-index-mappings-version": ${xpack.ml.system.index.version}
     },
     "dynamic_templates" : [
       {

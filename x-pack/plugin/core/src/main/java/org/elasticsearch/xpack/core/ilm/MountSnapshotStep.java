@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -192,7 +193,9 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     static String[] ignoredIndexSettings(String phase) {
         // if we are mounting a searchable snapshot in the hot phase, then we should not change the total_shards_per_node setting
         if (TimeseriesLifecycleType.FROZEN_PHASE.equals(phase)) {
-            return new String[] { LifecycleSettings.LIFECYCLE_NAME, "index.routing.allocation.total_shards_per_node" };
+            return new String[] {
+                LifecycleSettings.LIFECYCLE_NAME,
+                ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() };
         }
         return new String[] { LifecycleSettings.LIFECYCLE_NAME };
     }

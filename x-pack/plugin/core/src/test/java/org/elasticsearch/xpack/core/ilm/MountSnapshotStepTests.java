@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.test.client.NoOpClient;
@@ -334,7 +335,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 indexName,
                 RESTORED_INDEX_PREFIX,
                 indexName,
-                new String[] { LifecycleSettings.LIFECYCLE_NAME, "index.routing.allocation.total_shards_per_node" }
+                new String[] { LifecycleSettings.LIFECYCLE_NAME, ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() }
             )
         ) {
             MountSnapshotStep step = new MountSnapshotStep(

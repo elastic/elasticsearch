@@ -27,7 +27,7 @@ import java.util.TreeMap;
 
 public class AnalysisStatsTests extends AbstractWireSerializingTestCase<AnalysisStats> {
 
-    private static final String[] SYNONYM_RULES_TYPES = {"synonyms", "synonyms_set", "synonyms_path"};
+    private static final String[] SYNONYM_RULES_TYPES = { "synonyms", "synonyms_set", "synonyms_path" };
 
     @Override
     protected Reader<AnalysisStats> instanceReader() {

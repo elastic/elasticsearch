@@ -36,15 +36,14 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
-import static org.elasticsearch.TransportVersion.V_8_500_044;
+import static org.elasticsearch.TransportVersion.V_8_500_045;
 
 /**
  * Statistics about analysis usage.
  */
 public final class AnalysisStats implements ToXContentFragment, Writeable {
 
-    static final String[] NON_INLINE_SYNONYM_RULES_TYPES = { "synonyms_set", "synonyms_path" };
-    private static final TransportVersion SYNONYM_SETS_VERSION = V_8_500_044;
+    private static final TransportVersion SYNONYM_SETS_VERSION = V_8_500_045;
 
     private static final Set<String> SYNONYM_FILTER_TYPES = Set.of("synonym", "synonym_graph");
 

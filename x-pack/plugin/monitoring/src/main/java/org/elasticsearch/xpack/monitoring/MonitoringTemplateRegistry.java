@@ -239,8 +239,6 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
             .orElseThrow(() -> new IllegalArgumentException("Invalid system [" + system + "]"));
     }
 
-    private final List<LifecyclePolicy> ilmPolicies;
-
     public MonitoringTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
@@ -251,13 +249,13 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
         this.clusterService = clusterService;
         this.monitoringTemplatesEnabled = MONITORING_TEMPLATES_ENABLED.get(nodeSettings);
-        this.ilmPolicies = loadPolicies(nodeSettings);
     }
 
-    private List<LifecyclePolicy> loadPolicies(Settings nodeSettings) {
+    @Override
+    protected List<LifecyclePolicy> loadLifecycleConfigurations() {
         Map<String, String> templateVars = new HashMap<>();
-        if (HISTORY_DURATION.exists(nodeSettings)) {
-            templateVars.put(MONITORING_POLICY_RETENTION_VARIABLE, HISTORY_DURATION.get(nodeSettings).getStringRep());
+        if (HISTORY_DURATION.exists(settings)) {
+            templateVars.put(MONITORING_POLICY_RETENTION_VARIABLE, HISTORY_DURATION.get(settings).getStringRep());
             templateVars.put(
                 MONITORING_POLICY_RETENTION_REASON_VARIABLE,
                 "the value of the [" + HISTORY_DURATION.getKey() + "] setting at node startup"
@@ -318,9 +316,9 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<LifecyclePolicy> getPolicyConfigs() {
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
         if (monitoringTemplatesEnabled) {
-            return ilmPolicies;
+            return super.getLifecyclePolicies();
         } else {
             return Collections.emptyList();
         }

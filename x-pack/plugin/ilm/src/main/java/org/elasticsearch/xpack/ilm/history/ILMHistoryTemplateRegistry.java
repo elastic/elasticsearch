@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -74,15 +73,16 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
-    private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
-        new LifecyclePolicyConfig(ILM_POLICY_NAME, "/ilm-history-ilm-policy.json").load(
-            new NamedXContentRegistry(IndexLifecycle.NAMED_X_CONTENT_ENTRIES)
-        )
+    private static final LifecyclePolicyConfig LIFECYCLE_POLICY_CONFIG = new LifecyclePolicyConfig(
+        ILM_POLICY_NAME,
+        "/ilm-history-ilm-policy.json"
     );
 
     @Override
-    protected List<LifecyclePolicy> getPolicyConfigs() {
-        return this.ilmHistoryEnabled ? LIFECYCLE_POLICIES : Collections.emptyList();
+    protected List<LifecyclePolicy> loadLifecycleConfigurations() {
+        return this.ilmHistoryEnabled
+            ? List.of(LIFECYCLE_POLICY_CONFIG.load(new NamedXContentRegistry(IndexLifecycle.NAMED_X_CONTENT_ENTRIES)))
+            : List.of();
     }
 
     @Override

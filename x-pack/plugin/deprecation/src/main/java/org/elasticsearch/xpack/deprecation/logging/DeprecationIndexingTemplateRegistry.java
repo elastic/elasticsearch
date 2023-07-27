@@ -102,15 +102,14 @@ public class DeprecationIndexingTemplateRegistry extends IndexTemplateRegistry {
         return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
     }
 
-    private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
-        new LifecyclePolicyConfig(DEPRECATION_INDEXING_POLICY_NAME, "/deprecation/deprecation-indexing-ilm-policy.json").load(
-            LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
-        )
+    private static final LifecyclePolicyConfig LIFECYCLE_POLICY_CONFIG = new LifecyclePolicyConfig(
+        DEPRECATION_INDEXING_POLICY_NAME,
+        "/deprecation/deprecation-indexing-ilm-policy.json"
     );
 
     @Override
-    protected List<LifecyclePolicy> getPolicyConfigs() {
-        return LIFECYCLE_POLICIES;
+    protected List<LifecyclePolicy> loadLifecycleConfigurations() {
+        return List.of(LIFECYCLE_POLICY_CONFIG.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY));
     }
 
     @Override

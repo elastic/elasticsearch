@@ -47,15 +47,15 @@ public class TaskRetriever {
                 } else {
                     listener.onResponse(null);
                 }
-            }, e -> {
-                listener.onFailure(
+            },
+                e -> listener.onFailure(
                     new ElasticsearchStatusException(
                         "Unable to retrieve task information for model id [{}]",
                         RestStatus.INTERNAL_SERVER_ERROR,
                         e,
                         modelId
                     )
-                );
-            }));
+                )
+            ));
     }
 }

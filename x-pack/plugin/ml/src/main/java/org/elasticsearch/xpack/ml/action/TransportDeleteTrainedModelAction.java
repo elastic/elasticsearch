@@ -105,72 +105,81 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
     ) {
         logger.debug(() -> format("[%s] Request to delete trained model%s", request.getId(), request.isForce() ? " (force)" : ""));
 
+        ActionListener<CancelTasksResponse> performDeletion = ActionListener.wrap(
+            ignored -> deleteModel(request, state, listener),
+            listener::onFailure
+        );
+
         String id = request.getId();
 
-        ActionListener<Void> performDeletion = ActionListener.wrap(ignored -> {
-            IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-            Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
+        cancelDownloadTask(client, id, performDeletion);
+    }
 
-            if (request.isForce() == false && referencedModels.contains(id)) {
+    private void deleteModel(DeleteTrainedModelAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+        String id = request.getId();
+        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
+        Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
+
+        if (request.isForce() == false && referencedModels.contains(id)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Cannot delete model [{}] as it is still referenced by ingest processors; use force to delete the model",
+                    RestStatus.CONFLICT,
+                    id
+                )
+            );
+            return;
+        }
+
+        final List<String> modelAliases = getModelAliases(state, id);
+        if (request.isForce() == false) {
+            Optional<String> referencedModelAlias = modelAliases.stream().filter(referencedModels::contains).findFirst();
+            if (referencedModelAlias.isPresent()) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        "Cannot delete model [{}] as it is still referenced by ingest processors; use force to delete the model",
+                        "Cannot delete model [{}] as it has a model_alias [{}] that is still referenced by ingest processors;"
+                            + " use force to delete the model",
+                        RestStatus.CONFLICT,
+                        id,
+                        referencedModelAlias.get()
+                    )
+                );
+                return;
+            }
+        }
+
+        if (TrainedModelAssignmentMetadata.fromState(state).modelIsDeployed(request.getId())) {
+            if (request.isForce()) {
+                forceStopDeployment(
+                    request.getId(),
+                    ActionListener.wrap(
+                        stopDeploymentResponse -> deleteAliasesAndModel(request, modelAliases, listener),
+                        listener::onFailure
+                    )
+                );
+            } else {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Cannot delete model [{}] as it is currently deployed; use force to delete the model",
                         RestStatus.CONFLICT,
                         id
                     )
                 );
                 return;
             }
-
-            final List<String> modelAliases = getModelAliases(state, id);
-            if (request.isForce() == false) {
-                Optional<String> referencedModelAlias = modelAliases.stream().filter(referencedModels::contains).findFirst();
-                if (referencedModelAlias.isPresent()) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            "Cannot delete model [{}] as it has a model_alias [{}] that is still referenced by ingest processors;"
-                                + " use force to delete the model",
-                            RestStatus.CONFLICT,
-                            id,
-                            referencedModelAlias.get()
-                        )
-                    );
-                    return;
-                }
-            }
-
-            if (TrainedModelAssignmentMetadata.fromState(state).modelIsDeployed(request.getId())) {
-                if (request.isForce()) {
-                    forceStopDeployment(
-                        request.getId(),
-                        ActionListener.wrap(
-                            stopDeploymentResponse -> deleteAliasesAndModel(request, modelAliases, listener),
-                            listener::onFailure
-                        )
-                    );
-                } else {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            "Cannot delete model [{}] as it is currently deployed; use force to delete the model",
-                            RestStatus.CONFLICT,
-                            id
-                        )
-                    );
-                    return;
-                }
-            } else {
-                deleteAliasesAndModel(request, modelAliases, listener);
-            }
-        }, listener::onFailure);
-
-        cancelDownloadTask(client, id, performDeletion);
+        } else {
+            deleteAliasesAndModel(request, modelAliases, listener);
+        }
     }
 
-    static void cancelDownloadTask(Client client, String modelId, ActionListener<Void> listener) {
+    // package-private for testing
+    static void cancelDownloadTask(Client client, String modelId, ActionListener<CancelTasksResponse> listener) {
+        logger.debug(format("[%s] Checking if download task exists and cancelling it", modelId));
+
         ActionListener<TaskInfo> taskListener = ActionListener.wrap(taskInfo -> {
             if (taskInfo != null) {
                 ActionListener<CancelTasksResponse> cancelListener = ActionListener.wrap(
-                    c -> listener.onResponse(null),
+                    listener::onResponse,
                     e -> listener.onFailure(
                         new ElasticsearchStatusException(
                             "Unable to cancel task for model id [{}]",
@@ -181,6 +190,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
                     )
                 );
 
+                logger.debug(format("[%s] Download task exists, cancelling it", modelId));
                 // setting waitForCompletion here to wait for the cancellation to complete before executing the listener
                 client.admin()
                     .cluster()
@@ -189,12 +199,13 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
                     .waitForCompletion(true)
                     .execute(cancelListener);
             } else {
+                logger.debug(format("[%s] No download task exists, proceeding with deletion", modelId));
                 listener.onResponse(null);
             }
         },
             e -> listener.onFailure(
                 new ElasticsearchStatusException(
-                    "Unable to retrieve task information for model id [{}]",
+                    "Unable to retrieve existing task information for model id [{}]",
                     RestStatus.INTERNAL_SERVER_ERROR,
                     e,
                     modelId

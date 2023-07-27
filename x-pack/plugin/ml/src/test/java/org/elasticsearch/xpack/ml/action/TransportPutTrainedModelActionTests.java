@@ -17,8 +17,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -53,14 +51,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.getTaskInfoListOfOne;
+import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.mockClientWithTasksResponse;
 import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.mockListTasksClient;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TransportPutTrainedModelActionTests extends ESTestCase {
 
@@ -145,7 +143,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
     }
 
     public void testCheckForExistingTaskCallsStoreModelListenerWhenNoTasksExist() {
-        var client = prepareTasksResponse(Collections.emptyList());
+        var client = mockClientWithTasksResponse(Collections.emptyList());
 
         var storeListener = new PlainActionFuture<Void>();
 
@@ -155,7 +153,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
     }
 
     public void testCheckForExistingTaskThrowsNoModelFoundError() {
-        var client = prepareTasksResponse(List.of(getTaskInfo()));
+        var client = mockClientWithTasksResponse(getTaskInfoListOfOne());
         prepareGetTrainedModelResponse(client, Collections.emptyList());
 
         var respListener = new PlainActionFuture<PutTrainedModelAction.Response>();
@@ -166,7 +164,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
     }
 
     public void testCheckForExistingTaskReturnsTask() {
-        var client = prepareTasksResponse(List.of(getTaskInfo()));
+        var client = mockClientWithTasksResponse(getTaskInfoListOfOne());
 
         TrainedModelConfig trainedModel = TrainedModelConfigTests.createTestInstance("modelId")
             .setTags(Collections.singletonList("prepackaged"))
@@ -182,23 +180,6 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         assertThat(returnedModel.getResponse().getModelId(), is(trainedModel.getModelId()));
     }
 
-    private static Client prepareTasksResponse(List<TaskInfo> taskInfo) {
-        var client = mockListTasksClient();
-
-        var listTasksResponse = mock(ListTasksResponse.class);
-        when(listTasksResponse.getTasks()).thenReturn(taskInfo);
-
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<ListTasksResponse> actionListener = (ActionListener<ListTasksResponse>) invocationOnMock.getArguments()[2];
-            actionListener.onResponse(listTasksResponse);
-
-            return Void.TYPE;
-        }).when(client).execute(same(ListTasksAction.INSTANCE), any(), any());
-
-        return client;
-    }
-
     private static void prepareGetTrainedModelResponse(Client client, List<TrainedModelConfig> trainedModels) {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -212,22 +193,6 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
 
             return Void.TYPE;
         }).when(client).execute(same(GetTrainedModelsAction.INSTANCE), any(), any());
-    }
-
-    private static TaskInfo getTaskInfo() {
-        return new TaskInfo(
-            new TaskId("test", 123),
-            "test",
-            "test",
-            "test",
-            null,
-            0,
-            0,
-            true,
-            false,
-            new TaskId("test", 456),
-            Collections.emptyMap()
-        );
     }
 
     @Override

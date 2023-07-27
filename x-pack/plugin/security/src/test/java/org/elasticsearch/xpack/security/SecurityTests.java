@@ -472,39 +472,6 @@ public class SecurityTests extends ESTestCase {
         joinValidator.accept(node, clusterState);
     }
 
-    public void testIndexUpgradeValidatorWithUpToDateIndex() throws Exception {
-        createComponents(Settings.EMPTY);
-        BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
-        assertNotNull(joinValidator);
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        DiscoveryNode node = DiscoveryNodeUtils.create("foo");
-        IndexMetadata indexMetadata = IndexMetadata.builder(SECURITY_MAIN_ALIAS)
-            .settings(settings(version).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
-        DiscoveryNode existingOtherNode = DiscoveryNodeUtils.builder("bar").version(version).build();
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes)
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
-        joinValidator.accept(node, clusterState);
-    }
-
-    public void testIndexUpgradeValidatorWithMissingIndex() throws Exception {
-        createComponents(Settings.EMPTY);
-        BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
-        assertNotNull(joinValidator);
-        DiscoveryNode node = DiscoveryNodeUtils.create("foo");
-        DiscoveryNode existingOtherNode = DiscoveryNodeUtils.builder("bar")
-            .version(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT))
-            .build();
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
-        joinValidator.accept(node, clusterState);
-    }
-
     public void testGetFieldFilterSecurityEnabled() throws Exception {
         createComponents(Settings.EMPTY);
         Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();

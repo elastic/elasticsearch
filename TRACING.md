@@ -28,7 +28,11 @@ tracing.apm.enabled: true
 tracing.apm.agent.server_url: https://<your-apm-server>:443
 ```
 
-When using an API key or secret token you need to add it to the Elasticsearch Keystore with the token `tracing.apm.agent.secret_token`. The keystore tool should be in `bin/elasticsearch-keystore`. Doing `bin/elasticsearch-keystore add tracing.apm.agent.secret_token` and then entering the token is enough. Using API keys, you need to change this to `tracing.apm.agent.api_key`.
+When using a secret token to authenticate with the APM server, you must add it to the Elasticsearch keystore under `tracing.apm.secret_token`. For example, execute:
+
+    bin/elasticsearch-keystore add tracing.apm.secret_token
+
+then enter the token when prompted. If you are using API keys, change the keystore key name to `tracing.apm.api_key`.
 
 All APM settings live under `tracing.apm`. All settings related to the Java agent
 go under `tracing.apm.agent`. Anything you set under there will be propagated to

@@ -1019,10 +1019,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         String source = """
             { "nested_field" : { "file" : "somefile.txt" } }
             """;
-        var results = fetchFields(mapperService, source, List.of(
-            new FieldAndFormat("file", null, true),
-            new FieldAndFormat("*", null, true)
-        ));
+        var results = fetchFields(
+            mapperService,
+            source,
+            List.of(new FieldAndFormat("file", null, true), new FieldAndFormat("*", null, true))
+        );
         assertThat(results.keySet(), hasSize(1));
 
         results = fetchFields(mapperService, source, fieldAndFormatList("nested_field.file", null, true));

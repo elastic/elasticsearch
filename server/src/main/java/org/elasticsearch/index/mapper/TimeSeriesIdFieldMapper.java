@@ -35,7 +35,6 @@ import java.net.InetAddress;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -57,17 +56,13 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
      */
     private static final int LIMIT = ByteBlockPool.BYTE_BLOCK_SIZE - 2;
     /**
-     * Maximum length of the name of dimension. We picked this so that we could
-     * comfortable fit 16 dimensions inside {@link #LIMIT}.
-     */
-    private static final int DIMENSION_NAME_LIMIT = 512;
-    /**
      * The maximum length of any single dimension. We picked this so that we could
      * comfortable fit 16 dimensions inside {@link #LIMIT}. This should be quite
      * comfortable given that dimensions are typically going to be less than a
      * hundred bytes each, but we're being paranoid here.
      */
     private static final int DIMENSION_VALUE_LIMIT = 1024;
+    public static final int TSID_HASH_SENTINEL = 0xBAADCAFE;
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
@@ -165,10 +160,13 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
      */
     public static Map<String, Object> decodeTsid(StreamInput in) {
         try {
-            int size = in.readVInt();
-            Map<String, Object> result = new LinkedHashMap<String, Object>(size);
+            int sizeOrTsidHashSentinel = in.readVInt();
+            if (sizeOrTsidHashSentinel == TSID_HASH_SENTINEL) {
+                return Collections.singletonMap(TimeSeriesIdFieldMapper.NAME, in.readBytesRef().utf8ToString());
+            }
+            Map<String, Object> result = new LinkedHashMap<>(sizeOrTsidHashSentinel);
 
-            for (int i = 0; i < size; i++) {
+            for (int i = 0; i < sizeOrTsidHashSentinel; i++) {
                 String name = in.readBytesRef().utf8ToString();
 
                 int type = in.read();
@@ -215,24 +213,18 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.writeVInt(dimensions.size());
                 for (Map.Entry<BytesRef, BytesReference> entry : dimensions.entrySet()) {
-                    BytesRef fieldName = entry.getKey();
-                    if (fieldName.length > DIMENSION_NAME_LIMIT) {
-                        throw new IllegalArgumentException(
-                            String.format(
-                                Locale.ROOT,
-                                "Dimension name must be less than [%d] bytes but [%s] was [%s].",
-                                DIMENSION_NAME_LIMIT,
-                                fieldName.utf8ToString(),
-                                fieldName.length
-                            )
-                        );
-                    }
+                    final BytesRef fieldName = entry.getKey();
                     out.writeBytesRef(fieldName);
                     entry.getValue().writeTo(out);
                 }
-                BytesReference timeSeriesId = out.bytes();
+                final BytesReference timeSeriesId = out.bytes();
                 if (timeSeriesId.length() > LIMIT) {
-                    throw new IllegalArgumentException(NAME + " longer than [" + LIMIT + "] bytes [" + timeSeriesId.length() + "].");
+                    // NOTE: we hash the _tsid only if necessary, which is if the field does not fit Lucene UTF-8 doc values
+                    try (BytesStreamOutput hashOut = new BytesStreamOutput()) {
+                        hashOut.writeVInt(TSID_HASH_SENTINEL);
+                        hashOut.writeBytesRef(TsidExtractingIdFieldMapper.hashTsid(timeSeriesId.toBytesRef()));
+                        return hashOut.bytes();
+                    }
                 }
                 return timeSeriesId;
             }
@@ -247,11 +239,6 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                  * so it's easier for folks to reason about the space taken up. Mostly
                  * it'll be smaller too.
                  */
-                if (utf8Value.length > DIMENSION_VALUE_LIMIT) {
-                    throw new IllegalArgumentException(
-                        "Dimension fields must be less than [" + DIMENSION_VALUE_LIMIT + "] bytes but was [" + utf8Value.length + "]."
-                    );
-                }
                 out.writeBytesRef(utf8Value);
                 add(fieldName, out.bytes());
 

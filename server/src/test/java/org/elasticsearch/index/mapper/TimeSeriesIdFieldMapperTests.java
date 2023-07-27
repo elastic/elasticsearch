@@ -158,11 +158,11 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
         }));
 
-        Exception e = expectThrows(
-            DocumentParsingException.class,
-            () -> parseDocument(docMapper, b -> b.field("a", "more_than_1024_bytes".repeat(52)).field("@timestamp", "2021-10-01"))
+        ParsedDocument doc = parseDocument(docMapper, b -> b.field("a", "more_than_1024_bytes".repeat(52)));
+        assertMap(
+            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
+            matchesMap().entry("a", "more_than_1024_bytes".repeat(52))
         );
-        assertThat(e.getCause().getMessage(), equalTo("Dimension fields must be less than [1024] bytes but was [1040]."));
     }
 
     public void testKeywordTooLongUtf8() throws IOException {
@@ -171,11 +171,11 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         }));
 
         String theWordLong = "長い";
-        Exception e = expectThrows(
-            DocumentParsingException.class,
-            () -> parseDocument(docMapper, b -> b.field("a", theWordLong.repeat(200)).field("@timestamp", "2021-10-01"))
+        ParsedDocument doc = parseDocument(docMapper, b -> b.field("a", theWordLong.repeat(200)));
+        assertMap(
+            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
+            matchesMap().entry("a", theWordLong.repeat(200))
         );
-        assertThat(e.getCause().getMessage(), equalTo("Dimension fields must be less than [1024] bytes but was [1200]."));
     }
 
     public void testKeywordNull() throws IOException {
@@ -471,13 +471,16 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         }));
 
         String large = "many words ".repeat(80);
-        Exception e = expectThrows(DocumentParsingException.class, () -> parseDocument(docMapper, b -> {
+        ParsedDocument doc = parseDocument(docMapper, b -> {
             b.field("b", "foo");
             for (int i = 0; i < 100; i++) {
                 b.field("d" + i, large);
             }
-        }));
-        assertThat(e.getCause().getMessage(), equalTo("_tsid longer than [32766] bytes [88698]."));
+        });
+        assertMap(
+            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
+            matchesMap().entry("_tsid", "hash-0x3777619b3ef94123dd58ef302f9d439d")
+        );
     }
 
     /**

@@ -2947,6 +2947,71 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
     }
 
+    public void testSubobjectsFalseIngestDifferentObjectsRepresentation() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(b -> {}));
+
+        ParsedDocument doc1 = mapper.parse(source("""
+            {
+              "foo": {
+                "bar": {
+                  "baz" : {
+                    "max" : 10,
+                    "min" : 1
+                  }
+                }
+              }
+            }
+            """));
+        ParsedDocument doc2 = mapper.parse(source("""
+            {
+              "foo": {
+                "bar.baz" : {
+                  "max" : 10,
+                  "min" : 1
+                }
+              }
+            }
+            """));
+        ParsedDocument doc3 = mapper.parse(source("""
+            {
+              "foo.bar.baz": {
+                "max" : 10,
+                "min" : 1
+              }
+            }
+            """));
+        ParsedDocument doc4 = mapper.parse(source("""
+            {
+              "foo.bar.baz.max" : 10,
+              "foo.bar.baz.min" : 1
+            }
+            """));
+        assertNotNull(doc1.rootDoc().getField("foo.bar.baz.max"));
+        assertNotNull(doc1.rootDoc().getField("foo.bar.baz.min"));
+        RootObjectMapper root1 = doc1.dynamicMappingsUpdate().getRoot();
+        assertNotNull(root1.getMapper("foo.bar.baz.max"));
+        assertNotNull(root1.getMapper("foo.bar.baz.min"));
+
+        assertNotNull(doc2.rootDoc().getField("foo.bar.baz.max"));
+        assertNotNull(doc2.rootDoc().getField("foo.bar.baz.min"));
+        RootObjectMapper root2 = doc2.dynamicMappingsUpdate().getRoot();
+        assertNotNull(root2.getMapper("foo.bar.baz.max"));
+        assertNotNull(root2.getMapper("foo.bar.baz.min"));
+
+        assertNotNull(doc3.rootDoc().getField("foo.bar.baz.max"));
+        assertNotNull(doc3.rootDoc().getField("foo.bar.baz.min"));
+        RootObjectMapper root3 = doc3.dynamicMappingsUpdate().getRoot();
+        assertNotNull(root3.getMapper("foo.bar.baz.max"));
+        assertNotNull(root3.getMapper("foo.bar.baz.min"));
+
+        assertNotNull(doc4.rootDoc().getField("foo.bar.baz.max"));
+        assertNotNull(doc4.rootDoc().getField("foo.bar.baz.min"));
+        RootObjectMapper root4 = doc4.dynamicMappingsUpdate().getRoot();
+        assertNotNull(root4.getMapper("foo.bar.baz.max"));
+        assertNotNull(root4.getMapper("foo.bar.baz.min"));
+
+    }
+
     /**
      * Mapper plugin providing a mock metadata field mapper implementation that supports setting its value
      */

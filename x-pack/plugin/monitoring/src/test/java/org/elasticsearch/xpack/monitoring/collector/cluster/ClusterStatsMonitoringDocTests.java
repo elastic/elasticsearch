@@ -576,7 +576,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "built_in_tokenizers": [],
                     "built_in_filters": [],
                     "built_in_analyzers": [],
-                    "synonyms_sets": []
+                    "synonyms": {}
                   },
                   "versions": [],
                   "search" : {

@@ -8,11 +8,48 @@
   - do:
       cluster.stats: {}
 
-  - length: { indices.analysis.synonyms_sets: 0 }
+  - length: { indices.analysis.synonyms: 0 }
 
   - do:
       indices.create:
         index: test-index1
+        body:
+          settings:
+            analysis:
+              filter:
+                bigram_max_size:
+                  type: length
+                  max: 16
+                  min: 0
+                synonyms_inline_filter:
+                  type: synonym
+                  synonyms: ["foo bar", "bar => baz"]
+
+                other_inline_filter:
+                  type: synonym
+                  synonyms: ["foo bar baz"]
+
+                synonyms_path_filter:
+                  type: synonym
+                  synonyms_path: "/a/reused/path"
+
+                other_synonyms_path_filter:
+                  type: synonym_graph
+                  synonyms_path: "/a/different/path"
+
+                another_synonyms_path_filter:
+                  type: synonym_graph
+                  synonyms_path: "/another/different/path"
+
+                synonyms_set_filter:
+                  type: synonym_graph
+                  synonyms_set: reused-synonym-set
+
+
+
+  - do:
+      indices.create:
+        index: test-index2
         body:
           settings:
             analysis:
@@ -22,60 +59,48 @@
                   type: stemmer
                   language: light_english
 
-                synonyms_filter:
-                  type: synonym
-                  updateable: true
-                  synonyms_set: b-reused-synonym-set
-
                 other_synonyms_filter:
                   type: synonym
-                  updateable: true
-                  synonyms_set: c-different-synonym-set
+                  synonyms_set: another-synonym-set
+
+                a_repeated_synonyms_set_filter:
+                  type: synonym
+                  synonyms_set: reused-synonym-set
+
+                repeated_inline_filter:
+                  type: synonym
+                  synonyms: ["foo bar", "bar => baz"]
+
+
 
   - do:
       indices.create:
-        index: test-index2
+        index: test-index3
         body:
           settings:
-            "analysis":
-              "filter":
-                "bigram_max_size":
-                  "type": "length"
-                  "max": "16"
-                  "min": "0"
+            analysis:
+              filter:
+                other_synonyms_filter:
+                  type: synonym
+                  synonyms_set: a-different-synonym-set
 
-                "en-stop-words-filter":
-                  "type": "stop"
-                  "stopwords": "_english_"
+                a_repeated_synonyms_set_filter:
+                  type: synonym
+                  synonyms_set: reused-synonym-set
 
-                "synonyms_filter":
-                  "type": "synonym_graph"
-                  "updateable": "true"
-                  "synonyms_set": "b-reused-synonym-set"
-
-                "a_repeated_synonyms_filter":
-                  "type": "synonym"
-                  "updateable": "true"
-                  "synonyms_set": "b-reused-synonym-set"
-
-                "other_synonyms_filter":
-                  "type": "synonym"
-                  "updateable": "true"
-                  "synonyms_set": "a-synonym-set"
-
+                more_inline_filter:
+                  type: synonym
+                  synonyms: ["foo bar", "bar => baz"]
 
 
 
   - do:
       cluster.stats: {}
 
-  - length: { indices.analysis.synonyms_sets: 3 }
-  - match: { indices.analysis.synonyms_sets.0.name: a-synonym-set }
-  - match: { indices.analysis.synonyms_sets.0.count: 1 }
-  - match: { indices.analysis.synonyms_sets.0.index_count: 1 }
-  - match: { indices.analysis.synonyms_sets.1.name: b-reused-synonym-set }
-  - match: { indices.analysis.synonyms_sets.1.count: 3 }
-  - match: { indices.analysis.synonyms_sets.1.index_count: 2 }
-  - match: { indices.analysis.synonyms_sets.2.name: c-different-synonym-set }
-  - match: { indices.analysis.synonyms_sets.2.count: 1 }
-  - match: { indices.analysis.synonyms_sets.2.index_count: 1 }
+  - length: { indices.analysis.synonyms: 3 }
+  - match: { indices.analysis.synonyms.synonyms.count: 4 }
+  - match: { indices.analysis.synonyms.synonyms.index_count: 3 }
+  - match: { indices.analysis.synonyms.synonyms_path.count: 3 }
+  - match: { indices.analysis.synonyms.synonyms_path.index_count: 1 }
+  - match: { indices.analysis.synonyms.synonyms_set.count: 3 }
+  - match: { indices.analysis.synonyms.synonyms_set.index_count: 3 }

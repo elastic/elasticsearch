@@ -1596,7 +1596,7 @@ The API returns the following response:
         "built_in_tokenizers": [],
         "built_in_filters": [],
         "built_in_analyzers": [],
-        "synonyms_sets": []
+        "synonyms": {}
       },
       "versions": [
         {

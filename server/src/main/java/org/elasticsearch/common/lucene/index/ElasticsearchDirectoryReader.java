@@ -91,7 +91,7 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
     public static ESCacheHelper getESReaderCacheHelper(DirectoryReader reader) {
         ElasticsearchDirectoryReader esReader = getElasticsearchDirectoryReader(reader);
         assert esReader != null;
-        // even though we assert that the reader is non-null, we are a bit lenient here,
+        // Even though we assert that the reader is non-null, we are a bit lenient here,
         // as falling back to the underlying cache helper does not affect correctness
         if (esReader == null || esReader.esCacheHelper == null) {
             return new ESCacheHelper.Wrapper(reader.getReaderCacheHelper());
@@ -147,7 +147,7 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
                 return (ElasticsearchDirectoryReader) reader;
             } else {
                 // We need to use FilterDirectoryReader#getDelegate and not FilterDirectoryReader#unwrap, because
-                // If there are multiple levels of filtered leaf readers then with the unwrap() method it immediately
+                // if there are multiple levels of filtered leaf readers then with the unwrap() method it immediately
                 // returns the most inner leaf reader and thus skipping of over any other filtered leaf reader that
                 // may be instance of ElasticsearchLeafReader. This can cause us to miss the shardId.
                 return getElasticsearchDirectoryReader(((FilterDirectoryReader) reader).getDelegate());

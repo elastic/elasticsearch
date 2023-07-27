@@ -35,7 +35,7 @@ public class Queries {
         return new MatchAllDocsQuery();
     }
 
-    /** Return a query that matches no document. */
+    /** Returns a query that matches no document. */
     public static Query newMatchNoDocsQuery(String reason) {
         return new MatchNoDocsQuery(reason);
     }
@@ -90,7 +90,7 @@ public class Queries {
         return builder.build();
     }
 
-    /** Return a query that matches all documents but those that match the given query. */
+    /** Returns a query that matches all documents but those that match the given query. */
     public static Query not(Query q) {
         return new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.MUST).add(q, Occur.MUST_NOT).build();
     }
@@ -142,7 +142,7 @@ public class Queries {
 
     /**
      * Potentially apply minimum should match value if we have a query that it can be applied to,
-     * otherwise return the original query.
+     * otherwise returns the original query.
      */
     public static Query maybeApplyMinimumShouldMatch(Query query, @Nullable String minimumShouldMatch) {
         if (query instanceof BooleanQuery) {
@@ -177,7 +177,7 @@ public class Queries {
         /* otherwise, simple expression */
 
         if (-1 < spec.indexOf('%')) {
-            /* percentage - assume the % was the last char.  If not, let Integer.parseInt fail. */
+            /* percentage - assume the % was the last char. If not, let Integer.parseInt fail. */
             spec = spec.substring(0, spec.length() - 1);
             int percent = Integer.parseInt(spec);
             float calc = (result * percent) * (1 / 100f);

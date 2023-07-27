@@ -351,7 +351,7 @@ public class InstallPluginAction implements Closeable {
     }
 
     boolean isSnapshot() {
-        return Build.CURRENT.isSnapshot();
+        return Build.current().isSnapshot();
     }
 
     /**
@@ -386,12 +386,12 @@ public class InstallPluginAction implements Closeable {
             baseUrl,
             pluginId,
             platform,
-            Build.CURRENT.qualifiedVersion()
+            Build.current().qualifiedVersion()
         );
         if (urlExists(platformUrl)) {
             return platformUrl;
         }
-        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, Build.CURRENT.qualifiedVersion());
+        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, Build.current().qualifiedVersion());
     }
 
     private String nonReleaseUrl(final String hostname, final Version version, final String stagingHash, final String pluginId) {

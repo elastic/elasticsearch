@@ -72,6 +72,7 @@ subprojects {
           /////// TO FIX ///////
           'aggregations/range/Date range', //source only date field should also emit values for numbers, it expects strings only
           'search/115_multiple_field_collapsing/two levels fields collapsing', // Field collapsing on a runtime field does not work
+          'search/111_field_collapsing_with_max_score/*', // Field collapsing on a runtime field does not work
           'field_caps/30_index_filter/Field caps with index filter', // We don't support filtering field caps on runtime fields. What should we do?
           'aggregations/filters_bucket/cache busting', // runtime keyword does not support split_queries_on_whitespace
           'search/140_pre_filter_search_shards/pre_filter_shard_size with shards that have no hit',

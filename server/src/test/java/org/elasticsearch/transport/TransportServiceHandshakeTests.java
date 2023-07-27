@@ -359,7 +359,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
 
     @SuppressForbidden(reason = "Sets property for testing")
     public void testAcceptsMismatchedServerlessBuildHash() {
-        assumeTrue("Current build needs to be a snapshot", Build.CURRENT.isSnapshot());
+        assumeTrue("Current build needs to be a snapshot", Build.current().isSnapshot());
         assumeTrue("Security manager needs to be disabled", System.getSecurityManager() == null);
         System.setProperty("es.serverless", Boolean.TRUE.toString());   // security manager blocks this
         try {

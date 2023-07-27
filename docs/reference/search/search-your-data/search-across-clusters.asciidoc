@@ -17,6 +17,7 @@ The following APIs support {ccs}:
 * <<search-template,Search template>>
 * <<multi-search-template,Multi search template>>
 * <<search-field-caps,Field capabilities>>
+* {painless}/painless-execute-api.html[Painless execute API]
 * experimental:[] <<eql-search-api,EQL search>>
 * experimental:[] <<sql-search-api,SQL search>>
 * experimental:[] <<search-vector-tile-api,Vector tile search>>
@@ -364,6 +365,7 @@ The API returns the following response:
 // TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
 // TESTRESPONSE[s/1685563581380/$body.start_time_in_millis/]
 // TESTRESPONSE[s/1685995581380/$body.expiration_time_in_millis/]
+// TESTRESPONSE[s/"response"/"completion_time_in_millis": $body.completion_time_in_millis,\n  "response"/]
 // TESTRESPONSE[s/"num_reduce_phases": 0/"num_reduce_phases": "$body.response.num_reduce_phases"/]
 // TESTRESPONSE[s/"took": 1020/"took": "$body.response.took"/]
 // TESTRESPONSE[s/"total": 8/"total": $body.response._shards.total/]
@@ -464,19 +466,20 @@ Response:
   "is_running": false,
   "start_time_in_millis": 1685564911108,
   "expiration_time_in_millis": 1685996911108,
+  "completion_time_in_millis": 1685564938727,  <1>
   "response": {
     "took": 27619,
     "timed_out": false,
     "num_reduce_phases": 4,
     "_shards": {
       "total": 28,
-      "successful": 28,  <1>
+      "successful": 28,  <2>
       "skipped": 0,
       "failed": 0
     },
     "_clusters": {
       "total": 3,
-      "successful": 3,   <2>
+      "successful": 3,   <3>
       "skipped": 0
     },
     "hits": {
@@ -495,6 +498,7 @@ Response:
 // TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
 // TESTRESPONSE[s/1685564911108/$body.start_time_in_millis/]
 // TESTRESPONSE[s/1685996911108/$body.expiration_time_in_millis/]
+// TESTRESPONSE[s/1685564938727/$body.completion_time_in_millis/]
 // TESTRESPONSE[s/"took": 27619/"took": "$body.response.took"/]
 // TESTRESPONSE[s/"total": 28/"total": $body.response._shards.total/]
 // TESTRESPONSE[s/"successful": 28/"successful": $body.response._shards.successful/]
@@ -505,9 +509,10 @@ Response:
 // TESTRESPONSE[s/"hits": \[...list of hits here...\]/"hits": $body.response.hits.hits/]
 
 
-<1> The `_shards` section is now updated to show that 28 total shards
+<1> Once the search has finished, the completion_time is present.
+<2> The `_shards` section is now updated to show that 28 total shards
 were searched across all clusters and that all were successful.
-<2> The `_clusters` section shows that searches on all 3 clusters were successful.
+<3> The `_clusters` section shows that searches on all 3 clusters were successful.
 
 
 
@@ -591,6 +596,7 @@ the `wait_for_completion_timeout` duration (see <<async-search>>).
 // TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
 // TESTRESPONSE[s/1685563581380/$body.start_time_in_millis/]
 // TESTRESPONSE[s/1685995581380/$body.expiration_time_in_millis/]
+// TESTRESPONSE[s/"response"/"completion_time_in_millis": $body.completion_time_in_millis,\n  "response"/]
 // TESTRESPONSE[s/"num_reduce_phases": 0/"num_reduce_phases": "$body.response.num_reduce_phases"/]
 // TESTRESPONSE[s/"took": 1020/"took": "$body.response.took"/]
 // TESTRESPONSE[s/"total": 28/"total": $body.response._shards.total/]

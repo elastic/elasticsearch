@@ -360,11 +360,11 @@ public class Node implements Closeable {
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
                 "version[{}], pid[{}], build[{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
-                Build.CURRENT.qualifiedVersion(),
+                Build.current().qualifiedVersion(),
                 jvmInfo.pid(),
-                Build.CURRENT.type().displayName(),
-                Build.CURRENT.hash(),
-                Build.CURRENT.date(),
+                Build.current().type().displayName(),
+                Build.current().hash(),
+                Build.current().date(),
                 Constants.OS_NAME,
                 Constants.OS_VERSION,
                 Constants.OS_ARCH,
@@ -375,10 +375,10 @@ public class Node implements Closeable {
             );
             logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
             logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
-            if (Build.CURRENT.isProductionRelease() == false) {
+            if (Build.current().isProductionRelease() == false) {
                 logger.warn(
                     "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
-                    Build.CURRENT.qualifiedVersion()
+                    Build.current().qualifiedVersion()
                 );
             }
             if (Environment.PATH_SHARED_DATA_SETTING.exists(tmpSettings)) {
@@ -1578,43 +1578,52 @@ public class Node implements Closeable {
         );
     }
 
-    private Node stop() {
+    private void stop() {
         if (lifecycle.moveToStopped() == false) {
-            return this;
+            return;
         }
         logger.info("stopping ...");
 
         if (ReadinessService.enabled(environment)) {
-            injector.getInstance(ReadinessService.class).stop();
+            stopIfStarted(ReadinessService.class);
         }
-        injector.getInstance(FileSettingsService.class).stop();
+        stopIfStarted(FileSettingsService.class);
         injector.getInstance(ResourceWatcherService.class).close();
-        injector.getInstance(HttpServerTransport.class).stop();
+        stopIfStarted(HttpServerTransport.class);
 
-        injector.getInstance(SnapshotsService.class).stop();
-        injector.getInstance(SnapshotShardsService.class).stop();
-        injector.getInstance(RepositoriesService.class).stop();
+        stopIfStarted(SnapshotsService.class);
+        stopIfStarted(SnapshotShardsService.class);
+        stopIfStarted(RepositoriesService.class);
         // stop any changes happening as a result of cluster state changes
-        injector.getInstance(IndicesClusterStateService.class).stop();
+        stopIfStarted(IndicesClusterStateService.class);
         // close cluster coordinator early to not react to pings anymore.
         // This can confuse other nodes and delay things - mostly if we're the master and we're running tests.
-        injector.getInstance(Coordinator.class).stop();
+        stopIfStarted(Coordinator.class);
         // we close indices first, so operations won't be allowed on it
-        injector.getInstance(ClusterService.class).stop();
-        injector.getInstance(NodeConnectionsService.class).stop();
-        injector.getInstance(FsHealthService.class).stop();
-        nodeService.getMonitorService().stop();
-        injector.getInstance(GatewayService.class).stop();
-        injector.getInstance(SearchService.class).stop();
-        injector.getInstance(TransportService.class).stop();
+        stopIfStarted(ClusterService.class);
+        stopIfStarted(NodeConnectionsService.class);
+        stopIfStarted(FsHealthService.class);
+        stopIfStarted(nodeService.getMonitorService());
+        stopIfStarted(GatewayService.class);
+        stopIfStarted(SearchService.class);
+        stopIfStarted(TransportService.class);
 
-        pluginLifecycleComponents.forEach(LifecycleComponent::stop);
+        pluginLifecycleComponents.forEach(Node::stopIfStarted);
         // we should stop this last since it waits for resources to get released
         // if we had scroll searchers etc or recovery going on we wait for to finish.
-        injector.getInstance(IndicesService.class).stop();
+        stopIfStarted(IndicesService.class);
         logger.info("stopped");
+    }
 
-        return this;
+    private <T extends LifecycleComponent> void stopIfStarted(Class<T> componentClass) {
+        stopIfStarted(injector.getInstance(componentClass));
+    }
+
+    private static void stopIfStarted(LifecycleComponent component) {
+        // if we failed during startup then some of our components might not have started yet
+        if (component.lifecycleState() == Lifecycle.State.STARTED) {
+            component.stop();
+        }
     }
 
     // During concurrent close() calls we want to make sure that all of them return after the node has completed it's shutdown cycle.

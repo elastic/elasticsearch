@@ -363,7 +363,7 @@ public class JoinHelperTests extends ESTestCase {
             if (action.equals(HANDSHAKE_ACTION_NAME)) {
                 handleResponse(
                     requestId,
-                    new TransportService.HandshakeResponse(node.getVersion(), Build.CURRENT.hash(), node, ClusterName.DEFAULT)
+                    new TransportService.HandshakeResponse(node.getVersion(), Build.current().hash(), node, ClusterName.DEFAULT)
                 );
             } else {
                 super.onSendRequest(requestId, action, request, node);

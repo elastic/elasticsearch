@@ -91,7 +91,6 @@ import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator
  */
 public class TransportStartDatafeedAction extends TransportMasterNodeAction<StartDatafeedAction.Request, NodeAcknowledgedResponse> {
 
-    private static final Version COMPOSITE_AGG_SUPPORT = Version.V_7_13_0;
     private static final Logger logger = LogManager.getLogger(TransportStartDatafeedAction.class);
 
     private final Client client;
@@ -286,23 +285,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 params.setJobId(datafeedConfig.getJobId());
                 params.setIndicesOptions(datafeedConfig.getIndicesOptions());
                 datafeedConfigHolder.set(datafeedConfig);
-                if (datafeedConfig.hasCompositeAgg(xContentRegistry)) {
-                    if (state.nodes()
-                        .mastersFirstStream()
-                        .filter(MachineLearning::isMlNode)
-                        .map(DiscoveryNode::getVersion)
-                        .anyMatch(COMPOSITE_AGG_SUPPORT::after)) {
-                        listener.onFailure(
-                            ExceptionsHelper.badRequestException(
-                                "cannot start datafeed [{}] as [{}] requires all machine learning nodes to be at least version [{}]",
-                                datafeedConfig.getId(),
-                                "composite aggs",
-                                COMPOSITE_AGG_SUPPORT
-                            )
-                        );
-                        return;
-                    }
-                }
+
                 jobConfigProvider.getJob(datafeedConfig.getJobId(), null, jobListener);
             } catch (Exception e) {
                 listener.onFailure(e);

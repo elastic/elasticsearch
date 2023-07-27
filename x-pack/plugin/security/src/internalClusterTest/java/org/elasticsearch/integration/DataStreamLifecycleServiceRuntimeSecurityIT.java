@@ -23,12 +23,12 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.plugins.Plugin;
@@ -38,6 +38,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -70,7 +71,13 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateSecurity.class, DataStreamsPlugin.class, SystemDataStreamTestPlugin.class);
+        return List.of(
+            LocalStateSecurity.class,
+            DataStreamsPlugin.class,
+            SystemDataStreamTestPlugin.class,
+            MapperExtrasPlugin.class,
+            Wildcard.class
+        );
     }
 
     @Override
@@ -107,7 +114,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
 
     public void testRolloverAndRetentionAuthorized() throws Exception {
         String dataStreamName = randomDataStreamName();
-        prepareDataStreamAndIndex(dataStreamName, new DataStreamLifecycle(TimeValue.timeValueMillis(0)));
+        prepareDataStreamAndIndex(dataStreamName, DataStreamLifecycle.newBuilder().dataRetention(0).build());
 
         assertBusy(() -> {
             assertNoAuthzErrors();
@@ -251,7 +258,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
                     SystemDataStreamDescriptor.Type.EXTERNAL,
                     new ComposableIndexTemplate(
                         List.of(SYSTEM_DATA_STREAM_NAME),
-                        new Template(Settings.EMPTY, null, null, new DataStreamLifecycle(0)),
+                        new Template(Settings.EMPTY, null, null, DataStreamLifecycle.newBuilder().dataRetention(0).build()),
                         null,
                         null,
                         null,

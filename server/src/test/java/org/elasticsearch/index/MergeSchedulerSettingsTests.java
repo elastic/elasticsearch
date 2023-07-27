@@ -64,7 +64,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
         Loggers.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
         try {
-            Settings.Builder builder = indexSettings(Version.CURRENT, 1, 0).put(
+            Settings.Builder builder = indexSettings(IndexVersion.current(), 1, 0).put(
                 MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(),
                 "2"
             )
@@ -94,7 +94,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
         Loggers.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
         try {
-            Settings.Builder builder = indexSettings(Version.CURRENT, 1, 0).put(
+            Settings.Builder builder = indexSettings(IndexVersion.current(), 1, 0).put(
                 MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(),
                 "2"
             )

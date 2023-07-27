@@ -9,11 +9,11 @@ beta::[]
 
 ---
 
-Synonyms Management APIs let you create and manage synonym sets.
+Synonyms Management APIs let you create and manage synonyms sets.
 
 Synonyms sets can be used to configure <<analysis-synonym-graph-tokenfilter,synonym graph token filters>> and <<analysis-synonym-tokenfilter,synonym token filters>>.
 
-Once a synonym set is used in a synonym token filter, these token filters can be used as part of a <<search-analyzer,search analyzers>>.
+Once a synonyms set is used in a synonym token filter, these token filters can be used as part of a <<search-analyzer,search analyzers>>.
 You can dynamically change the synonyms used at search time using these APIs to update the synonyms sets.
 Your search results will immediately reflect the synonyms set change.
 

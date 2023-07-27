@@ -10,7 +10,7 @@ beta::[]
 Retrieves a summary of all defined Synonyms Sets.
 
 This API allows to retrieve the total number of Synonyms Sets defined.
-For each Synonyms Set, its identifier and the total number of rules defined is returned.
+For each Synonyms Set, its identifier and the total number of defined synonym rules is returned.
 
 [[list-synonyms-set-request]]
 ==== {api-request-title}

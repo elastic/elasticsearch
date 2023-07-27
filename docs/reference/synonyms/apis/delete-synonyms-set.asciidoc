@@ -18,7 +18,7 @@ Deletes a Synonyms Set.
 ==== {api-prereq-title}
 
 * Requires the `manage_search_synonyms` cluster privilege.
-* You can only delete a Synonym Set that is not in use by any <<analysis-synonym-graph-tokenfilter,synonym graph token filters>> and <<analysis-synonym-tokenfilter,synonym token filters>> that are included in an analyzer. See <<delete-synonym-set-analyzer-requirements>> for more information.
+* You can only delete a Synonyms Set that is not in use by any <<analysis-synonym-graph-tokenfilter,synonym graph token filters>> and <<analysis-synonym-tokenfilter,synonym token filters>> that are included in an analyzer. See <<delete-synonym-set-analyzer-requirements>> for more information.
 
 [[delete-synonyms-set-path-params]]
 ==== {api-path-parms-title}
@@ -58,7 +58,7 @@ These synonym filters can be used as part of <<search-analyzer, search analyzers
 Analyzers need to be loaded when an index is restored (such as when a node starts, or the index becomes open).
 Even if the analyzer is not used on any field mapping, it still needs to be loaded on the index recovery phase.
 
-In case analyzers can't be loaded, the index would not be made available and the cluster status would become <<red-yellow-cluster-status,red or yellow>> as index shards would not be available.
+If any analyzers cannot be loaded, the index becomes unavailable and the cluster status becomes <<red-yellow-cluster-status,red or yellow>> as index shards are not available.
 
 To prevent that, Synonyms Sets that are used in analyzers can't be deleted.
 A delete request in this case will return a `400` response code with the following error message:
@@ -70,11 +70,11 @@ A delete request in this case will return a `400` response code with the followi
     "root_cause": [
       {
         "type": "illegal_argument_exception",
-        "reason": "Synonym set [my-synonyms-set] cannot be deleted as it is used in the following indices: index-1, index-2"
+        "reason": "Synonyms set [my-synonyms-set] cannot be deleted as it is used in the following indices: index-1, index-2"
       }
     ],
     "type": "illegal_argument_exception",
-    "reason": "Synonym set [my-synonyms-set] cannot be deleted as it is used in the following indices: index-1, index-2"
+    "reason": "Synonyms set [my-synonyms-set] cannot be deleted as it is used in the following indices: index-1, index-2"
   },
   "status": 400
 }

@@ -143,14 +143,14 @@ public class XContentHelper {
         BytesReference bytes,
         boolean ordered,
         XContentType xContentType,
-        DocumentReporter convertToMapAndMeter
+        DocumentReporter documentReporter
     ) {
         return parseToType(
             ordered ? XContentParser::mapOrdered : XContentParser::map,
             bytes,
             xContentType,
             XContentParserConfiguration.EMPTY,
-            convertToMapAndMeter
+            documentReporter
         );
     }
 

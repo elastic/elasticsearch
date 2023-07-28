@@ -6698,7 +6698,7 @@ public class InternalEngineTests extends EngineTestCase {
                     .put(defaultSettings.getSettings())
                     .put(
                         IndexMetadata.SETTING_VERSION_CREATED,
-                        IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0).id()
+                        IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0)
                     )
                     .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
             )
@@ -6790,10 +6790,7 @@ public class InternalEngineTests extends EngineTestCase {
             lowestCompatiblePreviousVersion,
             IndexVersionUtils.getFirstVersion()
         )) {
-            Settings settings = Settings.builder()
-                .put(indexSettings())
-                .put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion.id())
-                .build();
+            Settings settings = Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion).build();
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
             try (
                 Store store = createStore(indexSettings, newDirectory());

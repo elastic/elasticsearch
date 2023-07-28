@@ -76,14 +76,14 @@ public class RestTable {
             ChunkedRestResponseBody.fromXContent(
                 ignored -> Iterators.concat(
                     Iterators.single((builder, params) -> builder.startArray()),
-                    rowOrder.stream().<ToXContent>map(row -> (builder, params) -> {
+                    Iterators.map(rowOrder.iterator(), row -> (builder, params) -> {
                         builder.startObject();
                         for (DisplayHeader header : displayHeaders) {
                             builder.field(header.display, renderValue(request, table.getAsMap().get(header.name).get(row).value));
                         }
                         builder.endObject();
                         return builder;
-                    }).iterator(),
+                    }),
                     Iterators.single((builder, params) -> builder.endArray())
                 ),
                 ToXContent.EMPTY_PARAMS,

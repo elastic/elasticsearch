@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingResourceTracker.MlJobRequirements;
 import static org.mockito.Mockito.mock;
 
 public class MlAutoscalingResourceTrackerTests extends ESTestCase {
@@ -146,14 +147,34 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
     }
 
     public void testTryMoveJobsByMemory() {
-        assertEquals(0L, MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(List.of(10L), Map.of("node_a", 100L), 1000L));
-        assertEquals(10L, MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(List.of(10L), Map.of("node_a", 995L), 1000L));
+        assertEquals(
+            0L,
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(MlJobRequirements.of(10L, 0)),
+                Map.of("node_a", 100L),
+                1000L
+            )
+        );
+        assertEquals(
+            10L,
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(MlJobRequirements.of(10L, 0)),
+                Map.of("node_a", 995L),
+                1000L
+            )
+        );
 
         // equal sizes fit on all nodes
         assertEquals(
             0L,
-            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
-                List.of(10L, 10L, 10L, 10L, 10L),
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0)
+                ),
                 Map.of("node_a", 976L, "node_b", 986L, "node_c", 967L),
                 1000L
             )
@@ -161,8 +182,14 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
 
         assertEquals(
             0L,
-            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
-                List.of(10L, 10L, 10L, 10L, 10L),
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0)
+                ),
                 Map.of("node_a", 980L, "node_b", 990L, "node_c", 970L),
                 1000L
             )
@@ -171,16 +198,32 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         // doesn't fit
         assertEquals(
             10L,
-            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
-                List.of(10L, 10L, 10L, 10L, 10L, 10L, 10L),
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0)
+                ),
                 Map.of("node_a", 976L, "node_b", 986L, "node_c", 967L),
                 1000L
             )
         );
         assertEquals(
             40L,
-            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
-                List.of(10L, 10L, 10L, 10L, 10L, 10L, 40L),
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(40L, 0)
+                ),
                 Map.of("node_a", 976L, "node_b", 946L, "node_c", 967L),
                 1000L
             )
@@ -188,8 +231,16 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
 
         assertEquals(
             130L,
-            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
-                List.of(10L, 20L, 30L, 40L, 50L, 60L, 70L), // 280, with better packing this could return 20 + 50
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(20L, 0),
+                    MlJobRequirements.of(30L, 0),
+                    MlJobRequirements.of(40L, 0),
+                    MlJobRequirements.of(50L, 0),
+                    MlJobRequirements.of(60L, 0),
+                    MlJobRequirements.of(70L, 0)
+                ), // 280, with better packing this could return 20 + 50
                 Map.of("node_a", 886L, "node_b", 926L, "node_c", 967L),
                 1000L
             )
@@ -197,8 +248,16 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
 
         assertEquals(
             70L,
-            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
-                List.of(10L, 20L, 30L, 40L, 50L, 60L, 70L), // 280, solvable with optimal packing
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(20L, 0),
+                    MlJobRequirements.of(30L, 0),
+                    MlJobRequirements.of(40L, 0),
+                    MlJobRequirements.of(50L, 0),
+                    MlJobRequirements.of(60L, 0),
+                    MlJobRequirements.of(70L, 0)
+                ), // 280, solvable with optimal packing
                 Map.of("node_a", 886L, "node_b", 906L, "node_c", 917L),
                 1000L
             )
@@ -206,8 +265,16 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
 
         assertEquals(
             70L,
-            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
-                List.of(10L, 20L, 30L, 40L, 50L, 60L, 70L), // 280, solvable with optimal packing
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(20L, 0),
+                    MlJobRequirements.of(30L, 0),
+                    MlJobRequirements.of(40L, 0),
+                    MlJobRequirements.of(50L, 0),
+                    MlJobRequirements.of(60L, 0),
+                    MlJobRequirements.of(70L, 0)
+                ), // 280, solvable with optimal packing
                 Map.of("node_a", 866L, "node_b", 886L, "node_c", 917L),
                 1000L
             )
@@ -215,8 +282,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
 
         assertEquals(
             500L,
-            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
-                List.of(500L, 200L),
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(MlJobRequirements.of(500L, 0), MlJobRequirements.of(200L, 0)),
                 Map.of("node_a", 1400L, "node_b", 1700L),
                 2000L
             )
@@ -224,17 +291,21 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
 
         assertEquals(
             700L,
-            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(List.of(500L, 200L), Collections.emptyMap(), 2000L)
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(MlJobRequirements.of(500L, 0), MlJobRequirements.of(200L, 0)),
+                Collections.emptyMap(),
+                2000L
+            )
         );
 
         assertEquals(
             0L,
-            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(Collections.emptyList(), Collections.emptyMap(), 2000L)
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(Collections.emptyList(), Collections.emptyMap(), 2000L)
         );
 
         assertEquals(
             0L,
-            MlAutoscalingResourceTracker.tryMoveJobsByMemoryInLeastEfficientWay(
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
                 Collections.emptyList(),
                 Map.of("node_a", 1400L, "node_b", 1700L),
                 2000L
@@ -242,38 +313,86 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         );
     }
 
-    public void testTryRemoveOneNode() {
+    public void testCheckIfOneNodeCouldBeRemoved() {
         assertEquals(
             true,
-            MlAutoscalingResourceTracker.tryRemoveOneNode(
-                Map.of("node_a", List.of(100L, 200L, 300L), "node_b", List.of(200L, 300L), "node_c", List.of(10L, 10L, 10L, 10L, 10L)),
+            MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
+                Map.of(
+                    "node_a",
+                    List.of(MlJobRequirements.of(100L, 0), MlJobRequirements.of(200L, 0), MlJobRequirements.of(300L, 0)),
+                    "node_b",
+                    List.of(MlJobRequirements.of(200L, 0), MlJobRequirements.of(300L, 0)),
+                    "node_c",
+                    List.of(
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0)
+                    )
+                ),
                 600L
             )
         );
 
         assertEquals(
             false,
-            MlAutoscalingResourceTracker.tryRemoveOneNode(
-                Map.of("node_a", List.of(100L, 200L, 300L), "node_b", List.of(280L, 300L), "node_c", List.of(10L, 10L, 10L, 10L, 10L)),
+            MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
+                Map.of(
+                    "node_a",
+                    List.of(MlJobRequirements.of(100L, 0), MlJobRequirements.of(200L, 0), MlJobRequirements.of(300L, 0)),
+                    "node_b",
+                    List.of(MlJobRequirements.of(280L, 0), MlJobRequirements.of(300L, 0)),
+                    "node_c",
+                    List.of(
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0)
+                    )
+                ),
                 600L
             )
         );
 
-        assertEquals(false, MlAutoscalingResourceTracker.tryRemoveOneNode(Map.of("node_a", List.of(10L, 10L, 10L, 10L, 10L)), 600L));
+        assertEquals(
+            false,
+            MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
+                Map.of(
+                    "node_a",
+                    List.of(
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0)
+                    )
+                ),
+                600L
+            )
+        );
 
-        assertEquals(false, MlAutoscalingResourceTracker.tryRemoveOneNode(Collections.emptyMap(), 999L));
+        assertEquals(false, MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(Collections.emptyMap(), 999L));
 
         // solvable case with optimal packing, but not possible if badly packed
         assertEquals(
             false,
-            MlAutoscalingResourceTracker.tryRemoveOneNode(
+            MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
                 Map.of(
                     "node_a",
-                    List.of(100L, 200L, 300L),
+                    List.of(MlJobRequirements.of(100L, 0), MlJobRequirements.of(200L, 0), MlJobRequirements.of(300L, 0)),
                     "node_b",
-                    List.of(280L, 300L),
+                    List.of(MlJobRequirements.of(280L, 0), MlJobRequirements.of(300L, 0)),
                     "node_c",
-                    List.of(500L, 10L, 10L, 10L, 10L, 10L)
+                    List.of(
+                        MlJobRequirements.of(500L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0)
+                    )
                 ),
                 1000L
             )
@@ -282,14 +401,25 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         // same with smaller jobs, that can be re-arranged
         assertEquals(
             true,
-            MlAutoscalingResourceTracker.tryRemoveOneNode(
+            MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
                 Map.of(
                     "node_a",
-                    List.of(100L, 200L, 300L),
+                    List.of(MlJobRequirements.of(100L, 0), MlJobRequirements.of(200L, 0), MlJobRequirements.of(300L, 0)),
                     "node_b",
-                    List.of(280L, 300L),
+                    List.of(MlJobRequirements.of(280L, 0), MlJobRequirements.of(300L, 0)),
                     "node_c",
-                    List.of(100L, 100L, 100L, 100L, 100L, 10L, 10L, 10L, 10L, 10L)
+                    List.of(
+                        MlJobRequirements.of(100L, 0),
+                        MlJobRequirements.of(100L, 0),
+                        MlJobRequirements.of(100L, 0),
+                        MlJobRequirements.of(100L, 0),
+                        MlJobRequirements.of(100L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0)
+                    )
                 ),
                 1000L
             )
@@ -297,14 +427,25 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
 
         assertEquals(
             true,
-            MlAutoscalingResourceTracker.tryRemoveOneNode(
+            MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
                 Map.of(
                     "node_a",
-                    List.of(100L, 200L, 300L),
+                    List.of(MlJobRequirements.of(100L, 0), MlJobRequirements.of(200L, 0), MlJobRequirements.of(300L, 0)),
                     "node_b",
-                    List.of(280L, 300L),
+                    List.of(MlJobRequirements.of(280L, 0), MlJobRequirements.of(300L, 0)),
                     "node_c",
-                    List.of(100L, 100L, 100L, 100L, 100L, 50L, 10L, 10L, 10L, 10L)
+                    List.of(
+                        MlJobRequirements.of(100L, 0),
+                        MlJobRequirements.of(100L, 0),
+                        MlJobRequirements.of(100L, 0),
+                        MlJobRequirements.of(100L, 0),
+                        MlJobRequirements.of(100L, 0),
+                        MlJobRequirements.of(50L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0)
+                    )
                 ),
                 1000L
             )
@@ -312,14 +453,25 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
 
         assertEquals(
             true,
-            MlAutoscalingResourceTracker.tryRemoveOneNode(
+            MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
                 Map.of(
                     "node_a",
-                    List.of(100L, 200L, 300L),
+                    List.of(MlJobRequirements.of(100L, 0), MlJobRequirements.of(200L, 0), MlJobRequirements.of(300L, 0)),
                     "node_b",
-                    List.of(280L, 325L),
+                    List.of(MlJobRequirements.of(280L, 0), MlJobRequirements.of(325L, 0)),
                     "node_c",
-                    List.of(100L, 100L, 100L, 100L, 100L, 50L, 10L, 10L, 10L, 10L)
+                    List.of(
+                        MlJobRequirements.of(100L, 0),
+                        MlJobRequirements.of(100L, 0),
+                        MlJobRequirements.of(100L, 0),
+                        MlJobRequirements.of(100L, 0),
+                        MlJobRequirements.of(100L, 0),
+                        MlJobRequirements.of(50L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0),
+                        MlJobRequirements.of(10L, 0)
+                    )
                 ),
                 1000L
             )

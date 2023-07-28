@@ -29,16 +29,28 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
 
     private static String TEST_INDEX_NAME = "test-index-name";
 
+    // the assertions are done in plugin which is static and will be created by ES server.
+    // hence a static flag to make sure it is indeed used
+    public static boolean hasWrappedParser;
+
     public void testDocumentIsReportedUponBulk() throws IOException {
+        hasWrappedParser = false;
         client().index(
             new IndexRequest(TEST_INDEX_NAME).id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
         ).actionGet();
+       assertTrue(hasWrappedParser);
+        // more assertions in a TestDocumentParsingObserver
 
+        hasWrappedParser = false;
         // the format of the request does not matter
         client().index(
             new IndexRequest(TEST_INDEX_NAME).id("2").source(cborBuilder().startObject().field("test", "I am sam i am").endObject())
         ).actionGet();
+        assertTrue(hasWrappedParser);
+        // more assertions in a TestDocumentParsingObserver
 
+
+        hasWrappedParser = false;
         // white spaces does not matter
         client().index(new IndexRequest(TEST_INDEX_NAME).id("3").source("""
             {
@@ -47,8 +59,8 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
             "I am sam i am"
             }
             """, XContentType.JSON)).actionGet();
-
-        // assertion in a TestDocumentParsingObserver
+        assertTrue(hasWrappedParser);
+        // more assertions in a TestDocumentParsingObserver
     }
 
     @Override
@@ -58,7 +70,8 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
 
     public static class TestDocumentParsingObserverPlugin extends Plugin implements DocumentParsingObserverPlugin, IngestPlugin {
 
-        public TestDocumentParsingObserverPlugin() {}
+        public TestDocumentParsingObserverPlugin() {
+        }
 
         @Override
         public DocumentParsingObserverFactory getDocumentParsingObserverFactory() {
@@ -67,10 +80,10 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
     }
 
     public static class TestDocumentParsingObserver implements DocumentParsingObserver {
-        public long counter = 0;
-
+        long counter = 0;
         @Override
         public XContentParser wrapParser(XContentParser xContentParser) {
+            hasWrappedParser = true;
             return new FilterXContentParserWrapper(xContentParser) {
                 @Override
                 public Token nextToken() throws IOException {

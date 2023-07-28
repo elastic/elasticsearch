@@ -32,8 +32,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
 
     private static String TEST_INDEX_NAME = "test-index-name";
+    // the assertions are done in plugin which is static and will be created by ES server.
+    // hence a static flag to make sure it is indeed used
+    public static boolean hasWrappedParser;
 
     public void testDocumentIsReportedWithPipelines() throws IOException {
+        hasWrappedParser = false;
         // pipeline adding fields, changing destination is not affecting reporting
         final BytesReference pipelineBody = new BytesArray("""
             {
@@ -60,8 +64,9 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
                 .id("1")
                 .source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
         ).actionGet();
+        assertTrue(hasWrappedParser);
+        // more assertions in a TestDocumentParsingObserver
 
-        // assertion in a TestDocumentParsingObserver
     }
 
     @Override
@@ -90,8 +95,9 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
         @Override
         public XContentParser wrapParser(XContentParser xContentParser) {
             wrapperCounter++;
-
+            hasWrappedParser = true;
             return new FilterXContentParserWrapper(xContentParser) {
+
                 @Override
                 public Map<String, Object> map() throws IOException {
                     mapCounter++;

@@ -51,7 +51,7 @@ public class SourceToParse {
         this(id, source, xContentType, null, Map.of(), false);
     }
 
-    public boolean wasParsedAlready() {
+    public boolean toBeReported() {
         return toBeReported;
     }
 

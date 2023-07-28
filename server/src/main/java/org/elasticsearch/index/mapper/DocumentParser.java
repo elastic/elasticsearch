@@ -75,9 +75,9 @@ public final class DocumentParser {
         final XContentType xContentType = source.getXContentType();
 
         // only observe a document if it was not already reported (done in IngestService)
-        DocumentParsingObserver documentParsingObserver = source.wasParsedAlready()
-            ? DocumentParsingObserver.EMPTY_INSTANCE
-            : documentParsingObserverFactory.createDocumentParsingObserver();
+        DocumentParsingObserver documentParsingObserver = source.toBeReported()
+            ? documentParsingObserverFactory.createDocumentParsingObserver()
+            : DocumentParsingObserver.EMPTY_INSTANCE;
         try (
             XContentParser parser = documentParsingObserver.wrapParser(
                 XContentHelper.createParser(parserConfiguration, source.source(), xContentType)

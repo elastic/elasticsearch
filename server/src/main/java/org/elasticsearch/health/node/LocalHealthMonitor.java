@@ -466,6 +466,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 false,
                 false,
                 false,
+                false,
                 false
             );
             return DiskUsage.findLeastAvailablePath(nodeStats);

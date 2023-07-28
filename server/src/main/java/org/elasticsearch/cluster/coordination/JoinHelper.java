@@ -235,7 +235,7 @@ public class JoinHelper {
             logger.debug("dropping join request to [{}]: [{}]", destination, statusInfo.getInfo());
             return;
         }
-        final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), TransportVersion.CURRENT, term, optionalJoin);
+        final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), TransportVersion.current(), term, optionalJoin);
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         final var pendingJoinInfo = new PendingJoinInfo(transportService.getThreadPool().relativeTimeInMillis());
         if (pendingOutgoingJoins.putIfAbsent(dedupKey, pendingJoinInfo) == null) {

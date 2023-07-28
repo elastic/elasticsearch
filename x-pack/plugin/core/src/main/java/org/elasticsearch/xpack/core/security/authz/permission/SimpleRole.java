@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowsRestriction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,6 +52,7 @@ public class SimpleRole implements Role {
     private final ApplicationPermission application;
     private final RunAsPermission runAs;
     private final RemoteIndicesPermission remoteIndices;
+    private final WorkflowsRestriction workflowsRestriction;
 
     SimpleRole(
         String[] names,
@@ -58,7 +60,8 @@ public class SimpleRole implements Role {
         IndicesPermission indices,
         ApplicationPermission application,
         RunAsPermission runAs,
-        RemoteIndicesPermission remoteIndices
+        RemoteIndicesPermission remoteIndices,
+        WorkflowsRestriction workflowsRestriction
     ) {
         this.names = names;
         this.cluster = Objects.requireNonNull(cluster);
@@ -66,6 +69,7 @@ public class SimpleRole implements Role {
         this.application = Objects.requireNonNull(application);
         this.runAs = Objects.requireNonNull(runAs);
         this.remoteIndices = Objects.requireNonNull(remoteIndices);
+        this.workflowsRestriction = Objects.requireNonNull(workflowsRestriction);
     }
 
     @Override
@@ -96,6 +100,20 @@ public class SimpleRole implements Role {
     @Override
     public RemoteIndicesPermission remoteIndices() {
         return remoteIndices;
+    }
+
+    @Override
+    public boolean hasWorkflowsRestriction() {
+        return workflowsRestriction.hasWorkflows();
+    }
+
+    @Override
+    public Role forWorkflow(String workflow) {
+        if (workflowsRestriction.isWorkflowAllowed(workflow)) {
+            return this;
+        } else {
+            return EMPTY_RESTRICTED_BY_WORKFLOW;
+        }
     }
 
     @Override

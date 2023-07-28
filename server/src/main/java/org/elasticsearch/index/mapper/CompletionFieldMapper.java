@@ -17,12 +17,12 @@ import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
 import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
 import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -154,14 +154,14 @@ public class CompletionFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final NamedAnalyzer defaultAnalyzer;
-        private final Version indexVersionCreated;
+        private final IndexVersion indexVersionCreated;
 
         private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Builder.class);
 
         /**
          * @param name of the completion field to build
          */
-        public Builder(String name, NamedAnalyzer defaultAnalyzer, Version indexVersionCreated) {
+        public Builder(String name, NamedAnalyzer defaultAnalyzer, IndexVersion indexVersionCreated) {
             super(name);
             this.defaultAnalyzer = defaultAnalyzer;
             this.indexVersionCreated = indexVersionCreated;
@@ -210,7 +210,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
         private void checkCompletionContextsLimit() {
             if (this.contexts.getValue() != null && this.contexts.getValue().size() > COMPLETION_CONTEXTS_LIMIT) {
-                if (indexVersionCreated.onOrAfter(Version.V_8_0_0)) {
+                if (indexVersionCreated.onOrAfter(IndexVersion.V_8_0_0)) {
                     throw new IllegalArgumentException(
                         "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded"
                     );

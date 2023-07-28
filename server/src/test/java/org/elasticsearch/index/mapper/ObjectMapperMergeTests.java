@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -180,7 +180,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private static RootObjectMapper createRootSubobjectFalseLeafWithDots() {
-        FieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", Version.CURRENT);
+        FieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", IndexVersion.current());
         FieldMapper fieldMapper = fieldBuilder.build(MapperBuilderContext.root(false));
         assertEquals("host.name", fieldMapper.simpleName());
         assertEquals("host.name", fieldMapper.name());
@@ -188,7 +188,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private static ObjectMapper.Builder createObjectSubobjectsFalseLeafWithDots() {
-        KeywordFieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", Version.CURRENT);
+        KeywordFieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", IndexVersion.current());
         KeywordFieldMapper fieldMapper = fieldBuilder.build(new MapperBuilderContext("foo.metrics", false));
         assertEquals("host.name", fieldMapper.simpleName());
         assertEquals("foo.metrics.host.name", fieldMapper.name());
@@ -212,7 +212,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
 
     private TextFieldMapper.Builder createTextKeywordMultiField(String name) {
         TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
-        builder.multiFieldsBuilder.add(new KeywordFieldMapper.Builder("keyword", Version.CURRENT));
+        builder.multiFieldsBuilder.add(new KeywordFieldMapper.Builder("keyword", IndexVersion.current()));
         return builder;
     }
 }

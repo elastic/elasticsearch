@@ -205,7 +205,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                     // Closing is not always acknowledged when shards are relocating: this is the case when the target shard is initializing
                     // or is catching up operations. In these cases the TransportVerifyShardBeforeCloseAction will detect that the global
                     // and max sequence number don't match and will not ack the close.
-                    AcknowledgedResponse closeResponse = client().admin().indices().prepareClose(indexToClose).get();
+                    AcknowledgedResponse closeResponse = indicesAdmin().prepareClose(indexToClose).get();
                     if (closeResponse.isAcknowledged()) {
                         assertTrue("Index closing should not be acknowledged twice", acknowledgedCloses.add(indexToClose));
                     }
@@ -244,7 +244,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             interruptedRecoveries.forEach(CloseIndexIT::assertIndexIsClosed);
 
             assertThat("Consider that the test failed if no indices were successfully closed", acknowledgedCloses.size(), greaterThan(0));
-            assertAcked(client().admin().indices().prepareOpen("index-*"));
+            assertAcked(indicesAdmin().prepareOpen("index-*"));
             ensureGreen(indices);
 
             for (String index : acknowledgedCloses) {

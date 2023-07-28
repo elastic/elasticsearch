@@ -30,7 +30,7 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         super(in);
         groups = in.readArray(ClusterSearchShardsGroup::new, ClusterSearchShardsGroup[]::new);
         nodes = in.readArray(DiscoveryNode::new, DiscoveryNode[]::new);
-        indicesAndFilters = in.readMap(StreamInput::readString, AliasFilter::readFrom);
+        indicesAndFilters = in.readMap(AliasFilter::readFrom);
     }
 
     @Override

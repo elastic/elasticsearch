@@ -50,7 +50,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
      * reverting to `NOT_STARTED` (this was a bug in the initial implementation).
      */
     public void testShardStatusStaysCompleteAfterNodeLeaves() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.current().isSnapshot());
         final String nodeToRestartName = internalCluster().startNode();
         final String nodeToRestartId = getNodeId(nodeToRestartName);
         internalCluster().startNode();
@@ -59,7 +59,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         internalCluster().stopNode(nodeToRestartName);
 
-        NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
+        NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
         assertThat(nodes.getNodes().size(), equalTo(1));
 
         assertNodeShutdownStatus(nodeToRestartId, COMPLETE);
@@ -71,7 +71,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76689")
     public void testShardStatusStaysCompleteAfterNodeLeavesIfRegisteredWhileNodeOffline() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.current().isSnapshot());
         final String nodeToRestartName = internalCluster().startNode();
         final String nodeToRestartId = getNodeId(nodeToRestartName);
         internalCluster().startNode();
@@ -88,7 +88,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         internalCluster().stopNode(nodeToRestartName);
 
-        NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
+        NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
         assertThat(nodes.getNodes().size(), equalTo(1));
 
         assertNodeShutdownStatus(nodeToRestartId, COMPLETE);
@@ -99,7 +99,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
      * (this was a bug in the initial implementation).
      */
     public void testShardStatusIsCompleteOnNonDataNodes() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.current().isSnapshot());
         final String nodeToShutDownName = internalCluster().startMasterOnlyNode();
         internalCluster().startMasterOnlyNode(); // Just to have at least one other node
         final String nodeToRestartId = getNodeId(nodeToShutDownName);
@@ -155,9 +155,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         ensureYellow("other");
 
         // Explain the replica for the "other" index
-        ClusterAllocationExplainResponse explainResponse = client().admin()
-            .cluster()
-            .prepareAllocationExplain()
+        ClusterAllocationExplainResponse explainResponse = clusterAdmin().prepareAllocationExplain()
             .setIndex("other")
             .setShard(0)
             .setPrimary(false)
@@ -218,9 +216,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         ensureYellow("other");
 
         // Explain the replica for the "other" index
-        ClusterAllocationExplainResponse explainResponse = client().admin()
-            .cluster()
-            .prepareAllocationExplain()
+        ClusterAllocationExplainResponse explainResponse = clusterAdmin().prepareAllocationExplain()
             .setIndex("other")
             .setShard(0)
             .setPrimary(false)
@@ -435,7 +431,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     }
 
     private String findIdOfNodeWithPrimaryShard(String indexName) {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         List<ShardRouting> startedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
         return startedShards.stream()
             .filter(ShardRouting::primary)
@@ -450,7 +446,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     }
 
     private String getNodeId(String nodeName) {
-        NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
+        NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
         return nodes.getNodes()
             .stream()
             .map(NodeInfo::getNode)
@@ -475,7 +471,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     }
 
     private void assertIndexPrimaryShardsAreAllocatedOnNode(String indexName, String nodeId) {
-        var state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+        var state = clusterAdmin().prepareState().clear().setRoutingTable(true).get().getState();
         var indexRoutingTable = state.routingTable().index(indexName);
         for (int p = 0; p < indexRoutingTable.size(); p++) {
             var primaryShard = indexRoutingTable.shard(p).primaryShard();
@@ -495,7 +491,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     }
 
     private void assertIndexReplicaShardsAreNotAllocated(String indexName) {
-        var state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+        var state = clusterAdmin().prepareState().clear().setRoutingTable(true).get().getState();
         var indexRoutingTable = state.routingTable().index(indexName);
         for (int p = 0; p < indexRoutingTable.size(); p++) {
             for (ShardRouting replicaShard : indexRoutingTable.shard(p).replicaShards()) {
@@ -516,7 +512,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     }
 
     private void assertIndexSetting(String index, String setting, String expectedValue) {
-        var response = client().admin().indices().prepareGetSettings(index).get();
+        var response = indicesAdmin().prepareGetSettings(index).get();
         assertThat(response.getSetting(index, setting), equalTo(expectedValue));
     }
 }

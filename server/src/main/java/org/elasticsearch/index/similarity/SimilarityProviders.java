@@ -37,10 +37,10 @@ import org.apache.lucene.search.similarities.NormalizationH1;
 import org.apache.lucene.search.similarities.NormalizationH2;
 import org.apache.lucene.search.similarities.NormalizationH3;
 import org.apache.lucene.search.similarities.NormalizationZ;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 
 import java.util.Arrays;
@@ -93,14 +93,14 @@ final class SimilarityProviders {
      * @param settings Settings to parse
      * @return {@link BasicModel} referred to in the Settings
      */
-    private static BasicModel parseBasicModel(Version indexCreatedVersion, Settings settings) {
+    private static BasicModel parseBasicModel(IndexVersion indexCreatedVersion, Settings settings) {
         String basicModel = settings.get("basic_model");
         BasicModel model = BASIC_MODELS.get(basicModel);
 
         if (model == null) {
             String replacement = LEGACY_BASIC_MODELS.get(basicModel);
             if (replacement != null) {
-                if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
+                if (indexCreatedVersion.onOrAfter(IndexVersion.V_7_0_0)) {
                     throw new IllegalArgumentException(
                         "Basic model [" + basicModel + "] isn't supported anymore, " + "please use another model."
                     );
@@ -132,14 +132,14 @@ final class SimilarityProviders {
      * @param settings Settings to parse
      * @return {@link AfterEffect} referred to in the Settings
      */
-    private static AfterEffect parseAfterEffect(Version indexCreatedVersion, Settings settings) {
+    private static AfterEffect parseAfterEffect(IndexVersion indexCreatedVersion, Settings settings) {
         String afterEffect = settings.get("after_effect");
         AfterEffect effect = AFTER_EFFECTS.get(afterEffect);
 
         if (effect == null) {
             String replacement = LEGACY_AFTER_EFFECTS.get(afterEffect);
             if (replacement != null) {
-                if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
+                if (indexCreatedVersion.onOrAfter(IndexVersion.V_7_0_0)) {
                     throw new IllegalArgumentException(
                         "After effect [" + afterEffect + "] isn't supported anymore, please use another effect."
                     );
@@ -234,12 +234,12 @@ final class SimilarityProviders {
         return lambda;
     }
 
-    static void assertSettingsIsSubsetOf(String type, Version version, Settings settings, String... supportedSettings) {
+    static void assertSettingsIsSubsetOf(String type, IndexVersion version, Settings settings, String... supportedSettings) {
         Set<String> unknownSettings = new HashSet<>(settings.keySet());
         unknownSettings.removeAll(Arrays.asList(supportedSettings));
         unknownSettings.remove("type"); // used to figure out which sim this is
         if (unknownSettings.isEmpty() == false) {
-            if (version.onOrAfter(Version.V_7_0_0)) {
+            if (version.onOrAfter(IndexVersion.V_7_0_0)) {
                 throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             } else {
                 deprecationLogger.warn(
@@ -251,7 +251,7 @@ final class SimilarityProviders {
         }
     }
 
-    public static LegacyBM25Similarity createBM25Similarity(Settings settings, Version indexCreatedVersion) {
+    public static LegacyBM25Similarity createBM25Similarity(Settings settings, IndexVersion indexCreatedVersion) {
         assertSettingsIsSubsetOf("BM25", indexCreatedVersion, settings, "k1", "b", DISCOUNT_OVERLAPS);
 
         float k1 = settings.getAsFloat("k1", 1.2f);
@@ -261,12 +261,12 @@ final class SimilarityProviders {
         return new LegacyBM25Similarity(k1, b, discountOverlaps);
     }
 
-    public static BooleanSimilarity createBooleanSimilarity(Settings settings, Version indexCreatedVersion) {
+    public static BooleanSimilarity createBooleanSimilarity(Settings settings, IndexVersion indexCreatedVersion) {
         assertSettingsIsSubsetOf("boolean", indexCreatedVersion, settings);
         return new BooleanSimilarity();
     }
 
-    public static DFRSimilarity createDfrSimilarity(Settings settings, Version indexCreatedVersion) {
+    public static DFRSimilarity createDfrSimilarity(Settings settings, IndexVersion indexCreatedVersion) {
         assertSettingsIsSubsetOf(
             "DFR",
             indexCreatedVersion,
@@ -287,13 +287,13 @@ final class SimilarityProviders {
         );
     }
 
-    public static DFISimilarity createDfiSimilarity(Settings settings, Version indexCreatedVersion) {
+    public static DFISimilarity createDfiSimilarity(Settings settings, IndexVersion indexCreatedVersion) {
         assertSettingsIsSubsetOf("DFI", indexCreatedVersion, settings, "independence_measure");
 
         return new DFISimilarity(parseIndependence(settings));
     }
 
-    public static IBSimilarity createIBSimilarity(Settings settings, Version indexCreatedVersion) {
+    public static IBSimilarity createIBSimilarity(Settings settings, IndexVersion indexCreatedVersion) {
         assertSettingsIsSubsetOf(
             "IB",
             indexCreatedVersion,
@@ -310,14 +310,14 @@ final class SimilarityProviders {
         return new IBSimilarity(parseDistribution(settings), parseLambda(settings), parseNormalization(settings));
     }
 
-    public static LMDirichletSimilarity createLMDirichletSimilarity(Settings settings, Version indexCreatedVersion) {
+    public static LMDirichletSimilarity createLMDirichletSimilarity(Settings settings, IndexVersion indexCreatedVersion) {
         assertSettingsIsSubsetOf("LMDirichlet", indexCreatedVersion, settings, "mu");
 
         float mu = settings.getAsFloat("mu", 2000f);
         return new LMDirichletSimilarity(mu);
     }
 
-    public static LMJelinekMercerSimilarity createLMJelinekMercerSimilarity(Settings settings, Version indexCreatedVersion) {
+    public static LMJelinekMercerSimilarity createLMJelinekMercerSimilarity(Settings settings, IndexVersion indexCreatedVersion) {
         assertSettingsIsSubsetOf("LMJelinekMercer", indexCreatedVersion, settings, "lambda");
 
         float lambda = settings.getAsFloat("lambda", 0.1f);

@@ -43,7 +43,6 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriConsumer;
@@ -55,17 +54,20 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
@@ -211,7 +213,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             10,
             EsExecutors.daemonThreadFactory("test"),
             threadPool.getThreadContext(),
-            randomBoolean()
+            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
         List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
         plugins.add(new AggCardinalityUpperBoundPlugin());
@@ -339,6 +341,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             0,
             -1,
             indexSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
             bitsetFilterCache,
             fieldDataBuilder,
             null,
@@ -440,7 +443,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected IndexSettings createIndexSettings() {
         return new IndexSettings(
             IndexMetadata.builder("_index")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .creationDate(System.currentTimeMillis())
@@ -925,15 +928,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 IndexSearcher.getDefaultSimilarity(),
                 IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(),
+                1, // forces multiple slices
                 randomBoolean(),
                 this.threadPoolExecutor
-            ) {
-                @Override
-                protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-                    // get a thread per segment
-                    return slices(leaves, 1, 1);
-                }
-            };
+            );
         }
     }
 
@@ -1214,7 +1212,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     private static class MockParserContext extends MappingParserContext {
         MockParserContext(IndexSettings indexSettings) {
-            super(null, null, null, Version.CURRENT, () -> TransportVersion.CURRENT, null, ScriptCompiler.NONE, null, indexSettings, null);
+            super(
+                null,
+                null,
+                null,
+                IndexVersion.current(),
+                () -> TransportVersion.current(),
+                null,
+                ScriptCompiler.NONE,
+                null,
+                indexSettings,
+                null
+            );
         }
 
         @Override

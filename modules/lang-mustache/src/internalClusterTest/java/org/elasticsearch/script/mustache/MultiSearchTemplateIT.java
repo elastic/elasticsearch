@@ -18,6 +18,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.mustache.MultiSearchTemplateResponse.Item;
 import org.elasticsearch.search.DummyQueryParserPlugin;
+import org.elasticsearch.search.FailBeforeCurrentVersionQueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -200,9 +201,14 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         Exception ex = response.getFailure();
         assertThat(ex.getMessage(), containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version"));
         assertThat(ex.getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
-        assertEquals(
-            "This query isn't serializable with transport versions before " + TransportVersion.CURRENT,
-            ex.getCause().getMessage()
+
+        String expectedCause = Strings.format(
+            "[fail_before_current_version] was released first in version %s, failed compatibility "
+                + "check trying to send it to node with version %s",
+            FailBeforeCurrentVersionQueryBuilder.FUTURE_VERSION,
+            TransportVersion.MINIMUM_CCS_VERSION
         );
+        String actualCause = ex.getCause().getMessage();
+        assertEquals(expectedCause, actualCause);
     }
 }

@@ -15,7 +15,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.internal.Requests;
@@ -159,7 +158,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             requireAlias = false;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
-            dynamicTemplates = in.readMap(StreamInput::readString, StreamInput::readString);
+            dynamicTemplates = in.readMap(StreamInput::readString);
         }
     }
 
@@ -243,11 +242,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
 
         return validationException;
-    }
-
-    @Override
-    public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
     /**

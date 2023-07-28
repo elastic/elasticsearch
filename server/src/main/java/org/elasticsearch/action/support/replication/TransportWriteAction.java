@@ -515,8 +515,8 @@ public abstract class TransportWriteAction<
             }
             if (sync) {
                 assert pendingOps.get() > 0;
-                indexShard.sync(location, (ex) -> {
-                    syncFailure.set(ex);
+                indexShard.syncAfterWrite(location, e -> {
+                    syncFailure.set(e);
                     maybeFinish();
                 });
             }

@@ -46,6 +46,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -134,7 +135,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -176,7 +177,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -207,7 +208,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -238,7 +239,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -299,7 +300,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -328,7 +329,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                             0L,
                             Collections.emptyMap()
                         ),
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         new ActionListener<>() {
                             @Override
                             public void onResponse(RepositoryData repositoryData) {
@@ -358,7 +359,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 new Snapshot("src_only", snapshotId),
-                Version.CURRENT,
+                IndexVersion.current(),
                 indexId
             )
         );

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.datastreams;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -38,6 +37,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.Mapping;
@@ -220,7 +220,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 null,
                 ScriptCompiler.NONE,
                 false,
-                Version.CURRENT
+                IndexVersion.current()
             ).build(MapperBuilderContext.root(false));
             RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
             root.add(
@@ -230,7 +230,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                     ScriptCompiler.NONE,
                     true,
-                    Version.CURRENT
+                    IndexVersion.current()
                 )
             );
             MetadataFieldMapper dtfm = DataStreamTestHelper.getDataStreamTimestampFieldMapper();

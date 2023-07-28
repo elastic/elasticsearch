@@ -43,6 +43,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 import static org.elasticsearch.index.engine.Engine.HISTORY_UUID_KEY;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.elasticsearch.test.index.IndexVersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -217,10 +218,13 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 // If snapshotVersion is not present,
                 // then lucene version must be < RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION
                 if (snapshotVersion == null) {
-                    luceneVersion = randomVersionBetween(random(), Version.V_7_0_0, RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION)
-                        .luceneVersion();
+                    luceneVersion = randomVersionBetween(
+                        random(),
+                        IndexVersion.V_7_0_0,
+                        RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_INDEX_VERSION
+                    ).luceneVersion();
                 } else {
-                    luceneVersion = randomCompatibleVersion(random(), Version.CURRENT).luceneVersion();
+                    luceneVersion = IndexVersionUtils.randomCompatibleVersion(random()).luceneVersion();
                 }
             } else {
                 snapshotVersion = Version.fromId(Integer.MAX_VALUE);
@@ -601,7 +605,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     }
 
     private ShardSnapshot createShardSnapshotThatDoNotShareSegmentFiles(String repoName) {
-        return createShardSnapshotThatDoNotShareSegmentFiles(repoName, Version.CURRENT, IndexVersion.CURRENT.luceneVersion());
+        return createShardSnapshotThatDoNotShareSegmentFiles(repoName, Version.CURRENT, IndexVersion.current().luceneVersion());
     }
 
     private ShardSnapshot createShardSnapshotThatDoNotShareSegmentFiles(
@@ -630,7 +634,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             );
             snapshotFiles.add(fileInfo);
         }
-        return createShardSnapshot(repository, snapshotFiles, Version.CURRENT, IndexVersion.CURRENT.luceneVersion());
+        return createShardSnapshot(repository, snapshotFiles, Version.CURRENT, IndexVersion.current().luceneVersion());
     }
 
     private ShardSnapshot createShardSnapshot(

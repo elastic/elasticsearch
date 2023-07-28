@@ -59,6 +59,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_COUNT;
@@ -109,19 +110,19 @@ abstract class TopDocsCollectorManagerFactory {
             super(REASON_SEARCH_COUNT, null);
             this.sort = sortAndFormats == null ? null : sortAndFormats.sort;
             if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-                this.collector = new EarlyTerminatingCollector(new TotalHitCountCollector(), 0, false);
+                this.collector = new PartialHitCountCollector(0);
                 // for bwc hit count is set to 0, it will be converted to -1 by the coordinating node
                 this.hitCountSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
             } else {
-                TotalHitCountCollector hitCountCollector = new TotalHitCountCollector();
                 if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
+                    TotalHitCountCollector hitCountCollector = new TotalHitCountCollector();
                     this.collector = hitCountCollector;
                     this.hitCountSupplier = () -> new TotalHits(hitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO);
                 } else {
-                    EarlyTerminatingCollector col = new EarlyTerminatingCollector(hitCountCollector, trackTotalHitsUpTo, false);
+                    PartialHitCountCollector col = new PartialHitCountCollector(trackTotalHitsUpTo);
                     this.collector = col;
                     this.hitCountSupplier = () -> new TotalHits(
-                        hitCountCollector.getTotalHits(),
+                        col.getTotalHits(),
                         col.hasEarlyTerminated() ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO
                     );
                 }
@@ -147,8 +148,9 @@ abstract class TopDocsCollectorManagerFactory {
     }
 
     static class CollapsingTopDocsCollectorManagerFactory extends TopDocsCollectorManagerFactory {
+        private final Collector collector;
         private final SinglePassGroupingCollector<?> topDocsCollector;
-        private final Supplier<Float> maxScoreSupplier;
+        private final Function<TopDocs, Float> maxScoreSupplier;
 
         /**
          * Ctr
@@ -170,24 +172,29 @@ abstract class TopDocsCollectorManagerFactory {
             Sort sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort;
             this.topDocsCollector = collapseContext.createTopDocs(sort, numHits, after);
 
-            MaxScoreCollector maxScoreCollector;
-            if (trackMaxScore) {
+            final MaxScoreCollector maxScoreCollector;
+            if (sortAndFormats == null) {
+                maxScoreCollector = null;
+                maxScoreSupplier = (topDocs) -> topDocs.scoreDocs.length == 0 ? Float.NaN : topDocs.scoreDocs[0].score;
+            } else if (trackMaxScore) {
                 maxScoreCollector = new MaxScoreCollector();
-                maxScoreSupplier = maxScoreCollector::getMaxScore;
+                maxScoreSupplier = (topDocs) -> maxScoreCollector.getMaxScore();
             } else {
-                maxScoreSupplier = () -> Float.NaN;
+                maxScoreCollector = null;
+                maxScoreSupplier = (topDocs) -> Float.NaN;
             }
+            this.collector = MultiCollector.wrap(topDocsCollector, maxScoreCollector);
         }
 
         @Override
         Collector collector() {
-            return topDocsCollector;
+            return collector;
         }
 
         @Override
         TopDocsAndMaxScore topDocsAndMaxScore() throws IOException {
             TopFieldGroups topDocs = topDocsCollector.getTopGroups(0);
-            return new TopDocsAndMaxScore(topDocs, maxScoreSupplier.get());
+            return new TopDocsAndMaxScore(topDocs, maxScoreSupplier.apply(topDocs));
         }
     }
 

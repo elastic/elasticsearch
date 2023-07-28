@@ -11,10 +11,10 @@ package org.elasticsearch.tasks;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.TaskManagerTestCase;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -113,8 +113,8 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
 
             final MockTransportService parentTransportService = MockTransportService.createNewService(
                 Settings.EMPTY,
-                Version.CURRENT,
-                TransportVersion.CURRENT,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
                 threadPool
             );
             resources.add(parentTransportService);
@@ -124,8 +124,8 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
 
             final MockTransportService childTransportService = MockTransportService.createNewService(
                 Settings.EMPTY,
-                Version.CURRENT,
-                TransportVersion.CURRENT,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
                 threadPool
             );
             resources.add(childTransportService);

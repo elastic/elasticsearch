@@ -6,7 +6,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.deprecation.Deprecation'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-deprecation'
+base {
+  archivesName = 'x-pack-deprecation'
+}
 
 addQaCheckDependencies(project)
 

@@ -51,11 +51,6 @@ public class GetOverallBucketsActionRequestTests extends AbstractXContentSeriali
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Request doParseInstance(XContentParser parser) {
         return Request.parseRequest(null, parser);
     }

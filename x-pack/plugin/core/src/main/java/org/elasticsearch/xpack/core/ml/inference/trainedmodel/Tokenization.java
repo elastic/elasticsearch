@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 import java.io.IOException;
@@ -142,6 +143,8 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         }
     }
 
+    public abstract String getMaskToken();
+
     abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     @Override
@@ -200,5 +203,9 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
 
     public int getSpan() {
         return span;
+    }
+
+    public void validateVocabulary(PutTrainedModelVocabularyAction.Request request) {
+
     }
 }

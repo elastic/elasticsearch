@@ -27,7 +27,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -87,7 +87,7 @@ public class NumberFieldMapper extends FieldMapper {
         return (NumberFieldMapper) in;
     }
 
-    private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
+    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
 
     public static class Builder extends FieldMapper.Builder {
 
@@ -121,7 +121,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final NumberType type;
 
         private boolean allowMultipleValues = true;
-        private final Version indexCreatedVersion;
+        private final IndexVersion indexCreatedVersion;
 
         private final IndexMode indexMode;
 
@@ -130,13 +130,13 @@ public class NumberFieldMapper extends FieldMapper {
             NumberType type,
             ScriptCompiler compiler,
             Settings settings,
-            Version indexCreatedVersion,
+            IndexVersion indexCreatedVersion,
             IndexMode mode
         ) {
             this(name, type, compiler, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings), indexCreatedVersion, mode);
         }
 
-        public static Builder docValuesOnly(String name, NumberType type, Version indexCreatedVersion) {
+        public static Builder docValuesOnly(String name, NumberType type, IndexVersion indexCreatedVersion) {
             Builder builder = new Builder(name, type, ScriptCompiler.NONE, false, false, indexCreatedVersion, null);
             builder.indexed.setValue(false);
             builder.dimension.setValue(false);
@@ -149,7 +149,7 @@ public class NumberFieldMapper extends FieldMapper {
             ScriptCompiler compiler,
             boolean ignoreMalformedByDefault,
             boolean coerceByDefault,
-            Version indexCreatedVersion,
+            IndexVersion indexCreatedVersion,
             IndexMode mode
         ) {
             super(name);
@@ -1690,7 +1690,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final Script script;
     private final MetricType metricType;
     private boolean allowMultipleValues;
-    private final Version indexCreatedVersion;
+    private final IndexVersion indexCreatedVersion;
     private final boolean storeMalformedFields;
 
     private final IndexMode indexMode;

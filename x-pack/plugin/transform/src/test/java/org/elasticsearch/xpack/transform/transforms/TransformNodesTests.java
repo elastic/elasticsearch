@@ -28,9 +28,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.TRANSFORM_ROLE;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT;
@@ -307,6 +306,6 @@ public class TransformNodesTests extends ESTestCase {
     }
 
     private static DiscoveryNode newDiscoveryNode(String id, Version version, DiscoveryNodeRole... roles) {
-        return DiscoveryNodeUtils.create(id, buildNewFakeTransportAddress(), emptyMap(), new HashSet<>(Arrays.asList(roles)), version);
+        return DiscoveryNodeUtils.builder(id).roles(Set.of(roles)).version(version).build();
     }
 }

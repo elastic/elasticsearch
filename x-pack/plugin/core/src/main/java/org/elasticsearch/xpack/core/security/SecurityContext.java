@@ -166,7 +166,7 @@ public class SecurityContext {
     }
 
     public void executeAsSystemUser(Consumer<StoredContext> consumer) {
-        executeAsSystemUser(TransportVersion.CURRENT, consumer);
+        executeAsSystemUser(TransportVersion.current(), consumer);
     }
 
     public void executeAsSystemUser(TransportVersion version, Consumer<StoredContext> consumer) {

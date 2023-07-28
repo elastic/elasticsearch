@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestCustomMetadata;
 import org.elasticsearch.xcontent.ToXContent;
@@ -106,7 +107,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             )
             .put(
                 IndexMetadata.builder("test12")
-                    .settings(settings(Version.CURRENT).put("setting1", "value1").put("setting2", "value2"))
+                    .settings(settings(IndexVersion.current()).put("setting1", "value1").put("setting2", "value2"))
                     .creationDate(2L)
                     .numberOfShards(1)
                     .numberOfReplicas(2)
@@ -197,11 +198,9 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         // data streams
         assertNotNull(parsedMetadata.dataStreams().get("data-stream1"));
         assertThat(parsedMetadata.dataStreams().get("data-stream1").getName(), is("data-stream1"));
-        assertThat(parsedMetadata.dataStreams().get("data-stream1").getTimeStampField().getName(), is("@timestamp"));
         assertThat(parsedMetadata.dataStreams().get("data-stream1").getIndices(), contains(idx1.getIndex()));
         assertNotNull(parsedMetadata.dataStreams().get("data-stream2"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getName(), is("data-stream2"));
-        assertThat(parsedMetadata.dataStreams().get("data-stream2").getTimeStampField().getName(), is("@timestamp"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
 
         // reserved 'operator' metadata
@@ -902,7 +901,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
 
         @Override

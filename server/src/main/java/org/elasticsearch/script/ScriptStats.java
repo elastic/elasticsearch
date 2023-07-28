@@ -19,6 +19,8 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +53,8 @@ public record ScriptStats(
     TimeSeries cacheEvictionsHistory
 ) implements Writeable, ChunkedToXContent {
 
+    public static final ScriptStats IDENTITY = new ScriptStats(0, 0, 0, new TimeSeries(0), new TimeSeries(0));
+
     public ScriptStats(
         long compilations,
         long cacheEvictions,
@@ -65,6 +69,28 @@ public record ScriptStats(
             compilationLimitTriggered,
             Objects.requireNonNullElseGet(compilationsHistory, () -> new TimeSeries(compilations)),
             Objects.requireNonNullElseGet(cacheEvictionsHistory, () -> new TimeSeries(cacheEvictions))
+        );
+    }
+
+    public static ScriptStats merge(ScriptStats first, ScriptStats second) {
+        var mergedScriptContextStats = List.<ScriptContextStats>of();
+
+        if (first.contextStats.isEmpty() == false || second.contextStats.isEmpty() == false) {
+            var mapToCollectMergedStats = new HashMap<String, ScriptContextStats>();
+
+            first.contextStats.forEach(cs -> mapToCollectMergedStats.merge(cs.context(), cs, ScriptContextStats::merge));
+            second.contextStats.forEach(cs -> mapToCollectMergedStats.merge(cs.context(), cs, ScriptContextStats::merge));
+
+            mergedScriptContextStats = new ArrayList<>(mapToCollectMergedStats.values());
+        }
+
+        return new ScriptStats(
+            mergedScriptContextStats,
+            first.compilations + second.compilations,
+            first.cacheEvictions + second.cacheEvictions,
+            first.compilationLimitTriggered + second.compilationLimitTriggered,
+            TimeSeries.merge(first.compilationsHistory, second.compilationsHistory),
+            TimeSeries.merge(first.cacheEvictionsHistory, second.cacheEvictionsHistory)
         );
     }
 

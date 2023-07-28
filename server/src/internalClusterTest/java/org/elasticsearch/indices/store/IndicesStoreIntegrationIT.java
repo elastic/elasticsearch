@@ -233,7 +233,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         logClusterState();
         // delete the index. node_1 that still waits for the next cluster state update will then get the delete index next.
         // it must still delete the shard, even if it cannot find it anymore in indicesservice
-        client().admin().indices().prepareDelete("test").get();
+        indicesAdmin().prepareDelete("test").get();
 
         assertShardDeleted(node_1, index, 0);
         assertIndexDeleted(node_1, index);

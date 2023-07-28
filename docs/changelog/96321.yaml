@@ -1,0 +1,6 @@
+pr: 96321
+summary: Trigger refresh when shard becomes search active
+area: Engine
+type: enhancement
+issues:
+ - 95544

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.operator;
 
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.util.Objects;
@@ -70,6 +70,10 @@ public class Constants {
         "cluster:admin/synonyms/delete",
         "cluster:admin/synonyms/get",
         "cluster:admin/synonyms/put",
+        "cluster:admin/synonyms_sets/get",
+        "cluster:admin/synonym_rules/delete",
+        "cluster:admin/synonym_rules/get",
+        "cluster:admin/synonym_rules/put",
         "cluster:admin/settings/update",
         "cluster:admin/slm/delete",
         "cluster:admin/slm/execute",
@@ -101,7 +105,6 @@ public class Constants {
         "cluster:admin/transform/update",
         "cluster:admin/transform/upgrade",
         "cluster:admin/transform/validate",
-        "cluster:admin/synonyms/put",
         // "cluster:admin/voting_config/add_exclusions",
         // "cluster:admin/voting_config/clear_exclusions",
         "cluster:admin/xpack/application/analytics/delete",
@@ -189,6 +192,10 @@ public class Constants {
         "cluster:admin/xpack/ml/upgrade_mode",
         "cluster:admin/xpack/monitoring/bulk",
         "cluster:admin/xpack/monitoring/migrate/alerts",
+        "cluster:admin/xpack/query_rules/delete",
+        "cluster:admin/xpack/query_rules/get",
+        "cluster:admin/xpack/query_rules/list",
+        "cluster:admin/xpack/query_rules/put",
         "cluster:admin/xpack/rollup/delete",
         "cluster:admin/xpack/rollup/put",
         "cluster:admin/xpack/rollup/start",
@@ -334,6 +341,7 @@ public class Constants {
         "cluster:monitor/xpack/info/voting_only",
         "cluster:monitor/xpack/info/watcher",
         "cluster:monitor/xpack/license/get",
+        "cluster:monitor/xpack/ml/autoscaling/stats/get",
         "cluster:monitor/xpack/ml/calendars/events/get",
         "cluster:monitor/xpack/ml/calendars/get",
         "cluster:monitor/xpack/ml/data_frame/analytics/get",
@@ -371,7 +379,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/analytics",
         "cluster:monitor/xpack/usage/archive",
         "cluster:monitor/xpack/usage/ccr",
-        DataLifecycle.isEnabled() ? "cluster:monitor/xpack/usage/data_lifecycle" : null,
+        DataStreamLifecycle.isFeatureEnabled() ? "cluster:monitor/xpack/usage/data_lifecycle" : null,
         "cluster:monitor/xpack/usage/data_streams",
         "cluster:monitor/xpack/usage/data_tiers",
         "cluster:monitor/xpack/usage/enrich",
@@ -416,10 +424,10 @@ public class Constants {
         "indices:admin/data_stream/migrate",
         "indices:admin/data_stream/modify",
         "indices:admin/data_stream/promote",
-        DataLifecycle.isEnabled() ? "indices:admin/dlm/delete" : null,
-        DataLifecycle.isEnabled() ? "indices:admin/dlm/get" : null,
-        DataLifecycle.isEnabled() ? "indices:admin/dlm/put" : null,
-        DataLifecycle.isEnabled() ? "indices:admin/dlm/explain" : null,
+        DataStreamLifecycle.isFeatureEnabled() ? "indices:admin/data_stream/lifecycle/delete" : null,
+        DataStreamLifecycle.isFeatureEnabled() ? "indices:admin/data_stream/lifecycle/get" : null,
+        DataStreamLifecycle.isFeatureEnabled() ? "indices:admin/data_stream/lifecycle/put" : null,
+        DataStreamLifecycle.isFeatureEnabled() ? "indices:admin/data_stream/lifecycle/explain" : null,
         "indices:admin/delete",
         "indices:admin/flush",
         "indices:admin/flush[s]",
@@ -479,7 +487,7 @@ public class Constants {
         "indices:data/read/mtv",
         "indices:data/read/mtv[shard]",
         "indices:data/read/open_point_in_time",
-        "indices:data/read/profiling",
+        "indices:data/read/profiling/stack_traces",
         "indices:data/read/rank_eval",
         "indices:data/read/scroll",
         "indices:data/read/scroll/clear",

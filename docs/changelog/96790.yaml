@@ -1,0 +1,5 @@
+pr: 96790
+summary: "[Profiling] Require POST to retrieve stacktraces"
+area: Application
+type: enhancement
+issues: []

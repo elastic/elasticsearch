@@ -39,7 +39,6 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
@@ -83,6 +82,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -1293,12 +1293,12 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /** Return consistent index settings for the provided index version. */
-    public static Settings.Builder settings(Version version) {
+    public static Settings.Builder settings(IndexVersion version) {
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
     }
 
     /** Return consistent index settings for the provided index version, shard- and replica-count. */
-    public static Settings.Builder indexSettings(Version indexVersionCreated, int shards, int replicas) {
+    public static Settings.Builder indexSettings(IndexVersion indexVersionCreated, int shards, int replicas) {
         return settings(indexVersionCreated).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
     }
@@ -1509,7 +1509,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Reader<T> reader
     ) throws IOException {
-        return copyWriteable(original, namedWriteableRegistry, reader, TransportVersion.CURRENT);
+        return copyWriteable(original, namedWriteableRegistry, reader, TransportVersion.current());
     }
 
     /**
@@ -1534,7 +1534,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         NamedWriteableRegistry namedWriteableRegistry,
         Class<C> categoryClass
     ) throws IOException {
-        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, TransportVersion.CURRENT);
+        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, TransportVersion.current());
     }
 
     /**
@@ -1723,7 +1723,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static TestAnalysis createTestAnalysis(Index index, Settings nodeSettings, Settings settings, AnalysisPlugin... analysisPlugins)
         throws IOException {
-        Settings indexSettings = Settings.builder().put(settings).put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder()
+            .put(settings)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .build();
         return createTestAnalysis(IndexSettingsModule.newIndexSettings(index, indexSettings), nodeSettings, analysisPlugins);
     }
 
@@ -1736,7 +1739,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins), new StablePluginsRegistry());
         AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
         return new TestAnalysis(
-            analysisRegistry.build(indexSettings),
+            analysisRegistry.build(IndexCreationContext.CREATE_INDEX, indexSettings),
             analysisRegistry.buildTokenFilterFactories(indexSettings),
             analysisRegistry.buildTokenizerFactories(indexSettings),
             analysisRegistry.buildCharFilterFactories(indexSettings)
@@ -1897,7 +1900,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param message an additional message or link with information on the fix
      */
     protected void skipTestWaitingForLuceneFix(org.apache.lucene.util.Version luceneVersionWithFix, String message) {
-        final boolean currentVersionHasFix = IndexVersion.CURRENT.luceneVersion().onOrAfter(luceneVersionWithFix);
+        final boolean currentVersionHasFix = IndexVersion.current().luceneVersion().onOrAfter(luceneVersionWithFix);
         assumeTrue("Skipping test as it is waiting on a Lucene fix: " + message, currentVersionHasFix);
         fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
     }

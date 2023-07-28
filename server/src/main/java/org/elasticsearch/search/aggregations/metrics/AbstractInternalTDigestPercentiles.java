@@ -49,6 +49,10 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
+
+        if (state != null) {
+            state.compress();
+        }
     }
 
     /**
@@ -106,10 +110,6 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         return format;
     }
 
-    public long getEstimatedMemoryFootprint() {
-        return state.byteSize();
-    }
-
     /**
      * Return the internal {@link TDigestState} sketch for this metric.
      */
@@ -140,7 +140,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
                 continue;
             }
             if (merged == null) {
-                merged = new TDigestState(percentiles.state.compression());
+                merged = TDigestState.createUsingParamsFrom(percentiles.state);
             }
             merged = merge(merged, percentiles.state);
         }

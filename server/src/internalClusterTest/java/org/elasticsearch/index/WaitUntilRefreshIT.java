@@ -150,7 +150,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
             .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
             .execute();
         while (false == index.isDone()) {
-            client().admin().indices().prepareRefresh("test").get();
+            indicesAdmin().prepareRefresh("test").get();
         }
         assertEquals(RestStatus.CREATED, index.get().status());
         assertFalse("request shouldn't have forced a refresh", index.get().forcedRefresh());

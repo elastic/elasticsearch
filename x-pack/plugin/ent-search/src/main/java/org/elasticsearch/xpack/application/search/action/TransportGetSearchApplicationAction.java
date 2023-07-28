@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -44,6 +45,16 @@ public class TransportGetSearchApplicationAction extends HandledTransportAction<
         GetSearchApplicationAction.Request request,
         ActionListener<GetSearchApplicationAction.Response> listener
     ) {
-        systemIndexService.getSearchApplication(request.getName(), listener.map(GetSearchApplicationAction.Response::new));
+        systemIndexService.getSearchApplication(
+            request.getName(),
+            listener.delegateFailure(
+                (l, searchApplication) -> systemIndexService.checkAliasConsistency(searchApplication, l.safeMap(inconsistentIndices -> {
+                    for (String key : inconsistentIndices.keySet()) {
+                        HeaderWarning.addWarning(key + " " + inconsistentIndices.get(key));
+                    }
+                    return new GetSearchApplicationAction.Response(searchApplication);
+                }))
+            )
+        );
     }
 }

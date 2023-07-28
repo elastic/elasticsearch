@@ -58,7 +58,7 @@ public class Subject {
     private final Map<String, Object> metadata;
 
     public Subject(User user, Authentication.RealmRef realm) {
-        this(user, realm, TransportVersion.CURRENT, Map.of());
+        this(user, realm, TransportVersion.current(), Map.of());
     }
 
     public Subject(User user, Authentication.RealmRef realm, TransportVersion version, Map<String, Object> metadata) {

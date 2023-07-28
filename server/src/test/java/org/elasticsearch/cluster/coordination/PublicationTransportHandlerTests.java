@@ -84,8 +84,9 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         when(transportService.newNetworkBytesStream()).then(invocation -> new RecyclerBytesStreamOutput(recycler));
         Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.current());
         when(transportService.getConnection(any())).thenReturn(connection);
+        when(transportService.getThreadPool()).thenReturn(mock(ThreadPool.class));
 
         final PublicationTransportHandler handler = new PublicationTransportHandler(transportService, writableRegistry(), pu -> null);
 
@@ -228,7 +229,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 allNodes.add(node);
                 nodeTransports.put(
                     node,
-                    TransportVersionUtils.randomVersionBetween(random(), TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.CURRENT)
+                    TransportVersionUtils.randomVersionBetween(random(), TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.current())
                 );
             }
 

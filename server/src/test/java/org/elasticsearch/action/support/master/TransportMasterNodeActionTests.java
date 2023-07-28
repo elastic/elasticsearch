@@ -8,7 +8,6 @@
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -45,6 +44,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
@@ -504,16 +504,14 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             assertFalse(listener.isDone());
             if (randomBoolean()) {
                 // simulate master node removal
-                final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-                nodesBuilder.masterNodeId(null);
-                setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));
+                var state = clusterService.state();
+                setState(clusterService, ClusterState.builder(state).nodes(state.nodes().withMasterNodeId(null)));
             }
             if (randomBoolean()) {
                 // reset the same state to increment a version simulating a join of an existing node
                 // simulating use being disconnected
-                final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-                nodesBuilder.masterNodeId(masterNode.getId());
-                setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));
+                var state = clusterService.state();
+                setState(clusterService, ClusterState.builder(state).nodes(state.nodes().withMasterNodeId(masterNode.getId())));
             } else {
                 // simulate master restart followed by a state recovery - this will reset the cluster state version
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
@@ -701,7 +699,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         assertFalse(listener.isDone());
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexRequestName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0);
         ClusterState clusterStateWithoutBlocks = ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))

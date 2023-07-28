@@ -98,8 +98,4 @@ public class PutFollowActionRequestTests extends AbstractXContentSerializingTest
         return request;
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
 }

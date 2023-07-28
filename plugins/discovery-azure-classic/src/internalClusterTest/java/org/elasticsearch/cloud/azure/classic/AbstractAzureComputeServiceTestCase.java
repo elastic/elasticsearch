@@ -86,7 +86,7 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
     }
 
     protected void assertNumberOfNodes(int expected) {
-        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().execute().actionGet();
+        NodesInfoResponse nodeInfos = clusterAdmin().prepareNodesInfo().clear().execute().actionGet();
         assertNotNull(nodeInfos);
         assertNotNull(nodeInfos.getNodes());
         assertEquals(expected, nodeInfos.getNodes().size());

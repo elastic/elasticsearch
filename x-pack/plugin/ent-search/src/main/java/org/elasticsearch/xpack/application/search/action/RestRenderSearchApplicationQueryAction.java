@@ -12,13 +12,14 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
+import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestRenderSearchApplicationQueryAction extends SearchApplicationRestHandler {
+public class RestRenderSearchApplicationQueryAction extends EnterpriseSearchBaseRestHandler {
     public RestRenderSearchApplicationQueryAction(XPackLicenseState licenseState) {
         super(licenseState);
     }

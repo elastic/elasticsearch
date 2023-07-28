@@ -244,7 +244,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.nonDimensionIndices = null;
             this.metricConflictsIndices = null;
         }
-        meta = in.readMap(StreamInput::readString, i -> i.readSet(StreamInput::readString));
+        meta = in.readMap(i -> i.readSet(StreamInput::readString));
     }
 
     @Override

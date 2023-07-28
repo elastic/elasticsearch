@@ -88,12 +88,7 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
     ) {
         final XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         final Exporter.Config config = new Exporter.Config(localExporterName, "local", exporterSettings, clusterService(), licenseState);
-        final CleanerService cleanerService = new CleanerService(
-            exporterSettings,
-            clusterService().getClusterSettings(),
-            THREADPOOL,
-            licenseState
-        );
+        final CleanerService cleanerService = new CleanerService(exporterSettings, clusterService().getClusterSettings(), THREADPOOL);
         return new LocalExporter(config, client(), coordinator, cleanerService);
     }
 

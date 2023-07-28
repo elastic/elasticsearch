@@ -154,8 +154,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 new ActionFilters(new HashSet<>()),
                 request,
                 nodeRequest,
-                ThreadPool.Names.GENERIC,
-                NodeResponse.class
+                ThreadPool.Names.GENERIC
             );
         }
 
@@ -189,7 +188,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 settings,
                 new Netty4Transport(
                     settings,
-                    TransportVersion.CURRENT,
+                    TransportVersion.current(),
                     threadPool,
                     new NetworkService(Collections.emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,

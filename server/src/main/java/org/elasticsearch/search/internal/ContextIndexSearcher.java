@@ -49,9 +49,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -69,12 +71,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     private static final int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
 
+    // make sure each slice has at least 10% of the documents as a way to limit memory usage and
+    // to keep the error margin of terms aggregation low
+    private static final double MINIMUM_DOCS_PERCENT_PER_SLICE = 0.1;
+
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
     private final MutableQueryTimeout cancellable;
 
     private final QueueSizeBasedExecutor queueSizeBasedExecutor;
     private final LeafSlice[] leafSlices;
+    // don't create slices with less than this number of docs
+    private final int minimumDocsPerSlice;
 
     /** constructor for non-concurrent search */
     public ContextIndexSearcher(
@@ -84,7 +92,16 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCachingPolicy queryCachingPolicy,
         boolean wrapWithExitableDirectoryReader
     ) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader, null);
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            new MutableQueryTimeout(),
+            Integer.MAX_VALUE,
+            wrapWithExitableDirectoryReader,
+            null
+        );
     }
 
     /** constructor for concurrent search */
@@ -93,10 +110,20 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         Similarity similarity,
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
+        int minimumDocsPerSlice,
         boolean wrapWithExitableDirectoryReader,
         ThreadPoolExecutor executor
     ) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader, executor);
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            new MutableQueryTimeout(),
+            minimumDocsPerSlice,
+            wrapWithExitableDirectoryReader,
+            executor
+        );
     }
 
     private ContextIndexSearcher(
@@ -105,6 +132,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
         MutableQueryTimeout cancellable,
+        int minimumDocsPerSlice,
         boolean wrapWithExitableDirectoryReader,
         ThreadPoolExecutor executor
     ) throws IOException {
@@ -115,7 +143,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
         this.queueSizeBasedExecutor = executor != null ? new QueueSizeBasedExecutor(executor) : null;
+        this.minimumDocsPerSlice = minimumDocsPerSlice;
         this.leafSlices = executor == null ? null : slices(leafContexts);
+    }
+
+    // package private for testing
+    int getMinimumDocsPerSlice() {
+        return minimumDocsPerSlice;
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -177,7 +211,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // each invocation so that it can build an internal representation of the query
             // tree
             QueryProfileBreakdown profile = profiler.getQueryBreakdown(query);
-            Timer timer = profile.getTimer(QueryTimingType.CREATE_WEIGHT);
+            Timer timer = profile.getNewTimer(QueryTimingType.CREATE_WEIGHT);
             timer.start();
             final Weight weight;
             try {
@@ -190,6 +224,75 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } else {
             return super.createWeight(query, scoreMode, boost);
         }
+    }
+
+    @Override
+    protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
+        return computeSlices(leaves, queueSizeBasedExecutor.threadPoolExecutor.getMaximumPoolSize(), minimumDocsPerSlice);
+    }
+
+    /**
+     * Each computed slice contains at least 10% of the total data in the leaves with a
+     * minimum given by the <code>minDocsPerSlice</code> parameter and the final number
+     * of {@link LeafSlice} will be equal or lower than the max number of slices.
+     */
+    /* pkg private for testing */
+    static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int maxSliceNum, int minDocsPerSlice) {
+        if (maxSliceNum < 1) {
+            throw new IllegalArgumentException("maxSliceNum must be >= 1 (got " + maxSliceNum + ")");
+        }
+        // total number of documents to be searched
+        final int numDocs = leaves.stream().mapToInt(l -> l.reader().maxDoc()).sum();
+        // percentage of documents per slice, minumum 10%
+        final double percentageDocsPerThread = Math.max(MINIMUM_DOCS_PERCENT_PER_SLICE, 1.0 / maxSliceNum);
+        // compute slices
+        return computeSlices(leaves, Math.max(minDocsPerSlice, (int) (percentageDocsPerThread * numDocs)));
+    }
+
+    private static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int minDocsPerSlice) {
+        // Make a copy so we can sort:
+        List<LeafReaderContext> sortedLeaves = new ArrayList<>(leaves);
+        // Sort by maxDoc, descending:
+        final Comparator<LeafReaderContext> leafComparator = Comparator.comparingInt(l -> l.reader().maxDoc());
+        Collections.sort(sortedLeaves, leafComparator.reversed());
+        // we add the groups on a priority queue, so we can add orphan leafs to the smallest group
+        final Comparator<List<LeafReaderContext>> groupComparator = Comparator.comparingInt(
+            l -> l.stream().mapToInt(lr -> lr.reader().maxDoc()).sum()
+        );
+        final PriorityQueue<List<LeafReaderContext>> queue = new PriorityQueue<>(groupComparator);
+        long docSum = 0;
+        List<LeafReaderContext> group = new ArrayList<>();
+        for (LeafReaderContext ctx : sortedLeaves) {
+            group.add(ctx);
+            docSum += ctx.reader().maxDoc();
+            if (docSum > minDocsPerSlice) {
+                queue.add(group);
+                group = new ArrayList<>();
+                docSum = 0;
+            }
+        }
+
+        if (group.size() > 0) {
+            if (queue.size() == 0) {
+                queue.add(group);
+            } else {
+                for (LeafReaderContext context : group) {
+                    final List<LeafReaderContext> head = queue.poll();
+                    head.add(context);
+                    queue.add(head);
+                }
+            }
+        }
+
+        final LeafSlice[] slices = new LeafSlice[queue.size()];
+        int upto = 0;
+        for (List<LeafReaderContext> currentLeaf : queue) {
+            // LeafSlice ctor reorders leaves so that leaves within a slice preserve the order they had within the IndexReader.
+            // This is important given how Elasticsearch sorts leaves by descending @timestamp to get better query performance.
+            slices[upto++] = new LeafSlice(currentLeaf);
+        }
+
+        return slices;
     }
 
     @Override

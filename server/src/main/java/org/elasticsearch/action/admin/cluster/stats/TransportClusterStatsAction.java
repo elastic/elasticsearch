@@ -95,9 +95,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             actionFilters,
             ClusterStatsRequest::new,
             ClusterStatsNodeRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            ThreadPool.Names.MANAGEMENT,
-            ClusterStatsNodeResponse.class
+            ThreadPool.Names.MANAGEMENT
         );
         this.nodeService = nodeService;
         this.indicesService = indicesService;
@@ -194,6 +192,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false,
             false,
             true,
+            false,
             false,
             false,
             false

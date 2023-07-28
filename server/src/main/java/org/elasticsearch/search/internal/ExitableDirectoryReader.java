@@ -531,6 +531,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         ExitableFloatVectorValues(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
             super(vectorValues);
             this.queryCancellation = queryCancellation;
+            this.queryCancellation.checkCancelled();
         }
 
         @Override

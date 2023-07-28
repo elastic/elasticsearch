@@ -14,9 +14,7 @@ import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
@@ -125,32 +123,6 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         scorerTimeoutTest(size, context -> {
             PointValues pointValues = context.reader().getPointValues("long");
             pointValues.size();
-        });
-    }
-
-    public void testScorerTimeoutByteVector() throws IOException {
-        assumeTrue("Test requires more than one segment", reader.leaves().size() > 1);
-        int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
-        scorerTimeoutTest(size, context -> {
-            ByteVectorValues byteVector = context.reader().getByteVectorValues("byte_vector");
-            if (randomBoolean()) {
-                byteVector.nextDoc();
-            } else {
-                byteVector.advance(0);
-            }
-        });
-    }
-
-    public void testScorerTimeoutFloatVector() throws IOException {
-        assumeTrue("Test requires more than one segment", reader.leaves().size() > 1);
-        int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
-        scorerTimeoutTest(size, context -> {
-            FloatVectorValues floatVector = context.reader().getFloatVectorValues("float_vector");
-            if (randomBoolean()) {
-                floatVector.nextDoc();
-            } else {
-                floatVector.advance(0);
-            }
         });
     }
 

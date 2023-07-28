@@ -1,0 +1,47 @@
+steps:
+  - group: java-fips-matrix
+    steps:
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / java-fips-matrix"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.fips.enabled=true check
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - java11
+              - openjdk17
+              - openjdk18
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
+  - group: java-matrix
+    steps:
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / java-matrix"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - java8
+              - java11
+              - openjdk16
+              - zulu8
+              - zulu11
+              - corretto11
+              - corretto8
+              - adoptopenjdk11
+              - adoptopenjdk8
+              - openjdk17
+              - openjdk18
+              - openjdk19
+              - openjdk20
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"

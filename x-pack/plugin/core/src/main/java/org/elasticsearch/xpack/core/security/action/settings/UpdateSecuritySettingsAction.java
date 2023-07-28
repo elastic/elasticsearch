@@ -108,11 +108,13 @@ public class UpdateSecuritySettingsAction extends ActionType<AcknowledgedRespons
 
         @Override
         public ActionRequestValidationException validate() {
+            if (mainIndexSettings.isEmpty() && tokensIndexSettings.isEmpty() && profilesIndexSettings.isEmpty()) {
+                return ValidateActions.addValidationError("No settings given to update", null);
+            }
             ActionRequestValidationException validationException = validateIndexSettings(mainIndexSettings, MAIN_INDEX_NAME, null);
             validationException = validateIndexSettings(tokensIndexSettings, TOKENS_INDEX_NAME, validationException);
             validationException = validateIndexSettings(profilesIndexSettings, PROFILES_INDEX_NAME, validationException);
-            if (validationException != null) return validationException;
-            return null;
+            return validationException;
         }
 
         private static ActionRequestValidationException validateIndexSettings(
@@ -120,9 +122,6 @@ public class UpdateSecuritySettingsAction extends ActionType<AcknowledgedRespons
             String indexName,
             ActionRequestValidationException existingExceptions
         ) {
-            if (indexSettings.containsKey("index") == false) {
-                // return ValidateActions.addValidationError("only [index] settings may be set")
-            }
             Set<String> forbiddenSettings = Sets.difference(indexSettings.keySet(), ALLOWED_SETTING_KEYS);
             if (forbiddenSettings.size() > 0) {
                 return ValidateActions.addValidationError(
@@ -135,7 +134,7 @@ public class UpdateSecuritySettingsAction extends ActionType<AcknowledgedRespons
                     existingExceptions
                 );
             }
-            return null;
+            return existingExceptions;
         }
     }
 }

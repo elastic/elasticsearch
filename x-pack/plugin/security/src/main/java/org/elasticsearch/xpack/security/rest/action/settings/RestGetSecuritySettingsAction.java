@@ -19,10 +19,7 @@ import java.io.IOException;
 import java.util.List;
 
 public class RestGetSecuritySettingsAction extends SecurityBaseRestHandler {
-    /**
-     * @param settings     the node's settings
-     * @param licenseState the license state that will be used to determine if security is licensed
-     */
+
     public RestGetSecuritySettingsAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }

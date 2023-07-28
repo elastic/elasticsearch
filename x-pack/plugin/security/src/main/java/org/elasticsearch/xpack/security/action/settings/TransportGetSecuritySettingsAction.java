@@ -26,8 +26,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.settings.GetSecuritySettingsAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.UpdateWatcherSettingsAction;
 
+import java.util.List;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
@@ -95,11 +95,20 @@ public class TransportGetSecuritySettingsAction extends TransportMasterNodeActio
     }
 
     static Optional<Index> resolveConcreteIndex(String indexAbstractionName, ClusterState state) {
+        // Don't use the indexNameExpressionResolver here so we don't trigger a system index deprecation warning
         IndexAbstraction abstraction = state.metadata().getIndicesLookup().get(indexAbstractionName);
         if (abstraction == null) {
             return Optional.empty();
         }
         return Optional.ofNullable(abstraction.getWriteIndex());
+    }
+
+    static String[] resolveConcreteIndices(List<String> indexAbstractionNames, ClusterState state) {
+        return indexAbstractionNames.stream()
+            .map(alias -> resolveConcreteIndex(alias, state).map(Index::getName))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .toArray(String[]::new);
     }
 
     @Override
@@ -109,12 +118,7 @@ public class TransportGetSecuritySettingsAction extends TransportMasterNodeActio
             return globalBlock;
         }
 
-        // Don't use the indexNameExpressionResolver here so we don't trigger a system index deprecation warning
-        String[] indices = Stream.of(SECURITY_MAIN_ALIAS, SECURITY_TOKENS_ALIAS, SECURITY_PROFILE_ALIAS)
-            .map(alias -> resolveConcreteIndex(alias, state).map(Index::getName))
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .toArray(String[]::new);
+        String[] indices = resolveConcreteIndices(List.of(SECURITY_MAIN_ALIAS, SECURITY_TOKENS_ALIAS, SECURITY_PROFILE_ALIAS), state);
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indices);
     }
 

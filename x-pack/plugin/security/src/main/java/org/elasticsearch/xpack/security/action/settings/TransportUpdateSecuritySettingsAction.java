@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.security.action.settings.TransportGetSecuritySettingsAction.resolveConcreteIndex;
+import static org.elasticsearch.xpack.security.action.settings.TransportGetSecuritySettingsAction.resolveConcreteIndices;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_TOKENS_ALIAS;
@@ -76,24 +76,24 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
         UpdateSecuritySettingsAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
-    ) throws Exception {
+    ) {
 
         List<UpdateSettingsClusterStateUpdateRequest> settingsUpdateRequests = Stream.of(
-            updateSettingsForIndex(
+            createUpdateSettingsRequest(
                 SECURITY_MAIN_ALIAS,
                 Settings.builder().loadFromMap(request.mainIndexSettings()).build(),
                 request.timeout(),
                 request.masterNodeTimeout(),
                 state
             ),
-            updateSettingsForIndex(
+            createUpdateSettingsRequest(
                 SECURITY_TOKENS_ALIAS,
                 Settings.builder().loadFromMap(request.tokensIndexSettings()).build(),
                 request.timeout(),
                 request.masterNodeTimeout(),
                 state
             ),
-            updateSettingsForIndex(
+            createUpdateSettingsRequest(
                 SECURITY_PROFILE_ALIAS,
                 Settings.builder().loadFromMap(request.profilesIndexSettings()).build(),
                 request.timeout(),
@@ -110,25 +110,24 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
             );
             settingsUpdateRequests.forEach(req -> updateSettingsService.updateSettings(req, groupedListener));
         } else {
-            // All settings blocks were empty, so... yay, we did it
-            listener.onResponse(AcknowledgedResponse.TRUE);
+            // All settings blocks were empty, which doesn't do anything, so this was probably a mistake
+            throw new IllegalArgumentException("No settings to update");
         }
     }
 
-    private Optional<UpdateSettingsClusterStateUpdateRequest> updateSettingsForIndex(
+    private Optional<UpdateSettingsClusterStateUpdateRequest> createUpdateSettingsRequest(
         String indexName,
         Settings settingsToUpdate,
         TimeValue timeout,
         TimeValue masterTimeout,
         ClusterState state
     ) {
+        if (settingsToUpdate.isEmpty() == false) {
+            throw new ResourceNotFoundException(indexName);
+        }
         IndexAbstraction abstraction = state.metadata().getIndicesLookup().get(indexName);
         if (abstraction == null) {
-            if (settingsToUpdate.isEmpty() == false) {
-                throw new ResourceNotFoundException(indexName);
-            } else {
-                return Optional.empty();
-            }
+            return Optional.empty();
         }
         Index writeIndex = abstraction.getWriteIndex();
         if (writeIndex == null) {
@@ -160,12 +159,7 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
             indices.add(SECURITY_PROFILE_ALIAS);
         }
 
-        // Don't use the indexNameExpressionResolver here so we don't trigger a system index deprecation warning
-        String[] concreteIndices = indices.stream()
-            .map(alias -> resolveConcreteIndex(alias, state).map(Index::getName))
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .toArray(String[]::new);
+        String[] concreteIndices = resolveConcreteIndices(indices, state);
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
     }
 }

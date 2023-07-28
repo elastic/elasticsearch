@@ -20,28 +20,35 @@ public class ByteBufferStreamInput extends StreamInput {
         this.buffer = buffer.mark();
     }
 
-    public static int readVInt(ByteBuffer byteBuffer) throws IOException {
-        byte b = byteBuffer.get();
+    /**
+     * Read a vInt encoded in the format written by {@link StreamOutput#writeVInt} from a {@link ByteBuffer}.
+     * The buffer is assumed to contain enough bytes to fully read the value and its position is moved by this method.
+     * @param buffer buffer to read from
+     * @return value read from the buffer
+     * @throws IOException if buffer does not contain a valid vInt starting from the current position
+     */
+    public static int readVInt(ByteBuffer buffer) throws IOException {
+        byte b = buffer.get();
         if (b >= 0) {
             return b;
         }
         int i = b & 0x7F;
-        b = byteBuffer.get();
+        b = buffer.get();
         i |= (b & 0x7F) << 7;
         if (b >= 0) {
             return i;
         }
-        b = byteBuffer.get();
+        b = buffer.get();
         i |= (b & 0x7F) << 14;
         if (b >= 0) {
             return i;
         }
-        b = byteBuffer.get();
+        b = buffer.get();
         i |= (b & 0x7F) << 21;
         if (b >= 0) {
             return i;
         }
-        b = byteBuffer.get();
+        b = buffer.get();
         i |= (b & 0x0F) << 28;
         if ((b & 0xF0) != 0) {
             throwOnBrokenVInt(b, i);
@@ -49,6 +56,13 @@ public class ByteBufferStreamInput extends StreamInput {
         return i;
     }
 
+    /**
+     * Read a vLong encoded in the format written by {@link StreamOutput#writeVLong(long)} from a {@link ByteBuffer}.
+     * The buffer is assumed to contain enough bytes to fully read the value and its position is moved by this method.
+     * @param buffer buffer to read from
+     * @return value read from the buffer
+     * @throws IOException if buffer does not contain a valid vLong starting from the current position
+     */
     public static long readVLong(ByteBuffer buffer) throws IOException {
         byte b = buffer.get();
         long i = b & 0x7FL;

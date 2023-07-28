@@ -164,10 +164,6 @@ public class SearchApplicationIndexService {
                     builder.field("type", "keyword");
                     builder.endObject();
 
-                    builder.startObject(SearchApplication.INDICES_FIELD.getPreferredName());
-                    builder.field("type", "keyword");
-                    builder.endObject();
-
                     builder.startObject(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName());
                     builder.field("type", "keyword");
                     builder.endObject();

@@ -38,12 +38,6 @@ import static java.util.Objects.requireNonNullElse;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 public class TransportListTasksAction extends TransportTasksAction<Task, ListTasksRequest, ListTasksResponse, TaskInfo> {
-    public static long waitForCompletionTimeout(TimeValue timeout) {
-        if (timeout == null) {
-            timeout = DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT;
-        }
-        return System.nanoTime() + timeout.nanos();
-    }
 
     private static final TimeValue DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT = timeValueSeconds(30);
 
@@ -55,7 +49,6 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             transportService,
             actionFilters,
             ListTasksRequest::new,
-            ListTasksResponse::new,
             TaskInfo::from,
             ThreadPool.Names.MANAGEMENT
         );

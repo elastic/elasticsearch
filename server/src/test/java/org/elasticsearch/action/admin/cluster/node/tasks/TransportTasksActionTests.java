@@ -232,7 +232,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 transportService,
                 new ActionFilters(new HashSet<>()),
                 TestTasksRequest::new,
-                TestTasksResponse::new,
                 TestTaskResponse::new,
                 ThreadPool.Names.MANAGEMENT
             );

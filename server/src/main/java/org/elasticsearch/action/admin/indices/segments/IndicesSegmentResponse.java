@@ -188,8 +188,5 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
         static final String MERGE_ID = "merge_id";
         static final String MEMORY = "memory";
         static final String MEMORY_IN_BYTES = "memory_in_bytes";
-        static final String RAM_TREE = "ram_tree";
-        static final String DESCRIPTION = "description";
-        static final String CHILDREN = "children";
     }
 }

@@ -73,10 +73,6 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
         this.source = source;
     }
 
-    public String getId() {
-        return id;
-    }
-
     /**
      * @return if a stored script and if not found <code>null</code>
      */

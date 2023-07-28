@@ -67,29 +67,6 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
         return timestamp;
     }
 
-    /**
-     * @return the timestamp for when the collection of these statistics started
-     */
-    public long getSinceTime() {
-        return sinceTime;
-    }
-
-    /**
-     * @return a map containing the counts of the number of times each REST
-     *         endpoint has been called
-     */
-    public Map<String, Long> getRestUsage() {
-        return restUsage;
-    }
-
-    /**
-     * @return a map containing the counts of the number of times each REST
-     *         endpoint has been called
-     */
-    public Map<String, Object> getAggregationUsage() {
-        return aggregationUsage;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("since", sinceTime);

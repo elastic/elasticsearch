@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesReque
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
@@ -105,7 +104,7 @@ public class NativePrivilegeStoreSingleNodeTests extends SecuritySingleNodeTestC
             );
 
             // User role resolution works with wildcard application name
-            new PutRoleRequestBuilder(client(), PutRoleAction.INSTANCE).source("app_user_role", new BytesArray("""
+            new PutRoleRequestBuilder(client()).source("app_user_role", new BytesArray("""
                 {
                   "cluster": ["manage_own_api_key"],
                   "applications": [

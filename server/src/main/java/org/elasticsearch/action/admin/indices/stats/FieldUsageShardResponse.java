@@ -48,18 +48,6 @@ public class FieldUsageShardResponse implements Writeable, ToXContentObject {
         stats.writeTo(out);
     }
 
-    public String getTrackingId() {
-        return trackingId;
-    }
-
-    public ShardRouting getShardRouting() {
-        return shardRouting;
-    }
-
-    public long getTrackingStartTime() {
-        return trackingStartTime;
-    }
-
     public FieldUsageStats getStats() {
         return stats;
     }

@@ -28,11 +28,6 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         return this;
     }
 
-    public RolloverRequestBuilder setConditions(RolloverConditions rolloverConditions) {
-        this.request.setConditions(rolloverConditions);
-        return this;
-    }
-
     public RolloverRequestBuilder setConditions(RolloverConditions.Builder rolloverConditions) {
         this.request.setConditions(rolloverConditions.build());
         return this;
@@ -50,16 +45,6 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
 
     public RolloverRequestBuilder alias(Alias alias) {
         this.request.getCreateIndexRequest().alias(alias);
-        return this;
-    }
-
-    public RolloverRequestBuilder simpleMapping(String... source) {
-        this.request.getCreateIndexRequest().simpleMapping(source);
-        return this;
-    }
-
-    public RolloverRequestBuilder mapping(String source) {
-        this.request.getCreateIndexRequest().mapping(source);
         return this;
     }
 
@@ -82,12 +67,4 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         return this;
     }
 
-    /**
-     * A shortcut for {@link #waitForActiveShards(ActiveShardCount)} where the numerical
-     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
-     * to get the ActiveShardCount.
-     */
-    public RolloverRequestBuilder waitForActiveShards(final int waitForActiveShards) {
-        return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
-    }
 }

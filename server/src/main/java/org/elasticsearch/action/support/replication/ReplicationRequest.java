@@ -157,15 +157,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     /**
-     * A shortcut for {@link #waitForActiveShards(ActiveShardCount)} where the numerical
-     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
-     * to get the ActiveShardCount.
-     */
-    public final Request waitForActiveShards(final int waitForActiveShards) {
-        return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
-    }
-
-    /**
      * Sets the minimum version of the cluster state that is required on the next node before we redirect to another primary.
      * Used to prevent redirect loops, see also {@link TransportReplicationAction.ReroutePhase#doRun()}
      */

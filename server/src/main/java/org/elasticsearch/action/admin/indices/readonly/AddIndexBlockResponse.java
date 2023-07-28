@@ -108,14 +108,6 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
             return index;
         }
 
-        public Exception getException() {
-            return exception;
-        }
-
-        public AddBlockShardResult[] getShards() {
-            return shards;
-        }
-
         public boolean hasFailures() {
             if (exception != null) {
                 return true;
@@ -187,14 +179,6 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
             return CollectionUtils.isEmpty(failures) == false;
         }
 
-        public int getId() {
-            return id;
-        }
-
-        public Failure[] getFailures() {
-            return failures;
-        }
-
         @Override
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             builder.startObject();
@@ -218,7 +202,7 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
 
         public static class Failure extends DefaultShardOperationFailedException {
 
-            private @Nullable String nodeId;
+            private final @Nullable String nodeId;
 
             private Failure(StreamInput in) throws IOException {
                 super(in);
@@ -232,10 +216,6 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
             public Failure(final String index, final int shardId, final Throwable reason, final String nodeId) {
                 super(index, shardId, reason);
                 this.nodeId = nodeId;
-            }
-
-            public String getNodeId() {
-                return nodeId;
             }
 
             @Override

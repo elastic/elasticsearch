@@ -467,7 +467,6 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             this.aliases = aliases;
         }
 
-        @Override
         public String[] getOriginalAliases() {
             return originalAliases;
         }

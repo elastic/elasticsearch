@@ -71,10 +71,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             this.lowercase = this.name().toLowerCase(Locale.ROOT);
         }
 
-        public byte getOp() {
-            return op;
-        }
-
         public String getLowercase() {
             return lowercase;
         }

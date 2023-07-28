@@ -9,26 +9,13 @@ package org.elasticsearch.protocol.xpack.watcher;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class DeleteWatchResponse extends ActionResponse implements ToXContentObject {
-
-    private static final ObjectParser<DeleteWatchResponse, Void> PARSER = new ObjectParser<>(
-        "x_pack_delete_watch_response",
-        DeleteWatchResponse::new
-    );
-    static {
-        PARSER.declareString(DeleteWatchResponse::setId, new ParseField("_id"));
-        PARSER.declareLong(DeleteWatchResponse::setVersion, new ParseField("_version"));
-        PARSER.declareBoolean(DeleteWatchResponse::setFound, new ParseField("found"));
-    }
 
     private String id;
     private long version;
@@ -61,18 +48,6 @@ public class DeleteWatchResponse extends ActionResponse implements ToXContentObj
         return found;
     }
 
-    private void setId(String id) {
-        this.id = id;
-    }
-
-    private void setVersion(long version) {
-        this.version = version;
-    }
-
-    private void setFound(boolean found) {
-        this.found = found;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -100,7 +75,4 @@ public class DeleteWatchResponse extends ActionResponse implements ToXContentObj
         return builder.startObject().field("_id", id).field("_version", version).field("found", found).endObject();
     }
 
-    public static DeleteWatchResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
-    }
 }

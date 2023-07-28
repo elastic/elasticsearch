@@ -84,7 +84,6 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             actionFilters,
             Request::new,
             Response::new,
-            Response::new,
             ThreadPool.Names.SAME
         );
         this.transformConfigManager = transformServices.getConfigManager();

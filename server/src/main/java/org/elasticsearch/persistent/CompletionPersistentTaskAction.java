@@ -11,10 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -110,16 +108,6 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         @Override
         public int hashCode() {
             return Objects.hash(taskId, allocationId, exception, localAbortReason);
-        }
-    }
-
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
-        CompletionPersistentTaskAction.Request,
-        PersistentTaskResponse,
-        CompletionPersistentTaskAction.RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, CompletionPersistentTaskAction action) {
-            super(client, action, new Request());
         }
     }
 

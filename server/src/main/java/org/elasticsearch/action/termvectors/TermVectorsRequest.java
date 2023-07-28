@@ -11,7 +11,6 @@ package org.elasticsearch.action.termvectors;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
@@ -50,7 +49,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  */
 // It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
 @SuppressWarnings("unchecked")
-public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest {
+public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TermVectorsRequest.class);
 
     private static final ParseField INDEX = new ParseField("_index");
@@ -402,7 +401,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         return this.realtime;
     }
 
-    @Override
     public TermVectorsRequest realtime(boolean realtime) {
         this.realtime = realtime;
         return this;

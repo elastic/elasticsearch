@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
  */
 public class CloseIndexClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<CloseIndexClusterStateUpdateRequest> {
 
-    private long taskId;
+    private final long taskId;
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
     public CloseIndexClusterStateUpdateRequest(final long taskId) {
@@ -24,11 +24,6 @@ public class CloseIndexClusterStateUpdateRequest extends IndicesClusterStateUpda
 
     public long taskId() {
         return taskId;
-    }
-
-    public CloseIndexClusterStateUpdateRequest taskId(final long taskId) {
-        this.taskId = taskId;
-        return this;
     }
 
     public ActiveShardCount waitForActiveShards() {

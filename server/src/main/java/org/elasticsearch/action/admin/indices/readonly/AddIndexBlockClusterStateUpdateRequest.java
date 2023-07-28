@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 public class AddIndexBlockClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<AddIndexBlockClusterStateUpdateRequest> {
 
     private final APIBlock block;
-    private long taskId;
+    private final long taskId;
 
     public AddIndexBlockClusterStateUpdateRequest(final APIBlock block, final long taskId) {
         this.block = block;
@@ -31,8 +31,4 @@ public class AddIndexBlockClusterStateUpdateRequest extends IndicesClusterStateU
         return block;
     }
 
-    public AddIndexBlockClusterStateUpdateRequest taskId(final long taskId) {
-        this.taskId = taskId;
-        return this;
-    }
 }

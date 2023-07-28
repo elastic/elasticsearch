@@ -30,17 +30,6 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
     }
 
     /**
-     * Sets the repository names
-     *
-     * @param repositories repository names
-     * @return this builder
-     */
-    public GetSnapshotsRequestBuilder setRepositories(String... repositories) {
-        request.repositories(repositories);
-        return this;
-    }
-
-    /**
      * Sets slm policy patterns
      *
      * @param policies slm policy patterns

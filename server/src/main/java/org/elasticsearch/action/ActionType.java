@@ -9,7 +9,6 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.transport.TransportRequestOptions;
 
 /**
  * A generic action. Should strive to make it a singleton.
@@ -40,13 +39,6 @@ public class ActionType<Response extends ActionResponse> {
      */
     public Writeable.Reader<Response> getResponseReader() {
         return responseReader;
-    }
-
-    /**
-     * Optional request options for the action.
-     */
-    public TransportRequestOptions transportOptions() {
-        return TransportRequestOptions.EMPTY;
     }
 
     @Override

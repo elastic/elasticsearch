@@ -79,14 +79,6 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         }
 
         /**
-         * Sets the name of the component templates.
-         */
-        public Request name(String name) {
-            this.name = name;
-            return this;
-        }
-
-        /**
          * Sets the flag to signal that in the response the default values will also be displayed.
          */
         public Request includeDefaults(boolean includeDefaults) {

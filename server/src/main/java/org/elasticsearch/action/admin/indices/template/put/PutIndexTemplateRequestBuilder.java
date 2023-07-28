@@ -17,16 +17,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
-import java.util.Map;
 
 public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<
     PutIndexTemplateRequest,
     AcknowledgedResponse,
     PutIndexTemplateRequestBuilder> {
-
-    public PutIndexTemplateRequestBuilder(ElasticsearchClient client, PutIndexTemplateAction action) {
-        super(client, action, new PutIndexTemplateRequest());
-    }
 
     public PutIndexTemplateRequestBuilder(ElasticsearchClient client, PutIndexTemplateAction action, String name) {
         super(client, action, new PutIndexTemplateRequest(name));
@@ -90,14 +85,6 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
     }
 
     /**
-     * The settings to crete the index template with (either json or yaml format)
-     */
-    public PutIndexTemplateRequestBuilder setSettings(Map<String, Object> source) {
-        request.settings(source);
-        return this;
-    }
-
-    /**
      * Adds mapping that will be added when the index template gets created.
      *
      * @param source The mapping source
@@ -120,31 +107,7 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
     /**
      * Sets the aliases that will be associated with the index when it gets created
      */
-    public PutIndexTemplateRequestBuilder setAliases(Map<String, Object> source) {
-        request.aliases(source);
-        return this;
-    }
-
-    /**
-     * Sets the aliases that will be associated with the index when it gets created
-     */
     public PutIndexTemplateRequestBuilder setAliases(String source) {
-        request.aliases(source);
-        return this;
-    }
-
-    /**
-     * Sets the aliases that will be associated with the index when it gets created
-     */
-    public PutIndexTemplateRequestBuilder setAliases(XContentBuilder source) {
-        request.aliases(source);
-        return this;
-    }
-
-    /**
-     * Sets the aliases that will be associated with the index when it gets created
-     */
-    public PutIndexTemplateRequestBuilder setAliases(BytesReference source) {
         request.aliases(source);
         return this;
     }
@@ -161,36 +124,12 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
     }
 
     /**
-     * The cause for this index template creation.
-     */
-    public PutIndexTemplateRequestBuilder cause(String cause) {
-        request.cause(cause);
-        return this;
-    }
-
-    /**
      * Adds mapping that will be added when the index template gets created.
      *
      * @param source The mapping source
      */
     public PutIndexTemplateRequestBuilder setMapping(XContentBuilder source) {
         request.mapping(source);
-        return this;
-    }
-
-    /**
-     * The template source definition.
-     */
-    public PutIndexTemplateRequestBuilder setSource(XContentBuilder templateBuilder) {
-        request.source(templateBuilder);
-        return this;
-    }
-
-    /**
-     * The template source definition.
-     */
-    public PutIndexTemplateRequestBuilder setSource(Map<String, Object> templateSource) {
-        request.source(templateSource);
         return this;
     }
 
@@ -210,11 +149,4 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
         return this;
     }
 
-    /**
-     * The template source definition.
-     */
-    public PutIndexTemplateRequestBuilder setSource(byte[] templateSource, int offset, int length, XContentType xContentType) {
-        request.source(templateSource, offset, length, xContentType);
-        return this;
-    }
 }

@@ -12,10 +12,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
-
-import java.util.List;
-import java.util.Map;
 
 /**
  * Restore snapshot request builder
@@ -26,39 +22,10 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
     RestoreSnapshotRequestBuilder> {
 
     /**
-     * Constructs new restore snapshot request builder
-     */
-    public RestoreSnapshotRequestBuilder(ElasticsearchClient client, RestoreSnapshotAction action) {
-        super(client, action, new RestoreSnapshotRequest());
-    }
-
-    /**
      * Constructs new restore snapshot request builder with specified repository and snapshot names
      */
     public RestoreSnapshotRequestBuilder(ElasticsearchClient client, RestoreSnapshotAction action, String repository, String name) {
         super(client, action, new RestoreSnapshotRequest(repository, name));
-    }
-
-    /**
-     * Sets snapshot name
-     *
-     * @param snapshot snapshot name
-     * @return this builder
-     */
-    public RestoreSnapshotRequestBuilder setSnapshot(String snapshot) {
-        request.snapshot(snapshot);
-        return this;
-    }
-
-    /**
-     * Sets repository name
-     *
-     * @param repository repository name
-     * @return this builder
-     */
-    public RestoreSnapshotRequestBuilder setRepository(String repository) {
-        request.repository(repository);
-        return this;
     }
 
     /**
@@ -185,40 +152,9 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
     }
 
     /**
-     * Sets index settings that should be added or replaced during restore
-     *
-     * @param source index settings
-     * @param xContentType the content type of the source
-     * @return this builder
-     */
-    public RestoreSnapshotRequestBuilder setIndexSettings(String source, XContentType xContentType) {
-        request.indexSettings(source, xContentType);
-        return this;
-    }
-
-    /**
-     * Sets index settings that should be added or replaced during restore
-     *
-     * @param source index settings
-     * @return this builder
-     */
-    public RestoreSnapshotRequestBuilder setIndexSettings(Map<String, Object> source) {
-        request.indexSettings(source);
-        return this;
-    }
-
-    /**
      * Sets the list of index settings and index settings groups that shouldn't be restored from snapshot
      */
     public RestoreSnapshotRequestBuilder setIgnoreIndexSettings(String... ignoreIndexSettings) {
-        request.ignoreIndexSettings(ignoreIndexSettings);
-        return this;
-    }
-
-    /**
-     * Sets the list of index settings and index settings groups that shouldn't be restored from snapshot
-     */
-    public RestoreSnapshotRequestBuilder setIgnoreIndexSettings(List<String> ignoreIndexSettings) {
         request.ignoreIndexSettings(ignoreIndexSettings);
         return this;
     }

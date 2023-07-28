@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -129,18 +128,6 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
      */
     public PutRepositoryRequest settings(Settings.Builder settings) {
         this.settings = settings.build();
-        return this;
-    }
-
-    /**
-     * Sets the repository settings.
-     *
-     * @param source repository settings in json or yaml format
-     * @param xContentType the content type of the source
-     * @return this request
-     */
-    public PutRepositoryRequest settings(String source, XContentType xContentType) {
-        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 

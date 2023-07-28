@@ -10,12 +10,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 
@@ -27,11 +23,8 @@ import java.util.Objects;
  */
 public class ExecuteWatchResponse extends ActionResponse implements ToXContentObject {
 
-    public static final ParseField ID_FIELD = new ParseField("_id");
-    public static final ParseField WATCH_FIELD = new ParseField("watch_record");
-
-    private String recordId;
-    private XContentSource recordSource;
+    private final String recordId;
+    private final XContentSource recordSource;
 
     public ExecuteWatchResponse(StreamInput in) throws IOException {
         super(in);
@@ -92,24 +85,4 @@ public class ExecuteWatchResponse extends ActionResponse implements ToXContentOb
         return builder;
     }
 
-    private static final ConstructingObjectParser<ExecuteWatchResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "x_pack_execute_watch_response",
-        false,
-        (fields) -> new ExecuteWatchResponse((String) fields[0], (BytesReference) fields[1], XContentType.JSON)
-    );
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> readBytesReference(p), WATCH_FIELD);
-    }
-
-    public static ExecuteWatchResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
-    }
-
-    private static BytesReference readBytesReference(XContentParser parser) throws IOException {
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            builder.copyCurrentStructure(parser);
-            return BytesReference.bytes(builder);
-        }
-    }
 }

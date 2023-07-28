@@ -72,32 +72,6 @@ public class RestClusterGetSettingsResponse implements ToXContentObject {
         return transientSettings;
     }
 
-    /**
-     * Returns the default settings for the cluster (only if {@code include_defaults} was set to true in the request)
-     * @return Settings
-     */
-    public Settings getDefaultSettings() {
-        return defaultSettings;
-    }
-
-    /**
-     * Returns the string value of the setting for the specified index. The order of search is first
-     * in persistent settings the transient settings and finally the default settings.
-     * @param setting the name of the setting to get
-     * @return String
-     */
-    public String getSetting(String setting) {
-        if (persistentSettings.hasValue(setting)) {
-            return persistentSettings.get(setting);
-        } else if (transientSettings.hasValue(setting)) {
-            return transientSettings.get(setting);
-        } else if (defaultSettings.hasValue(setting)) {
-            return defaultSettings.get(setting);
-        } else {
-            return null;
-        }
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

@@ -22,7 +22,4 @@ public class RankEvalRequestBuilder extends ActionRequestBuilder<RankEvalRequest
         this.request.setRankEvalSpec(spec);
     }
 
-    public RankEvalSpec getRankEvalSpec() {
-        return this.request.getRankEvalSpec();
-    }
 }

@@ -12,9 +12,6 @@ import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
-
-import java.util.Map;
 
 /**
  * Register repository request builder
@@ -25,28 +22,10 @@ public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<
     PutRepositoryRequestBuilder> {
 
     /**
-     * Constructs register repository request
-     */
-    public PutRepositoryRequestBuilder(ElasticsearchClient client, PutRepositoryAction action) {
-        super(client, action, new PutRepositoryRequest());
-    }
-
-    /**
      * Constructs register repository request for the repository with a given name
      */
     public PutRepositoryRequestBuilder(ElasticsearchClient client, PutRepositoryAction action, String name) {
         super(client, action, new PutRepositoryRequest(name));
-    }
-
-    /**
-     * Sets the repository name
-     *
-     * @param name repository name
-     * @return this builder
-     */
-    public PutRepositoryRequestBuilder setName(String name) {
-        request.name(name);
-        return this;
     }
 
     /**
@@ -79,29 +58,6 @@ public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<
      */
     public PutRepositoryRequestBuilder setSettings(Settings.Builder settings) {
         request.settings(settings);
-        return this;
-    }
-
-    /**
-     * Sets the repository settings in Json or Yaml format
-     *
-     * @param source repository settings
-     * @param xContentType the content type of the source
-     * @return this builder
-     */
-    public PutRepositoryRequestBuilder setSettings(String source, XContentType xContentType) {
-        request.settings(source, xContentType);
-        return this;
-    }
-
-    /**
-     * Sets the repository settings
-     *
-     * @param source repository settings
-     * @return this builder
-     */
-    public PutRepositoryRequestBuilder setSettings(Map<String, Object> source) {
-        request.settings(source);
         return this;
     }
 

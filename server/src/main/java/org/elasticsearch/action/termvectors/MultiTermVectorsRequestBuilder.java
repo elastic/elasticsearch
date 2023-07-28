@@ -17,13 +17,6 @@ public class MultiTermVectorsRequestBuilder extends ActionRequestBuilder<MultiTe
         super(client, action, new MultiTermVectorsRequest());
     }
 
-    public MultiTermVectorsRequestBuilder add(String index, Iterable<String> ids) {
-        for (String id : ids) {
-            request.add(index, id);
-        }
-        return this;
-    }
-
     public MultiTermVectorsRequestBuilder add(String index, String... ids) {
         for (String id : ids) {
             request.add(index, id);

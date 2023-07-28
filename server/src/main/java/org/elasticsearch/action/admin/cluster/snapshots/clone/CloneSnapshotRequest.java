@@ -113,7 +113,10 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
     }
 
     /**
-     * @see CloneSnapshotRequestBuilder#setIndicesOptions
+     * Specifies the indices options. Like what type of requested indices to ignore. For example indices that don't exist.
+     *
+     * @param indicesOptions the desired behaviour regarding indices options
+     * @return this request
      */
     public CloneSnapshotRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;

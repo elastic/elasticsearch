@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -131,14 +130,6 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
      */
     public UpdateSettingsRequest settings(Settings.Builder settings) {
         this.settings = settings.build();
-        return this;
-    }
-
-    /**
-     * Sets the settings to be updated (either json or yaml format)
-     */
-    public UpdateSettingsRequest settings(String source, XContentType xContentType) {
-        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 

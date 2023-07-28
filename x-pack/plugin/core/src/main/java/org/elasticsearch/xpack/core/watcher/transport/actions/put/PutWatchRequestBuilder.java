@@ -58,12 +58,4 @@ public class PutWatchRequestBuilder extends ActionRequestBuilder<PutWatchRequest
         return this;
     }
 
-    /**
-     * @param version Sets the version to be set when running the update
-     */
-    public PutWatchRequestBuilder setVersion(long version) {
-        request.setVersion(version);
-        return this;
-    }
-
 }

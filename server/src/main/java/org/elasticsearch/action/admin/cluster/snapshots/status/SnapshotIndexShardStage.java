@@ -13,31 +13,28 @@ public enum SnapshotIndexShardStage {
     /**
      * Snapshot hasn't started yet
      */
-    INIT((byte) 0, false),
+    INIT((byte) 0),
     /**
      * Index files are being copied
      */
-    STARTED((byte) 1, false),
+    STARTED((byte) 1),
     /**
      * Snapshot metadata is being written or this shard's status in the cluster state is being updated
      */
-    FINALIZE((byte) 2, false),
+    FINALIZE((byte) 2),
     /**
      * Snapshot completed successfully
      */
-    DONE((byte) 3, true),
+    DONE((byte) 3),
     /**
      * Snapshot failed
      */
-    FAILURE((byte) 4, true);
+    FAILURE((byte) 4);
 
-    private byte value;
+    private final byte value;
 
-    private boolean completed;
-
-    SnapshotIndexShardStage(byte value, boolean completed) {
+    SnapshotIndexShardStage(byte value) {
         this.value = value;
-        this.completed = completed;
     }
 
     /**
@@ -47,15 +44,6 @@ public enum SnapshotIndexShardStage {
      */
     public byte value() {
         return value;
-    }
-
-    /**
-     * Returns true if snapshot completed (successfully or not)
-     *
-     * @return true if snapshot completed, false otherwise
-     */
-    public boolean completed() {
-        return completed;
     }
 
     /**

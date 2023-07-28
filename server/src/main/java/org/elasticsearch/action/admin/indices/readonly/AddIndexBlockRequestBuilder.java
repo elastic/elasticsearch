@@ -26,17 +26,6 @@ public class AddIndexBlockRequestBuilder extends AcknowledgedRequestBuilder<
     }
 
     /**
-     * Sets the indices to be blocked
-     *
-     * @param indices the indices to be blocked
-     * @return the request itself
-     */
-    public AddIndexBlockRequestBuilder setIndices(String... indices) {
-        request.indices(indices);
-        return this;
-    }
-
-    /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions
      * For example indices that don't exist.
      *

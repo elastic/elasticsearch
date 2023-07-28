@@ -88,7 +88,6 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
             actionFilters,
             StopDataFrameAnalyticsAction.Request::new,
             StopDataFrameAnalyticsAction.Response::new,
-            StopDataFrameAnalyticsAction.Response::new,
             ThreadPool.Names.SAME
         );
         this.threadPool = threadPool;

@@ -53,7 +53,6 @@ public abstract class TransportTasksAction<
     protected final ClusterService clusterService;
     protected final TransportService transportService;
     protected final Writeable.Reader<TasksRequest> requestReader;
-    protected final Writeable.Reader<TasksResponse> responsesReader;
     protected final Writeable.Reader<TaskResponse> responseReader;
 
     protected final String transportNodeAction;
@@ -64,7 +63,6 @@ public abstract class TransportTasksAction<
         TransportService transportService,
         ActionFilters actionFilters,
         Writeable.Reader<TasksRequest> requestReader,
-        Writeable.Reader<TasksResponse> responsesReader,
         Writeable.Reader<TaskResponse> responseReader,
         String nodeExecutor
     ) {
@@ -73,7 +71,6 @@ public abstract class TransportTasksAction<
         this.transportService = transportService;
         this.transportNodeAction = actionName + "[n]";
         this.requestReader = requestReader;
-        this.responsesReader = responsesReader;
         this.responseReader = responseReader;
 
         transportService.registerRequestHandler(transportNodeAction, nodeExecutor, NodeTaskRequest::new, new NodeTransportHandler());
@@ -319,14 +316,6 @@ public abstract class TransportTasksAction<
             this.nodeId = nodeId;
             this.results = results;
             this.exceptions = exceptions;
-        }
-
-        public String getNodeId() {
-            return nodeId;
-        }
-
-        public List<TaskOperationFailure> getExceptions() {
-            return exceptions;
         }
 
         @Override

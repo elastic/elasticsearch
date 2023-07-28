@@ -24,14 +24,12 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class DeleteRepositoryRequest extends AcknowledgedRequest<DeleteRepositoryRequest> {
 
-    private String name;
+    private final String name;
 
     public DeleteRepositoryRequest(StreamInput in) throws IOException {
         super(in);
         name = in.readString();
     }
-
-    public DeleteRepositoryRequest() {}
 
     /**
      * Constructs a new unregister repository request with the provided name.
@@ -49,16 +47,6 @@ public class DeleteRepositoryRequest extends AcknowledgedRequest<DeleteRepositor
             validationException = addValidationError("name is missing", validationException);
         }
         return validationException;
-    }
-
-    /**
-     * Sets the name of the repository to unregister.
-     *
-     * @param name name of the repository
-     */
-    public DeleteRepositoryRequest name(String name) {
-        this.name = name;
-        return this;
     }
 
     /**

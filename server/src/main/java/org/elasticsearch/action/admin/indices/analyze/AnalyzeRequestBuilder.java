@@ -54,15 +54,6 @@ public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<
     }
 
     /**
-     * Instead of setting the analyzer, sets the tokenizer using custom settings that will be used as part of a custom
-     * analyzer.
-     */
-    public AnalyzeRequestBuilder setTokenizer(Map<String, ?> tokenizer) {
-        request.tokenizer(tokenizer);
-        return this;
-    }
-
-    /**
      * Add token filter setting that will be used on top of a tokenizer provided.
      */
     public AnalyzeRequestBuilder addTokenFilter(Map<String, ?> tokenFilter) {
@@ -79,22 +70,6 @@ public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<
     }
 
     /**
-     * Add char filter setting that will be used on top of a tokenizer provided.
-     */
-    public AnalyzeRequestBuilder addCharFilter(Map<String, ?> charFilter) {
-        request.addCharFilter(charFilter);
-        return this;
-    }
-
-    /**
-     * Add a name of char filter that will be used before the tokenizer.
-     */
-    public AnalyzeRequestBuilder addCharFilter(String tokenFilter) {
-        request.addCharFilter(tokenFilter);
-        return this;
-    }
-
-    /**
      * Sets explain
      */
     public AnalyzeRequestBuilder setExplain(boolean explain) {
@@ -103,26 +78,10 @@ public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<
     }
 
     /**
-     * Sets attributes that will include results
-     */
-    public AnalyzeRequestBuilder setAttributes(String... attributes) {
-        request.attributes(attributes);
-        return this;
-    }
-
-    /**
      * Sets texts to analyze
      */
     public AnalyzeRequestBuilder setText(String... texts) {
         request.text(texts);
-        return this;
-    }
-
-    /**
-     * Instead of setting the analyzer and tokenizer, sets the normalizer as name
-     */
-    public AnalyzeRequestBuilder setNormalizer(String normalizer) {
-        request.normalizer(normalizer);
         return this;
     }
 

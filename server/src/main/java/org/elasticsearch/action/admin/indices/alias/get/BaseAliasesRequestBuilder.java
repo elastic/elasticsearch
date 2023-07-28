@@ -33,12 +33,6 @@ public abstract class BaseAliasesRequestBuilder<
     }
 
     @SuppressWarnings("unchecked")
-    public Builder addAliases(String... aliases) {
-        request.aliases(ArrayUtils.concat(request.aliases(), aliases));
-        return (Builder) this;
-    }
-
-    @SuppressWarnings("unchecked")
     public Builder setIndices(String... indices) {
         request.indices(indices);
         return (Builder) this;

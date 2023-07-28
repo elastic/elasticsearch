@@ -87,7 +87,6 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
             actionFilters,
             StopTrainedModelDeploymentAction.Request::new,
             StopTrainedModelDeploymentAction.Response::new,
-            StopTrainedModelDeploymentAction.Response::new,
             ThreadPool.Names.SAME
         );
         this.client = new OriginSettingClient(client, ML_ORIGIN);

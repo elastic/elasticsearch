@@ -23,9 +23,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositoriesRequest> {
 
-    private String[] repositories = Strings.EMPTY_ARRAY;
+    private final String[] repositories;
 
-    public GetRepositoriesRequest() {}
+    public GetRepositoriesRequest() {
+        this(Strings.EMPTY_ARRAY);
+    }
 
     /**
      * Constructs a new get repositories request with a list of repositories.
@@ -68,17 +70,4 @@ public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositorie
         return this.repositories;
     }
 
-    /**
-     * Sets the list or repositories.
-     * <p>
-     * If the list of repositories is empty or it contains a single element "_all", all registered repositories
-     * are returned.
-     *
-     * @param repositories list of repositories
-     * @return this request
-     */
-    public GetRepositoriesRequest repositories(String[] repositories) {
-        this.repositories = repositories;
-        return this;
-    }
 }

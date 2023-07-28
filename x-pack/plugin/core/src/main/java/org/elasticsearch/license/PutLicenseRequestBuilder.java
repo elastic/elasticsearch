@@ -18,16 +18,7 @@ import org.elasticsearch.xcontent.XContentType;
 public class PutLicenseRequestBuilder extends AcknowledgedRequestBuilder<PutLicenseRequest, PutLicenseResponse, PutLicenseRequestBuilder> {
 
     public PutLicenseRequestBuilder(ElasticsearchClient client) {
-        this(client, PutLicenseAction.INSTANCE);
-    }
-
-    /**
-     * Constructs register license request
-     *
-     * @param client elasticsearch client
-     */
-    public PutLicenseRequestBuilder(ElasticsearchClient client, PutLicenseAction action) {
-        super(client, action, new PutLicenseRequest());
+        super(client, PutLicenseAction.INSTANCE, new PutLicenseRequest());
     }
 
     /**

@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 
@@ -83,14 +82,6 @@ public class ExecuteWatchRequestBuilder extends ActionRequestBuilder<ExecuteWatc
      */
     public ExecuteWatchRequestBuilder setWatchSource(BytesReference watchSource, XContentType xContentType) {
         request.setWatchSource(watchSource, xContentType);
-        return this;
-    }
-
-    /**
-     * @param watchSource instead of using an existing watch use this non persisted watch
-     */
-    public ExecuteWatchRequestBuilder setWatchSource(WatchSourceBuilder watchSource) {
-        request.setWatchSource(watchSource);
         return this;
     }
 

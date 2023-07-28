@@ -174,10 +174,7 @@ public class SearchSliceIT extends ESIntegTestCase {
                 assertTrue(keys.add(hit.getId()));
             }
             while (searchResponse.getHits().getHits().length > 0) {
-                searchResponse = client().prepareSearchScroll("test")
-                    .setScrollId(scrollId)
-                    .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
-                    .get();
+                searchResponse = client().prepareSearchScroll(scrollId).setScroll(new Scroll(TimeValue.timeValueSeconds(10))).get();
                 scrollId = searchResponse.getScrollId();
                 totalResults += searchResponse.getHits().getHits().length;
                 numSliceResults += searchResponse.getHits().getHits().length;

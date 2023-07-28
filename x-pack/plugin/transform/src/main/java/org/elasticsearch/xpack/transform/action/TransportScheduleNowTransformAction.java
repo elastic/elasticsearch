@@ -67,7 +67,6 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
             actionFilters,
             Request::new,
             Response::new,
-            Response::new,
             ThreadPool.Names.SAME
         );
 

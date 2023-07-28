@@ -76,8 +76,7 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
         License signedLicense = generateSignedLicense(TimeValue.timeValueMinutes(2));
 
         // put license
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(clusterAdmin(), PutLicenseAction.INSTANCE)
-            .setLicense(signedLicense)
+        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(clusterAdmin()).setLicense(signedLicense)
             .setAcknowledge(true);
         PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
@@ -93,9 +92,10 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
         String licenseString = TestUtils.dumpLicense(signedLicense);
 
         // put license source
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(clusterAdmin(), PutLicenseAction.INSTANCE)
-            .setLicense(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
-            .setAcknowledge(true);
+        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(clusterAdmin()).setLicense(
+            new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON
+        ).setAcknowledge(true);
         PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
@@ -115,7 +115,7 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
             .validate()
             .build();
 
-        PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(clusterAdmin(), PutLicenseAction.INSTANCE);
+        PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(clusterAdmin());
         builder.setLicense(tamperedLicense);
 
         // try to put license (should be invalid)
@@ -130,7 +130,7 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
     public void testPutBasicLicenseIsInvalid() throws Exception {
         License signedLicense = generateSignedLicense("basic", License.VERSION_CURRENT, -1, TimeValue.timeValueMinutes(2));
 
-        PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(clusterAdmin(), PutLicenseAction.INSTANCE);
+        PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(clusterAdmin());
         builder.setLicense(signedLicense);
 
         // try to put license (should be invalid)
@@ -144,7 +144,7 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
 
     public void testPutExpiredLicense() throws Exception {
         License expiredLicense = generateExpiredNonBasicLicense();
-        PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(clusterAdmin(), PutLicenseAction.INSTANCE);
+        PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(clusterAdmin());
         builder.setLicense(expiredLicense);
         PutLicenseResponse putLicenseResponse = builder.get();
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.EXPIRED));
@@ -155,8 +155,7 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
 
     public void testPutLicensesSimple() throws Exception {
         License goldSignedLicense = generateSignedLicense("gold", TimeValue.timeValueMinutes(5));
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(clusterAdmin(), PutLicenseAction.INSTANCE)
-            .setLicense(goldSignedLicense)
+        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(clusterAdmin()).setLicense(goldSignedLicense)
             .setAcknowledge(true);
         PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
@@ -174,8 +173,7 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
 
     public void testRemoveLicensesSimple() throws Exception {
         License goldLicense = generateSignedLicense("gold", TimeValue.timeValueMinutes(5));
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(clusterAdmin(), PutLicenseAction.INSTANCE)
-            .setLicense(goldLicense)
+        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(clusterAdmin()).setLicense(goldLicense)
             .setAcknowledge(true);
         PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
@@ -208,8 +206,7 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
             .maxNodes(5);
         License license = TestUtils.generateSignedLicense(builder);
 
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(clusterAdmin(), PutLicenseAction.INSTANCE)
-            .setLicense(license)
+        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(clusterAdmin()).setLicense(license)
             .setAcknowledge(true);
         PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
@@ -230,8 +227,7 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
             .maxNodes(5);
         License license = TestUtils.generateSignedLicense(builder);
 
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(clusterAdmin(), PutLicenseAction.INSTANCE)
-            .setLicense(license)
+        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(clusterAdmin()).setLicense(license)
             .setAcknowledge(true);
         PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));

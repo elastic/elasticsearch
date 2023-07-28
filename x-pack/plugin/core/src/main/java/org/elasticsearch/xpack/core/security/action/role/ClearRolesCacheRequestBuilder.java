@@ -18,21 +18,7 @@ public class ClearRolesCacheRequestBuilder extends NodesOperationRequestBuilder<
     ClearRolesCacheRequestBuilder> {
 
     public ClearRolesCacheRequestBuilder(ElasticsearchClient client) {
-        this(client, ClearRolesCacheAction.INSTANCE, new ClearRolesCacheRequest());
+        super(client, ClearRolesCacheAction.INSTANCE, new ClearRolesCacheRequest());
     }
 
-    public ClearRolesCacheRequestBuilder(ElasticsearchClient client, ClearRolesCacheAction action, ClearRolesCacheRequest request) {
-        super(client, action, request);
-    }
-
-    /**
-     * Set the roles to be cleared
-     *
-     * @param names the names of the roles that should be cleared
-     * @return the builder instance
-     */
-    public ClearRolesCacheRequestBuilder names(String... names) {
-        request.names(names);
-        return this;
-    }
 }

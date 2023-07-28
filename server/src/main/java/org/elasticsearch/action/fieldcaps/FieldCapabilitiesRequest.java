@@ -33,7 +33,6 @@ import java.util.Objects;
 import java.util.Set;
 
 public final class FieldCapabilitiesRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
-    public static final String NAME = "field_caps_request";
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
 
     private String[] indices = Strings.EMPTY_ARRAY;

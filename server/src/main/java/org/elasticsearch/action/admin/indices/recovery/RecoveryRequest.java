@@ -51,15 +51,6 @@ public class RecoveryRequest extends BroadcastRequest<RecoveryRequest> {
     }
 
     /**
-     * True if detailed flag is set, false otherwise. This value if false by default.
-     *
-     * @return  True if detailed flag is set, false otherwise
-     */
-    public boolean detailed() {
-        return detailed;
-    }
-
-    /**
      * Set value of the detailed flag. Detailed requests will contain extra
      * information such as a list of physical files and their recovery progress.
      *

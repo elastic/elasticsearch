@@ -15,7 +15,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
 import org.elasticsearch.protocol.xpack.graph.Hop;
-import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 
@@ -70,10 +69,6 @@ public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExplor
         return this;
     }
 
-    public String sampleDiversityField() {
-        return request.sampleDiversityField();
-    }
-
     /**
      * Optional number of permitted docs with same value in sampled search
      * results. Must also declare which field using sampleDiversityField
@@ -83,24 +78,11 @@ public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExplor
         return this;
     }
 
-    public int maxDocsPerDiversityValue() {
-        return request.maxDocsPerDiversityValue();
-    }
-
     /**
      * An optional timeout to control how long the graph exploration is allowed
      * to take.
      */
     public GraphExploreRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
-        return this;
-    }
-
-    /**
-     * An optional timeout to control how long the graph exploration is allowed
-     * to take.
-     */
-    public GraphExploreRequestBuilder setTimeout(String timeout) {
         request.timeout(timeout);
         return this;
     }
@@ -125,25 +107,6 @@ public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExplor
      */
     public GraphExploreRequestBuilder useSignificance(boolean value) {
         request.useSignificance(value);
-        return this;
-    }
-
-    /**
-     * The number of top-matching documents that are considered during each hop (default is
-     * {@link SamplerAggregationBuilder#DEFAULT_SHARD_SAMPLE_SIZE}
-     * Very small values (less than 50) may not provide sufficient weight-of-evidence to identify
-     * significant connections between terms.
-     * <p> Very large values (many thousands) are not recommended with loosely defined queries (fuzzy queries or
-     *  those with many OR clauses).
-     *  This is because any useful signals in the best documents are diluted with irrelevant noise from low-quality matches.
-     *  Performance is also typically better with smaller samples as there are less look-ups required for background frequencies
-     *  of terms found in the documents
-     * </p>
-     *
-     * @param maxNumberOfDocsPerHop the shard-level sample size in documents
-     */
-    public GraphExploreRequestBuilder sampleSize(int maxNumberOfDocsPerHop) {
-        request.sampleSize(maxNumberOfDocsPerHop);
         return this;
     }
 

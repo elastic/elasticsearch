@@ -388,13 +388,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     /**
      * Sets the aliases that will be associated with the index when it gets created
      */
-    public PutIndexTemplateRequest aliases(XContentBuilder source) {
-        return aliases(BytesReference.bytes(source));
-    }
-
-    /**
-     * Sets the aliases that will be associated with the index when it gets created
-     */
     public PutIndexTemplateRequest aliases(String source) {
         return aliases(new BytesArray(source));
     }

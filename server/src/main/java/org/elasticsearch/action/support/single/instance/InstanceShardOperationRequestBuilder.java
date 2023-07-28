@@ -40,12 +40,4 @@ public abstract class InstanceShardOperationRequestBuilder<
         return (RequestBuilder) this;
     }
 
-    /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
-     */
-    @SuppressWarnings("unchecked")
-    public final RequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
-        return (RequestBuilder) this;
-    }
 }

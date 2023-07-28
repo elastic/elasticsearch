@@ -45,7 +45,6 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<
             actionFilters,
             DeleteRollupJobAction.Request::new,
             DeleteRollupJobAction.Response::new,
-            DeleteRollupJobAction.Response::new,
             ThreadPool.Names.SAME
         );
     }

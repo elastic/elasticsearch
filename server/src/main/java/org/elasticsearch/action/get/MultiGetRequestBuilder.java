@@ -45,16 +45,6 @@ public class MultiGetRequestBuilder extends ActionRequestBuilder<MultiGetRequest
     }
 
     /**
-     * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
-     * will be used across different requests.
-     */
-    public MultiGetRequestBuilder setPreference(String preference) {
-        request.preference(preference);
-        return this;
-    }
-
-    /**
      * Should a refresh be executed before this get operation causing the operation to
      * return the latest value. Note, heavy get should not set this to {@code true}. Defaults
      * to {@code false}.

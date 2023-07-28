@@ -170,12 +170,6 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
         return (Request) this;
     }
 
-    @SuppressWarnings("unchecked")
-    public final Request setTimeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
-        return (Request) this;
-    }
-
     public boolean match(Task task) {
         if (CollectionUtils.isEmpty(getActions()) == false && Regex.simpleMatch(getActions(), task.getAction()) == false) {
             return false;

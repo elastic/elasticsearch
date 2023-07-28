@@ -84,8 +84,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the document source to index.
      * <p>
-     * Note, its preferable to either set it using {@link #setSource(org.elasticsearch.common.xcontent.XContentBuilder)}
-     * or using the {@link #setSource(byte[], XContentType)}.
+     * Note, its preferable to set it using {@link #setSource(BytesReference, XContentType)}.
      */
     public IndexRequestBuilder setSource(String source, XContentType xContentType) {
         request.source(source, xContentType);
@@ -97,28 +96,6 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      */
     public IndexRequestBuilder setSource(XContentBuilder sourceBuilder) {
         request.source(sourceBuilder);
-        return this;
-    }
-
-    /**
-     * Sets the document to index in bytes form.
-     */
-    public IndexRequestBuilder setSource(byte[] source, XContentType xContentType) {
-        request.source(source, xContentType);
-        return this;
-    }
-
-    /**
-     * Sets the document to index in bytes form (assumed to be safe to be used from different
-     * threads).
-     *
-     * @param source The source to index
-     * @param offset The offset in the byte array
-     * @param length The length of the data
-     * @param xContentType The type/format of the source
-     */
-    public IndexRequestBuilder setSource(byte[] source, int offset, int length, XContentType xContentType) {
-        request.source(source, offset, length, xContentType);
         return this;
     }
 
@@ -213,11 +190,4 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         return this;
     }
 
-    /**
-     * Sets the require_alias flag
-     */
-    public IndexRequestBuilder setRequireAlias(boolean requireAlias) {
-        request.setRequireAlias(requireAlias);
-        return this;
-    }
 }

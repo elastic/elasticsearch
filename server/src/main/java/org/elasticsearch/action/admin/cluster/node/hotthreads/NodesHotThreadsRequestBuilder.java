@@ -37,11 +37,6 @@ public class NodesHotThreadsRequestBuilder extends NodesOperationRequestBuilder<
         return this;
     }
 
-    public NodesHotThreadsRequestBuilder setSortOrder(HotThreads.SortOrder sortOrder) {
-        request.sortOrder(sortOrder);
-        return this;
-    }
-
     public NodesHotThreadsRequestBuilder setInterval(TimeValue interval) {
         request.interval(interval);
         return this;

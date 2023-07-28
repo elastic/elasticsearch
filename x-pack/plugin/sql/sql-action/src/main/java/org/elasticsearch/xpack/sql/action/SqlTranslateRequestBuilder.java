@@ -66,8 +66,4 @@ public class SqlTranslateRequestBuilder extends ActionRequestBuilder<SqlTranslat
         return this;
     }
 
-    public SqlTranslateRequestBuilder zoneId(ZoneId zoneId) {
-        request.zoneId(zoneId);
-        return this;
-    }
 }

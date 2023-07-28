@@ -106,10 +106,6 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         return this.shards;
     }
 
-    public ShardStats getAt(int position) {
-        return shards[position];
-    }
-
     public IndexStats getIndex(String index) {
         return getIndices().get(index);
     }

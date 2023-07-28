@@ -35,7 +35,9 @@ PUT /_security/settings
 // TEST[setup:user_profiles]
 // TEST[setup:service_token42]
 
-The configured settings can be retrieved using the <<security-api-get-settings,Get Security index settings>> API.
+The configured settings can be retrieved using the <<security-api-get-settings,Get Security index settings>> API. If a
+given index is not in use on the system, but settings are provided for it, the request will be rejected - this API does
+not yet support configuring the settings for these indices before they are in use.
 
 ==== {api-request-body-title}
 `security`::

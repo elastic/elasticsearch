@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.security.action.settings;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -44,6 +45,7 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAction<
     UpdateSecuritySettingsAction.Request,
     AcknowledgedResponse> {
+    private static final Logger logger = LogManager.getLogger(TransportUpdateSecuritySettingsAction.class);
 
     private final MetadataUpdateSettingsService updateSettingsService;
 
@@ -122,12 +124,12 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
         TimeValue masterTimeout,
         ClusterState state
     ) {
-        if (settingsToUpdate.isEmpty() == false) {
-            throw new ResourceNotFoundException(indexName);
+        if (settingsToUpdate.isEmpty()) {
+            return Optional.empty();
         }
         IndexAbstraction abstraction = state.metadata().getIndicesLookup().get(indexName);
         if (abstraction == null) {
-            return Optional.empty();
+            throw new IllegalArgumentException("the [" + indexName + "] index is not in use on this system yet");
         }
         Index writeIndex = abstraction.getWriteIndex();
         if (writeIndex == null) {

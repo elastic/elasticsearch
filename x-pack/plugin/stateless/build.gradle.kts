@@ -48,6 +48,14 @@ tasks {
         exclude("**/S3RegisterCASLinearizabilityTests.class")
     }
 
+    internalClusterTest {
+        // Tests run in a single classloader as an unnamed module, so the blobcache module
+        // is not defined. Here we open java.io to the entire test to quiet spurious
+        // warnings about failing to change access for FileDescriptor.fd
+        // that org.elasticsearch.preallocate does
+        jvmArgs("--add-opens=java.base/java.io=ALL-UNNAMED")
+    }
+
     yamlRestTest {
         usesDefaultDistribution()
     }

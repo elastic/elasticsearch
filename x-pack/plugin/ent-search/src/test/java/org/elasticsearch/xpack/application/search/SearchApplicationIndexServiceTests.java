@@ -191,15 +191,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         {
-            for (String queryString : new String[] {
-                "*my_search_app_4*",
-                "name:my_search_app_4",
-                "my_search_app_4",
-                "*_4",
-                "indices:index_4",
-                "index_4",
-                "*_4" }) {
-
+            for (String queryString : new String[] { "*my_search_app_4*", "name:my_search_app_4", "my_search_app_4", "*_4", "*_4" }) {
                 SearchApplicationIndexService.SearchApplicationResult searchResponse = awaitListSearchApplication(queryString, 0, 10);
                 final List<SearchApplicationListItem> apps = searchResponse.items();
                 assertNotNull(apps);

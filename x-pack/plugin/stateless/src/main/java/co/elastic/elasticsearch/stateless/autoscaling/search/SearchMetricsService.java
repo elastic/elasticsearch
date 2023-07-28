@@ -95,6 +95,7 @@ public class SearchMetricsService implements ClusterStateListener {
 
     public void processShardSizesRequest(PublishShardSizesRequest request) {
         var currentTimestampNanos = relativeTimeInNanos();
+        logger.debug("Received shard sizes {}", request.getShardSizes());
         var nodeMetrics = this.nodeMetrics.computeIfAbsent(request.getNodeId(), unused -> new NodeMetrics());
         nodeMetrics.update(currentTimestampNanos, request.getSeqNo());
         for (var entry : request.getShardSizes().entrySet()) {

@@ -418,7 +418,7 @@ public final class TokenService {
                 .setId(documentId)
                 .setOpType(OpType.CREATE)
                 .setSource(tokenDocument, XContentType.JSON)
-                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
+                .setRefreshPolicy(tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH) ? RefreshPolicy.NONE : RefreshPolicy.WAIT_UNTIL)
                 .request();
             tokensIndex.prepareIndexIfNeededThenExecute(
                 ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", documentId, ex)),

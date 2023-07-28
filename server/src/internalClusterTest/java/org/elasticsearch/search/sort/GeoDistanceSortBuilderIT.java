@@ -15,10 +15,12 @@ import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -57,7 +59,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * |___________________________
          * 1   2   3   4   5   6   7
          */
-        Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion version = randomBoolean() ? IndexVersion.current() : IndexVersionUtils.randomCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).setMapping(LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
@@ -148,7 +150,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * d1 = (0, 1), (0, 4), (0, 10); so avg. distance is 5, median distance is 4
          * d2 = (0, 1), (0, 5), (0, 6); so avg. distance is 4, median distance is 5
          */
-        Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion version = randomBoolean() ? IndexVersion.current() : IndexVersionUtils.randomCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).setMapping(LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
@@ -222,7 +224,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * |______________________
          * 1   2   3   4   5   6
          */
-        Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion version = randomBoolean() ? IndexVersion.current() : IndexVersionUtils.randomCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).setMapping(LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();

@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -21,6 +22,7 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.ArrayList;
@@ -49,7 +51,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         return false;
     }
 
-    private Version version = VersionUtils.randomIndexCompatibleVersion(random());
+    private IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
 
     static Map<String, Integer> expectedDocCountsForGeoHash = null;
     static Map<String, Integer> multiValuedExpectedDocCountsForGeoHash = null;

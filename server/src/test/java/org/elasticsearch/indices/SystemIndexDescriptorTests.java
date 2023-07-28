@@ -423,7 +423,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
 
         assertThat(descriptor1.getMappingsVersion().hash(), equalTo(descriptor2.getMappingsVersion().hash()));
         assertThat(descriptor1.getMappingsVersion().version(), not(equalTo(descriptor2.getMappingsVersion().version())));
-        assertThat(descriptor1.getOldMappingVersion(), not(equalTo(descriptor2.getOldMappingVersion())));
+        assertThat(descriptor1.getMappingsNodeVersion(), not(equalTo(descriptor2.getMappingsNodeVersion())));
     }
 
     private SystemIndexDescriptor.Builder priorSystemIndexDescriptorBuilder() {

@@ -292,7 +292,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
                 return Version.V_EMPTY;
             }
 
-            final Object rawVersion = meta.get(descriptor.getLegacyVersionMetaKey());
+            final Object rawVersion = meta.get(descriptor.getMappingsNodeVersionMetaKey());
             if (rawVersion instanceof Integer) {
                 // This can happen with old system indices, such as .tasks, which were created before we used an Elasticsearch
                 // version here. We should just replace the template to be sure.
@@ -302,7 +302,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
             if (versionString == null) {
                 logger.warn(
                     "No value found in mappings for [_meta.{}], assuming mappings update required",
-                    descriptor.getLegacyVersionMetaKey()
+                    descriptor.getMappingsNodeVersionMetaKey()
                 );
                 // If we called `Version.fromString(null)`, it would return `Version.CURRENT` and we wouldn't update the mappings
                 return Version.V_EMPTY;

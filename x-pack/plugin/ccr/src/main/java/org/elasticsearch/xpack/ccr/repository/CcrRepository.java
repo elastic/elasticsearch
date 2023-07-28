@@ -419,13 +419,15 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             });
             // TODO: There should be some local timeout. And if the remote cluster returns an unknown session
             // response, we should be able to retry by creating a new session.
-            final RestoreSession restoreSession = openSession(metadata.name(), remoteClient, leaderShardId, shardId, recoveryState);
-            toClose.addFirst(restoreSession); // Some tests depend on closing session before cancelling retention lease renewal
-            restoreSession.restoreFiles(store, restoreListener.delegateFailureAndWrap((l, v) -> {
-                logger.trace("[{}] completed CCR restore", shardId);
-                updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, shardId.getIndex());
-                l.onResponse(null);
-            }));
+            ActionListener<RestoreSession> sessionListener = restoreListener.delegateFailureAndWrap((l1, restoreSession) -> {
+                toClose.addFirst(restoreSession); // Some tests depend on closing session before cancelling retention lease renewal
+                restoreSession.restoreFiles(store, l1.delegateFailureAndWrap((l2, v) -> {
+                    logger.trace("[{}] completed CCR restore", shardId);
+                    updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, shardId.getIndex());
+                    l2.onResponse(null);
+                }));
+            });
+            openSession(metadata.name(), remoteClient, leaderShardId, shardId, recoveryState, sessionListener);
         } catch (Exception e) {
             restoreListener.onFailure(e);
         }
@@ -559,31 +561,41 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         }
     }
 
-    RestoreSession openSession(
+    void openSession(
         String repositoryName,
         Client remoteClient,
         ShardId leaderShardId,
         ShardId indexShardId,
-        RecoveryState recoveryState
+        RecoveryState recoveryState,
+        ActionListener<RestoreSession> listener
     ) {
         String sessionUUID = UUIDs.randomBase64UUID();
-        PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(
+        ActionListener<PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse> responseListener = listener.map(
+            response -> new RestoreSession(
+                repositoryName,
+                remoteClient,
+                sessionUUID,
+                response.getNode(),
+                indexShardId,
+                recoveryState,
+                response.getStoreFileMetadata(),
+                response.getMappingVersion(),
+                threadPool,
+                ccrSettings,
+                throttledTime::inc,
+                leaderShardId
+            )
+        );
+        remoteClient.execute(
             PutCcrRestoreSessionAction.INTERNAL_INSTANCE,
-            new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId)
-        ).actionGet(ccrSettings.getRecoveryActionTimeout());
-        return new RestoreSession(
-            repositoryName,
-            remoteClient,
-            sessionUUID,
-            response.getNode(),
-            indexShardId,
-            recoveryState,
-            response.getStoreFileMetadata(),
-            response.getMappingVersion(),
-            threadPool,
-            ccrSettings,
-            throttledTime::inc,
-            leaderShardId
+            new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId),
+            ListenerTimeouts.wrapWithTimeout(
+                threadPool,
+                responseListener,
+                ccrSettings.getRecoveryActionTimeout(),
+                ThreadPool.Names.GENERIC,
+                PutCcrRestoreSessionAction.INTERNAL_NAME
+            )
         );
     }
 

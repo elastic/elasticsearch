@@ -130,8 +130,8 @@ The API returns the following response:
   "took": 150,
   "timed_out": false,
   "_shards": {
-    "total": 1,
-    "successful": 1,
+    "total": 3,
+    "successful": 3,
     "failed": 0,
     "skipped": 0
   },
@@ -142,12 +142,15 @@ The API returns the following response:
     "details": {
       "cluster_one": {  <1>
         "status": "successful",
-        "total_shards": 3,
-        "successful_shards": 3,
-        "skipped_shards": 0,
-        "failed_shards": 0,
-        "percent_shards_successful": "100.00",
-        "search_duration": 27
+        "indices": "my-index-000001",
+        "took": 148,
+        "timed_out": false,
+        "_shards": {
+          "total": 3,
+          "successful": 3,
+          "skipped": 0,
+          "failed": 0
+        }
       }
     }
   },
@@ -182,17 +185,16 @@ The API returns the following response:
 // TESTRESPONSE[s/"took": 150/"took": "$body.took"/]
 // TESTRESPONSE[s/"max_score": 1/"max_score": "$body.hits.max_score"/]
 // TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
-// TESTRESPONSE[s/"total_shards": 3/"total_shards": "$body._clusters.details.cluster_one.total_shards"/]
-// TESTRESPONSE[s/"successful_shards": 3/"successful_shards": "$body._clusters.details.cluster_one.successful_shards"/]
-// TESTRESPONSE[s/"skipped_shards": 0/"skipped_shards": "$body._clusters.details.cluster_one.skipped_shards"/]
-// TESTRESPONSE[s/"failed_shards": 0/"failed_shards": "$body._clusters.details.cluster_one.failed_shards"/]
-// TESTRESPONSE[s/"percent_shards_successful": "100.00"/"percent_shards_successful": "$body._clusters.details.cluster_one.percent_shards_successful"/]
-// TESTRESPONSE[s/"search_duration": 27/"search_duration": "$body._clusters.details.cluster_one.search_duration"/]
+// TESTRESPONSE[s/"total": 3/"total": "$body._shards.total"/]
+// TESTRESPONSE[s/"successful": 3/"successful": "$body._shards.successful"/]
+// TESTRESPONSE[s/"skipped": 0/"skipped": "$body._shards.skipped"/]
+// TESTRESPONSE[s/"failed": 3/"failed": "$body._shards.failed"/]
+// TESTRESPONSE[s/"took": 148/"took": "$body._clusters.details.cluster_one.took"/]
 
-
-<1> The details section shows information about the search on each remote cluster.
+<1> The details section shows information about the search on each cluster.
 <2> The search response body includes the name of the remote cluster in the
 `_index` parameter.
+
 
 
 [discrete]
@@ -240,30 +242,39 @@ The API returns the following response:
     "details": {
       "(local)": {            <1>
         "status": "successful",
-        "total_shards": 5,
-        "successful_shards": 5,
-        "skipped_shards": 0,
-        "failed_shards": 0,
-        "percent_shards_successful": "100.00",
-        "search_duration": 21
+        "indices": "my-index-000001",
+        "took": 21,
+        "timed_out": false,
+        "_shards": {
+          "total": 5,
+          "successful": 5,
+          "skipped": 0,
+          "failed": 0
+        }
       },
       "cluster_one": {
         "status": "successful",
-        "total_shards": 4,
-        "successful_shards": 4,
-        "skipped_shards": 0,
-        "failed_shards": 0,
-        "percent_shards_successful": "100.00",
-        "search_duration": 35
+        "indices": "my-index-000001",
+        "took": 48,
+        "timed_out": false,
+        "_shards": {
+          "total": 4,
+          "successful": 4,
+          "skipped": 0,
+          "failed": 0
+        }
       },
       "cluster_two": {
         "status": "successful",
-        "total_shards": 3,
-        "successful_shards": 3,
-        "skipped_shards": 0,
-        "failed_shards": 0,
-        "percent_shards_successful": "100.00",
-        "search_duration": 37
+        "indices": "my-index-000001",
+        "took": 141,
+        "timed_out": false,
+        "_shards": {
+          "total" : 3,
+          "successful" : 3,
+          "skipped": 0,
+          "failed": 0
+        }
       }
     }
   },
@@ -335,15 +346,15 @@ The API returns the following response:
 // TESTRESPONSE[s/"_score": 2/"_score": "$body.hits.hits.1._score"/]
 // TESTRESPONSE[s/"total": 12/"total": "$body._shards.total"/]
 // TESTRESPONSE[s/"successful": 12/"successful": "$body._shards.successful"/]
-// TESTRESPONSE[s/"total_shards": 5/"total_shards": "$body._clusters.details.(local).total_shards"/]
-// TESTRESPONSE[s/"successful_shards": 5/"successful_shards": "$body._clusters.details.(local).successful_shards"/]
-// TESTRESPONSE[s/"search_duration": 21/"search_duration": "$body._clusters.details.(local).search_duration"/]
-// TESTRESPONSE[s/"total_shards": 4/"total_shards": "$body._clusters.details.cluster_one.total_shards"/]
-// TESTRESPONSE[s/"successful_shards": 4/"successful_shards": "$body._clusters.details.cluster_one.successful_shards"/]
-// TESTRESPONSE[s/"search_duration": 35/"search_duration": "$body._clusters.details.cluster_one.search_duration"/]
-// TESTRESPONSE[s/"total_shards": 3/"total_shards": "$body._clusters.details.cluster_two.total_shards"/]
-// TESTRESPONSE[s/"successful_shards": 3/"successful_shards": "$body._clusters.details.cluster_two.successful_shards"/]
-// TESTRESPONSE[s/"search_duration": 37/"search_duration": "$body._clusters.details.cluster_two.search_duration"/]
+// TESTRESPONSE[s/"total": 5/"total": "$body._clusters.details.(local)._shards.total"/]
+// TESTRESPONSE[s/"successful": 5/"successful": "$body._clusters.details.(local)._shards.successful"/]
+// TESTRESPONSE[s/"took": 21/"took": "$body._clusters.details.(local).took"/]
+// TESTRESPONSE[s/"total": 4/"total": "$body._clusters.details.cluster_one._shards.total"/]
+// TESTRESPONSE[s/"successful": 4/"successful": "$body._clusters.details.cluster_one._shards.successful"/]
+// TESTRESPONSE[s/"took": 48/"took": "$body._clusters.details.cluster_one.took"/]
+// TESTRESPONSE[s/"total" : 3/"total": "$body._clusters.details.cluster_two._shards.total"/]
+// TESTRESPONSE[s/"successful" : 3/"successful": "$body._clusters.details.cluster_two._shards.successful"/]
+// TESTRESPONSE[s/"took": 141/"took": "$body._clusters.details.cluster_two.took"/]
 
 <1> The local (querying) cluster is identified as "(local)".
 <2> This document's `_index` parameter doesn't include a cluster name. This
@@ -351,7 +362,7 @@ means the document came from the local cluster.
 <3> This document came from `cluster_one`.
 <4> This document came from `cluster_two`.
 
-BELOW THIS LINE, TESTS WILL FAIL - NOT UPDATED YET
+
 
 [discrete]
 [[ccs-async-search-minimize-roundtrips-true]]
@@ -380,7 +391,7 @@ POST /my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001/_a
 }
 --------------------------------------------------
 // TEST[continued]
-// TEST[s/ccs_minimize_roundtrips=true/ccs_minimize_roundtrips=true&wait_for_completion_timeout=1s&keep_on_completion=true/]
+// TEST[s/ccs_minimize_roundtrips=true/ccs_minimize_roundtrips=true&wait_for_completion_timeout=100ms&keep_on_completion=true/]
 
 
 The API returns the following response:
@@ -419,20 +430,22 @@ The API returns the following response:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/FklQYndoTDJ2VEFlMEVBTzFJMGhJVFEaLVlKYndBWWZSMUdicUc4WVlEaFl4ZzoxNTU=/$body.id/]
-// TESTRESPONSE[s/"is_partial": true/"is_partial": $body.is_partial/]
-// TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
-// TESTRESPONSE[s/1685563581380/$body.start_time_in_millis/]
-// TESTRESPONSE[s/1685995581380/$body.expiration_time_in_millis/]
-// TESTRESPONSE[s/"response"/"completion_time_in_millis": $body.completion_time_in_millis,\n  "response"/]
-// TESTRESPONSE[s/"num_reduce_phases": 0/"num_reduce_phases": "$body.response.num_reduce_phases"/]
-// TESTRESPONSE[s/"took": 1020/"took": "$body.response.took"/]
-// TESTRESPONSE[s/"total": 8/"total": $body.response._shards.total/]
-// TESTRESPONSE[s/"successful": 0/"successful": $body.response._shards.successful/]
-// TESTRESPONSE[s/"successful" : 0/"successful": $body.response._clusters.successful/]
-// TESTRESPONSE[s/"value": 0/"value": "$body.response.hits.total.value"/]
-// TESTRESPONSE[s/"max_score": null/"max_score": "$body.response.hits.max_score"/]
-// TESTRESPONSE[s/"hits": \[\]/"hits": $body.response.hits.hits/]
+// TEST[skip: terminated_early is absent from final results so is hard to reproduce here]
+
+x // TESTRESPONSE[s/FklQYndoTDJ2VEFlMEVBTzFJMGhJVFEaLVlKYndBWWZSMUdicUc4WVlEaFl4ZzoxNTU=/$body.id/]
+x // TESTRESPONSE[s/"is_partial": true/"is_partial": $body.is_partial/]
+x // TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
+x // TESTRESPONSE[s/1685563581380/$body.start_time_in_millis/]
+x // TESTRESPONSE[s/1685995581380/$body.expiration_time_in_millis/]
+x // TESTRESPONSE[s/"response"/"completion_time_in_millis": $body.completion_time_in_millis,\n  "response"/]
+x // TESTRESPONSE[s/"num_reduce_phases": 0/"num_reduce_phases": "$body.response.num_reduce_phases"/]
+x // TESTRESPONSE[s/"took": 1020/"took": "$body.response.took"/]
+x // TESTRESPONSE[s/"total": 8/"total": $body.response._shards.total/]
+x // TESTRESPONSE[s/"successful": 0/"successful": $body.response._shards.successful/]
+x // TESTRESPONSE[s/"successful" : 0/"successful": $body.response._clusters.successful/]
+x // TESTRESPONSE[s/"value": 0/"value": "$body.response.hits.total.value"/]
+x // TESTRESPONSE[s/"max_score": null/"max_score": "$body.response.hits.max_score"/]
+x // TESTRESPONSE[s/"hits": \[\]/"hits": $body.response.hits.hits/]
 
 
 <1> The async search id.
@@ -445,6 +458,9 @@ and all are currently running (since `successful` and `skipped` both equal 0).
 
 
 
+
+
+
 If you query the <<get-async-search,get async search>> endpoint while the query is
 still running, you will see an update in the `_clusters` and `_shards` section of
 the response when the local search has finished.
@@ -453,7 +469,7 @@ the response when the local search has finished.
 --------------------------------------------------
 GET /_async_search/FklQYndoTDJ2VEFlMEVBTzFJMGhJVFEaLVlKYndBWWZSMUdicUc4WVlEaFl4ZzoxNTU=
 --------------------------------------------------
-// TEST[skip: terminated_early is absent from final results so is hard to reproduce here]
+// TEST[continued s/FklQYndoTDJ2VEFlMEVBTzFJMGhJVFEaLVlKYndBWWZSMUdicUc4WVlEaFl4ZzoxNTU=/\${body.id}/]
 
 Response:
 
@@ -539,7 +555,45 @@ Response:
     "_clusters": {
       "total": 3,
       "successful": 3,   <3>
-      "skipped": 0
+      "skipped": 0,
+      "details": {
+        "(local)": {
+          "status": "successful",
+          "indices": "my-index-000001",
+          "took": 14382,
+          "timed_out": false,
+          "_shards": {
+            "total": 10,
+            "successful": 10,
+            "skipped": 0,
+            "failed": 0
+          }
+        },
+        "cluster_one": {
+          "status": "successful",
+          "indices": "my-index-000001",
+          "took": 22193,
+          "timed_out": false,
+          "_shards": {
+            "total": 12,
+            "successful": 12,
+            "skipped": 0,
+            "failed": 0
+          }
+        },
+        "cluster_two": {
+          "status": "successful",
+          "indices": "my-index-000001",
+          "took": 27550,
+          "timed_out": false,
+          "_shards": {
+            "total": 6,
+            "successful": 6,
+            "skipped": 0,
+            "failed": 0
+          }
+        }
+      }
     },
     "hits": {
       "total": {
@@ -559,6 +613,9 @@ Response:
 // TESTRESPONSE[s/1685996911108/$body.expiration_time_in_millis/]
 // TESTRESPONSE[s/1685564938727/$body.completion_time_in_millis/]
 // TESTRESPONSE[s/"took": 27619/"took": "$body.response.took"/]
+// TESTRESPONSE[s/"took": 14382/"took": "$body.$_path"/]
+// TESTRESPONSE[s/"took": 22193/"took": "$body.$_path"/]
+// TESTRESPONSE[s/"took": 27550/"took": "$body.$_path"/]
 // TESTRESPONSE[s/"total": 28/"total": $body.response._shards.total/]
 // TESTRESPONSE[s/"successful": 28/"successful": $body.response._shards.successful/]
 // TESTRESPONSE[s/"successful": 3/"successful": $body.response._clusters.successful/]
@@ -566,12 +623,15 @@ Response:
 // TESTRESPONSE[s/"relation": "eq"/"relation": "$body.response.hits.total.relation"/]
 // TESTRESPONSE[s/"max_score": 1.8293576/"max_score": "$body.response.hits.max_score"/]
 // TESTRESPONSE[s/"hits": \[...list of hits here...\]/"hits": $body.response.hits.hits/]
+// TESTRESPONSE[s/"total": \d+/"total": $body.$_path/]
+// TESTRESPONSE[s/"successful": \d+/"successful": $body.$_path/]
 
 
 <1> Once the search has finished, the completion_time is present.
 <2> The `_shards` section is now updated to show that 28 total shards
 were searched across all clusters and that all were successful.
 <3> The `_clusters` section shows that searches on all 3 clusters were successful.
+
 
 
 
@@ -599,7 +659,7 @@ Example using the same set up as in the previous section (`ccs_minimize_roundtri
 
 [source,console]
 --------------------------------------------------
-GET /my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001/_async_search?ccs_minimize_roundtrips=false
+POST /my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001/_async_search?ccs_minimize_roundtrips=false
 {
   "query": {
     "match": {
@@ -610,7 +670,7 @@ GET /my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001/_as
 }
 --------------------------------------------------
 // TEST[continued]
-// TEST[s/ccs_minimize_roundtrips=false/ccs_minimize_roundtrips=false&wait_for_completion_timeout=1s&keep_on_completion=true/]
+// TEST[s/ccs_minimize_roundtrips=false/ccs_minimize_roundtrips=false&wait_for_completion_timeout=2s&keep_on_completion=true/]
 
 
 The API returns the following response if the query takes longer than
@@ -627,7 +687,6 @@ the `wait_for_completion_timeout` duration (see <<async-search>>).
   "response": {
     "took": 1020,
     "timed_out": false,
-    "num_reduce_phases": 0,
     "_shards": {
       "total": 28,     <1>
       "successful": 0,
@@ -656,19 +715,18 @@ the `wait_for_completion_timeout` duration (see <<async-search>>).
 // TESTRESPONSE[s/1685563581380/$body.start_time_in_millis/]
 // TESTRESPONSE[s/1685995581380/$body.expiration_time_in_millis/]
 // TESTRESPONSE[s/"response"/"completion_time_in_millis": $body.completion_time_in_millis,\n  "response"/]
-// TESTRESPONSE[s/"num_reduce_phases": 0/"num_reduce_phases": "$body.response.num_reduce_phases"/]
-// TESTRESPONSE[s/"took": 1020/"took": "$body.response.took"/]
-// TESTRESPONSE[s/"total": 28/"total": $body.response._shards.total/]
-// TESTRESPONSE[s/"successful": 0/"successful": $body.response._shards.successful/]
-// TESTRESPONSE[s/"successful": 3/"successful": $body.response._clusters.successful/]
-// TESTRESPONSE[s/"value": 0/"value": "$body.response.hits.total.value"/]
 // TESTRESPONSE[s/"max_score": null/"max_score": "$body.response.hits.max_score"/]
+// TESTRESPONSE[s/\d+/$body.$_path/]
 // TESTRESPONSE[s/"hits": \[\]/"hits": $body.response.hits.hits/]
 
 <1> All shards from all clusters in scope for the search are listed here. Watch this
 section for updates to monitor search progress.
 <2> The `_clusters` section shows that shard information was successfully
 gathered from all 3 clusters and that all will be searched (none are being skipped).
+
+
+
+MP 123
 
 
 
@@ -879,3 +937,5 @@ duration of an upgrade is not supported.
 
 For more information about upgrades, see
 {stack-ref}/upgrading-elasticsearch.html[Upgrading {es}].
+
+

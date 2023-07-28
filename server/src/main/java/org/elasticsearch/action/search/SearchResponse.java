@@ -803,9 +803,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             if (clusterAlias.equals("")) {
                 name = "(local)";
             }
-            builder.startObject(name + ":" + indexExpression);
+            builder.startObject(name);
             {
                 builder.field("status", getStatus().toString());
+                builder.field("indices", indexExpression);
                 if (took.get() > 0) {
                     builder.field("took", took.doubleValue());
                 }

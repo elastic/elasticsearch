@@ -46,7 +46,7 @@ The synonym rules definitions for the synonyms set.
 (Optional, string)
 // TODO link to synonym rules APIs
 The identifier associated to the synonym rule, that can be used to manage individual synonym rules via Synonym Rules APIs.
-In case a synonym rule id is not specified, an identifier will be created automatically by the API.
+In case a synonym rule id is not specified, an identifier will be created automatically by {es}.
 
 `synonyms`::
 (Requried, string)

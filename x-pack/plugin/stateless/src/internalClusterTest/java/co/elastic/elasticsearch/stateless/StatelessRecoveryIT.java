@@ -18,7 +18,6 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
-import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
@@ -42,6 +41,8 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -60,6 +61,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
@@ -83,7 +85,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
+import java.util.stream.IntStream;
 
+import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -315,7 +320,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         final var delayedRequestFuture = new PlainActionFuture<Runnable>();
         final var delayedRequestFutureOnce = ActionListener.assertOnce(delayedRequestFuture);
         transportService.addRequestHandlingBehavior(
-            TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME,
+            START_RELOCATION_ACTION_NAME,
             (handler, request, channel, task) -> delayedRequestFutureOnce.onResponse(
                 () -> ActionListener.run(new ChannelActionListener<>(channel), l -> handler.messageReceived(request, channel, task))
             )
@@ -373,7 +378,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             allAttemptsFuture
         );
         transportService.addRequestHandlingBehavior(
-            TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME,
+            START_RELOCATION_ACTION_NAME,
             (handler, request, channel, task) -> ActionListener.completeWith(attemptListener, () -> {
                 channel.sendResponse(new ElasticsearchException("simulated"));
                 return null;
@@ -406,7 +411,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         final var allAttemptsFuture = new PlainActionFuture<Void>();
         final var attemptListener = new CountDownActionListener(1, allAttemptsFuture); // to assert that there's only one attempt
         transportService.addRequestHandlingBehavior(
-            TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME,
+            START_RELOCATION_ACTION_NAME,
             (handler, request, channel, task) -> ActionListener.run(
                 new ChannelActionListener<>(channel).<TransportResponse>delegateFailure((l, r) -> {
                     attemptListener.onResponse(null);
@@ -910,4 +915,185 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertThat(recoveryStats.currentAsTarget(), equalTo(0));
     };
 
+    public void testRecoverSearchShardWithObjectStoreFailures() throws Exception {
+        final String indexName = "test";
+        startIndexNode();
+        final String searchNode = startSearchNode();
+        ensureStableCluster(3);
+        createIndex(indexName, indexSettings(1, 0).build());
+        int numDocs = scaledRandomIntBetween(25, 250);
+        indexDocsAndRefresh(indexName, numDocs);
+        ensureSearchable(indexName);
+
+        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, searchNode);
+        MockRepository repository = (MockRepository) objectStoreService.getObjectStore();
+        repository.setRandomControlIOExceptionRate(1.0);
+        repository.setRandomDataFileIOExceptionRate(1.0);
+        repository.setMaximumNumberOfFailures(1);
+        if (randomBoolean()) repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
+
+        logger.info("--> starting search shard");
+        setReplicaCount(1, indexName);
+
+        ensureGreen();
+        assertThat(repository.getFailureCount(), greaterThan(0L));
+        assertHitCount(client().prepareSearch(indexName).get(), numDocs);
+    }
+
+    public void testRelocateSearchShardWithObjectStoreFailures() throws Exception {
+        final String indexName = "test";
+        startIndexNode();
+        final String searchNodeA = startSearchNode();
+        ensureStableCluster(3);
+        createIndex(indexName, indexSettings(1, 1).build());
+        int numDocs = scaledRandomIntBetween(25, 250);
+        indexDocsAndRefresh(indexName, numDocs);
+        final String searchNodeB = startSearchNode();
+        ensureStableCluster(4);
+
+        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, searchNodeB);
+        MockRepository repository = (MockRepository) objectStoreService.getObjectStore();
+        repository.setRandomControlIOExceptionRate(1.0);
+        repository.setRandomDataFileIOExceptionRate(1.0);
+        repository.setMaximumNumberOfFailures(1);
+        if (randomBoolean()) repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
+
+        logger.info("--> move replica shard from: {} to: {}", searchNodeA, searchNodeB);
+        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, searchNodeA, searchNodeB)).execute().actionGet();
+
+        ensureGreen();
+        assertThat(repository.getFailureCount(), greaterThan(0L));
+        assertNodeHasNoCurrentRecoveries(searchNodeB);
+        final String searchNodeBId = internalCluster().getInstance(ClusterService.class, searchNodeB).localNode().getId();
+        assertThat(findSearchShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(searchNodeBId));
+        assertHitCount(client(searchNodeB).prepareSearch(indexName).setPreference("_local").get(), numDocs);
+    }
+
+    public void testRecoverIndexingShardWithObjectStoreFailures() throws Exception {
+        final String indexNodeA = startIndexNode();
+        ensureStableCluster(2);
+        final String indexName = "test";
+        createIndex(indexName, indexSettings(1, 0).build());
+        int numDocs = scaledRandomIntBetween(1, 10);
+        indexDocs(indexName, numDocs);
+
+        final String indexNodeB = startIndexNode();
+        ensureStableCluster(3);
+
+        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeB);
+        MockRepository repository = (MockRepository) objectStoreService.getObjectStore();
+        repository.setRandomControlIOExceptionRate(1.0);
+        repository.setRandomDataFileIOExceptionRate(1.0);
+        repository.setMaximumNumberOfFailures(1);
+        if (randomBoolean()) {
+            repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
+        } else if (randomBoolean()) {
+            repository.setRandomIOExceptionPattern(".*translog.*");
+        }
+
+        logger.info("--> stopping node [{}]", indexNodeA);
+        internalCluster().stopNode(indexNodeA);
+        ensureStableCluster(2);
+
+        ensureGreen();
+        assertNodeHasNoCurrentRecoveries(indexNodeB);
+        assertThat(repository.getFailureCount(), greaterThan(0L));
+        // Assert docs count
+        Index index = resolveIndices().entrySet().stream().filter(e -> e.getKey().getName().equals(indexName)).findAny().get().getKey();
+        var indexShard = internalCluster().getInstance(IndicesService.class, indexNodeB).indexService(index).getShard(0);
+        assertThat(indexShard.docStats().getCount(), equalTo((long) numDocs));
+    }
+
+    public void testRelocateIndexingShardWithObjectStoreFailures() throws Exception {
+        final String indexNodeA = startIndexNode();
+        ensureStableCluster(2);
+        final String indexName = "test";
+        createIndex(indexName, indexSettings(1, 0).build());
+        int numDocs = scaledRandomIntBetween(1, 10);
+        indexDocs(indexName, numDocs);
+
+        final String indexNodeB = startIndexNode();
+        ensureStableCluster(3);
+
+        boolean failuresOnSource = randomBoolean(); // else failures on target node
+        ObjectStoreService objectStoreService = internalCluster().getInstance(
+            ObjectStoreService.class,
+            failuresOnSource ? indexNodeA : indexNodeB
+        );
+        MockRepository repository = (MockRepository) objectStoreService.getObjectStore();
+        repository.setRandomControlIOExceptionRate(1.0);
+        repository.setRandomDataFileIOExceptionRate(1.0);
+        repository.setMaximumNumberOfFailures(1);
+        if (randomBoolean()) {
+            repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
+        } else if (failuresOnSource == false && randomBoolean()) {
+            // source node does not do anything with the translog at this point
+            // target node lists the translog blobs, but skips them (since the translog recovery start file is greater than what it lists)
+            repository.setRandomIOExceptionPattern(".*translog.*");
+        }
+
+        logger.info("--> move primary shard from: {} to: {}", indexNodeA, indexNodeB);
+        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB)).execute().actionGet();
+
+        ensureGreen();
+        assertThat(repository.getFailureCount(), greaterThan(0L));
+        assertNodeHasNoCurrentRecoveries(indexNodeB);
+        final String nodeBId = internalCluster().getInstance(ClusterService.class, indexNodeB).localNode().getId();
+        assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(nodeBId));
+        // Assert docs count
+        Index index = resolveIndices().entrySet().stream().filter(e -> e.getKey().getName().equals(indexName)).findAny().get().getKey();
+        var indexShard = internalCluster().getInstance(IndicesService.class, indexNodeB).indexService(index).getShard(0);
+        assertThat(indexShard.docStats().getCount(), equalTo((long) numDocs));
+    }
+
+    public void testIndexShardRecoveryDoesNotUseTranslogOperationsBeforeFlush() throws Exception {
+        final String indexNodeA = startIndexNode();
+
+        String indexName = "test-index";
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
+        indexRandom(
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
+        );
+
+        final String indexNodeB = startIndexNode();
+        ensureStableCluster(3);
+
+        final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+        final DiscoveryNodes discoveryNodes = clusterService().state().nodes();
+        final IndexShardRoutingTable indexShardRoutingTable = clusterService().state().routingTable().shardRoutingTable(shardId);
+
+        final IndexShard primary = internalCluster().getInstance(
+            IndicesService.class,
+            discoveryNodes.get(indexShardRoutingTable.primaryShard().currentNodeId()).getName()
+        ).getShardOrNull(shardId);
+        final long maxSeqNoBeforeFlush = primary.seqNoStats().getMaxSeqNo();
+        assertBusy(() -> assertThat(primary.getLastSyncedGlobalCheckpoint(), equalTo(maxSeqNoBeforeFlush)));
+        assertThat(indicesAdmin().prepareFlush(indexName).get().getFailedShards(), is(0));
+
+        indexRandom(
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
+        );
+
+        final long maxSeqNoAfterFlush = primary.seqNoStats().getMaxSeqNo();
+        logger.info("--> stopping node {} in order to re-allocate indexing shard on node {}", indexNodeA, indexNodeB);
+        internalCluster().stopNode(indexNodeA);
+        ensureGreen(indexName);
+
+        // noinspection OptionalGetWithoutIsPresent because it fails the test if absent
+        final RecoveryState recoveryState = indicesAdmin().prepareRecoveries(indexName)
+            .get()
+            .shardRecoveryStates()
+            .get(indexName)
+            .stream()
+            .filter(RecoveryState::getPrimary)
+            .findFirst()
+            .get();
+        assertThat((long) recoveryState.getTranslog().recoveredOperations(), lessThanOrEqualTo(maxSeqNoAfterFlush - maxSeqNoBeforeFlush));
+    }
 }

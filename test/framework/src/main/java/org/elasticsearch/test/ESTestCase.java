@@ -39,7 +39,6 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
@@ -1294,21 +1293,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /** Return consistent index settings for the provided index version. */
-    @Deprecated
-    public static Settings.Builder settings(Version version) {
-        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
-    }
-
-    /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(IndexVersion version) {
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
-    }
-
-    /** Return consistent index settings for the provided index version, shard- and replica-count. */
-    @Deprecated
-    public static Settings.Builder indexSettings(Version indexVersionCreated, int shards, int replicas) {
-        return settings(indexVersionCreated).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
     }
 
     /** Return consistent index settings for the provided index version, shard- and replica-count. */

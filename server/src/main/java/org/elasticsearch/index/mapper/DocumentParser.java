@@ -421,7 +421,13 @@ public final class DocumentParser {
         Mapper objectMapper = context.getMapper(currentFieldName);
         if (objectMapper != null) {
             context.path().add(currentFieldName);
+            if (objectMapper instanceof ObjectMapper objMapper) {
+                if (objMapper.subobjects() == false) {
+                    context.path().setWithinLeafObject(true);
+                }
+            }
             parseObjectOrField(context, objectMapper);
+            context.path().setWithinLeafObject(false);
             context.path().remove();
         } else {
             DynamicTemplate dynamicTemplate = context.findDynamicTemplate(currentFieldName, DynamicTemplate.XContentFieldType.OBJECT);

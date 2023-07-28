@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -24,7 +23,6 @@ import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.functionscore;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -32,7 +31,6 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 

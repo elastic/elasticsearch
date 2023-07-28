@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -21,7 +20,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 

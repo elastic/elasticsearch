@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -18,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;

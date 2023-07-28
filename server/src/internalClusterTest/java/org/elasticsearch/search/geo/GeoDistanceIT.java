@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -29,7 +28,6 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.range.InternalGeoDistance;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;

@@ -21,7 +21,6 @@ import org.elasticsearch.index.seqno.RetentionLeaseUtils;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.ArrayList;

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.sort;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -19,7 +18,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 

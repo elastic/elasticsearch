@@ -15,8 +15,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
-import org.elasticsearch.plugins.internal.DocumentParsingObserverPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;

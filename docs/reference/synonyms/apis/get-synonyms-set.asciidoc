@@ -49,11 +49,34 @@ No synonyms set with the identifier `synonyms_set` was found.
 
 The following example retrieves a synonyms set called `my-synonyms-set`:
 
+////
+[source,console]
+----
+PUT _synonyms/my-synonyms-set
+{
+  "synonyms_set": [
+    {
+      "id": "test-1",
+      "synonyms": "hello, hi"
+    },
+    {
+      "id": "test-2",
+      "synonyms": "bye, goodbye"
+    },
+    {
+      "id": "test-3",
+      "synonyms": "test => check"
+    }
+  ]
+}
+----
+// TESTSETUP
+////
+
 [source,console]
 ----
 GET _synonyms/my-synonyms-set
 ----
-// TEST[skip:TBD]
 
 The synonyms set information returned will include the total number of synonyms rules that the synonyms set contains, and the synonyms rules according to the `from` and `size` parameters.
 
@@ -62,7 +85,7 @@ A sample response:
 [source,console-result]
 ----
 {
-  "count": 2,
+  "count": 3,
   "synonyms_set": [
     {
       "id": "test-1",
@@ -70,9 +93,12 @@ A sample response:
     },
     {
       "id": "test-2",
+      "synonyms": "bye, goodbye"
+    },
+    {
+      "id": "test-3",
       "synonyms": "test => check"
     }
   ]
 }
 ----
-// TEST[skip:TBD]

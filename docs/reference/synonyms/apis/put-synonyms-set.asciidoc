@@ -124,7 +124,7 @@ PUT _synonyms/my-synonyms-set
 When an existing synonyms set is updated, the <<search-analyzer, search analyzers>> that use the synonyms set are reloaded automatically for all indices.
 This would be equivalent to invoking <<indices-reload-analyzers>> for all indices that use the synonyms set.
 
-For example, creating an index with a synonym set and updating it:
+For example, creating an index with a synonyms set and updating it:
 
 [source,console]
 ----

@@ -334,7 +334,7 @@ public class SynonymsManagementAPIService {
                         deleteListener.delegateFailure(
                             (checkListener, obj) -> checkListener.onFailure(
                                 new ResourceNotFoundException(
-                                    "synonym rule [" + synonymRuleId + "] not found on synonym set [" + synonymSetId + "]"
+                                    "synonym rule [" + synonymRuleId + "] not found on synonyms set [" + synonymSetId + "]"
                                 )
                             )
                         )
@@ -381,7 +381,7 @@ public class SynonymsManagementAPIService {
         client.prepareGet(SYNONYMS_ALIAS_NAME, synonymsSetId)
             .execute(new DelegatingIndexNotFoundActionListener<>(synonymsSetId, listener, (l, getResponse) -> {
                 if (getResponse.isExists() == false) {
-                    l.onFailure(new ResourceNotFoundException("Synonym set [" + synonymsSetId + "] not found"));
+                    l.onFailure(new ResourceNotFoundException("Synonyms set [" + synonymsSetId + "] not found"));
                     return;
                 }
                 l.onResponse(null);
@@ -409,7 +409,7 @@ public class SynonymsManagementAPIService {
                     .collect(Collectors.toSet());
                 reloadListener.onFailure(
                     new IllegalArgumentException(
-                        "Synonym set ["
+                        "Synonyms set ["
                             + synonymSetId
                             + "] cannot be deleted as it is used in the following indices: "
                             + String.join(", ", indices)
@@ -421,14 +421,14 @@ public class SynonymsManagementAPIService {
             deleteSynonymsSetObjects(synonymSetId, listener.delegateFailure((deleteObjectsListener, bulkByScrollResponse) -> {
                 if (bulkByScrollResponse.getDeleted() == 0) {
                     // If nothing was deleted, synonym set did not exist
-                    deleteObjectsListener.onFailure(new ResourceNotFoundException("Synonym set [" + synonymSetId + "] not found"));
+                    deleteObjectsListener.onFailure(new ResourceNotFoundException("Synonyms set [" + synonymSetId + "] not found"));
                     return;
                 }
                 final List<BulkItemResponse.Failure> bulkFailures = bulkByScrollResponse.getBulkFailures();
                 if (bulkFailures.isEmpty() == false) {
                     deleteObjectsListener.onFailure(
                         new InvalidParameterException(
-                            "Error deleting synonym set: "
+                            "Error deleting synonyms set: "
                                 + bulkFailures.stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.joining("\n"))
                         )
                     );
@@ -499,7 +499,7 @@ public class SynonymsManagementAPIService {
         public void onFailure(Exception e) {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof IndexNotFoundException) {
-                delegate.onFailure(new ResourceNotFoundException("synonym set [" + synonymSetId + "] not found"));
+                delegate.onFailure(new ResourceNotFoundException("synonyms set [" + synonymSetId + "] not found"));
                 return;
             }
             delegate.onFailure(e);

@@ -144,10 +144,6 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             return debug;
         }
 
-        public Map<String, List<String>> headers() {
-            return headers;
-        }
-
         private String header(String header) {
             final List<String> values = headers.get(header);
             if (values != null && values.isEmpty() == false) {

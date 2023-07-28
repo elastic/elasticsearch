@@ -101,5 +101,5 @@ spec:
       schedules:
         Periodically on main:
           branch: main
-          cronline: "0 0,8,16  * * America/New_York"
+          cronline: "0 0,8,16 * * * America/New_York"
           message: "Tests and checks that are run 3x daily"

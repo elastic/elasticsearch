@@ -275,7 +275,7 @@ public class SearchEngine extends Engine {
     }
 
     @Override
-    protected SegmentInfos getLastCommittedSegmentInfos() {
+    public SegmentInfos getLastCommittedSegmentInfos() {
         return segmentInfos;
     }
 

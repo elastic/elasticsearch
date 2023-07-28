@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
-import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsReader;
 
@@ -41,6 +40,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -49,6 +49,8 @@ import java.util.concurrent.ConcurrentMap;
  * and periodically sending updates to the elected master
  */
 public class ShardSizesCollector implements ClusterStateListener {
+
+    private static final Logger logger = LogManager.getLogger(ShardSizesCollector.class);
 
     public static final Setting<TimeValue> BOOST_WINDOW_SETTING = Setting.timeSetting(
         "serverless.search.boost_window",
@@ -79,8 +81,6 @@ public class ShardSizesCollector implements ClusterStateListener {
     // Minimum transport version required for master to be able to handle the metric publications
     private static final TransportVersion REQUIRED_VERSION = TransportVersion.V_8_500_027;
 
-    private static final Logger logger = LogManager.getLogger(IndexDirectory.class);
-
     private final ThreadPool threadPool;
     private final ShardSizeStatsReader shardSizeStatsReader;
     private final ShardSizesPublisher shardSizesPublisher;
@@ -105,7 +105,7 @@ public class ShardSizesCollector implements ClusterStateListener {
         private synchronized boolean add(ShardId shardId, ShardSize size) {
             var previousSize = pastPublications.getOrDefault(shardId, ShardSize.EMPTY);
             long delta = size.interactiveSizeInBytes() - previousSize.interactiveSizeInBytes();
-            if (previousSize == ShardSize.EMPTY || delta > 0) {
+            if (Objects.equals(previousSize, size) == false) {
                 shards.put(shardId, size);
             }
             interactiveSizeDiffInBytes += delta;
@@ -226,6 +226,7 @@ public class ShardSizesCollector implements ClusterStateListener {
     public void detectShardSize(ShardId shardId) {
         assert isSearchNode : "Should be executed only on search nodes";
         var shardSize = shardSizeStatsReader.getShardSize(shardId, boostWindowInterval);
+        logger.debug("Detected size {} for shard {}", shardSize, shardId);
         if (shardSize != null && pendingPublication.add(shardId, shardSize)) {
             publishDiffNow();
         }
@@ -244,6 +245,7 @@ public class ShardSizesCollector implements ClusterStateListener {
         pastPublications.clear();
 
         var allShardSizes = shardSizeStatsReader.getAllShardSizes(boostWindowInterval);
+        logger.debug("Publishing all shard sized {}", allShardSizes);
         shardSizesPublisher.publishSearchShardDiskUsage(nodeId, allShardSizes, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
@@ -287,6 +289,7 @@ public class ShardSizesCollector implements ClusterStateListener {
             }
 
             var shards = pendingPublication.drain();
+            logger.debug("Publishing shard sizes diff {}", shards);
             shardSizesPublisher.publishSearchShardDiskUsage(nodeId, shards, new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {

@@ -6,13 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.internal.document_parsing_observer;
+package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
-import org.elasticsearch.plugins.internal.DocumentParsingObserverFactory;
 import org.elasticsearch.plugins.internal.DocumentParsingObserverPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
@@ -22,6 +21,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.XContentFactory.cborBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -41,7 +41,7 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
         client().index(
             new IndexRequest(TEST_INDEX_NAME).id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
         ).actionGet();
-       assertTrue(hasWrappedParser);
+        assertTrue(hasWrappedParser);
         // more assertions in a TestDocumentParsingObserver
 
         hasWrappedParser = false;
@@ -51,7 +51,6 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
         ).actionGet();
         assertTrue(hasWrappedParser);
         // more assertions in a TestDocumentParsingObserver
-
 
         hasWrappedParser = false;
         // white spaces does not matter
@@ -73,17 +72,18 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
 
     public static class TestDocumentParsingObserverPlugin extends Plugin implements DocumentParsingObserverPlugin, IngestPlugin {
 
-        public TestDocumentParsingObserverPlugin() {
-        }
+        public TestDocumentParsingObserverPlugin() {}
 
         @Override
-        public DocumentParsingObserverFactory getDocumentParsingObserverSupplier() {
+        public Supplier<DocumentParsingObserver> getDocumentParsingObserverSupplier() {
             return () -> new TestDocumentParsingObserver();
         }
     }
 
     public static class TestDocumentParsingObserver implements DocumentParsingObserver {
         long counter = 0;
+        String indexName;
+
         @Override
         public XContentParser wrapParser(XContentParser xContentParser) {
             hasWrappedParser = true;
@@ -97,7 +97,12 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
         }
 
         @Override
-        public void parsingFinished(String indexName) {
+        public void setIndexName(String indexName) {
+            this.indexName = indexName;
+        }
+
+        @Override
+        public void close() {
             assertThat(indexName, equalTo(TEST_INDEX_NAME));
             assertThat(counter, equalTo(5L));
         }

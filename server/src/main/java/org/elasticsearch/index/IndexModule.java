@@ -57,7 +57,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserverFactory;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -77,6 +77,7 @@ import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * IndexModule represents the central extension point for index level custom implementations like:
@@ -164,7 +165,7 @@ public final class IndexModule {
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
     private final EngineFactory engineFactory;
-    private final DocumentParsingObserverFactory documentParsingObserverFactory;
+    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
     private final SetOnce<DirectoryWrapper> indexDirectoryWrapper = new SetOnce<>();
     private final SetOnce<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper =
         new SetOnce<>();
@@ -188,7 +189,7 @@ public final class IndexModule {
      * @param analysisRegistry   the analysis registry
      * @param engineFactory      the engine factory
      * @param directoryFactories the available store types
-     * @param documentParsingObserverFactory the document reporter factory
+     * @param documentParsingObserverSupplier the document reporter factory
      */
     public IndexModule(
         final IndexSettings indexSettings,
@@ -198,12 +199,12 @@ public final class IndexModule {
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        final DocumentParsingObserverFactory documentParsingObserverFactory
+        final Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
-        this.documentParsingObserverFactory = documentParsingObserverFactory;
+        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
         this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
         this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
@@ -541,7 +542,7 @@ public final class IndexModule {
                 indexFoldersDeletionListener,
                 snapshotCommitSupplier,
                 indexCommitListener.get(),
-                documentParsingObserverFactory
+                documentParsingObserverSupplier
             );
             success = true;
             return indexService;
@@ -652,7 +653,7 @@ public final class IndexModule {
             },
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
             scriptService,
-            documentParsingObserverFactory
+            documentParsingObserverSupplier
         );
     }
 

@@ -10,12 +10,14 @@ package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.Closeable;
+
 /**
  * An interface to allow wrapping an XContentParser and observe the events emitted while parsing
  * A default implementation returns a noop DocumentParsingObserver - does not wrap a XContentParser and
  * does not do anything upon finishing parsing.
  */
-public interface DocumentParsingObserver {
+public interface DocumentParsingObserver extends Closeable {
     /**
      * a default noop implementation
      */
@@ -26,14 +28,17 @@ public interface DocumentParsingObserver {
         }
 
         @Override
-        public void parsingFinished(String indexName) {
-        }
+        public void setIndexName(String indexName) {}
+
+        @Override
+        public void close() {}
     };
 
     /**
      * Decorates a provided xContentParser with additional logic (gather some state).
      * The Decorator parser should use a state from DocumentParsingObserver
-     * in order to allow a parsingFinished method to use that state
+     * in order to perform an action upon finished parsing which will be aware of the state
+     * gathered during parsing
      *
      * @param xContentParser to be decorated
      * @return a decorator xContentParser
@@ -41,9 +46,13 @@ public interface DocumentParsingObserver {
     XContentParser wrapParser(XContentParser xContentParser);
 
     /**
-     * Reports (perhaps to some external components) the state that was gathered by a decorated wrap
-     *
+     * Sets an indexName associated with parsed document.
      * @param indexName an index name that is associated with the parsed document
      */
-    void parsingFinished(String indexName);
+    void setIndexName(String indexName);
+
+    /**
+     * An action to be performed upon finished parsing.
+     */
+    void close();
 }

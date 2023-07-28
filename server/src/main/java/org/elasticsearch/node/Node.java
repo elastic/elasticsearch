@@ -178,9 +178,9 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TracerPlugin;
-import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserverFactory;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.plugins.internal.DocumentParsingObserverPlugin;
+import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -247,6 +247,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -521,7 +522,7 @@ public class Node implements Closeable {
                 );
             }
 
-            DocumentParsingObserverFactory documentParsingObserverFactory = getDocumentParsingObserverFactory();
+            Supplier<DocumentParsingObserver> documentParsingObserverSupplier = getDocumentParsingObserverSupplier();
 
             final IngestService ingestService = new IngestService(
                 clusterService,
@@ -532,7 +533,7 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(IngestPlugin.class),
                 client,
                 IngestService.createGrokThreadWatchdog(this.environment, threadPool),
-                documentParsingObserverFactory
+                documentParsingObserverSupplier
             );
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
@@ -692,7 +693,7 @@ public class Node implements Closeable {
                 indexFoldersDeletionListeners,
                 snapshotCommitSuppliers,
                 searchModule.getRequestCacheKeyDifferentiator(),
-                documentParsingObserverFactory
+                documentParsingObserverSupplier
             );
 
             final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
@@ -1147,7 +1148,6 @@ public class Node implements Closeable {
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
                 b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
                 b.bind(HealthPeriodicLogger.class).toInstance(healthPeriodicLogger);
-                b.bind(DocumentParsingObserverFactory.class).toInstance(documentParsingObserverFactory);
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1205,12 +1205,12 @@ public class Node implements Closeable {
         }
     }
 
-    private DocumentParsingObserverFactory getDocumentParsingObserverFactory() {
+    private Supplier<DocumentParsingObserver> getDocumentParsingObserverSupplier() {
         List<DocumentParsingObserverPlugin> plugins = pluginsService.filterPlugins(DocumentParsingObserverPlugin.class);
         if (plugins.size() == 1) {
             return plugins.get(0).getDocumentParsingObserverSupplier();
         } else if (plugins.size() == 0) {
-            return DocumentParsingObserverFactory.EMPTY_INSTANCE;
+            return () -> DocumentParsingObserver.EMPTY_INSTANCE;
         }
         throw new IllegalStateException("too many DocumentParsingObserverPlugin instances");
     }

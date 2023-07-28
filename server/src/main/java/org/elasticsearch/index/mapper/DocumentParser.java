@@ -20,7 +20,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
-import org.elasticsearch.plugins.internal.DocumentParsingObserverFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -39,6 +38,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * A parser for documents
@@ -46,17 +46,17 @@ import java.util.function.Consumer;
 public final class DocumentParser {
 
     private final XContentParserConfiguration parserConfiguration;
-    private final DocumentParsingObserverFactory documentParsingObserverFactory;
+    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
     private final MappingParserContext mappingParserContext;
 
     DocumentParser(
         XContentParserConfiguration parserConfiguration,
         MappingParserContext mappingParserContext,
-        DocumentParsingObserverFactory documentParsingObserverFactory
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
         this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
-        this.documentParsingObserverFactory = documentParsingObserverFactory;
+        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
     }
 
     /**
@@ -76,7 +76,7 @@ public final class DocumentParser {
 
         // only observe a document if it was not already reported (done in IngestService)
         DocumentParsingObserver documentParsingObserver = source.toBeReported()
-            ? documentParsingObserverFactory.createDocumentParsingObserver()
+            ? documentParsingObserverSupplier.get()
             : DocumentParsingObserver.EMPTY_INSTANCE;
         try (
             XContentParser parser = documentParsingObserver.wrapParser(
@@ -100,7 +100,8 @@ public final class DocumentParser {
 
         // if a mappingUpdate is required, the parsing will be triggered again
         if (dynamicUpdate == null) {
-            documentParsingObserver.parsingFinished(mappingParserContext.getIndexSettings().getIndex().getName());
+            documentParsingObserver.setIndexName(mappingParserContext.getIndexSettings().getIndex().getName());
+            documentParsingObserver.close();
         }
         return new ParsedDocument(
             context.version(),

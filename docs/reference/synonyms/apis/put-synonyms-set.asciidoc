@@ -29,7 +29,7 @@ This identifier will be used by other <<synonym-management-apis>> to manage the 
 
 `<body>`::
 (Required, object)
-Contains the definition of the synonym rules that conform the synonyms set:
+Contains the definition of the synonym rules for this synonyms set:
 +
 .Properties of `<body>` objects
 [%collapsible%open]
@@ -119,7 +119,7 @@ PUT _synonyms/my-synonyms-set
 [discrete]
 ==== Analyzer reloading
 When an existing synonyms set is updated, the <<search-analyzer, search analyzers>> that use the synonyms set are reloaded automatically for all indices.
-This would be equivalent to invoke <<indices-reload-analyzers>> for all indices that use the synonyms set.
+This would be equivalent to invoking <<indices-reload-analyzers>> for all indices that use the synonyms set.
 
 The reloading result is included as part of the response:
 

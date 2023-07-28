@@ -1,5 +1,5 @@
 [[synonym-management-apis]]
-== Synonym Management APIs
+== Synonyms APIs
 
 beta::[]
 

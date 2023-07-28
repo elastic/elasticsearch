@@ -402,7 +402,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
               }
             }
             """;
-        
+
         String mappings1 = String.format(
             Locale.ROOT,
             mappingFormatString,

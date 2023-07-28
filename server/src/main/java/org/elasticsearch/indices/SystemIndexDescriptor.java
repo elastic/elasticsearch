@@ -281,7 +281,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             // TODO[wrb]: extract version int and non-metadata hash something different
             this.oldMappingVersion = extractLegacyVersionFromMappings(mappings, versionMetaKey);
             this.mappingVersion = extractVersionFromMappings(mappings);
-            assert mappingVersion.version >= 0;
+            assert mappingVersion.version >= 0 : "The mappings version must not be negative";
+
         } else {
             assert Objects.isNull(settings) : "Unmanaged index descriptors should not have settings";
             assert Objects.isNull(mappings) : "Unmanaged index descriptors should not have mappings";
@@ -527,6 +528,13 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             throw new IllegalStateException(this + " is not managed so there are no mappings or version");
         }
         return oldMappingVersion;
+    }
+
+    public MappingVersion getMappingsVersion() {
+        if (isAutomaticallyManaged() == false) {
+            throw new IllegalStateException(this + " is not managed so there are no mappings or version");
+        }
+        return mappingVersion;
     }
 
     /**

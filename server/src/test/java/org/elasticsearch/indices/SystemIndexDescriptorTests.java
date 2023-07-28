@@ -25,10 +25,10 @@ import java.util.Map;
 import static org.elasticsearch.indices.SystemIndexDescriptor.findDynamicMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class SystemIndexDescriptorTests extends ESTestCase {
 
-    // private static final String MAPPINGS = "{ \"_doc\": { \"_meta\": { \"version\": \"7.4.0\" } } }";
     private static final String MAPPINGS = String.format(Locale.ROOT, """
         {
           "_doc": {
@@ -351,6 +351,79 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
 
         assertThat(e.getMessage(), equalTo("Descriptor index format does not match index format in managed settings"));
+    }
+
+    public void testUnmanagedIndexMappingsVersion() {
+        SystemIndexDescriptor indexDescriptor = SystemIndexDescriptor.builder()
+            .setIndexPattern(".unmanaged-*")
+            .setDescription("an unmanaged system index")
+            .setType(Type.INTERNAL_UNMANAGED)
+            .build();
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, indexDescriptor::getMappingsVersion);
+
+        assertThat(e.getMessage(), containsString("is not managed so there are no mappings or version"));
+    }
+
+    // test mapping versions can't be negative
+    public void testNegativeMappingsVersion() {
+        int negativeVersion = randomIntBetween(Integer.MIN_VALUE, -1);
+        String mappings = String.format(Locale.ROOT, """
+            {
+              "_doc": {
+                "_meta": {
+                  "version": "7.4.0",
+                  "%s": %d
+                }
+              }
+            }
+            """, SystemIndexDescriptor.VERSION_META_KEY, negativeVersion);
+
+        SystemIndexDescriptor.Builder builder = priorSystemIndexDescriptorBuilder().setMappings(mappings);
+
+        AssertionError e = expectThrows(AssertionError.class, builder::build);
+
+        assertThat(e.getMessage(), equalTo("The mappings version must not be negative"));
+    }
+
+    public void testHashesIgnoreMappingMetadata() {
+        String mappingFormatString = """
+            {
+              "_doc": {
+                "_meta": {
+                  "version": "%s",
+                  "%s": %d
+                }
+              },
+              "properties": {
+                "age":    { "type": "integer" },
+                "email":  { "type": "keyword"  },
+                "name":   { "type": "text"  }
+              }
+            }
+            """;
+        
+        String mappings1 = String.format(
+            Locale.ROOT,
+            mappingFormatString,
+            "8.9.0",
+            SystemIndexDescriptor.VERSION_META_KEY,
+            randomIntBetween(1, 10)
+        );
+        String mappings2 = String.format(
+            Locale.ROOT,
+            mappingFormatString,
+            "8.10.0",
+            SystemIndexDescriptor.VERSION_META_KEY,
+            randomIntBetween(11, 20)
+        );
+
+        SystemIndexDescriptor descriptor1 = priorSystemIndexDescriptorBuilder().setMappings(mappings1).build();
+        SystemIndexDescriptor descriptor2 = priorSystemIndexDescriptorBuilder().setMappings(mappings2).build();
+
+        assertThat(descriptor1.getMappingsVersion().hash(), equalTo(descriptor2.getMappingsVersion().hash()));
+        assertThat(descriptor1.getMappingsVersion().version(), not(equalTo(descriptor2.getMappingsVersion().version())));
+        assertThat(descriptor1.getOldMappingVersion(), not(equalTo(descriptor2.getOldMappingVersion())));
     }
 
     private SystemIndexDescriptor.Builder priorSystemIndexDescriptorBuilder() {

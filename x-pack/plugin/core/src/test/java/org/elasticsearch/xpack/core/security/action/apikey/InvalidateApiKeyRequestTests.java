@@ -214,11 +214,13 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         {
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_10_0, TransportVersion.CURRENT));
+            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_10_0, TransportVersion.current()));
             invalidateApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_10_0, TransportVersion.CURRENT));
+            inputStreamStreamInput.setTransportVersion(
+                randomVersionBetween(random(), TransportVersion.V_7_10_0, TransportVersion.current())
+            );
             InvalidateApiKeyRequest requestFromInputStream = new InvalidateApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream, equalTo(invalidateApiKeyRequest));

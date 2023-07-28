@@ -1,5 +1,0 @@
-pr: 95514
-summary: Fix versioning for tests cases using a randomly generated rank builder
-area: Ranking
-type: bug
-issues: []

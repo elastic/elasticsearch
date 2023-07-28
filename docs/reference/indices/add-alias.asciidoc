@@ -36,7 +36,7 @@ or indices.
 
 `<alias>`::
 (Required, string) Alias to update. If the alias doesn't exist, the request
-creates it. Index alias names support <<date-math-index-names,date math>>.
+creates it. Index alias names support <<api-date-math-index-names,date math>>.
 
 `<target>`::
 (Required, string) Comma-separated list of data streams or indices to add.

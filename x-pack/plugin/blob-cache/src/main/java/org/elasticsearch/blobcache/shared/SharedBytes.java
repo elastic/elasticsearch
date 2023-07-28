@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -23,11 +22,11 @@ import org.elasticsearch.preallocate.Preallocate;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Map;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 
@@ -53,7 +52,12 @@ public class SharedBytes extends AbstractRefCounted {
         StandardOpenOption.WRITE,
         StandardOpenOption.CREATE };
 
+    private static final long MAX_BYTES_PER_MAP = ByteSizeValue.ofGb(1).getBytes();
+
     final int numRegions;
+
+    private final IO[] ios;
+
     final long regionSize;
 
     // TODO: for systems like Windows without true p-write/read support we should split this up into multiple channels since positional
@@ -64,7 +68,9 @@ public class SharedBytes extends AbstractRefCounted {
     private final IntConsumer writeBytes;
     private final IntConsumer readBytes;
 
-    SharedBytes(int numRegions, long regionSize, NodeEnvironment environment, IntConsumer writeBytes, IntConsumer readBytes)
+    private final boolean mmap;
+
+    SharedBytes(int numRegions, long regionSize, NodeEnvironment environment, IntConsumer writeBytes, IntConsumer readBytes, boolean mmap)
         throws IOException {
         this.numRegions = numRegions;
         this.regionSize = regionSize;
@@ -82,6 +88,34 @@ public class SharedBytes extends AbstractRefCounted {
             }
         }
         this.path = cacheFile;
+        this.mmap = mmap;
+        this.ios = new IO[numRegions];
+        if (mmap && fileSize > 0) {
+            int regionsPerMmap = Math.toIntExact(MAX_BYTES_PER_MAP / regionSize);
+            int mapSize = Math.toIntExact(regionsPerMmap * regionSize);
+            int lastMapSize = Math.toIntExact(fileSize % mapSize);
+            int mapCount = Math.toIntExact(fileSize / mapSize) + (lastMapSize == 0 ? 0 : 1);
+            MappedByteBuffer[] mmaps = new MappedByteBuffer[mapCount];
+            for (int i = 0; i < mapCount - 1; i++) {
+                mmaps[i] = fileChannel.map(FileChannel.MapMode.READ_WRITE, (long) mapSize * i, mapSize);
+            }
+            mmaps[mapCount - 1] = fileChannel.map(
+                FileChannel.MapMode.READ_WRITE,
+                (long) mapSize * (mapCount - 1),
+                lastMapSize == 0 ? mapSize : lastMapSize
+            );
+            for (int i = 0; i < numRegions; i++) {
+                ios[i] = new IO(
+                    i,
+                    mmaps[i / regionsPerMmap].slice(Math.toIntExact((i % regionsPerMmap) * regionSize), Math.toIntExact(regionSize))
+                );
+            }
+            fileChannel.close();
+        } else {
+            for (int i = 0; i < numRegions; i++) {
+                ios[i] = new IO(i, null);
+            }
+        }
         this.writeBytes = writeBytes;
         this.readBytes = readBytes;
     }
@@ -152,7 +186,7 @@ public class SharedBytes extends AbstractRefCounted {
             long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
             bytesCopied += bytesWritten;
             final long adjustedBytesCopied = bytesCopied - adjustment; // adjust to not break RangeFileTracker
-            assert adjustedBytesCopied == length;
+            assert adjustedBytesCopied == length : adjustedBytesCopied + " vs " + length;
             progressUpdater.accept(adjustedBytesCopied);
         }
     }
@@ -215,27 +249,9 @@ public class SharedBytes extends AbstractRefCounted {
         }
     }
 
-    private final Map<Integer, IO> ios = ConcurrentCollections.newConcurrentMap();
-
     public IO getFileChannel(int sharedBytesPos) {
         assert fileChannel != null;
-        return ios.compute(sharedBytesPos, (p, io) -> {
-            if (io == null || io.tryIncRef() == false) {
-                final IO newIO;
-                boolean success = false;
-                incRef();
-                try {
-                    newIO = new IO(p);
-                    success = true;
-                } finally {
-                    if (success == false) {
-                        decRef();
-                    }
-                }
-                return newIO;
-            }
-            return io;
-        });
+        return ios[sharedBytesPos];
     }
 
     long getPhysicalOffset(long chunkPosition) {
@@ -244,20 +260,29 @@ public class SharedBytes extends AbstractRefCounted {
         return physicalOffset;
     }
 
-    public final class IO extends AbstractRefCounted {
+    public final class IO {
 
-        private final int sharedBytesPos;
         private final long pageStart;
 
-        private IO(final int sharedBytesPos) {
-            this.sharedBytesPos = sharedBytesPos;
+        private final MappedByteBuffer mappedByteBuffer;
+
+        private IO(final int sharedBytesPos, MappedByteBuffer mappedByteBuffer) {
             pageStart = getPhysicalOffset(sharedBytesPos);
+            this.mappedByteBuffer = mappedByteBuffer;
         }
 
         @SuppressForbidden(reason = "Use positional reads on purpose")
         public int read(ByteBuffer dst, long position) throws IOException {
             checkOffsets(position, dst.remaining());
-            final int bytesRead = fileChannel.read(dst, position);
+            final int bytesRead;
+            if (mmap) {
+                bytesRead = dst.remaining();
+                int startPosition = dst.position();
+                dst.put(startPosition, mappedByteBuffer, Math.toIntExact(position - pageStart), bytesRead)
+                    .position(startPosition + bytesRead);
+            } else {
+                bytesRead = fileChannel.read(dst, position);
+            }
             readBytes.accept(bytesRead);
             return bytesRead;
         }
@@ -268,7 +293,14 @@ public class SharedBytes extends AbstractRefCounted {
             assert position % PAGE_SIZE == 0;
             assert src.remaining() % PAGE_SIZE == 0;
             checkOffsets(position, src.remaining());
-            final int bytesWritten = fileChannel.write(src, position);
+            final int bytesWritten;
+            if (mmap) {
+                bytesWritten = src.remaining();
+                mappedByteBuffer.put(Math.toIntExact(position - pageStart), src, src.position(), bytesWritten);
+                src.position(src.position() + bytesWritten);
+            } else {
+                bytesWritten = fileChannel.write(src, position);
+            }
             writeBytes.accept(bytesWritten);
             return bytesWritten;
         }
@@ -279,12 +311,6 @@ public class SharedBytes extends AbstractRefCounted {
                 assert false;
                 throw new IllegalArgumentException("bad access");
             }
-        }
-
-        @Override
-        protected void closeInternal() {
-            ios.remove(sharedBytesPos, this);
-            SharedBytes.this.decRef();
         }
     }
 

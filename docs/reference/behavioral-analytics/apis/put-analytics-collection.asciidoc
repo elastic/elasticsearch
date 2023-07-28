@@ -2,6 +2,8 @@
 [[put-analytics-collection]]
 === Put Analytics Collection
 
+beta::[]
+
 ++++
 <titleabbrev>Put Analytics Collection</titleabbrev>
 ++++

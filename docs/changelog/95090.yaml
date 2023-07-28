@@ -1,5 +1,0 @@
-pr: 95090
-summary: Compute balancer threshold based on max shard size
-area: Allocation
-type: bug
-issues: []

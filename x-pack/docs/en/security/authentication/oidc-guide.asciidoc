@@ -12,7 +12,7 @@ Elastic Stack Relying Party will be registered.
 
 NOTE: The OpenID Connect realm support in {kib} is designed with the expectation that it
 will be the primary authentication method for the users of that {kib} instance. The
-<<oidc-kibana>> section describes what this entails and how you can set it up to support
+<<oidc-configure-kibana>> section describes what this entails and how you can set it up to support
 other realms if necessary.
 
 [[oidc-guide-op]]
@@ -591,7 +591,7 @@ client with the OpenID Connect Provider. Note that when registering the
 ==== OpenID Connect Realm
 
 An OpenID Connect realm needs to be created and configured accordingly
-in {es}. See <<oidc-guide-authentication>>
+in {es}. See <<oidc-elasticsearch-authentication>>
 
 ==== Service Account user for accessing the APIs
 

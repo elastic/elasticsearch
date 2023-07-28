@@ -23,12 +23,12 @@ import org.junit.rules.TestRule;
 public interface ElasticsearchCluster extends TestRule, ClusterHandle {
 
     /**
-     * Creates a new {@link DefaultLocalClusterSpecBuilder} for defining a locally orchestrated cluster. Local clusters use a locally built
+     * Creates a new {@link LocalClusterSpecBuilder} for defining a locally orchestrated cluster. Local clusters use a locally built
      * Elasticsearch distribution.
      *
      * @return a builder for a local cluster
      */
-    static LocalClusterSpecBuilder local() {
+    static LocalClusterSpecBuilder<ElasticsearchCluster> local() {
         return new DefaultLocalClusterSpecBuilder();
     }
 

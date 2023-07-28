@@ -87,8 +87,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             actionFilters,
             Request::new,
             NodeRequest::new,
-            ThreadPool.Names.FETCH_SHARD_STARTED,
-            NodeGatewayStartedShards.class
+            ThreadPool.Names.FETCH_SHARD_STARTED
         );
         this.settings = settings;
         this.nodeEnv = env;

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -123,14 +124,14 @@ public class VersionLookupTests extends ESTestCase {
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setMergePolicy(NoMergePolicy.INSTANCE));
         Document doc = new Document();
         doc.add(new StringField(IdFieldMapper.NAME, "6", Field.Store.YES));
-        doc.add(new LongPoint(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 1_000));
+        doc.add(new LongPoint(DataStream.TIMESTAMP_FIELD_NAME, 1_000));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
         writer.addDocument(doc);
         doc = new Document();
         doc.add(new StringField(IdFieldMapper.NAME, "8", Field.Store.YES));
-        doc.add(new LongPoint(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 1_000_000));
+        doc.add(new LongPoint(DataStream.TIMESTAMP_FIELD_NAME, 1_000_000));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
@@ -148,6 +149,21 @@ public class VersionLookupTests extends ESTestCase {
         assertEquals(lookup.minTimestamp, 0L);
         assertEquals(lookup.maxTimestamp, Long.MAX_VALUE);
 
+        reader.close();
+        writer.close();
+        dir.close();
+    }
+
+    public void testLoadTimestampRangeWithDeleteTombstone() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setMergePolicy(NoMergePolicy.INSTANCE));
+        writer.addDocument(ParsedDocument.deleteTombstone("_id").docs().get(0));
+        DirectoryReader reader = DirectoryReader.open(writer);
+        LeafReaderContext segment = reader.leaves().get(0);
+        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME, true);
+        assertTrue(lookup.loadedTimestampRange);
+        assertEquals(lookup.minTimestamp, 0L);
+        assertEquals(lookup.maxTimestamp, Long.MAX_VALUE);
         reader.close();
         writer.close();
         dir.close();

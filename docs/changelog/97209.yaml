@@ -1,0 +1,5 @@
+pr: 97209
+summary: Improve prefix query rewrite
+area: Search
+type: enhancement
+issues: []

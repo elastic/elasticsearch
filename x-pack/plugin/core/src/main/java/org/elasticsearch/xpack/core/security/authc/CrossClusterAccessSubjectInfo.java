@@ -27,7 +27,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -204,15 +205,15 @@ public final class CrossClusterAccessSubjectInfo {
         assert false == authentication.isCrossClusterAccess();
         authentication.checkConsistency();
         final User user = authentication.getEffectiveSubject().getUser();
-        if (CrossClusterAccessUser.is(user)) {
+        if (user == InternalUsers.SYSTEM_USER) {
             if (false == getRoleDescriptorsBytesList().isEmpty()) {
                 logger.warn(
-                    "Received non-empty role descriptors bytes list for internal cross cluster access user. "
+                    "Received non-empty remote access role descriptors bytes list for _system user. "
                         + "These will be ignored during authorization."
                 );
                 assert false : "role descriptors bytes list for internal cross cluster access user must be empty";
             }
-        } else if (User.isInternal(user)) {
+        } else if (user instanceof InternalUser) {
             throw new IllegalArgumentException(
                 "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
             );

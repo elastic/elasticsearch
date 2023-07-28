@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -40,12 +41,15 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         ClusterService clusterService,
         NodeClient client,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver resolver
+        IndexNameExpressionResolver resolver,
+        IndicesService indicesService
     ) {
         super(MultiGetAction.NAME, transportService, actionFilters, MultiGetRequest::new);
         this.clusterService = clusterService;
         this.client = client;
         this.indexNameExpressionResolver = resolver;
+        // register the internal TransportGetFromTranslogAction
+        new TransportShardMultiGetFomTranslogAction(transportService, indicesService, actionFilters);
     }
 
     @Override

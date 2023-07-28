@@ -398,11 +398,12 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         }
 
         @Override
-        public Query rewrite(IndexReader reader) throws IOException {
-            Query rewritten = super.rewrite(reader);
+        public Query rewrite(IndexSearcher searcher) throws IOException {
+            Query rewritten = super.rewrite(searcher);
             if (rewritten != this) {
                 return rewritten;
             }
+            IndexReader reader = searcher.getIndexReader();
             if (reader instanceof DirectoryReader) {
                 IndexSearcher indexSearcher = new IndexSearcher(reader);
                 indexSearcher.setQueryCache(null);
@@ -428,7 +429,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                     return new MatchNoDocsQuery("Can't load against an empty reader");
                 }
                 throw new IllegalStateException(
-                    "can't load global ordinals for reader of type: " + reader.getClass() + " must be a DirectoryReader"
+                    "can't load global ordinals for reader of type: " + searcher.getClass() + " must be a DirectoryReader"
                 );
             }
         }

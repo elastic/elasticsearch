@@ -1,6 +1,0 @@
-pr: 94065
-summary: Implicitly rollover data streams / aliases based on `max_primary_shard_docs`
-area: ILM+SLM
-type: enhancement
-issues:
- - 87246

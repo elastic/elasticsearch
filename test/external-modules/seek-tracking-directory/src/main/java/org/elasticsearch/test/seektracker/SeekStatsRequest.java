@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test.seektracker;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,8 +39,4 @@ public class SeekStatsRequest extends BaseNodesRequest<SeekStatsRequest> {
         return indices;
     }
 
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
 }

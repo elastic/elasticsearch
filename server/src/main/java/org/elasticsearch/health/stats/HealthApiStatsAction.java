@@ -8,7 +8,6 @@
 
 package org.elasticsearch.health.stats;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -46,11 +45,6 @@ public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Respon
 
         public Request(StreamInput in) throws IOException {
             super(in);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

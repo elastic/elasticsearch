@@ -28,8 +28,11 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -43,6 +46,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -448,6 +452,61 @@ public abstract class AbstractStreamTests extends ESTestCase {
         }
     }
 
+    public void testDurationSerialization() throws IOException {
+        Stream.generate(AbstractStreamTests::randomDuration).limit(100).forEach(this::assertDurationSerialization);
+    }
+
+    void assertDurationSerialization(Duration duration) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeGenericValue(duration);
+            try (StreamInput in = getStreamInput(out.bytes())) {
+                final Duration deserialized = (Duration) in.readGenericValue();
+                assertEquals(duration, deserialized);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public void testPeriodSerialization() {
+        Stream.generate(AbstractStreamTests::randomPeriod).limit(100).forEach(this::assertPeriodSerialization);
+    }
+
+    void assertPeriodSerialization(Period period) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeGenericValue(period);
+            try (StreamInput in = getStreamInput(out.bytes())) {
+                final Period deserialized = (Period) in.readGenericValue();
+                assertEquals(period, deserialized);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    static Duration randomDuration() {
+        return randomFrom(
+            List.of(
+                Duration.ofNanos(randomIntBetween(1, 100_000)),
+                Duration.ofMillis(randomIntBetween(1, 1_000)),
+                Duration.ofSeconds(randomIntBetween(1, 100)),
+                Duration.ofHours(randomIntBetween(1, 10)),
+                Duration.ofDays(randomIntBetween(1, 5))
+            )
+        );
+    }
+
+    static Period randomPeriod() {
+        return randomFrom(
+            List.of(
+                Period.ofDays(randomIntBetween(1, 31)),
+                Period.ofWeeks(randomIntBetween(1, 52)),
+                Period.ofMonths(randomIntBetween(1, 12)),
+                Period.ofYears(randomIntBetween(1, 1000))
+            )
+        );
+    }
+
     public void testOptionalInstantSerialization() throws IOException {
         final Instant instant = Instant.now();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -636,6 +695,19 @@ public abstract class AbstractStreamTests extends ESTestCase {
         assertImmutableListSerialization(List.of("a", "b"), StreamInput::readString, StreamOutput::writeString);
         assertImmutableListSerialization(List.of(1), StreamInput::readVInt, StreamOutput::writeVInt);
         assertImmutableListSerialization(List.of(1, 2, 3), StreamInput::readVInt, StreamOutput::writeVInt);
+    }
+
+    public void testReadAfterReachingEndOfStream() throws IOException {
+        try (var output = new BytesStreamOutput()) {
+            int len = randomIntBetween(1, 16);
+            for (int i = 0; i < len; i++) {
+                output.writeByte(randomByte());
+            }
+            StreamInput input = getStreamInput(output.bytes());
+            input.readBytes(new byte[len], 0, len);
+
+            assertEquals(-1, input.read());
+        }
     }
 
     private void assertSerialization(

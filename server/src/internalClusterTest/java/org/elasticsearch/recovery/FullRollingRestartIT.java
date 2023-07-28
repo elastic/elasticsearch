@@ -70,9 +70,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
 
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForGreenStatus()
@@ -86,9 +84,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
 
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForGreenStatus()
@@ -106,9 +102,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForGreenStatus()
@@ -119,9 +113,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForGreenStatus()
@@ -139,9 +131,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForGreenStatus()
@@ -153,9 +143,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
 
         // make sure the cluster state is yellow, and all has been recovered
         assertTimeout(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForYellowStatus()
@@ -192,8 +180,8 @@ public class FullRollingRestartIT extends ESIntegTestCase {
                 .actionGet();
         }
         ensureGreen();
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
-        RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
+        RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
             assertNotEquals(
                 "relocated "
@@ -210,9 +198,9 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         }
         internalCluster().restartRandomDataNode();
         ensureGreen();
-        client().admin().cluster().prepareState().get();
+        clusterAdmin().prepareState().get();
 
-        recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
+        recoveryResponse = indicesAdmin().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
             assertNotEquals(
                 "relocated "

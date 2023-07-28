@@ -14,9 +14,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 
 /**
  * Handles the configuration and parsing of settings for the <code>xpack.http.</code> prefix
@@ -51,10 +49,9 @@ public class HttpSettings {
     static final Setting<String> PROXY_HOST = Setting.simpleString(PROXY_HOST_KEY, Property.NodeScope);
     static final Setting<String> PROXY_SCHEME = Setting.simpleString(PROXY_SCHEME_KEY, Scheme::parse, Property.NodeScope);
     static final Setting<Integer> PROXY_PORT = Setting.intSetting(PROXY_PORT_KEY, 0, 0, 0xFFFF, Property.NodeScope);
-    static final Setting<List<String>> HOSTS_WHITELIST = Setting.listSetting(
+    static final Setting<List<String>> HOSTS_WHITELIST = Setting.stringListSetting(
         "xpack.http.whitelist",
-        Collections.singletonList("*"),
-        Function.identity(),
+        List.of("*"),
         Property.NodeScope,
         Property.Dynamic
     );

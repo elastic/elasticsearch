@@ -48,6 +48,8 @@ public abstract class BaseUpdateApiKeyRequest extends ActionRequest {
         return roleDescriptors;
     }
 
+    public abstract ApiKey.Type getType();
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;

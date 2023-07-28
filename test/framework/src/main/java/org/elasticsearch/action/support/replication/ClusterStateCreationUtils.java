@@ -9,13 +9,12 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -29,10 +28,10 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskParams;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -122,7 +121,7 @@ public class ClusterStateCreationUtils {
         discoBuilder.masterNodeId(newNode(1).getId()); // we need a non-local master to test shard failures
         final int primaryTerm = 1 + randomInt(200);
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(indexSettings(Version.CURRENT, 1, numberOfReplicas).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
+            .settings(indexSettings(IndexVersion.current(), 1, numberOfReplicas).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .primaryTerm(0, primaryTerm)
             .timestampRange(
                 primaryState == ShardRoutingState.STARTED || primaryState == ShardRoutingState.RELOCATING
@@ -220,7 +219,7 @@ public class ClusterStateCreationUtils {
         discoBuilder.localNodeId(newNode(0).getId());
         discoBuilder.masterNodeId(randomFrom(nodes));
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(indexSettings(Version.CURRENT, numberOfPrimaries, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
+            .settings(indexSettings(IndexVersion.current(), numberOfPrimaries, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .build();
 
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
@@ -261,7 +260,9 @@ public class ClusterStateCreationUtils {
         int currentNodeToAssign = 0;
         for (String index : indices) {
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
-                .settings(indexSettings(Version.CURRENT, numberOfPrimaries, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
+                .settings(
+                    indexSettings(IndexVersion.current(), numberOfPrimaries, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis())
+                )
                 .build();
 
             IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
@@ -301,7 +302,7 @@ public class ClusterStateCreationUtils {
         discoBuilder.localNodeId(newNode(0).getId());
         discoBuilder.masterNodeId(newNode(1).getId()); // we need a non-local master to test shard failures
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(indexSettings(Version.CURRENT, numberOfShards, 1).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
+            .settings(indexSettings(IndexVersion.current(), numberOfShards, 1).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .build();
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
@@ -361,7 +362,7 @@ public class ClusterStateCreationUtils {
         for (String index : indices) {
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
                 .settings(
-                    indexSettings(Version.CURRENT, numberOfShards, replicaRoles.size()).put(
+                    indexSettings(IndexVersion.current(), numberOfShards, replicaRoles.size()).put(
                         SETTING_CREATION_DATE,
                         System.currentTimeMillis()
                     )
@@ -501,7 +502,7 @@ public class ClusterStateCreationUtils {
         DiscoveryNode healthNode,
         DiscoveryNode... allNodes
     ) {
-        return state(localNode, masterNode, healthNode, allNodes, TransportVersion.CURRENT);
+        return state(localNode, masterNode, healthNode, allNodes, TransportVersion.current());
     }
 
     /**
@@ -546,13 +547,7 @@ public class ClusterStateCreationUtils {
     }
 
     private static DiscoveryNode newNode(int nodeId) {
-        return new DiscoveryNode(
-            "node_" + nodeId,
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.create("node_" + nodeId);
     }
 
     private static String selectAndRemove(Set<String> strings) {

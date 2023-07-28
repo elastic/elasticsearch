@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.recovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -150,7 +150,7 @@ public class SearchableSnapshotsRecoveryStateTests extends ESTestCase {
             true,
             ShardRoutingState.INITIALIZING
         );
-        DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode targetNode = DiscoveryNodeUtils.create("local");
         return new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
     }
 }

@@ -51,7 +51,7 @@ A realm that facilitates authentication using OpenID Connect. It enables {es} to
 _jwt_::
 A realm that facilitates using JWT identity tokens as authentication bearer tokens.
 Compatible tokens are OpenID Connect ID Tokens, or custom JWTs containing the same claims.
-See <<jwt-realm>>.
+See <<jwt-auth-realm>>.
 
 The {security-features} also support custom realms. If you need to integrate
 with another authentication system, you can build a custom realm plugin. For

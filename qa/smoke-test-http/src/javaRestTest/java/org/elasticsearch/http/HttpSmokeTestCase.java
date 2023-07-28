@@ -10,6 +10,7 @@ package org.elasticsearch.http;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 
@@ -34,7 +35,7 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(getTestTransportPlugin());
+        return List.of(getTestTransportPlugin(), MainRestPlugin.class);
     }
 
     @Override

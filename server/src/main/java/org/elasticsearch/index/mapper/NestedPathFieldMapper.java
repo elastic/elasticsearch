@@ -14,7 +14,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
@@ -28,23 +28,23 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     private static final NestedPathFieldMapper INSTANCE = new NestedPathFieldMapper(NAME);
     private static final NestedPathFieldMapper INSTANCE_PRE_V8 = new NestedPathFieldMapper(NAME_PRE_V8);
 
-    public static String name(Version version) {
-        if (version.before(Version.V_8_0_0)) {
+    public static String name(IndexVersion version) {
+        if (version.before(IndexVersion.V_8_0_0)) {
             return NAME_PRE_V8;
         }
         return NAME;
     }
 
-    public static Query filter(Version version, String path) {
+    public static Query filter(IndexVersion version, String path) {
         return new TermQuery(new Term(name(version), new BytesRef(path)));
     }
 
-    public static Field field(Version version, String path) {
+    public static Field field(IndexVersion version, String path) {
         return new StringField(name(version), path, Field.Store.NO);
     }
 
     public static final TypeParser PARSER = new FixedTypeParser(
-        c -> c.indexVersionCreated().before(Version.V_8_0_0) ? INSTANCE_PRE_V8 : INSTANCE
+        c -> c.indexVersionCreated().before(IndexVersion.V_8_0_0) ? INSTANCE_PRE_V8 : INSTANCE
     );
 
     public static final class NestedPathFieldType extends StringFieldType {

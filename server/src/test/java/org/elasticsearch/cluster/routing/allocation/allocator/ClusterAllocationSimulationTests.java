@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -186,9 +187,9 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         );
 
         final var discoveryNodesBuilder = new DiscoveryNodes.Builder();
-        discoveryNodesBuilder.add(
-            new DiscoveryNode("master", "master", buildNewFakeTransportAddress(), Map.of(), Set.of(MASTER_ROLE), Version.CURRENT)
-        ).localNodeId("master").masterNodeId("master");
+        discoveryNodesBuilder.add(DiscoveryNodeUtils.builder("master").name("master").roles(Set.of(MASTER_ROLE)).build())
+            .localNodeId("master")
+            .masterNodeId("master");
         for (var nodeIndex = 0; nodeIndex < nodeCountByTier.get(DataTier.DATA_HOT) + nodeCountByTier.get(DataTier.DATA_WARM)
             + nodeCountByTier.get(DataTier.DATA_COLD); nodeIndex++) {
             final var tierRole = nodeIndex < nodeCountByTier.get(DataTier.DATA_HOT) ? DATA_HOT_NODE_ROLE
@@ -197,14 +198,11 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
             final var nodeId = Strings.format("node-%s-%03d", tierRole.roleNameAbbreviation(), nodeIndex);
             discoveryNodesBuilder.add(
-                new DiscoveryNode(
-                    nodeId,
-                    nodeId,
-                    buildNewFakeTransportAddress(),
-                    Map.of("fake_tier", tierRole.roleName()),
-                    Set.of(tierRole),
-                    Version.CURRENT
-                )
+                DiscoveryNodeUtils.builder(nodeId)
+                    .name(nodeId)
+                    .attributes(Map.of("fake_tier", tierRole.roleName()))
+                    .roles(Set.of(tierRole))
+                    .build()
             );
         }
 

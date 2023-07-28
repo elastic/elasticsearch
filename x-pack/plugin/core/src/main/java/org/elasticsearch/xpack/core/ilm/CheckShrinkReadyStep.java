@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -71,18 +71,8 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
             throw new IllegalStateException("Cannot check shrink allocation as there are no allocation rules by _id");
         }
 
-        boolean nodeBeingRemoved = NodesShutdownMetadata.getShutdowns(clusterState)
-            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .map(shutdownMetadataMap -> shutdownMetadataMap.get(idShardsShouldBeOn))
-            .map(singleNodeShutdown -> switch (singleNodeShutdown.getType()) {
-                case REMOVE:
-                case SIGTERM:
-                case REPLACE:
-                    yield true;
-                case RESTART:
-                    yield false;
-            })
-            .orElse(false);
+        var shutdown = clusterState.metadata().nodeShutdowns().get(idShardsShouldBeOn);
+        boolean nodeBeingRemoved = shutdown != null && shutdown.getType() != SingleNodeShutdownMetadata.Type.RESTART;
 
         final IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
         int foundShards = 0;

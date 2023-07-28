@@ -14,7 +14,7 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.search.vectors.KnnSearchRequestParser;
 
 import java.io.IOException;
@@ -55,6 +55,6 @@ public class RestKnnSearchAction extends BaseRestHandler {
         SearchRequestBuilder searchRequestBuilder = cancellableNodeClient.prepareSearch();
         parser.toSearchRequest(searchRequestBuilder);
 
-        return channel -> searchRequestBuilder.execute(new RestStatusToXContentListener<>(channel));
+        return channel -> searchRequestBuilder.execute(new RestChunkedToXContentListener<>(channel));
     }
 }

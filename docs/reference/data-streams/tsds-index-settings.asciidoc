@@ -37,14 +37,15 @@ can not be less than `time_series.poll_interval` cluster setting.
 (<<_static_index_settings,Static>>, string or array of strings) Plain `keyword`
 fields used to route documents in a TSDS to index shards. Supports wildcards
 (`*`). Only indices with an `index.mode` of `time_series` support this setting.
-Defaults to the list of <<time-series-dimension,dimension fields>> with a
-`time_series_dimension` value of `true` defined in your component templates. For
-more information, refer to <<dimension-based-routing>>.
+Defaults to an empty list, except for data streams then defaults to the list
+of <<time-series-dimension,dimension fields>> with a `time_series_dimension`
+value of `true` defined in your component and index templates. For more
+information, refer to <<dimension-based-routing>>.
 
 [[index-mapping-dimension-fields-limit]]
 // tag::dimensions-limit[]
 `index.mapping.dimension_fields.limit`::
 (<<dynamic-index-settings,Dynamic>>, integer)
 Maximum number of <<time-series-dimension,time series dimensions>> for the
-index. Defaults to `16`.
+index. Defaults to `21`.
 // end::dimensions-limit[]

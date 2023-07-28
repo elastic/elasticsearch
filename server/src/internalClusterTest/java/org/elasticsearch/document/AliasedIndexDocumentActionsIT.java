@@ -17,14 +17,12 @@ public class AliasedIndexDocumentActionsIT extends DocumentActionsIT {
     protected void createIndex() {
         logger.info("Creating index [test1] with alias [test]");
         try {
-            client().admin().indices().prepareDelete("test1").execute().actionGet();
+            indicesAdmin().prepareDelete("test1").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
         logger.info("--> creating index test");
-        client().admin()
-            .indices()
-            .create(new CreateIndexRequest("test1").simpleMapping("name", "type=keyword,store=true").alias(new Alias("test")))
+        indicesAdmin().create(new CreateIndexRequest("test1").simpleMapping("name", "type=keyword,store=true").alias(new Alias("test")))
             .actionGet();
     }
 

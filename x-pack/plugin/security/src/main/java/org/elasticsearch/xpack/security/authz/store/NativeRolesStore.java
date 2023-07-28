@@ -65,7 +65,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -225,11 +225,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
         } else if (role.hasRemoteIndicesPrivileges()
-            && clusterService.state().nodes().getMinNodeVersion().before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
+            && clusterService.state().getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
                 listener.onFailure(
                     new IllegalStateException(
-                        "all nodes must have version ["
-                            + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                        "all nodes must have transport version ["
+                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
                             + "] or higher to support remote indices privileges"
                     )
                 );
@@ -242,6 +242,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         final String roleName = role.getName();
         assert NativeRealmValidationUtil.validateRoleName(roleName, false) == null : "Role name was invalid or reserved: " + roleName;
+        assert false == role.hasRestriction() : "restriction is not supported for native roles";
 
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
@@ -454,9 +455,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         assert id.startsWith(ROLE_TYPE) : "[" + id + "] does not have role prefix";
         final String name = id.substring(ROLE_TYPE.length() + 1);
         try {
-            // we pass true as last parameter because we do not want to reject permissions if the field permissions
+            // we pass true as allow2xFormat parameter because we do not want to reject permissions if the field permissions
             // are given in 2.x syntax
-            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON);
+            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON, false);
             final boolean dlsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())
                 .anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity);
             final boolean flsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())
@@ -481,13 +482,14 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     roleDescriptor.getRunAs(),
                     roleDescriptor.getMetadata(),
                     transientMap,
-                    roleDescriptor.getRemoteIndicesPrivileges()
+                    roleDescriptor.getRemoteIndicesPrivileges(),
+                    roleDescriptor.getRestriction()
                 );
             } else {
                 return roleDescriptor;
             }
         } catch (Exception e) {
-            logger.error(() -> "error in the format of data for role [" + name + "]", e);
+            logger.error("error in the format of data for role [" + name + "]", e);
             return null;
         }
     }

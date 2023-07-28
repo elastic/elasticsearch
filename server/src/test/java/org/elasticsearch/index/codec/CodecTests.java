@@ -86,7 +86,7 @@ public class CodecTests extends ESTestCase {
             MapperPlugin.NOOP_FIELD_FILTER
         );
         MapperService service = new MapperService(
-            () -> TransportVersion.CURRENT,
+            () -> TransportVersion.current(),
             settings,
             indexAnalyzers,
             parserConfig(),

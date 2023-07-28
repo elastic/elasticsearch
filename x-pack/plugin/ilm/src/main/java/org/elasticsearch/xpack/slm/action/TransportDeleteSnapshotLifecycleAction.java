@@ -68,12 +68,7 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        submitUnbatchedTask("delete-snapshot-lifecycle-" + request.getLifecycleId(), new DeleteSnapshotPolicyTask(request, listener) {
-            @Override
-            protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                return AcknowledgedResponse.of(acknowledged);
-            }
-        });
+        submitUnbatchedTask("delete-snapshot-lifecycle-" + request.getLifecycleId(), new DeleteSnapshotPolicyTask(request, listener));
     }
 
     /**

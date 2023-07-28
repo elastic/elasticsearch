@@ -1,0 +1,6 @@
+pr: 97092
+summary: "Fix `fields` API with `subobjects: false`"
+area: Mapping
+type: bug
+issues:
+ - 96700

@@ -70,7 +70,7 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
         SSLContext sslContext = SSLContext.getInstance("TLS");
         sslContext.init(new X509ExtendedKeyManager[] { x509ExtendedKeyManager }, new TrustManager[] { trustManager }, new SecureRandom());
         SSLSocketFactory socketFactory = sslContext.getSocketFactory();
-        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().setTransport(true).get();
+        NodesInfoResponse response = clusterAdmin().prepareNodesInfo().setTransport(true).get();
         TransportAddress address = randomFrom(response.getNodes()).getInfo(TransportInfo.class).getAddress().publishAddress();
 
         final CountDownLatch latch = new CountDownLatch(1);

@@ -84,7 +84,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.ConsistentSettingsService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -95,6 +94,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -108,6 +108,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.DiskHealthIndicatorService;
@@ -127,7 +128,7 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
-import org.elasticsearch.indices.SystemIndexManager;
+import org.elasticsearch.indices.SystemIndexMappingUpdateService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.BreakerSettings;
@@ -147,6 +148,8 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.internal.TerminationHandler;
+import org.elasticsearch.node.internal.TerminationHandlerProvider;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
@@ -168,12 +171,14 @@ import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RecoveryPlannerPlugin;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TracerPlugin;
+import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -235,6 +240,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -314,6 +320,7 @@ public class Node implements Closeable {
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
+    private final SetOnce<TerminationHandler> terminationHandler = new SetOnce<>();
     // for testing
     final NamedWriteableRegistry namedWriteableRegistry;
     final NamedXContentRegistry namedXContentRegistry;
@@ -353,11 +360,11 @@ public class Node implements Closeable {
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
                 "version[{}], pid[{}], build[{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
-                Build.CURRENT.qualifiedVersion(),
+                Build.current().qualifiedVersion(),
                 jvmInfo.pid(),
-                Build.CURRENT.type().displayName(),
-                Build.CURRENT.hash(),
-                Build.CURRENT.date(),
+                Build.current().type().displayName(),
+                Build.current().hash(),
+                Build.current().date(),
                 Constants.OS_NAME,
                 Constants.OS_VERSION,
                 Constants.OS_ARCH,
@@ -368,10 +375,10 @@ public class Node implements Closeable {
             );
             logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
             logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
-            if (Build.CURRENT.isProductionRelease() == false) {
+            if (Build.current().isProductionRelease() == false) {
                 logger.warn(
                     "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
-                    Build.CURRENT.qualifiedVersion()
+                    Build.current().qualifiedVersion()
                 );
             }
             if (Environment.PATH_SHARED_DATA_SETTING.exists(tmpSettings)) {
@@ -468,14 +475,10 @@ public class Node implements Closeable {
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
 
-            final Set<SettingUpgrader<?>> settingsUpgraders = pluginsService.flatMap(Plugin::getSettingUpgraders)
-                .collect(Collectors.toSet());
-
             final SettingsModule settingsModule = new SettingsModule(
                 settings,
                 additionalSettings,
-                pluginsService.flatMap(Plugin::getSettingsFilter).toList(),
-                settingsUpgraders
+                pluginsService.flatMap(Plugin::getSettingsFilter).toList()
             );
 
             // creating `NodeEnvironment` breaks the ability to rollback to 7.x on an 8.0 upgrade (`upgradeLegacyNodeFolders`) so do this
@@ -651,7 +654,7 @@ public class Node implements Closeable {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
             if (DiscoveryNode.isMasterNode(settings)) {
-                clusterService.addListener(new SystemIndexManager(systemIndices, client));
+                clusterService.addListener(new SystemIndexMappingUpdateService(systemIndices, client));
                 clusterService.addListener(new TransportVersionsFixupListener(clusterService, client.admin().cluster(), threadPool));
             }
 
@@ -736,7 +739,8 @@ public class Node implements Closeable {
                     clusterModule.getIndexNameExpressionResolver(),
                     repositoriesServiceReference::get,
                     tracer,
-                    clusterModule.getAllocationService()
+                    clusterModule.getAllocationService(),
+                    indicesService
                 )
             ).toList();
 
@@ -762,6 +766,22 @@ public class Node implements Closeable {
                 ReservedClusterStateHandlerProvider.class
             );
             pluginHandlers.forEach(h -> reservedStateHandlers.addAll(h.handlers()));
+
+            List<TerminationHandler> terminationHandlers = pluginsService.loadServiceProviders(TerminationHandlerProvider.class)
+                .stream()
+                .map(prov -> prov.handler())
+                .toList();
+            if (terminationHandlers.size() == 1) {
+                this.terminationHandler.set(terminationHandlers.get(0));
+            } else if (terminationHandlers.size() > 1) {
+                throw new IllegalStateException(
+                    Strings.format(
+                        "expected at most one termination handler, but found %s: [%s]",
+                        terminationHandlers.size(),
+                        terminationHandlers.stream().map(it -> it.getClass().getCanonicalName())
+                    )
+                );
+            }
 
             ActionModule actionModule = new ActionModule(
                 settings,
@@ -930,7 +950,8 @@ public class Node implements Closeable {
                 responseCollectorService,
                 searchTransportService,
                 indexingLimits,
-                searchModule.getValuesSourceRegistry().getUsageService()
+                searchModule.getValuesSourceRegistry().getUsageService(),
+                repositoryService
             );
 
             final SearchService searchService = newSearchService(
@@ -1009,10 +1030,15 @@ public class Node implements Closeable {
                 threadPool,
                 systemIndices
             );
+            HealthPeriodicLogger healthPeriodicLogger = createHealthPeriodicLogger(clusterService, settings, client, healthService);
+            healthPeriodicLogger.init();
             HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
             LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
             HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
             HealthApiStats healthApiStats = new HealthApiStats();
+
+            List<ReloadablePlugin> reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class);
+            pluginsService.filterPlugins(ReloadAwarePlugin.class).forEach(p -> p.setReloadCallback(wrapPlugins(reloadablePlugins)));
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -1065,6 +1091,7 @@ public class Node implements Closeable {
                     b.bind(PeerRecoveryTargetService.class)
                         .toInstance(
                             new PeerRecoveryTargetService(
+                                client,
                                 threadPool,
                                 transportService,
                                 recoverySettings,
@@ -1112,6 +1139,7 @@ public class Node implements Closeable {
                 b.bind(Tracer.class).toInstance(tracer);
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
                 b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
+                b.bind(HealthPeriodicLogger.class).toInstance(healthPeriodicLogger);
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1205,6 +1233,23 @@ public class Node implements Closeable {
         }
     }
 
+    /**
+     * Wrap a group of reloadable plugins into a single reloadable plugin interface
+     * @param reloadablePlugins A list of reloadable plugins
+     * @return A single ReloadablePlugin that, upon reload, reloads the plugins it wraps
+     */
+    private static ReloadablePlugin wrapPlugins(List<ReloadablePlugin> reloadablePlugins) {
+        return settings -> {
+            for (ReloadablePlugin plugin : reloadablePlugins) {
+                try {
+                    plugin.reload(settings);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+    }
+
     private Tracer getTracer(PluginsService pluginsService, Settings settings) {
         final List<TracerPlugin> tracerPlugins = pluginsService.filterPlugins(TracerPlugin.class);
 
@@ -1242,6 +1287,15 @@ public class Node implements Closeable {
             concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices),
             threadPool
         );
+    }
+
+    private HealthPeriodicLogger createHealthPeriodicLogger(
+        ClusterService clusterService,
+        Settings settings,
+        NodeClient client,
+        HealthService healthService
+    ) {
+        return new HealthPeriodicLogger(settings, clusterService, client, healthService);
     }
 
     private RecoveryPlannerService getRecoveryPlannerService(
@@ -1524,43 +1578,52 @@ public class Node implements Closeable {
         );
     }
 
-    private Node stop() {
+    private void stop() {
         if (lifecycle.moveToStopped() == false) {
-            return this;
+            return;
         }
         logger.info("stopping ...");
 
         if (ReadinessService.enabled(environment)) {
-            injector.getInstance(ReadinessService.class).stop();
+            stopIfStarted(ReadinessService.class);
         }
-        injector.getInstance(FileSettingsService.class).stop();
+        stopIfStarted(FileSettingsService.class);
         injector.getInstance(ResourceWatcherService.class).close();
-        injector.getInstance(HttpServerTransport.class).stop();
+        stopIfStarted(HttpServerTransport.class);
 
-        injector.getInstance(SnapshotsService.class).stop();
-        injector.getInstance(SnapshotShardsService.class).stop();
-        injector.getInstance(RepositoriesService.class).stop();
+        stopIfStarted(SnapshotsService.class);
+        stopIfStarted(SnapshotShardsService.class);
+        stopIfStarted(RepositoriesService.class);
         // stop any changes happening as a result of cluster state changes
-        injector.getInstance(IndicesClusterStateService.class).stop();
+        stopIfStarted(IndicesClusterStateService.class);
         // close cluster coordinator early to not react to pings anymore.
         // This can confuse other nodes and delay things - mostly if we're the master and we're running tests.
-        injector.getInstance(Coordinator.class).stop();
+        stopIfStarted(Coordinator.class);
         // we close indices first, so operations won't be allowed on it
-        injector.getInstance(ClusterService.class).stop();
-        injector.getInstance(NodeConnectionsService.class).stop();
-        injector.getInstance(FsHealthService.class).stop();
-        nodeService.getMonitorService().stop();
-        injector.getInstance(GatewayService.class).stop();
-        injector.getInstance(SearchService.class).stop();
-        injector.getInstance(TransportService.class).stop();
+        stopIfStarted(ClusterService.class);
+        stopIfStarted(NodeConnectionsService.class);
+        stopIfStarted(FsHealthService.class);
+        stopIfStarted(nodeService.getMonitorService());
+        stopIfStarted(GatewayService.class);
+        stopIfStarted(SearchService.class);
+        stopIfStarted(TransportService.class);
 
-        pluginLifecycleComponents.forEach(LifecycleComponent::stop);
+        pluginLifecycleComponents.forEach(Node::stopIfStarted);
         // we should stop this last since it waits for resources to get released
         // if we had scroll searchers etc or recovery going on we wait for to finish.
-        injector.getInstance(IndicesService.class).stop();
+        stopIfStarted(IndicesService.class);
         logger.info("stopped");
+    }
 
-        return this;
+    private <T extends LifecycleComponent> void stopIfStarted(Class<T> componentClass) {
+        stopIfStarted(injector.getInstance(componentClass));
+    }
+
+    private static void stopIfStarted(LifecycleComponent component) {
+        // if we failed during startup then some of our components might not have started yet
+        if (component.lifecycleState() == Lifecycle.State.STARTED) {
+            component.stop();
+        }
     }
 
     // During concurrent close() calls we want to make sure that all of them return after the node has completed it's shutdown cycle.
@@ -1618,6 +1681,7 @@ public class Node implements Closeable {
             toClose.add(injector.getInstance(ReadinessService.class));
         }
         toClose.add(injector.getInstance(FileSettingsService.class));
+        toClose.add(injector.getInstance(HealthPeriodicLogger.class));
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));
@@ -1646,6 +1710,31 @@ public class Node implements Closeable {
         }
         IOUtils.close(toClose);
         logger.info("closed");
+    }
+
+    /**
+     * Invokes hooks to prepare this node to be closed. This should be called when Elasticsearch receives a request to shut down
+     * gracefully from the underlying operating system, before system resources are closed. This method will block
+     * until the node is ready to shut down.
+     *
+     * Note that this class is part of infrastructure to react to signals from the operating system - most graceful shutdown
+     * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
+     */
+    public void prepareForClose() {
+        HttpServerTransport httpServerTransport = injector.getInstance(HttpServerTransport.class);
+        FutureTask<Void> stopper = new FutureTask<>(() -> {
+            httpServerTransport.stop();
+            return null;
+        });
+        new Thread(stopper, "http-server-transport-stop").start();
+
+        Optional.ofNullable(terminationHandler.get()).ifPresent(TerminationHandler::handleTermination);
+
+        try {
+            stopper.get();
+        } catch (Exception e) {
+            logger.warn("unexpected exception while waiting for http server to close", e);
+        }
     }
 
     /**

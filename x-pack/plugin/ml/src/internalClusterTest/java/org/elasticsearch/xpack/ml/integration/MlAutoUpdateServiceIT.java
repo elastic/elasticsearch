@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -15,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -102,13 +104,14 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
                                 new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                                 Collections.emptyMap(),
                                 Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                                Version.V_8_0_0
+                                VersionInformation.inferVersions(Version.V_8_0_0)
                             )
                         )
                         .localNodeId("node_id")
                         .masterNodeId("node_id")
                         .build()
                 )
+                .putTransportVersion("node_id", TransportVersion.current())
                 .build(),
             ClusterState.builder(new ClusterName("test")).build()
         );

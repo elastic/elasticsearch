@@ -70,8 +70,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
             actionFilters,
             NodesDeprecationCheckRequest::new,
             NodesDeprecationCheckAction.NodeRequest::new,
-            ThreadPool.Names.GENERIC,
-            NodesDeprecationCheckAction.NodeResponse.class
+            ThreadPool.Names.GENERIC
         );
         this.settings = settings;
         this.pluginsService = pluginsService;

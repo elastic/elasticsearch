@@ -1,0 +1,5 @@
+pr: 98001
+summary: Avoid `transport_worker` thread in `TransportBroadcastAction`
+area: Distributed
+type: bug
+issues: []

@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -90,7 +92,7 @@ public class JoinValidationServiceTests extends ESTestCase {
 
                         @Override
                         public TransportVersion getTransportVersion() {
-                            return TransportVersion.CURRENT;
+                            return TransportVersion.current();
                         }
 
                         @Override
@@ -113,10 +115,11 @@ public class JoinValidationServiceTests extends ESTestCase {
                                 @Override
                                 public void doRun() {
                                     handleResponse(requestId, switch (action) {
-                                        case JoinValidationService.JOIN_VALIDATE_ACTION_NAME -> TransportResponse.Empty.INSTANCE;
+                                        case JoinValidationService.JOIN_VALIDATE_ACTION_NAME, JoinHelper.JOIN_PING_ACTION_NAME ->
+                                            TransportResponse.Empty.INSTANCE;
                                         case TransportService.HANDSHAKE_ACTION_NAME -> new TransportService.HandshakeResponse(
                                             Version.CURRENT,
-                                            Build.CURRENT.hash(),
+                                            Build.current().hash(),
                                             node,
                                             ClusterName.DEFAULT
                                         );
@@ -130,7 +133,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                 }
             };
 
-            final var localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+            final var localNode = DiscoveryNodeUtils.create("local");
 
             final var transportService = new TransportService(
                 settings,
@@ -143,9 +146,17 @@ public class JoinValidationServiceTests extends ESTestCase {
             );
             releasables.add(transportService);
 
-            final var clusterState = ClusterState.EMPTY_STATE;
+            final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+                .build();
 
-            final var joinValidationService = new JoinValidationService(settings, transportService, () -> clusterState, List.of());
+            final var joinValidationService = new JoinValidationService(
+                settings,
+                transportService,
+                () -> usually() ? clusterState : null,
+                clusterState::metadata,
+                List.of()
+            );
 
             transportService.start();
             releasables.add(() -> {
@@ -158,7 +169,7 @@ public class JoinValidationServiceTests extends ESTestCase {
 
             final var otherNodes = new DiscoveryNode[between(1, 10)];
             for (int i = 0; i < otherNodes.length; i++) {
-                otherNodes[i] = new DiscoveryNode("other-" + i, buildNewFakeTransportAddress(), Version.CURRENT);
+                otherNodes[i] = DiscoveryNodeUtils.create("other-" + i);
                 final var connectionListener = new PlainActionFuture<Releasable>();
                 transportService.connectToNode(otherNodes[i], connectionListener);
                 releasables.add(connectionListener.get(10, TimeUnit.SECONDS));
@@ -185,7 +196,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                         if (validationPermits.tryAcquire()) {
                             joinValidationService.validateJoin(
                                 randomFrom(random, otherNodes),
-                                ActionListener.notifyOnce(new ActionListener<>() {
+                                ActionListener.assertOnce(new ActionListener<>() {
                                     @Override
                                     public void onResponse(TransportResponse.Empty empty) {
                                         validationPermits.release();
@@ -250,7 +261,7 @@ public class JoinValidationServiceTests extends ESTestCase {
 
             @Override
             public TransportVersion getMinimalSupportedVersion() {
-                return TransportVersion.CURRENT;
+                return TransportVersion.current();
             }
 
             @Override
@@ -258,9 +269,14 @@ public class JoinValidationServiceTests extends ESTestCase {
         }
 
         final var deterministicTaskQueue = new DeterministicTaskQueue();
-        final var clusterState = ClusterState.builder(ClusterName.DEFAULT).putCustom("test", new BadCustom()).build();
 
-        final var joiningNode = new DiscoveryNode("joining", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var masterNode = DiscoveryNodeUtils.create("node0");
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()))
+            .putCustom("test", new BadCustom())
+            .build();
+
+        final var joiningNode = DiscoveryNodeUtils.create("joining");
         final var joiningNodeTransport = new MockTransport();
         final var joiningNodeTransportService = joiningNodeTransport.createTransportService(
             Settings.EMPTY,
@@ -270,11 +286,13 @@ public class JoinValidationServiceTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        new JoinValidationService(Settings.EMPTY, joiningNodeTransportService, () -> clusterState, List.of()); // registers request handler
+
+        // registers request handler
+        new JoinValidationService(Settings.EMPTY, joiningNodeTransportService, () -> clusterState, clusterState::metadata, List.of());
+
         joiningNodeTransportService.start();
         joiningNodeTransportService.acceptIncomingRequests();
 
-        final var masterNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
         final var masterTransport = new MockTransport() {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
@@ -314,7 +332,13 @@ public class JoinValidationServiceTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        final var joinValidationService = new JoinValidationService(Settings.EMPTY, masterTransportService, () -> clusterState, List.of());
+        final var joinValidationService = new JoinValidationService(
+            Settings.EMPTY,
+            masterTransportService,
+            () -> clusterState,
+            clusterState::metadata,
+            List.of()
+        );
         masterTransportService.start();
         masterTransportService.acceptIncomingRequests();
 
@@ -338,7 +362,7 @@ public class JoinValidationServiceTests extends ESTestCase {
     public void testJoinValidationRejectsMismatchedClusterUUID() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var mockTransport = new MockTransport();
-        final var localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var localNode = DiscoveryNodeUtils.create("node0");
 
         final var localClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().generateClusterUuidIfNeeded().clusterUUIDCommitted(true))
@@ -355,7 +379,10 @@ public class JoinValidationServiceTests extends ESTestCase {
 
         final var dataPath = "/my/data/path";
         final var settings = Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), dataPath).build();
-        new JoinValidationService(settings, transportService, () -> localClusterState, List.of()); // registers request handler
+
+        // registers request handler
+        new JoinValidationService(settings, transportService, () -> localClusterState, localClusterState::metadata, List.of());
+
         transportService.start();
         transportService.acceptIncomingRequests();
 
@@ -387,7 +414,7 @@ public class JoinValidationServiceTests extends ESTestCase {
     public void testJoinValidationRunsJoinValidators() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var mockTransport = new MockTransport();
-        final var localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var localNode = DiscoveryNodeUtils.create("node0");
         final var localClusterState = ClusterState.builder(ClusterName.DEFAULT).build();
 
         final var transportService = mockTransport.createTransportService(
@@ -400,11 +427,17 @@ public class JoinValidationServiceTests extends ESTestCase {
         );
 
         final var stateForValidation = ClusterState.builder(ClusterName.DEFAULT).build();
-        new JoinValidationService(Settings.EMPTY, transportService, () -> localClusterState, List.of((node, state) -> {
-            assertSame(node, localNode);
-            assertSame(state, stateForValidation);
-            throw new IllegalStateException("simulated validation failure");
-        })); // registers request handler
+        new JoinValidationService(
+            Settings.EMPTY,
+            transportService,
+            () -> localClusterState,
+            localClusterState::metadata,
+            List.of((node, state) -> {
+                assertSame(node, localNode);
+                assertSame(state, stateForValidation);
+                throw new IllegalStateException("simulated validation failure");
+            })
+        ); // registers request handler
         transportService.start();
         transportService.acceptIncomingRequests();
 
@@ -421,5 +454,48 @@ public class JoinValidationServiceTests extends ESTestCase {
             expectThrows(IllegalStateException.class, future::actionGet).getMessage(),
             allOf(containsString("simulated validation failure"))
         );
+    }
+
+    public void testJoinValidationFallsBackToPingIfNotMaster() {
+
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var masterNode = DiscoveryNodeUtils.create("node0");
+        final var joiningNode = DiscoveryNodeUtils.create("joining");
+
+        final var pingSeen = new AtomicBoolean();
+        final var masterTransport = new MockTransport() {
+            @Override
+            protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
+                assertSame(node, joiningNode);
+                assertEquals(JoinHelper.JOIN_PING_ACTION_NAME, action);
+                assertTrue(pingSeen.compareAndSet(false, true));
+                handleResponse(requestId, TransportResponse.Empty.INSTANCE);
+            }
+        };
+        final var masterTransportService = masterTransport.createTransportService(
+            Settings.EMPTY,
+            deterministicTaskQueue.getThreadPool(),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> masterNode,
+            null,
+            Collections.emptySet()
+        );
+        final var joinValidationService = new JoinValidationService(Settings.EMPTY, masterTransportService, () -> null, () -> {
+            throw new AssertionError("should not be called");
+        }, List.of());
+        masterTransportService.start();
+        masterTransportService.acceptIncomingRequests();
+
+        try {
+            final var future = new PlainActionFuture<TransportResponse.Empty>();
+            joinValidationService.validateJoin(joiningNode, future);
+            assertFalse(future.isDone());
+            deterministicTaskQueue.runAllTasks();
+            assertTrue(future.isDone());
+            assertTrue(pingSeen.get());
+        } finally {
+            joinValidationService.stop();
+            masterTransportService.close();
+        }
     }
 }

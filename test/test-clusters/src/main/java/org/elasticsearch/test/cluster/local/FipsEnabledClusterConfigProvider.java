@@ -13,7 +13,7 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 public class FipsEnabledClusterConfigProvider implements LocalClusterConfigProvider {
 
     @Override
-    public void apply(LocalClusterSpecBuilder builder) {
+    public void apply(LocalClusterSpecBuilder<?> builder) {
         if (isFipsEnabled()) {
             builder.configFile(
                 "fips_java.security",

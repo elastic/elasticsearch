@@ -38,6 +38,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -88,6 +89,7 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -205,7 +207,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     public void testCanDeleteShardContent() {
         IndicesService indicesService = getIndicesService();
         IndexMetadata meta = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
@@ -733,14 +735,16 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertThat(filter.should(), containsInAnyOrder(QueryBuilders.termQuery("foo", "baz"), QueryBuilders.termQuery("foo", "bax")));
         }
         {
+            // querying an unfiltered and a filtered alias for the same data stream should drop the filters
             String index = backingIndex1.getIndex().getName();
             AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs", "logs_bar"));
-            assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo", "logs"));
-            BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
-            assertThat(filter.filter(), empty());
-            assertThat(filter.must(), empty());
-            assertThat(filter.mustNot(), empty());
-            assertThat(filter.should(), containsInAnyOrder(QueryBuilders.termQuery("foo", "baz"), QueryBuilders.termQuery("foo", "bar")));
+            assertThat(result, is(AliasFilter.EMPTY));
+        }
+        {
+            // similarly, querying the data stream name and a filtered alias should drop the filter
+            String index = backingIndex1.getIndex().getName();
+            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs", dataStreamName1));
+            assertThat(result, is(AliasFilter.EMPTY));
         }
     }
 }

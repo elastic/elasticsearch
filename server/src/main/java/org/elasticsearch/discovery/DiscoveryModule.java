@@ -76,10 +76,8 @@ public class DiscoveryModule {
         Property.NodeScope
     );
 
-    public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS_SETTING = Setting.stringListSetting(
         "discovery.seed_providers",
-        Collections.emptyList(),
-        Function.identity(),
         Property.NodeScope
     );
 

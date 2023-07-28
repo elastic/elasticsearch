@@ -569,7 +569,7 @@ instead. A regular flush has the same effect as a synced flush in 7.6 and later.
 
 [role="exclude",id="_repositories"]
 === Snapshot repositories
-See <<snapshots-repositories>>.
+See <<snapshots-register-repository>>.
 
 [role="exclude",id="_snapshot"]
 === Snapshot
@@ -1881,3 +1881,53 @@ Refer to <<example-watches>> for other Watcher examples.
 === Fix watermark errors
 
 Refer to <<fix-watermark-errors>>.
+
+[role="exclude",id="dlm-delete-lifecycle"]
+=== Delete the lifecycle of a data stream
+
+Refer to <<data-streams-delete-lifecycle,Delete data stream lifecycle API>>.
+
+[role="exclude",id="dlm-explain-lifecycle"]
+=== Explain the lifecycle of a data stream
+
+Refer to <<data-streams-explain-lifecycle,Explain data stream lifecycle API>>.
+
+[role="exclude",id="dlm-get-lifecycle"]
+=== Get the lifecycle of a data stream
+
+Refer to <<data-streams-get-lifecycle,Get data stream lifecycle API>>.
+
+[role="exclude",id="dlm-put-lifecycle"]
+=== Update the lifecycle of a data stream
+
+Refer to <<data-streams-delete-lifecycle,Update data stream lifecycle API>>.
+
+[role="exclude",id="get-synonym-rule"]
+=== Get synonym rule API
+
+coming::[8.10.0]
+
+[role="exclude",id="get-synonyms"]
+=== Get synonym set API
+
+coming::[8.10.0]
+
+[role="exclude",id="list-synonyms"]
+=== List synonym sets API
+
+coming::[8.10.0]
+
+[role="exclude",id="put-synonym-rule"]
+=== Create or update synonym rule API
+
+coming::[8.10.0]
+
+[role="exclude",id="delete-synonyms"]
+=== Delete synonym sets API
+
+coming::[8.10.0]
+
+[role="exclude",id="put-synonyms"]
+=== Create or update synonym sets API
+
+coming::[8.10.0]

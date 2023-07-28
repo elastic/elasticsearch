@@ -84,6 +84,9 @@ using metrics.
       Process statistics, memory consumption, cpu usage, open
       file descriptors.
 
+  `repositories`::
+      Statistics about snapshot repositories.
+
   `thread_pool`::
       Statistics about each thread pool, including current size, queue and
       rejected tasks.
@@ -1672,6 +1675,31 @@ Total number of classes unloaded since the JVM started.
 =======
 ======
 
+[[cluster-nodes-stats-api-response-body-repositories]]
+`repositories`::
+(object)
+Statistics about snapshot repositories.
++
+.Properties of `repositories`
+[%collapsible%open]
+======
+`<repository_name>`::
+(object)
+Contains repository throttling statistics for the node.
++
+.Properties of `<repository_name>`
+[%collapsible%open]
+=======
+`total_read_throttled_time_nanos`::
+(integer)
+Total number of nanos which node had to wait during recovery.
+
+`total_write_throttled_time_nanos`::
+(integer)
+Total number of nanos which node had to wait during snapshotting.
+=======
+======
+
 [[cluster-nodes-stats-api-response-body-threadpool]]
 `thread_pool`::
 (object)
@@ -2114,11 +2142,11 @@ included in the response.
 
 `local_address`::
 (string)
-Local address for the HTTP client.
+Local address for the HTTP connection.
 
 `remote_address`::
 (string)
-Remote address for the HTTP client.
+Remote address for the HTTP connection.
 
 `last_uri`::
 (string)

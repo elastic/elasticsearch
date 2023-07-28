@@ -26,9 +26,7 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
 
     public void testQueryRewriteOnRefresh() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("index")
+            indicesAdmin().prepareCreate("index")
                 .setMapping("s", "type=text")
                 .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
                 .get()
@@ -82,17 +80,17 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
 
     private void assertRequestCacheStats(long expectedHits, long expectedMisses) {
         assertThat(
-            client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+            indicesAdmin().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(expectedHits)
         );
         assertThat(
-            client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+            indicesAdmin().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(expectedMisses)
         );
     }
 
     private void refreshIndex() {
-        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("index").get();
+        RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("index").get();
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(refreshResponse.getSuccessfulShards()));
     }
 

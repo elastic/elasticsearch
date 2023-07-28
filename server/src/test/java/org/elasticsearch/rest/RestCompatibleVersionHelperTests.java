@@ -10,10 +10,10 @@ package org.elasticsearch.rest;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchMatchers;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.hamcrest.Matcher;
 
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -327,7 +327,7 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
     }
 
     private Matcher<RestApiVersion> requestHasVersion(int version) {
-        return ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty(v -> (int) v.major, equalTo(version));
+        return transformedMatch(v -> (int) v.major, equalTo(version));
     }
 
     private String bodyNotPresent() {

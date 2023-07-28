@@ -562,7 +562,7 @@ public class BytesStreamsTests extends ESTestCase {
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
 
-        final Map<String, List<String>> loaded = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
+        final Map<String, List<String>> loaded = in.readMapOfLists(StreamInput::readString);
 
         assertThat(loaded.size(), equalTo(expected.size()));
 

@@ -111,7 +111,7 @@ public class AllocationIdIT extends ESIntegTestCase {
 
         // allocation fails due to corruption marker
         assertBusy(() -> {
-            final ClusterState state = client().admin().cluster().prepareState().get().getState();
+            final ClusterState state = clusterAdmin().prepareState().get().getState();
             final ShardRouting shardRouting = state.routingTable().index(indexName).shard(shardId.id()).primaryShard();
             assertThat(shardRouting.state(), equalTo(ShardRoutingState.UNASSIGNED));
             assertThat(shardRouting.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
@@ -128,7 +128,7 @@ public class AllocationIdIT extends ESIntegTestCase {
         checkNoValidShardCopy(indexName, shardId);
 
         // no any valid shard is there; have to invoke AllocateStalePrimary again
-        client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true)).get();
+        clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true)).get();
 
         ensureYellow(indexName);
 
@@ -143,11 +143,7 @@ public class AllocationIdIT extends ESIntegTestCase {
     }
 
     public void checkHealthStatus(String indexName, ClusterHealthStatus healthStatus) {
-        final ClusterHealthStatus indexHealthStatus = client().admin()
-            .cluster()
-            .health(new ClusterHealthRequest(indexName))
-            .actionGet()
-            .getStatus();
+        final ClusterHealthStatus indexHealthStatus = clusterAdmin().health(new ClusterHealthRequest(indexName)).actionGet().getStatus();
         assertThat(indexHealthStatus, is(healthStatus));
     }
 
@@ -173,9 +169,8 @@ public class AllocationIdIT extends ESIntegTestCase {
     }
 
     private Set<String> getAllocationIds(String indexName) {
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final Set<String> allocationIds = state.metadata().index(indexName).inSyncAllocationIds(0);
-        return allocationIds;
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
+        return state.metadata().index(indexName).inSyncAllocationIds(0);
     }
 
     private IndexSettings getIndexSettings(String indexName, String nodeName) {
@@ -204,9 +199,7 @@ public class AllocationIdIT extends ESIntegTestCase {
 
     private void checkNoValidShardCopy(String indexName, ShardId shardId) throws Exception {
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
                 .setIndex(indexName)
                 .setShard(shardId.id())
                 .setPrimary(true)

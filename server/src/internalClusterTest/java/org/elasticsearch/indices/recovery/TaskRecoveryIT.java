@@ -52,9 +52,7 @@ public class TaskRecoveryIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode();
         String nodeWithPrimary = internalCluster().startDataOnlyNode();
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(indexSettings(1, 0).put("index.routing.allocation.include._name", nodeWithPrimary))
         );
         try {
@@ -69,16 +67,12 @@ public class TaskRecoveryIT extends ESIntegTestCase {
             );
             // Translog recovery is stalled, so we can inspect the running tasks.
             assertBusy(() -> {
-                List<TaskInfo> primaryTasks = client().admin()
-                    .cluster()
-                    .prepareListTasks(nodeWithPrimary)
+                List<TaskInfo> primaryTasks = clusterAdmin().prepareListTasks(nodeWithPrimary)
                     .setActions(PeerRecoverySourceService.Actions.START_RECOVERY)
                     .get()
                     .getTasks();
                 assertThat("Expected a single primary task", primaryTasks.size(), equalTo(1));
-                List<TaskInfo> replicaTasks = client().admin()
-                    .cluster()
-                    .prepareListTasks(nodeWithReplica)
+                List<TaskInfo> replicaTasks = clusterAdmin().prepareListTasks(nodeWithReplica)
                     .setActions(PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG)
                     .get()
                     .getTasks();

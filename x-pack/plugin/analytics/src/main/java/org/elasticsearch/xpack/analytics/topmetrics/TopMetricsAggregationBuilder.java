@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -167,6 +168,13 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
         out.writeNamedWriteableList(sortBuilders);
         out.writeVInt(size);
         out.writeList(metricFields);
+    }
+
+    @Override
+    public TopMetricsAggregationBuilder subAggregations(Builder subFactories) {
+        throw new AggregationInitializationException(
+            "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
+        );
     }
 
     @Override

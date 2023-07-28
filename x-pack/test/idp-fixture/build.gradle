@@ -3,42 +3,36 @@ import org.elasticsearch.gradle.Architecture
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
 
 apply plugin: 'elasticsearch.test.fixtures'
-apply plugin: 'elasticsearch.internal-distribution-download'
 
 dockerCompose {
   composeAdditionalArgs = ['--compatibility']
 }
 
-tasks.register("copyKeystore", Sync) {
-  from project(':x-pack:plugin:core')
-    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
-  into "${buildDir}/certs"
-  doLast {
-    file("${buildDir}/certs").setReadable(true, false)
-    file("${buildDir}/certs/testnode.jks").setReadable(true, false)
-  }
-}
-
-elasticsearch_distributions {
-  docker {
-    type = DOCKER
-    architecture = Architecture.current()
-    version = VersionProperties.getElasticsearch()
-    failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
-  }
-}
-
 tasks.named("preProcessFixture").configure {
-  dependsOn "copyKeystore", elasticsearch_distributions.docker
+  file("${testFixturesDir}/shared/oidc").mkdirs()
+}
+
+tasks.register("copyFiles", Sync) {
+  from file("oidc/override.properties.template")
+  into "${buildDir}/config"
   doLast {
-    File file = file("${testFixturesDir}/logs/node1")
-    file.mkdirs()
-    file.setWritable(true, false)
+    file("${buildDir}/config").setReadable(true, false)
+    file("${buildDir}/config/override.properties.template").setReadable(true, false)
   }
 }
 
-tasks.named('composeUp').configure {
-  dependsOn "preProcessFixture"
+tasks.named("postProcessFixture").configure {
+  dependsOn "copyFiles"
+  inputs.dir("${testFixturesDir}/shared/oidc")
+  File confTemplate = file("${buildDir}/config/override.properties.template")
+  File confFile = file("${testFixturesDir}/shared/oidc/override.properties")
+  outputs.file(confFile)
+  doLast {
+    assert confTemplate.exists()
+    String confContents = confTemplate.text
+      .replace("\${MAPPED_PORT}", "${ext."test.fixtures.oidc-provider.tcp.8080"}")
+    confFile.text = confContents
+  }
 }
 
 tasks.named('composePull').configure {

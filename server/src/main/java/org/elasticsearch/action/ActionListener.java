@@ -10,6 +10,7 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListenerImplementations.runnableFromReleasable;
 import static org.elasticsearch.action.ActionListenerImplementations.safeAcceptException;
@@ -69,6 +71,13 @@ public interface ActionListener<Response> {
     }
 
     /**
+     * Same as {@link #map(CheckedFunction)} except that {@code fn} is expected to never throw.
+     */
+    default <T> ActionListener<T> safeMap(Function<T, Response> fn) {
+        return new ActionListenerImplementations.SafeMappedActionListener<>(fn, this);
+    }
+
+    /**
      * Creates a listener that delegates all responses it receives to this instance.
      *
      * @param bc BiConsumer invoked with delegate listener and exception
@@ -87,6 +96,14 @@ public interface ActionListener<Response> {
      */
     default <T> ActionListener<T> delegateFailure(BiConsumer<ActionListener<Response>, T> bc) {
         return new ActionListenerImplementations.DelegatingFailureActionListener<>(this, bc);
+    }
+
+    /**
+     * Same as {@link #delegateFailure(BiConsumer)} except that any failure thrown by {@code bc} or the delegate listener's
+     * {@link #onResponse} will be passed to the delegate listeners {@link #onFailure(Exception)}.
+     */
+    default <T> ActionListener<T> delegateFailureAndWrap(CheckedBiConsumer<ActionListener<Response>, T, ? extends Exception> bc) {
+        return new ActionListenerImplementations.ResponseWrappingActionListener<>(this, bc);
     }
 
     /**
@@ -139,7 +156,9 @@ public interface ActionListener<Response> {
     /**
      * Creates a listener that executes the appropriate consumer when the response (or failure) is received. This listener is "wrapped" in
      * the sense that an exception from the {@code onResponse} consumer is passed into the {@code onFailure} consumer.
-     *
+     * <p>
+     * If the {@code onFailure} argument is {@code listener::onFailure} for some other {@link ActionListener}, prefer to use
+     * {@link #delegateFailureAndWrap} instead.
      * @param onResponse the checked consumer of the response, executed when the listener is completed successfully. If it throws an
      *                   exception, the exception is passed to the {@code onFailure} consumer.
      * @param onFailure the consumer of the failure, executed when the listener is completed with an exception (or it is completed
@@ -264,29 +283,7 @@ public interface ActionListener<Response> {
      * and {@link #onFailure(Exception)} of the provided listener will be called at most once.
      */
     static <Response> ActionListener<Response> notifyOnce(ActionListener<Response> delegate) {
-        final var delegateRef = new AtomicReference<>(delegate);
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(Response response) {
-                final var acquired = delegateRef.getAndSet(null);
-                if (acquired != null) {
-                    acquired.onResponse(response);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                final var acquired = delegateRef.getAndSet(null);
-                if (acquired != null) {
-                    safeOnFailure(acquired, e);
-                }
-            }
-
-            @Override
-            public String toString() {
-                return "notifyOnce[" + delegateRef.get() + "]";
-            }
-        };
+        return new ActionListenerImplementations.NotifyOnceActionListener<>(delegate);
     }
 
     /**
@@ -342,6 +339,20 @@ public interface ActionListener<Response> {
                 @Override
                 public String toString() {
                     return delegate.toString();
+                }
+
+                @Override
+                public int hashCode() {
+                    // It's legitimate to wrap the delegate twice, with two different assertOnce calls, which would yield different objects
+                    // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                    throw new AssertionError("almost certainly a mistake to need the hashCode() of a one-shot ActionListener");
+                }
+
+                @Override
+                public boolean equals(Object obj) {
+                    // It's legitimate to wrap the delegate twice, with two different assertOnce calls, which would yield different objects
+                    // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                    throw new AssertionError("almost certainly a mistake to compare a one-shot ActionListener for equality");
                 }
             };
         } else {

@@ -25,6 +25,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -329,24 +330,22 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP:
-                    geoData.put("ip", NetworkAddress.format(ipAddress));
-                    break;
-                case ASN:
+                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case ASN -> {
                     if (asn != null) {
                         geoData.put("asn", asn);
                     }
-                    break;
-                case ORGANIZATION_NAME:
+                }
+                case ORGANIZATION_NAME -> {
                     if (organization_name != null) {
                         geoData.put("organization_name", organization_name);
                     }
-                    break;
-                case NETWORK:
+                }
+                case NETWORK -> {
                     if (network != null) {
                         geoData.put("network", network.toString());
                     }
-                    break;
+                }
             }
         }
         return geoData;
@@ -375,13 +374,16 @@ public final class GeoIpProcessor extends AbstractProcessor {
             } else if (loader == null) {
                 throw new ResourceNotFoundException("database file [" + databaseFile + "] doesn't exist");
             }
-            // Only check whether the suffix has changed and not the entire database type.
-            // To sanity check whether a city db isn't overwriting with a country or asn db.
-            // For example overwriting a geoip lite city db with geoip city db is a valid change, but the db type is slightly different,
-            // by checking just the suffix this assertion doesn't fail.
-            String expectedSuffix = databaseType.substring(databaseType.lastIndexOf('-'));
-            assert loader.getDatabaseType().endsWith(expectedSuffix)
-                : "database type [" + loader.getDatabaseType() + "] doesn't match with expected suffix [" + expectedSuffix + "]";
+
+            if (Assertions.ENABLED) {
+                // Only check whether the suffix has changed and not the entire database type.
+                // To sanity check whether a city db isn't overwriting with a country or asn db.
+                // For example overwriting a geoip lite city db with geoip city db is a valid change, but the db type is slightly different,
+                // by checking just the suffix this assertion doesn't fail.
+                String expectedSuffix = databaseType.substring(databaseType.lastIndexOf('-'));
+                assert loader.getDatabaseType().endsWith(expectedSuffix)
+                    : "database type [" + loader.getDatabaseType() + "] doesn't match with expected suffix [" + expectedSuffix + "]";
+            }
             return loader;
         }
     }
@@ -424,6 +426,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             boolean firstOnly = readBooleanProperty(TYPE, processorTag, config, "first_only", true);
+
+            // Validating the download_database_on_pipeline_creation even if the result
+            // is not used directly by the factory.
+            downloadDatabaseOnPipelineCreation(config, processorTag);
 
             // noop, should be removed in 9.0
             Object value = config.remove("fallback_to_default_databases");
@@ -483,6 +489,14 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 firstOnly,
                 databaseFile
             );
+        }
+
+        public static boolean downloadDatabaseOnPipelineCreation(Map<String, Object> config) {
+            return downloadDatabaseOnPipelineCreation(config, null);
+        }
+
+        public static boolean downloadDatabaseOnPipelineCreation(Map<String, Object> config, String processorTag) {
+            return readBooleanProperty(GeoIpProcessor.TYPE, processorTag, config, "download_database_on_pipeline_creation", true);
         }
 
         private static boolean useDatabaseUnavailableProcessor(GeoIpDatabase database, String databaseName) {

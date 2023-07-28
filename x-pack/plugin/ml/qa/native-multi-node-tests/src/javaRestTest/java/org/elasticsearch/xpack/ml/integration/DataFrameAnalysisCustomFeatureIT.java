@@ -15,21 +15,16 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.Multi;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.NGram;
@@ -42,7 +37,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -92,15 +86,6 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
         );
     }
 
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
-        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(searchModule.getNamedXContents());
-        entries.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-        entries.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
-        return new NamedXContentRegistry(entries);
-    }
-
     public void testNGramCustomFeature() throws Exception {
         initialize("test_ngram_feature_processor");
         String predictedClassField = NUMERICAL_FIELD + "_prediction";
@@ -130,17 +115,8 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
                         new Multi(
                             new PreProcessor[] {
                                 new NGram(TEXT_FIELD, "ngram", new int[] { 2 }, 0, 3, true),
-                                new FrequencyEncoding(
-                                    "ngram.20",
-                                    "frequency",
-                                    MapBuilder.<String, Double>newMapBuilder().put("ca", 5.0).put("do", 1.0).map(),
-                                    true
-                                ),
-                                new OneHotEncoding(
-                                    "ngram.21",
-                                    MapBuilder.<String, String>newMapBuilder().put("at", "is_cat").map(),
-                                    true
-                                ) },
+                                new FrequencyEncoding("ngram.20", "frequency", Map.of("ca", 5.0, "do", 1.0), true),
+                                new OneHotEncoding("ngram.21", Map.of("at", "is_cat"), true) },
                             true
                         )
                     ),

@@ -1,0 +1,76 @@
+[role="xpack"]
+[[list-query-rulesets]]
+=== List query rulesets
+
+preview::[]
+
+++++
+<titleabbrev>List query rulesets</titleabbrev>
+++++
+
+Returns information about all stored query rulesets.
+Summary information on the number of rules per ruleset will be returned, and full details can be returned with the <<get-query-ruleset>> command.
+
+[[list-query-rules-request]]
+==== {api-request-title}
+
+`GET _query_rules/`
+
+[[list-query-rules-prereq]]
+==== {api-prereq-title}
+
+Requires the `manage_cluster` privilege.
+
+[[list-query-rules-path-params]]
+==== {api-path-parms-title}
+
+`size`::
+(Optional, integer) Maximum number of results to retrieve.
+
+`from`::
+(Optional, integer) The offset from the first result to fetch.
+
+[[list-query-rules-response-codes]]
+==== {api-response-codes-title}
+
+[[list-query-rules-example]]
+==== {api-examples-title}
+
+The following example lists all configured query rulesets:
+
+[source,console]
+----
+GET _query_rules/
+----
+// TEST[skip:TBD]
+
+The following example lists the first three query rulesets:
+
+[source,console]
+----
+GET _query_rules/?from=0&size=3
+----
+// TEST[skip:TBD]
+
+A sample response:
+
+[source,console-result]
+----
+{
+    "count": 4,
+    "results": [
+        {
+            "ruleset_id": "ruleset-1",
+            "rules_count": 10
+        },
+        {
+            "ruleset_id": "ruleset-2",
+            "rules_count": 15
+        },
+        {
+            "ruleset_id": "ruleset-3",
+            "rules_count": 5
+        }
+    ]
+}
+----

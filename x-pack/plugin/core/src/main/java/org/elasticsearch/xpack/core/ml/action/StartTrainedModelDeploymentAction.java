@@ -61,6 +61,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
      */
     private static final ByteSizeValue MEMORY_OVERHEAD = ByteSizeValue.ofMb(240);
 
+    /**
+     * The ELSER model turned out to use more memory then what we usually estimate.
+     * We overwrite the estimate with this static value for ELSER V1 for now. Soon to be
+     * replaced with a better estimate provided by the model.
+     */
+    private static final ByteSizeValue ELSER_1_MEMORY_USAGE = ByteSizeValue.ofMb(2004);
+
     public StartTrainedModelDeploymentAction() {
         super(NAME, CreateTrainedModelAssignmentAction.Response::new);
     }
@@ -514,9 +521,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             // We already take into account 2x the model bytes. If the cache size is larger than the model bytes, then
             // we need to take it into account when returning the estimate.
             if (cacheSize != null && cacheSize.getBytes() > modelBytes) {
-                return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(modelBytes) + (cacheSize.getBytes() - modelBytes);
+                return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(modelId, modelBytes) + (cacheSize.getBytes()
+                    - modelBytes);
             }
-            return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(modelBytes);
+            return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(modelId, modelBytes);
         }
 
         public Version getMinimalSupportedVersion() {
@@ -641,8 +649,12 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         }
     }
 
-    public static long estimateMemoryUsageBytes(long totalDefinitionLength) {
+    public static long estimateMemoryUsageBytes(String modelId, long totalDefinitionLength) {
         // While loading the model in the process we need twice the model size.
-        return MEMORY_OVERHEAD.getBytes() + 2 * totalDefinitionLength;
+        return isElserModel(modelId) ? ELSER_1_MEMORY_USAGE.getBytes() : MEMORY_OVERHEAD.getBytes() + 2 * totalDefinitionLength;
+    }
+
+    private static boolean isElserModel(String modelId) {
+        return modelId.startsWith(".elser_model_1");
     }
 }

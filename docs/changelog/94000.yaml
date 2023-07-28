@@ -1,6 +1,0 @@
-pr: 94000
-summary: Introduce redirect method on IngestDocument
-area: Ingest Node
-type: enhancement
-issues:
- - 83653

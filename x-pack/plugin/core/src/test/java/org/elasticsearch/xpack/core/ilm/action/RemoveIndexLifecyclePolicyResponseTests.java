@@ -45,11 +45,6 @@ public class RemoveIndexLifecyclePolicyResponseTests extends AbstractXContentSer
         return Response.PARSER.apply(parser, null);
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
     public void testNullFailedIndices() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new Response((List<String>) null));
         assertEquals("failed_indexes cannot be null", exception.getMessage());

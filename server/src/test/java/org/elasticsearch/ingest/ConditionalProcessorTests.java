@@ -95,10 +95,6 @@ public class ConditionalProcessorTests extends ESTestCase {
                     return null;
                 }
 
-                @Override
-                public boolean isAsync() {
-                    return false;
-                }
             },
             relativeTimeProvider
         );
@@ -279,10 +275,10 @@ public class ConditionalProcessorTests extends ESTestCase {
 
     private static void assertStats(ConditionalProcessor conditionalProcessor, long count, long failed, long time) {
         IngestStats.Stats stats = conditionalProcessor.getMetric().createStats();
-        assertThat(stats.getIngestCount(), equalTo(count));
-        assertThat(stats.getIngestCurrent(), equalTo(0L));
-        assertThat(stats.getIngestFailedCount(), equalTo(failed));
-        assertThat(stats.getIngestTimeInMillis(), greaterThanOrEqualTo(time));
+        assertThat(stats.ingestCount(), equalTo(count));
+        assertThat(stats.ingestCurrent(), equalTo(0L));
+        assertThat(stats.ingestFailedCount(), equalTo(failed));
+        assertThat(stats.ingestTimeInMillis(), greaterThanOrEqualTo(time));
     }
 
     private static void execProcessor(Processor processor, IngestDocument doc, BiConsumer<IngestDocument, Exception> handler) {

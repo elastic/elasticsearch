@@ -1,0 +1,6 @@
+pr: 97290
+summary: Handle failure in `TransportUpdateAction#handleUpdateFailureWithRetry`
+area: CRUD
+type: bug
+issues:
+ - 97286

@@ -54,15 +54,11 @@ public class RemoteClusterSecurityWithSameModelRemotesRestIT extends AbstractRem
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
                         {
-                          "role": {
-                            "cluster": ["cross_cluster_access"],
-                            "index": [
+                            "search": [
                               {
-                                  "names": ["cluster1_index*"],
-                                  "privileges": ["read", "read_cross_cluster"]
+                                  "names": ["cluster1_index*"]
                               }
                             ]
-                          }
                         }""");
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }
@@ -73,15 +69,11 @@ public class RemoteClusterSecurityWithSameModelRemotesRestIT extends AbstractRem
                 if (OTHER_API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey(otherFulfillingClusterClient, """
                          {
-                          "role": {
-                            "cluster": ["cross_cluster_access"],
-                            "index": [
+                            "search": [
                               {
-                                  "names": ["cluster2_index*"],
-                                  "privileges": ["read", "read_cross_cluster"]
+                                  "names": ["cluster2_index*"]
                               }
                             ]
-                          }
                         }""");
                     OTHER_API_KEY_MAP_REF.set(apiKeyMap);
                 }

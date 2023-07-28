@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.ql.planner;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -51,17 +53,26 @@ import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Check;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public final class ExpressionTranslators {
 
@@ -201,7 +212,7 @@ public final class ExpressionTranslators {
             Query wrappedQuery = handler.asQuery(not.field());
             Query q = wrappedQuery instanceof ScriptQuery
                 ? new ScriptQuery(not.source(), not.asScript())
-                : new NotQuery(not.source(), wrappedQuery);
+                : wrappedQuery.negate(not.source());
 
             return wrapIfNested(q, e);
         }
@@ -287,6 +298,18 @@ public final class ExpressionTranslators {
                 }
                 format = formatter.pattern();
                 isDateLiteralComparison = true;
+            } else if (field.dataType() == IP && value instanceof BytesRef bytesRef) {
+                value = DocValueFormat.IP.format(bytesRef);
+            } else if (field.dataType() == VERSION) {
+                // VersionStringFieldMapper#indexedValueForSearch() only accepts as input String or BytesRef with the String (i.e. not
+                // encoded) representation of the version as it'll do the encoding itself.
+                if (value instanceof BytesRef bytesRef) {
+                    value = new Version(bytesRef).toString();
+                } else if (value instanceof Version version) {
+                    value = version.toString();
+                }
+            } else if (field.dataType() == UNSIGNED_LONG && value instanceof Long ul) {
+                value = unsignedLongAsNumber(ul);
             }
 
             ZoneId zoneId = null;
@@ -387,16 +410,19 @@ public final class ExpressionTranslators {
             return handler.wrapFunctionQuery(in, in.value(), () -> translate(in, handler));
         }
 
+        private static boolean needsTypeSpecificValueHandling(DataType fieldType) {
+            return DataTypes.isDateTime(fieldType) || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
+        }
+
         private static Query translate(In in, TranslatorHandler handler) {
             FieldAttribute field = checkIsFieldAttribute(in.value());
-            boolean isDateTimeComparison = DataTypes.isDateTime(field.dataType());
 
             Set<Object> terms = new LinkedHashSet<>();
             List<Query> queries = new ArrayList<>();
 
             for (Expression rhs : in.list()) {
                 if (DataTypes.isNull(rhs.dataType()) == false) {
-                    if (isDateTimeComparison) {
+                    if (needsTypeSpecificValueHandling(field.dataType())) {
                         // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
                         Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs, in.zoneId()), handler);
 
@@ -464,6 +490,15 @@ public final class ExpressionTranslators {
         if (right == null) {
             return left;
         }
-        return new BoolQuery(source, isAnd, left, right);
+        List<Query> queries;
+        // check if either side is already a bool query to an extra bool query
+        if (left instanceof BoolQuery bool && bool.isAnd() == isAnd) {
+            queries = CollectionUtils.combine(bool.queries(), right);
+        } else if (right instanceof BoolQuery bool && bool.isAnd() == isAnd) {
+            queries = CollectionUtils.combine(bool.queries(), left);
+        } else {
+            queries = Arrays.asList(left, right);
+        }
+        return new BoolQuery(source, isAnd, queries);
     }
 }

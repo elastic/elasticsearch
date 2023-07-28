@@ -101,21 +101,21 @@ class ServerTransportFilter {
         }
 
         TransportVersion version = transportChannel.getVersion();
-        authenticate(securityAction, request, ActionListener.wrap((authentication) -> {
+        authenticate(securityAction, request, listener.delegateFailureAndWrap((l, authentication) -> {
             if (authentication != null) {
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)
                     && SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
-                    securityContext.executeAsSystemUser(TransportVersion.fromId(version.id), original -> {
+                    securityContext.executeAsSystemUser(version, original -> {
                         final Authentication replaced = securityContext.getAuthentication();
-                        authzService.authorize(replaced, securityAction, request, listener);
+                        authzService.authorize(replaced, securityAction, request, l);
                     });
                 } else {
-                    authzService.authorize(authentication, securityAction, request, listener);
+                    authzService.authorize(authentication, securityAction, request, l);
                 }
             } else {
-                listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
+                l.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
             }
-        }, listener::onFailure));
+        }));
     }
 
     protected void authenticate(

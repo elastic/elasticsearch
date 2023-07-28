@@ -1,0 +1,23 @@
+[[query-rules-apis]]
+== Query rules APIs
+
+preview::[]
+
+++++
+<titleabbrev>Query rules APIs</titleabbrev>
+++++
+
+---
+
+Use query rules APIs to manage tasks and resources related to query rules.
+
+* <<put-query-ruleset>>
+* <<get-query-ruleset>>
+* <<list-query-rulesets>>
+* <<delete-query-ruleset>>
+
+include::put-query-ruleset.asciidoc[]
+include::get-query-ruleset.asciidoc[]
+include::list-query-rulesets.asciidoc[]
+include::delete-query-ruleset.asciidoc[]
+

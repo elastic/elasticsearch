@@ -52,7 +52,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
     }
 
     public FieldUsageStats(StreamInput in) throws IOException {
-        stats = in.readMap(StreamInput::readString, PerFieldUsageStats::new);
+        stats = in.readMap(PerFieldUsageStats::new);
     }
 
     @Override

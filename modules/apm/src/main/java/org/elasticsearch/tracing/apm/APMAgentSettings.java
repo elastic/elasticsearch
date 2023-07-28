@@ -20,11 +20,9 @@ import org.elasticsearch.core.SuppressForbidden;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
@@ -124,23 +122,19 @@ class APMAgentSettings {
         }
     );
 
-    static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.listSetting(
+    static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.stringListSetting(
         APM_SETTING_PREFIX + "names.include",
-        Collections.emptyList(),
-        Function.identity(),
         OperatorDynamic,
         NodeScope
     );
 
-    static final Setting<List<String>> APM_TRACING_NAMES_EXCLUDE_SETTING = Setting.listSetting(
+    static final Setting<List<String>> APM_TRACING_NAMES_EXCLUDE_SETTING = Setting.stringListSetting(
         APM_SETTING_PREFIX + "names.exclude",
-        Collections.emptyList(),
-        Function.identity(),
         OperatorDynamic,
         NodeScope
     );
 
-    static final Setting<List<String>> APM_TRACING_SANITIZE_FIELD_NAMES = Setting.listSetting(
+    static final Setting<List<String>> APM_TRACING_SANITIZE_FIELD_NAMES = Setting.stringListSetting(
         APM_SETTING_PREFIX + "sanitize_field_names",
         List.of(
             "password",
@@ -156,7 +150,6 @@ class APMAgentSettings {
             "*principal*",
             "set-cookie"
         ),
-        Function.identity(),
         OperatorDynamic,
         NodeScope
     );

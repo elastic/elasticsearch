@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep.Result;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo;
 import java.util.Collections;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE;
 import static org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStepTests.randomUnassignedInfo;
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.waitingForActiveShardsAllocationInfo;
@@ -66,7 +66,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
 
     public void testExecuteWithUnassignedShard() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
@@ -99,7 +99,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
 
     public void testExecuteWithPendingShards() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.CURRENT).put(TIER_PREFERENCE, DataTier.DATA_WARM))
+            .settings(settings(IndexVersion.current()).put(TIER_PREFERENCE, DataTier.DATA_WARM))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -139,7 +139,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
 
     public void testExecuteWithPendingShardsAndTargetRoleNotPresentInCluster() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.CURRENT).put(TIER_PREFERENCE, DataTier.DATA_WARM))
+            .settings(settings(IndexVersion.current()).put(TIER_PREFERENCE, DataTier.DATA_WARM))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -184,7 +184,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
 
     public void testExecuteIsComplete() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.CURRENT).put(TIER_PREFERENCE, DataTier.DATA_WARM))
+            .settings(settings(IndexVersion.current()).put(TIER_PREFERENCE, DataTier.DATA_WARM))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -209,7 +209,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
 
     public void testExecuteWithGenericDataNodes() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.CURRENT).put(TIER_PREFERENCE, DataTier.DATA_WARM))
+            .settings(settings(IndexVersion.current()).put(TIER_PREFERENCE, DataTier.DATA_WARM))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -230,7 +230,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
 
     public void testExecuteForIndexWithoutTierRoutingInformationWaitsForReplicasToBeActive() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
@@ -276,6 +276,6 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
     }
 
     private DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
+        return DiscoveryNodeUtils.builder(nodeId).roles(roles).build();
     }
 }

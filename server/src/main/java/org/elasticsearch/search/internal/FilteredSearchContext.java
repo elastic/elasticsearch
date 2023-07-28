@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
@@ -438,16 +436,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public Profilers getProfilers() {
         return in.getProfilers();
-    }
-
-    @Override
-    public CollectorManager<Collector, Void> getAggsCollectorManager() {
-        return in.getAggsCollectorManager();
-    }
-
-    @Override
-    public void registerAggsCollectorManager(CollectorManager<Collector, Void> collectorManager) {
-        in.registerAggsCollectorManager(collectorManager);
     }
 
     @Override

@@ -242,9 +242,9 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
         return Tuple.tuple(apiKeyId, apiKeyEncoded);
     }
 
-    protected static String createCrossClusterAccessApiKey(String roleDescriptorsJson, AtomicReference<Map<String, Object>> apiKeyRef) {
+    protected static String createCrossClusterAccessApiKey(String accessJson, AtomicReference<Map<String, Object>> apiKeyRef) {
         if (apiKeyRef.get() == null) {
-            apiKeyRef.set(createCrossClusterAccessApiKey(roleDescriptorsJson));
+            apiKeyRef.set(createCrossClusterAccessApiKey(accessJson));
         }
         return (String) apiKeyRef.get().get("encoded");
     }

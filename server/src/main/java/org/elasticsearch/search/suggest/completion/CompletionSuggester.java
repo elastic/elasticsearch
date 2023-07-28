@@ -74,7 +74,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
     }
 
     private static void suggest(IndexSearcher searcher, CompletionQuery query, TopSuggestDocsCollector collector) throws IOException {
-        query = (CompletionQuery) query.rewrite(searcher.getIndexReader());
+        query = (CompletionQuery) query.rewrite(searcher);
         Weight weight = query.createWeight(searcher, collector.scoreMode(), 1f);
         for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
             BulkScorer scorer = weight.bulkScorer(context);

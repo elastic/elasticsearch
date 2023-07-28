@@ -16,9 +16,10 @@ import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConjunctionUtils;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
@@ -33,6 +34,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.CombinedBitSet;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -43,11 +45,21 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.profile.query.QueryTimingType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -59,10 +71,20 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     private static final int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
 
+    // make sure each slice has at least 10% of the documents as a way to limit memory usage and
+    // to keep the error margin of terms aggregation low
+    private static final double MINIMUM_DOCS_PERCENT_PER_SLICE = 0.1;
+
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
     private final MutableQueryTimeout cancellable;
 
+    private final QueueSizeBasedExecutor queueSizeBasedExecutor;
+    private final LeafSlice[] leafSlices;
+    // don't create slices with less than this number of docs
+    private final int minimumDocsPerSlice;
+
+    /** constructor for non-concurrent search */
     public ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,
@@ -70,7 +92,38 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCachingPolicy queryCachingPolicy,
         boolean wrapWithExitableDirectoryReader
     ) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader);
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            new MutableQueryTimeout(),
+            Integer.MAX_VALUE,
+            wrapWithExitableDirectoryReader,
+            null
+        );
+    }
+
+    /** constructor for concurrent search */
+    public ContextIndexSearcher(
+        IndexReader reader,
+        Similarity similarity,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        int minimumDocsPerSlice,
+        boolean wrapWithExitableDirectoryReader,
+        ThreadPoolExecutor executor
+    ) throws IOException {
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            new MutableQueryTimeout(),
+            minimumDocsPerSlice,
+            wrapWithExitableDirectoryReader,
+            executor
+        );
     }
 
     private ContextIndexSearcher(
@@ -79,13 +132,24 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
         MutableQueryTimeout cancellable,
-        boolean wrapWithExitableDirectoryReader
+        int minimumDocsPerSlice,
+        boolean wrapWithExitableDirectoryReader,
+        ThreadPoolExecutor executor
     ) throws IOException {
+        // concurrency is handle in this class so don't pass the executor to the parent class
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader);
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
+        this.queueSizeBasedExecutor = executor != null ? new QueueSizeBasedExecutor(executor) : null;
+        this.minimumDocsPerSlice = minimumDocsPerSlice;
+        this.leafSlices = executor == null ? null : slices(leafContexts);
+    }
+
+    // package private for testing
+    int getMinimumDocsPerSlice() {
+        return minimumDocsPerSlice;
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -147,7 +211,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // each invocation so that it can build an internal representation of the query
             // tree
             QueryProfileBreakdown profile = profiler.getQueryBreakdown(query);
-            Timer timer = profile.getTimer(QueryTimingType.CREATE_WEIGHT);
+            Timer timer = profile.getNewTimer(QueryTimingType.CREATE_WEIGHT);
             timer.start();
             final Weight weight;
             try {
@@ -163,8 +227,149 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @Override
+    protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
+        return computeSlices(leaves, queueSizeBasedExecutor.threadPoolExecutor.getMaximumPoolSize(), minimumDocsPerSlice);
+    }
+
+    /**
+     * Each computed slice contains at least 10% of the total data in the leaves with a
+     * minimum given by the <code>minDocsPerSlice</code> parameter and the final number
+     * of {@link LeafSlice} will be equal or lower than the max number of slices.
+     */
+    /* pkg private for testing */
+    static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int maxSliceNum, int minDocsPerSlice) {
+        if (maxSliceNum < 1) {
+            throw new IllegalArgumentException("maxSliceNum must be >= 1 (got " + maxSliceNum + ")");
+        }
+        // total number of documents to be searched
+        final int numDocs = leaves.stream().mapToInt(l -> l.reader().maxDoc()).sum();
+        // percentage of documents per slice, minumum 10%
+        final double percentageDocsPerThread = Math.max(MINIMUM_DOCS_PERCENT_PER_SLICE, 1.0 / maxSliceNum);
+        // compute slices
+        return computeSlices(leaves, Math.max(minDocsPerSlice, (int) (percentageDocsPerThread * numDocs)));
+    }
+
+    private static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int minDocsPerSlice) {
+        // Make a copy so we can sort:
+        List<LeafReaderContext> sortedLeaves = new ArrayList<>(leaves);
+        // Sort by maxDoc, descending:
+        final Comparator<LeafReaderContext> leafComparator = Comparator.comparingInt(l -> l.reader().maxDoc());
+        Collections.sort(sortedLeaves, leafComparator.reversed());
+        // we add the groups on a priority queue, so we can add orphan leafs to the smallest group
+        final Comparator<List<LeafReaderContext>> groupComparator = Comparator.comparingInt(
+            l -> l.stream().mapToInt(lr -> lr.reader().maxDoc()).sum()
+        );
+        final PriorityQueue<List<LeafReaderContext>> queue = new PriorityQueue<>(groupComparator);
+        long docSum = 0;
+        List<LeafReaderContext> group = new ArrayList<>();
+        for (LeafReaderContext ctx : sortedLeaves) {
+            group.add(ctx);
+            docSum += ctx.reader().maxDoc();
+            if (docSum > minDocsPerSlice) {
+                queue.add(group);
+                group = new ArrayList<>();
+                docSum = 0;
+            }
+        }
+
+        if (group.size() > 0) {
+            if (queue.size() == 0) {
+                queue.add(group);
+            } else {
+                for (LeafReaderContext context : group) {
+                    final List<LeafReaderContext> head = queue.poll();
+                    head.add(context);
+                    queue.add(head);
+                }
+            }
+        }
+
+        final LeafSlice[] slices = new LeafSlice[queue.size()];
+        int upto = 0;
+        for (List<LeafReaderContext> currentLeaf : queue) {
+            // LeafSlice ctor reorders leaves so that leaves within a slice preserve the order they had within the IndexReader.
+            // This is important given how Elasticsearch sorts leaves by descending @timestamp to get better query performance.
+            slices[upto++] = new LeafSlice(currentLeaf);
+        }
+
+        return slices;
+    }
+
+    @Override
+    public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) throws IOException {
+        final C firstCollector = collectorManager.newCollector();
+        // Take advantage of the few extra rewrite rules of ConstantScoreQuery when score are not needed.
+        query = firstCollector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
+        final Weight weight = createWeight(query, firstCollector.scoreMode(), 1);
+        return search(weight, collectorManager, firstCollector);
+    }
+
+    /**
+     * Similar to the lucene implementation but it will wait for all threads to fisinsh before returning even if an error is thrown.
+     * In that case, other exceptions will be ignored and the first exception is thrown after all threads are finished.
+     * */
+    private <C extends Collector, T> T search(Weight weight, CollectorManager<C, T> collectorManager, C firstCollector) throws IOException {
+        if (queueSizeBasedExecutor == null || leafSlices.length <= 1) {
+            search(leafContexts, weight, firstCollector);
+            return collectorManager.reduce(Collections.singletonList(firstCollector));
+        } else {
+            final List<C> collectors = new ArrayList<>(leafSlices.length);
+            collectors.add(firstCollector);
+            final ScoreMode scoreMode = firstCollector.scoreMode();
+            for (int i = 1; i < leafSlices.length; ++i) {
+                final C collector = collectorManager.newCollector();
+                collectors.add(collector);
+                if (scoreMode != collector.scoreMode()) {
+                    throw new IllegalStateException("CollectorManager does not always produce collectors with the same score mode");
+                }
+            }
+            final List<FutureTask<C>> listTasks = new ArrayList<>();
+            for (int i = 0; i < leafSlices.length; ++i) {
+                final LeafReaderContext[] leaves = leafSlices[i].leaves;
+                final C collector = collectors.get(i);
+                FutureTask<C> task = new FutureTask<>(() -> {
+                    search(Arrays.asList(leaves), weight, collector);
+                    return collector;
+                });
+
+                listTasks.add(task);
+            }
+
+            queueSizeBasedExecutor.invokeAll(listTasks);
+            RuntimeException exception = null;
+            final List<C> collectedCollectors = new ArrayList<>();
+            for (Future<C> future : listTasks) {
+                try {
+                    collectedCollectors.add(future.get());
+                    // TODO: when there is an exception and we don't want partial results, it would be great
+                    // to cancel the queries / threads
+                } catch (InterruptedException e) {
+                    if (exception == null) {
+                        exception = new ThreadInterruptedException(e);
+                    } else {
+                        // we ignore further exceptions
+                    }
+                } catch (ExecutionException e) {
+                    if (exception == null) {
+                        if (e.getCause() instanceof RuntimeException runtimeException) {
+                            exception = runtimeException;
+                        } else {
+                            exception = new RuntimeException(e.getCause());
+                        }
+                    } else {
+                        // we ignore further exceptions
+                    }
+                }
+            }
+            if (exception != null) {
+                throw exception;
+            }
+            return collectorManager.reduce(collectedCollectors);
+        }
+    }
+
+    @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        weight = wrapWeight(weight);
         collector.setWeight(weight);
         for (LeafReaderContext ctx : leaves) { // search each subreader
             searchLeaf(ctx, weight, collector);
@@ -192,6 +397,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (liveDocsBitSet == null) {
             BulkScorer bulkScorer = weight.bulkScorer(ctx);
             if (bulkScorer != null) {
+                if (cancellable.isEnabled()) {
+                    bulkScorer = new CancellableBulkScorer(bulkScorer, cancellable::checkCancelled);
+                }
                 try {
                     bulkScorer.score(leafCollector, liveDocs);
                 } catch (CollectionTerminatedException e) {
@@ -215,44 +423,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     // continue with the following leaf
                 }
             }
-        }
-    }
-
-    private Weight wrapWeight(Weight weight) {
-        if (cancellable.isEnabled()) {
-            return new Weight(weight.getQuery()) {
-                @Override
-                public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public boolean isCacheable(LeafReaderContext ctx) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
-                    return weight.scorer(context);
-                }
-
-                @Override
-                public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-                    BulkScorer in = weight.bulkScorer(context);
-                    if (in != null) {
-                        return new CancellableBulkScorer(in, cancellable::checkCancelled);
-                    } else {
-                        return null;
-                    }
-                }
-
-                @Override
-                public int count(LeafReaderContext context) throws IOException {
-                    return weight.count(context);
-                }
-            };
-        } else {
-            return weight;
         }
     }
 
@@ -352,6 +522,54 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
         public void clear() {
             runnables.clear();
+        }
+    }
+
+    private static class QueueSizeBasedExecutor {
+        private static final double LIMITING_FACTOR = 1.5;
+
+        private final ThreadPoolExecutor threadPoolExecutor;
+
+        QueueSizeBasedExecutor(ThreadPoolExecutor threadPoolExecutor) {
+            this.threadPoolExecutor = threadPoolExecutor;
+        }
+
+        public void invokeAll(Collection<? extends Runnable> tasks) {
+            int i = 0;
+
+            for (Runnable task : tasks) {
+                boolean shouldExecuteOnCallerThread = false;
+
+                // Execute last task on caller thread
+                if (i == tasks.size() - 1) {
+                    shouldExecuteOnCallerThread = true;
+                }
+
+                if (threadPoolExecutor.getQueue().size() >= (threadPoolExecutor.getMaximumPoolSize() * LIMITING_FACTOR)) {
+                    shouldExecuteOnCallerThread = true;
+                }
+
+                processTask(task, shouldExecuteOnCallerThread);
+
+                ++i;
+            }
+        }
+
+        protected void processTask(final Runnable task, final boolean shouldExecuteOnCallerThread) {
+            if (task == null) {
+                throw new IllegalArgumentException("Input is null");
+            }
+
+            if (shouldExecuteOnCallerThread == false) {
+                try {
+                    threadPoolExecutor.execute(task);
+
+                    return;
+                } catch (@SuppressWarnings("unused") RejectedExecutionException e) {
+                    // Execute on caller thread
+                }
+            }
+            task.run();
         }
     }
 }

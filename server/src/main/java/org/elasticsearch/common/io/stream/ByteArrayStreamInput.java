@@ -33,6 +33,9 @@ public class ByteArrayStreamInput extends StreamInput {
 
     @Override
     public int read() throws IOException {
+        if (limit - pos <= 0) {
+            return -1;
+        }
         return readByte() & 0xFF;
     }
 
@@ -59,7 +62,7 @@ public class ByteArrayStreamInput extends StreamInput {
     }
 
     public void skipBytes(long count) {
-        pos += count;
+        pos += (int) count;
     }
 
     @Override

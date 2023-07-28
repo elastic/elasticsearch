@@ -14,13 +14,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.Randomness;
@@ -41,6 +41,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
@@ -153,9 +154,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                             r.content(),
                             r.lastChunk(),
                             r.totalTranslogOps(),
-                            ActionListener.wrap(ignored -> {}, e -> {
-                                throw new AssertionError(e);
-                            })
+                            ActionTestUtils.assertNoFailureListener(ignored -> {})
                         );
                     }
                 } catch (Exception e) {
@@ -206,13 +205,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testPrepareIndexForPeerRecovery() throws Exception {
-        DiscoveryNode localNode = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
-        );
+        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
 
         // empty copy
         IndexShard shard = newShard(false);
@@ -296,13 +289,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testClosedIndexSkipsLocalRecovery() throws Exception {
-        DiscoveryNode localNode = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
-        );
+        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
         IndexShard shard = newStartedShard(false);
         long globalCheckpoint = populateRandomData(shard).getGlobalCheckpoint();
         Optional<SequenceNumbers.CommitInfo> safeCommit = shard.store().findSafeIndexCommit(globalCheckpoint);
@@ -336,20 +323,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     public void testResetStartingSeqNoIfLastCommitCorrupted() throws Exception {
         IndexShard shard = newStartedShard(false);
         populateRandomData(shard);
-        DiscoveryNode pNode = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
-        );
-        DiscoveryNode rNode = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
-        );
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
         shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
         shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
         shard.prepareForIndexRecovery();
@@ -363,21 +338,38 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testMarkDoneFailureIsPropagated() throws Exception {
+        IndexShard shard = newStartedShard(false);
+        populateRandomData(shard);
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
+        shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
+        shard.prepareForIndexRecovery();
+
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, null, null, new PeerRecoveryTargetService.RecoveryListener() {
+            @Override
+            public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+                future.onResponse(null);
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                future.onFailure(e);
+            }
+        });
+        recoveryTarget.markAsDone();
+
+        // The recovery fails because the post recovery step attempts to refresh the engine, but it is not open.
+        expectThrows(RecoveryFailedException.class, future::actionGet);
+
+        closeShards(shard);
+    }
+
     public void testResetStartRequestIfTranslogIsCorrupted() throws Exception {
-        DiscoveryNode pNode = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
-        );
-        DiscoveryNode rNode = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
-        );
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
         IndexShard shard = newStartedShard(false);
         final SeqNoStats seqNoStats = populateRandomData(shard);
         shard.close("test", false);
@@ -410,20 +402,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testSnapshotFileWrite() throws Exception {
-        DiscoveryNode pNode = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
-        );
-        DiscoveryNode rNode = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
-        );
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
 
         IndexShard shard = newShard(false);
         shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
@@ -509,20 +489,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testSnapshotFileIsDeletedAfterFailure() throws Exception {
-        DiscoveryNode pNode = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
-        );
-        DiscoveryNode rNode = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
-        );
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
 
         IndexShard shard = newShard(false);
         shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
@@ -602,20 +570,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testReceiveFileInfoDeletesRecoveredFiles() throws Exception {
-        DiscoveryNode pNode = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
-        );
-        DiscoveryNode rNode = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
-        );
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
 
         IndexShard shard = newShard(false);
         shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
@@ -707,20 +663,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testSnapshotFileAreDeletedAfterCancel() throws Exception {
-        DiscoveryNode pNode = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
-        );
-        DiscoveryNode rNode = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
-        );
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
 
         IndexShard shard = newShard(false);
         shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
@@ -794,20 +738,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testSnapshotFileDownloadPermitIsReleasedAfterClosingRecoveryTarget() throws Exception {
-        DiscoveryNode pNode = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
-        );
-        DiscoveryNode rNode = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
-        );
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
 
         IndexShard shard = newShard(false);
         shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
@@ -851,7 +783,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 System.arraycopy(fileData, 0, fileDataCopy, 0, fileData.length);
                 // Corrupt the file
                 for (int i = 0; i < randomIntBetween(1, fileDataCopy.length); i++) {
-                    fileDataCopy[i] ^= 0xFF;
+                    fileDataCopy[i] ^= (byte) 0xFF;
                 }
                 return new ByteArrayInputStream(fileDataCopy);
             }

@@ -20,6 +20,8 @@ module org.elasticsearch.xcore {
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;
     requires unboundid.ldapsdk;
+    requires org.elasticsearch.tdigest;
+    requires org.elasticsearch.xcore.templates;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;
@@ -40,6 +42,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.aggregatemetric;
     exports org.elasticsearch.xpack.core.analytics.action;
     exports org.elasticsearch.xpack.core.analytics;
+    exports org.elasticsearch.xpack.core.api.filtering;
     exports org.elasticsearch.xpack.core.application;
     exports org.elasticsearch.xpack.core.archive;
     exports org.elasticsearch.xpack.core.async;
@@ -70,6 +73,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.logstash;
     exports org.elasticsearch.xpack.core.ml.action;
     exports org.elasticsearch.xpack.core.ml.annotations;
+    exports org.elasticsearch.xpack.core.ml.autoscaling;
     exports org.elasticsearch.xpack.core.ml.calendars;
     exports org.elasticsearch.xpack.core.ml.datafeed.extractor;
     exports org.elasticsearch.xpack.core.ml.datafeed;
@@ -154,6 +158,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.security.authz.accesscontrol;
     exports org.elasticsearch.xpack.core.security.authz.permission;
     exports org.elasticsearch.xpack.core.security.authz.privilege;
+    exports org.elasticsearch.xpack.core.security.authz.restriction;
     exports org.elasticsearch.xpack.core.security.authz.store;
     exports org.elasticsearch.xpack.core.security.authz.support;
     exports org.elasticsearch.xpack.core.security.authz;
@@ -213,6 +218,4 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.trigger;
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
-
-    opens org.elasticsearch.license.internal; // spi
 }

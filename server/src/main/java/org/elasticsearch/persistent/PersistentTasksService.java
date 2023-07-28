@@ -160,32 +160,22 @@ public class PersistentTasksService {
         final @Nullable TimeValue timeout,
         final WaitForPersistentTaskListener<?> listener
     ) {
-        final Predicate<ClusterState> clusterStatePredicate = clusterState -> predicate.test(
-            PersistentTasksCustomMetadata.getTaskWithId(clusterState, taskId)
-        );
+        ClusterStateObserver.waitForState(clusterService, threadPool.getThreadContext(), new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(state, taskId));
+            }
 
-        final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
-        final ClusterState clusterState = observer.setAndGetObservedState();
-        if (clusterStatePredicate.test(clusterState)) {
-            listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(clusterState, taskId));
-        } else {
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(state, taskId));
-                }
+            @Override
+            public void onClusterServiceClose() {
+                listener.onFailure(new NodeClosedException(clusterService.localNode()));
+            }
 
-                @Override
-                public void onClusterServiceClose() {
-                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
-                }
-
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    listener.onTimeout(timeout);
-                }
-            }, clusterStatePredicate);
-        }
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                listener.onTimeout(timeout);
+            }
+        }, clusterState -> predicate.test(PersistentTasksCustomMetadata.getTaskWithId(clusterState, taskId)), timeout, logger);
     }
 
     /**
@@ -200,31 +190,22 @@ public class PersistentTasksService {
         final @Nullable TimeValue timeout,
         final ActionListener<Boolean> listener
     ) {
-        final Predicate<ClusterState> clusterStatePredicate = clusterState -> predicate.test(
-            clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)
-        );
+        ClusterStateObserver.waitForState(clusterService, threadPool.getThreadContext(), new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                listener.onResponse(true);
+            }
 
-        final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
-        if (clusterStatePredicate.test(observer.setAndGetObservedState())) {
-            listener.onResponse(true);
-        } else {
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    listener.onResponse(true);
-                }
+            @Override
+            public void onClusterServiceClose() {
+                listener.onFailure(new NodeClosedException(clusterService.localNode()));
+            }
 
-                @Override
-                public void onClusterServiceClose() {
-                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
-                }
-
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(new IllegalStateException("Timed out when waiting for persistent tasks after " + timeout));
-                }
-            }, clusterStatePredicate, timeout);
-        }
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                listener.onFailure(new IllegalStateException("Timed out when waiting for persistent tasks after " + timeout));
+            }
+        }, clusterState -> predicate.test(clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)), timeout, logger);
     }
 
     public interface WaitForPersistentTaskListener<P extends PersistentTaskParams> extends ActionListener<PersistentTask<P>> {

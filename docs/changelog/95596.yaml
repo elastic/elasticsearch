@@ -1,5 +1,0 @@
-pr: 95596
-summary: "[Fleet] Add read privileges to profiling-* for symbolization support"
-area: Authorization
-type: bug
-issues: []

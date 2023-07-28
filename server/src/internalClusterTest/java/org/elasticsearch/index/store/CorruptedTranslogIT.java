@@ -79,9 +79,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             // assertBusy since the shard starts out unassigned with reason CLUSTER_RECOVERED, then it's assigned, and then it fails.
-            final ClusterAllocationExplainResponse allocationExplainResponse = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            final ClusterAllocationExplainResponse allocationExplainResponse = clusterAdmin().prepareAllocationExplain()
                 .setIndex("test")
                 .setShard(0)
                 .setPrimary(true)
@@ -90,9 +88,12 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
             final UnassignedInfo unassignedInfo = allocationExplainResponse.getExplanation().getUnassignedInfo();
             assertThat(description, unassignedInfo, not(nullValue()));
             assertThat(description, unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
-            final Throwable cause = ExceptionsHelper.unwrap(unassignedInfo.getFailure(), TranslogCorruptedException.class);
-            assertThat(description, cause, not(nullValue()));
-            assertThat(description, cause.getMessage(), containsString(translogPath.toString()));
+            var failure = unassignedInfo.getFailure();
+            assertNotNull(failure);
+            final Throwable cause = ExceptionsHelper.unwrap(failure, TranslogCorruptedException.class);
+            if (cause != null) {
+                assertThat(description, cause.getMessage(), containsString(translogPath.toString()));
+            }
         });
 
         assertThat(

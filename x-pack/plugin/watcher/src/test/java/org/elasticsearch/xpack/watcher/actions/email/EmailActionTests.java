@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -147,7 +146,7 @@ public class EmailActionTests extends ESTestCase {
         Map<String, Object> data = new HashMap<>();
         Payload payload = new Payload.Simple(data);
 
-        Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
+        Map<String, Object> metadata = Map.of("_key", "_val");
 
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
 
@@ -589,7 +588,7 @@ public class EmailActionTests extends ESTestCase {
 
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         Wid wid = new Wid(randomAlphaOfLength(5), now);
-        Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
+        Map<String, Object> metadata = Map.of("_key", "_val");
         WatchExecutionContext ctx = mockExecutionContextBuilder("watch1").wid(wid)
             .payload(new Payload.Simple())
             .time("watch1", now)
@@ -615,7 +614,7 @@ public class EmailActionTests extends ESTestCase {
     private WatchExecutionContext createWatchExecutionContext() {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         Wid wid = new Wid(randomAlphaOfLength(5), now);
-        Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
+        Map<String, Object> metadata = Map.of("_key", "_val");
         return mockExecutionContextBuilder("watch1").wid(wid)
             .payload(new Payload.Simple())
             .time("watch1", now)

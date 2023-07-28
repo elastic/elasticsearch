@@ -126,12 +126,12 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         // test non-keyed filter that doesn't rewrite
         AggregationBuilder original = new FiltersAggregationBuilder("my-agg", new MatchAllQueryBuilder());
         original.setMetadata(Collections.singletonMap(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20)));
-        AggregationBuilder rewritten = original.rewrite(new QueryRewriteContext(parserConfig(), null, null, () -> 0L));
+        AggregationBuilder rewritten = original.rewrite(new QueryRewriteContext(parserConfig(), null, () -> 0L));
         assertSame(original, rewritten);
 
         // test non-keyed filter that does rewrite
         original = new FiltersAggregationBuilder("my-agg", new BoolQueryBuilder());
-        rewritten = original.rewrite(new QueryRewriteContext(parserConfig(), null, null, () -> 0L));
+        rewritten = original.rewrite(new QueryRewriteContext(parserConfig(), null, () -> 0L));
         assertNotSame(original, rewritten);
         assertThat(rewritten, instanceOf(FiltersAggregationBuilder.class));
         assertEquals("my-agg", ((FiltersAggregationBuilder) rewritten).getName());
@@ -142,12 +142,12 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
 
         // test keyed filter that doesn't rewrite
         original = new FiltersAggregationBuilder("my-agg", new KeyedFilter("my-filter", new MatchAllQueryBuilder()));
-        rewritten = original.rewrite(new QueryRewriteContext(parserConfig(), null, null, () -> 0L));
+        rewritten = original.rewrite(new QueryRewriteContext(parserConfig(), null, () -> 0L));
         assertSame(original, rewritten);
 
         // test non-keyed filter that does rewrite
         original = new FiltersAggregationBuilder("my-agg", new KeyedFilter("my-filter", new BoolQueryBuilder()));
-        rewritten = original.rewrite(new QueryRewriteContext(parserConfig(), null, null, () -> 0L));
+        rewritten = original.rewrite(new QueryRewriteContext(parserConfig(), null, () -> 0L));
         assertNotSame(original, rewritten);
         assertThat(rewritten, instanceOf(FiltersAggregationBuilder.class));
         assertEquals("my-agg", ((FiltersAggregationBuilder) rewritten).getName());
@@ -159,7 +159,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         // test sub-agg filter that does rewrite
         original = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.BOOLEAN)
             .subAggregation(new FiltersAggregationBuilder("my-agg", new KeyedFilter("my-filter", new BoolQueryBuilder())));
-        rewritten = original.rewrite(new QueryRewriteContext(parserConfig(), null, null, () -> 0L));
+        rewritten = original.rewrite(new QueryRewriteContext(parserConfig(), null, () -> 0L));
         assertNotSame(original, rewritten);
         assertNotEquals(original, rewritten);
         assertThat(rewritten, instanceOf(TermsAggregationBuilder.class));
@@ -168,7 +168,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         assertThat(subAgg, instanceOf(FiltersAggregationBuilder.class));
         assertNotSame(original.getSubAggregations().iterator().next(), subAgg);
         assertEquals("my-agg", subAgg.getName());
-        assertSame(rewritten, rewritten.rewrite(new QueryRewriteContext(parserConfig(), null, null, () -> 0L)));
+        assertSame(rewritten, rewritten.rewrite(new QueryRewriteContext(parserConfig(), null, () -> 0L)));
     }
 
     public void testRewritePreservesOtherBucket() throws IOException {
@@ -176,7 +176,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         originalFilters.otherBucket(randomBoolean());
         originalFilters.otherBucketKey(randomAlphaOfLength(10));
 
-        AggregationBuilder rewritten = originalFilters.rewrite(new QueryRewriteContext(parserConfig(), null, null, () -> 0L));
+        AggregationBuilder rewritten = originalFilters.rewrite(new QueryRewriteContext(parserConfig(), null, () -> 0L));
         assertThat(rewritten, instanceOf(FiltersAggregationBuilder.class));
 
         FiltersAggregationBuilder rewrittenFilters = (FiltersAggregationBuilder) rewritten;

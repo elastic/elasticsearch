@@ -102,7 +102,7 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
                     transportService.getLocalNode(),
                     NodesInfoAction.NAME,
                     nodesInfoRequest,
-                    new ActionListenerResponseHandler<>(ActionListener.wrap(response -> {
+                    new ActionListenerResponseHandler<>(listener.delegateFailureAndWrap((l, response) -> {
                         final List<DiscoveryNode> remoteClusterNodes = response.getNodes().stream().map(nodeInfo -> {
                             final RemoteClusterServerInfo remoteClusterServerInfo = nodeInfo.getInfo(RemoteClusterServerInfo.class);
                             if (remoteClusterServerInfo == null) {
@@ -110,8 +110,8 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
                             }
                             return nodeInfo.getNode().withTransportAddress(remoteClusterServerInfo.getAddress().publishAddress());
                         }).filter(Objects::nonNull).toList();
-                        listener.onResponse(new Response(remoteClusterNodes));
-                    }, listener::onFailure), NodesInfoResponse::new)
+                        l.onResponse(new Response(remoteClusterNodes));
+                    }), NodesInfoResponse::new)
                 );
             }
         }

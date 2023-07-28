@@ -1,6 +1,0 @@
-pr: 94035
-summary: Adding initial public and internal serverless scopes to Search team REST
-  handlers
-area: Search
-type: enhancement
-issues: []

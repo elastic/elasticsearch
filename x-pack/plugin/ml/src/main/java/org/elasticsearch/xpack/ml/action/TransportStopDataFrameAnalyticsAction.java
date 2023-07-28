@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -370,7 +371,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         StopDataFrameAnalyticsAction.Request request,
         DataFrameAnalyticsTask task,
         ActionListener<StopDataFrameAnalyticsAction.Response> listener

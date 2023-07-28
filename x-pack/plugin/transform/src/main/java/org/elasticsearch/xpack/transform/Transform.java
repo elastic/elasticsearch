@@ -37,6 +37,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -116,7 +117,6 @@ import java.io.UncheckedIOException;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -240,7 +240,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(
             clusterService,
@@ -248,7 +249,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             client,
             xContentRegistry
         );
-        TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName(), clusterService);
+        TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName(), clusterService, includeNodeInfo());
         Clock clock = Clock.systemUTC();
         TransformCheckpointService checkpointService = new TransformCheckpointService(
             clock,
@@ -276,13 +277,14 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         // the transform services should have been created
         assert transformServices.get() != null;
 
-        return Collections.singletonList(
+        return List.of(
             new TransformPersistentTasksExecutor(
                 client,
                 transformServices.get(),
                 threadPool,
                 clusterService,
                 settingsModule.getSettings(),
+                getTransformInternalIndexAdditionalSettings(),
                 expressionResolver
             )
         );
@@ -325,7 +327,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         try {
-            return Collections.singletonList(TransformInternalIndex.getSystemIndexDescriptor());
+            return List.of(TransformInternalIndex.getSystemIndexDescriptor(getTransformInternalIndexAdditionalSettings()));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -436,5 +438,13 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public String getFeatureDescription() {
         return "Manages configuration and state for transforms";
+    }
+
+    public boolean includeNodeInfo() {
+        return true;
+    }
+
+    public Settings getTransformInternalIndexAdditionalSettings() {
+        return Settings.EMPTY;
     }
 }

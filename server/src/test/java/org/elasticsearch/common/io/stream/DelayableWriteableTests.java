@@ -90,7 +90,7 @@ public class DelayableWriteableTests extends ESTestCase {
         private final TransportVersion version;
 
         SneakOtherSideVersionOnWire() {
-            version = TransportVersion.CURRENT;
+            version = TransportVersion.current();
         }
 
         SneakOtherSideVersionOnWire(StreamInput in) throws IOException {
@@ -157,7 +157,7 @@ public class DelayableWriteableTests extends ESTestCase {
     }
 
     private <T extends Writeable> void roundTripTestCase(DelayableWriteable<T> original, Writeable.Reader<T> reader) throws IOException {
-        DelayableWriteable<T> roundTripped = roundTrip(original, reader, TransportVersion.CURRENT);
+        DelayableWriteable<T> roundTripped = roundTrip(original, reader, TransportVersion.current());
         assertThat(roundTripped.expand(), equalTo(original.expand()));
     }
 
@@ -196,7 +196,7 @@ public class DelayableWriteableTests extends ESTestCase {
         return TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersionUtils.getPreviousVersion(TransportVersion.CURRENT)
+            TransportVersionUtils.getPreviousVersion(TransportVersion.current())
         );
     }
 }

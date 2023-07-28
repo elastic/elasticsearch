@@ -41,7 +41,9 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
+import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
@@ -63,14 +65,12 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.blobstore.support.BlobContainerUtils.getRegisterBlobContents;
 import static org.elasticsearch.common.blobstore.support.BlobContainerUtils.getRegisterUsingConsistentRead;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.repositories.s3.S3Repository.MAX_FILE_SIZE;
@@ -668,15 +668,15 @@ class S3BlobContainer extends AbstractBlobContainer {
             return found ? uploadIndex : -1;
         }
 
-        void run(long expected, long updated, ActionListener<OptionalLong> listener) throws Exception {
+        void run(BytesReference expected, BytesReference updated, ActionListener<OptionalBytesReference> listener) throws Exception {
+
+            BlobContainerUtils.ensureValidRegisterContent(updated);
 
             if (listMultipartUploads().isEmpty() == false) {
                 // TODO What if the previous writer crashed? We should consider the age of any ongoing uploads before bailing out like this.
-                listener.onResponse(OptionalLong.empty());
+                listener.onResponse(OptionalBytesReference.MISSING);
                 return;
             }
-
-            final var blobContents = getRegisterBlobContents(updated);
 
             final var initiateRequest = new InitiateMultipartUploadRequest(bucket, blobKey);
             initiateRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
@@ -688,8 +688,8 @@ class S3BlobContainer extends AbstractBlobContainer {
             uploadPartRequest.setUploadId(uploadId);
             uploadPartRequest.setPartNumber(1);
             uploadPartRequest.setLastPart(true);
-            uploadPartRequest.setInputStream(blobContents.streamInput());
-            uploadPartRequest.setPartSize(blobContents.length());
+            uploadPartRequest.setInputStream(updated.streamInput());
+            uploadPartRequest.setPartSize(updated.length());
             uploadPartRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
             final var partETag = SocketAccess.doPrivileged(() -> client.uploadPart(uploadPartRequest)).getPartETag();
 
@@ -698,7 +698,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
             if (uploadIndex < 0) {
                 // already aborted by someone else
-                listener.onResponse(OptionalLong.empty());
+                listener.onResponse(OptionalBytesReference.MISSING);
                 return;
             }
 
@@ -722,7 +722,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                             (delegate1, ignored) -> getRegister(
                                 rawKey,
                                 delegate1.delegateFailure((delegate2, currentValue) -> ActionListener.completeWith(delegate2, () -> {
-                                    if (currentValue.isPresent() && currentValue.getAsLong() == expected) {
+                                    if (currentValue.isPresent() && currentValue.bytesReference().equals(expected)) {
                                         final var completeMultipartUploadRequest = new CompleteMultipartUploadRequest(
                                             bucket,
                                             blobKey,
@@ -793,12 +793,17 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+    public void compareAndExchangeRegister(
+        String key,
+        BytesReference expected,
+        BytesReference updated,
+        ActionListener<OptionalBytesReference> listener
+    ) {
         final var clientReference = blobStore.clientReference();
         ActionListener.run(ActionListener.releaseAfter(listener.delegateResponse((delegate, e) -> {
             if (e instanceof AmazonS3Exception amazonS3Exception && amazonS3Exception.getStatusCode() == 404) {
                 // an uncaught 404 means that our multipart upload was aborted by a concurrent operation before we could complete it
-                delegate.onResponse(OptionalLong.empty());
+                delegate.onResponse(OptionalBytesReference.MISSING);
             } else {
                 delegate.onFailure(e);
             }
@@ -812,7 +817,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void getRegister(String key, ActionListener<OptionalLong> listener) {
+    public void getRegister(String key, ActionListener<OptionalBytesReference> listener) {
         ActionListener.completeWith(listener, () -> {
             final var getObjectRequest = new GetObjectRequest(blobStore.bucket(), buildKey(key));
             getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector);
@@ -821,10 +826,10 @@ class S3BlobContainer extends AbstractBlobContainer {
                 var s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
                 var stream = s3Object.getObjectContent()
             ) {
-                return OptionalLong.of(getRegisterUsingConsistentRead(stream, keyPath, key));
+                return OptionalBytesReference.of(getRegisterUsingConsistentRead(stream, keyPath, key));
             } catch (AmazonS3Exception e) {
                 if (e.getStatusCode() == 404) {
-                    return OptionalLong.of(0L);
+                    return OptionalBytesReference.EMPTY;
                 } else {
                     throw e;
                 }

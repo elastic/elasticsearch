@@ -9,9 +9,9 @@ or change the number of shards and replicas. The steps to change these
 settings depend on the monitoring method:
 
 * <<config-monitoring-data-streams-elastic-agent>>
-* <<config-monitoring-data-streams-metricbeat-8>>
-* <<config-monitoring-indices-metricbeat-7-internal-collection>> (the default 
-for the {ess} on {ecloud})
+* <<config-monitoring-data-streams-metricbeat-8>> (the default for version 8 
+{ess} deployments on {ecloud})
+* <<config-monitoring-indices-metricbeat-7-internal-collection>> 
 
 IMPORTANT: Changing mappings or settings can cause your monitoring dashboards to
 stop working correctly.

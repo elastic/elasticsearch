@@ -33,6 +33,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -225,7 +226,12 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     }
 
     @Override
-    protected void taskOperation(Task actionTask, Request request, TransformTask transformTask, ActionListener<Response> listener) {
+    protected void taskOperation(
+        CancellableTask actionTask,
+        Request request,
+        TransformTask transformTask,
+        ActionListener<Response> listener
+    ) {
 
         Set<String> ids = request.getExpandedIds();
         if (ids == null) {
@@ -322,7 +328,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         List<Exception> exceptions = Stream.concat(
             taskOperationFailures.stream().map(TaskOperationFailure::getCause),
             elasticsearchExceptions.stream()
-        ).collect(Collectors.toList());
+        ).toList();
 
         assert exceptions.size() > 0 : "buildException called, but no exception found";
         assert exceptions.get(0) != null : "exception must not be null";

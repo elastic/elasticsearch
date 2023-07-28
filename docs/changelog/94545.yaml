@@ -1,5 +1,0 @@
-pr: 94545
-summary: Async creation of `IndexShard` instances
-area: Recovery
-type: bug
-issues: []

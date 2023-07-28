@@ -1,0 +1,39 @@
+{
+  "security.update_cross_cluster_api_key": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-update-cross-cluster-api-key.html",
+      "description": "Updates attributes of an existing cross-cluster API key."
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "es.untrusted_remote_cluster_feature_flag_registered",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_security/cross_cluster/api_key/{id}",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the cross-cluster API key to update"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The request to update attributes of a cross-cluster API key.",
+      "required": true
+    }
+  }
+}

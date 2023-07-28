@@ -519,31 +519,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchResponse.getNumReducePhases()
                     );
                     SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
-                    /*
-                     * Cluster Status logic:
-                     * 1) FAILED if all shards failed
-                     * 2) PARTIAL if it timed out
-                     * 3) PARTIAL if it at least one of the shards succeeded (or skipped) but not all
-                     * 4) SUCCESSFUL if no shards failed (and did not time out)
-                     */
-                    if (searchResponse.getFailedShards() >= searchResponse.getTotalShards()) {
-                        cluster.setStatus(SearchResponse.Cluster.Status.FAILED);
-                    } else if (searchResponse.isTimedOut()) {
-                        cluster.markAsTimedOut();
-                        cluster.setStatus(SearchResponse.Cluster.Status.PARTIAL);
-                    } else if (searchResponse.getFailedShards() > 0) {
-                        cluster.setStatus(SearchResponse.Cluster.Status.PARTIAL);
-                    } else {
-                        cluster.setStatus(SearchResponse.Cluster.Status.SUCCESSFUL);
-                    }
-                    for (ShardSearchFailure shardFailure : searchResponse.getShardFailures()) {
-                        cluster.addFailure(shardFailure);
-                    }
-
-                    cluster.setTotalShards(searchResponse.getTotalShards());
-                    cluster.setSuccessfulShards(searchResponse.getSuccessfulShards());
-                    cluster.setSkippedShards(searchResponse.getSkippedShards());
-                    cluster.setFailedShards(searchResponse.getFailedShards());
+                    ccsClusterInfoUpdate(searchResponse, cluster);
                     cluster.setTook(timeProvider.buildTookInMillis());
 
                     listener.onResponse(
@@ -776,36 +752,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
-                int total = searchResponse.getTotalShards();
-                cluster.setTotalShards(total);
-                cluster.setSuccessfulShards(searchResponse.getSuccessfulShards());
-                cluster.setSkippedShards(searchResponse.getSkippedShards());
-                cluster.setFailedShards(searchResponse.getFailedShards());
-
+                ccsClusterInfoUpdate(searchResponse, cluster);
                 Instant now = Instant.now();
                 Instant start = Instant.ofEpochMilli(startTime);
                 cluster.setTook(Duration.between(start, now).toMillis());
-
-                /*
-                 * Cluster Status logic:
-                 * 1) FAILED if all shards failed
-                 * 2) PARTIAL if it timed out
-                 * 3) PARTIAL if it at least one of the shards succeeded (or skipped) but not all
-                 * 4) SUCCESSFUL if no shards failed (and did not time out)
-                 */
-                if (searchResponse.getFailedShards() >= total) {
-                    cluster.setStatus(SearchResponse.Cluster.Status.FAILED);
-                } else if (searchResponse.isTimedOut()) {
-                    cluster.markAsTimedOut();
-                    cluster.setStatus(SearchResponse.Cluster.Status.PARTIAL);
-                } else if (searchResponse.getFailedShards() > 0) {
-                    cluster.setStatus(SearchResponse.Cluster.Status.PARTIAL);
-                } else {
-                    cluster.setStatus(SearchResponse.Cluster.Status.SUCCESSFUL);
-                }
-                for (ShardSearchFailure shardFailure : searchResponse.getShardFailures()) {
-                    cluster.addFailure(shardFailure);
-                }
                 searchResponseMerger.add(searchResponse);
             }
 
@@ -814,6 +764,42 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 return searchResponseMerger.getMergedResponse(clusters);
             }
         };
+    }
+
+    /**
+     * Helper method common to multiple ccs_minimize_roundtrips=true code paths.
+     * Used to update a specific SearchResponse.Cluster object state based upon
+     * the SearchResponse coming from the cluster coordinator the search was performed on.
+     * @param searchResponse SearchResponse from cluster sub-search
+     * @param cluster Cluster object to update
+     */
+    private static void ccsClusterInfoUpdate(SearchResponse searchResponse, SearchResponse.Cluster cluster) {
+        int total = searchResponse.getTotalShards();
+        cluster.setTotalShards(total);
+        cluster.setSuccessfulShards(searchResponse.getSuccessfulShards());
+        cluster.setSkippedShards(searchResponse.getSkippedShards());
+        cluster.setFailedShards(searchResponse.getFailedShards());
+
+        /*
+         * Cluster Status logic:
+         * 1) FAILED if all shards failed
+         * 2) PARTIAL if it timed out
+         * 3) PARTIAL if it at least one of the shards succeeded but not all
+         * 4) SUCCESSFUL if no shards failed (and did not time out)
+         */
+        if (searchResponse.getFailedShards() >= total) {
+            cluster.setStatus(SearchResponse.Cluster.Status.FAILED);
+        } else if (searchResponse.isTimedOut()) {
+            cluster.markAsTimedOut();
+            cluster.setStatus(SearchResponse.Cluster.Status.PARTIAL);
+        } else if (searchResponse.getFailedShards() > 0) {
+            cluster.setStatus(SearchResponse.Cluster.Status.PARTIAL);
+        } else {
+            cluster.setStatus(SearchResponse.Cluster.Status.SUCCESSFUL);
+        }
+        for (ShardSearchFailure shardFailure : searchResponse.getShardFailures()) {
+            cluster.addFailure(shardFailure);
+        }
     }
 
     void executeLocalSearch(

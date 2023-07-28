@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.authc.pki;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
@@ -47,7 +46,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97756")
 public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
 
     private static final ParseField AUTHENTICATION_FIELD = new ParseField("authentication");
@@ -151,6 +149,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         new ClearRealmCacheRequestBuilder(client()).get();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97772")
     public void testDelegateThenAuthenticate() throws Exception {
         final X509Certificate clientCertificate = readCertForPkiDelegation("testClient.crt");
         final X509Certificate intermediateCA = readCertForPkiDelegation("testIntermediateCA.crt");
@@ -193,6 +192,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97772")
     public void testTokenInvalidate() throws Exception {
         final X509Certificate clientCertificate = readCertForPkiDelegation("testClient.crt");
         final X509Certificate intermediateCA = readCertForPkiDelegation("testIntermediateCA.crt");
@@ -296,6 +296,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97772")
     public void testDelegatePkiWithRoleMapping() throws Exception {
         X509Certificate clientCertificate = readCertForPkiDelegation("testClient.crt");
         X509Certificate intermediateCA = readCertForPkiDelegation("testIntermediateCA.crt");

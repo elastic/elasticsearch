@@ -249,6 +249,87 @@ GET /my-data-stream/_eql/search
 ----
 // TEST[setup:sec_logs]
 
+Use `!` to match <<eql-missing-events,missing events>>: events in a sequence
+that do not meet a condition within a given timespan:
+
+[source,console]
+----
+GET /my-data-stream/_eql/search
+{
+  "query": """
+    sequence with maxspan=1d
+      [ process where process.name == "cmd.exe" ]
+      ![ process where stringContains(process.command_line, "ocx") ]
+      [ file where stringContains(file.name, "scrobj.dll") ]
+  """
+}
+----
+// TEST[setup:sec_logs]
+
+Missing events are indicated in the response as `missing": true`:
+
+[source,console-result]
+----
+{
+  ...
+  "hits": {
+    "total": ...,
+    "sequences": [
+      {
+        "events": [
+          {
+            "_index": ".ds-my-data-stream-2023.07.04-000001",
+            "_id": "AnpTIYkBrVQ2QEgsWg94",
+            "_source": {
+              "@timestamp": "2099-12-07T11:06:07.000Z",
+              "event": {
+                "category": "process",
+                "id": "cMyt5SZ2",
+                "sequence": 3
+              },
+              "process": {
+                "pid": 2012,
+                "name": "cmd.exe",
+                "executable": "C:\\Windows\\System32\\cmd.exe"
+              }
+            }
+          },
+          {
+            "missing": true
+          },
+          {
+            "_index": ".ds-my-data-stream-2023.07.04-000001",
+            "_id": "BHpTIYkBrVQ2QEgsWg94",
+            "_source": {
+              "@timestamp": "2099-12-07T11:07:10.000Z",
+              "event": {
+                "category": "file",
+                "id": "tZ1NWVOs",
+                "sequence": 5
+              },
+              "process": {
+                "pid": 2012,
+                "name": "regsvr32.exe",
+                "executable": "C:\\Windows\\System32\\regsvr32.exe"
+              },
+              "file": {
+                "path": "C:\\Windows\\System32\\scrobj.dll",
+                "name": "scrobj.dll"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+// TESTRESPONSE[s/"total": \.\.\.,/"total": { "value": 1, "relation": "eq" },/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2023.07.04-000001"/"_index": $body.hits.sequences.0.events.0._index/]
+// TESTRESPONSE[s/"_id": "AnpTIYkBrVQ2QEgsWg94"/"_id": $body.hits.sequences.0.events.0._id/]
+// TESTRESPONSE[s/"_id": "BHpTIYkBrVQ2QEgsWg94"/"_id": $body.hits.sequences.0.events.2._id/]
+
 Use the <<eql-by-keyword,`by` keyword>> to match events that share the
 same field values:
 

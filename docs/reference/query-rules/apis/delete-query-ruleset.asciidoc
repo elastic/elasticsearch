@@ -54,7 +54,7 @@ PUT _query_rules/my-ruleset
                 {
                     "type": "exact",
                     "metadata": "query_string",
-                    "value": "marvel"
+                    "values": ["marvel"]
                 }
             ],
             "actions": {

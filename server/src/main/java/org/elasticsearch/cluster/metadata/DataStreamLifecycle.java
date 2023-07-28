@@ -46,6 +46,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  */
 public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>, ToXContentObject {
 
+    // Versions over the wire
+    public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersion.V_8_500_047;
+
     public static final Setting<RolloverConfiguration> CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING = new Setting<>(
         "cluster.lifecycle.default.rollover",
         "max_age=auto,max_primary_shard_size=50gb,min_docs=1,max_primary_shard_docs=200000000",
@@ -182,7 +185,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_026)) {
             out.writeOptionalWriteable(downsampling);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_041)) {
+        if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
             out.writeBoolean(enabled);
         }
     }
@@ -198,7 +201,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         } else {
             downsampling = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_041)) {
+        if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
             enabled = in.readBoolean();
         } else {
             enabled = true;

@@ -1444,16 +1444,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             persistentSettings,
             ChunkedToXContentHelper.wrapWithObject(
                 "templates",
-                templates().values()
-                    .stream()
-                    .map(
-                        template -> (ToXContent) (builder, params) -> IndexTemplateMetadata.Builder.toXContentWithTypes(
-                            template,
-                            builder,
-                            params
-                        )
-                    )
-                    .iterator()
+                Iterators.map(
+                    templates().values().iterator(),
+                    template -> (builder, params) -> IndexTemplateMetadata.Builder.toXContentWithTypes(template, builder, params)
+                )
             ),
             indices,
             Iterators.flatMap(

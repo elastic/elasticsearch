@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.junit.Assert;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -37,6 +38,7 @@ public final class EsqlTestUtils {
 
     public static final EsqlConfiguration TEST_CFG = new EsqlConfiguration(
         DateUtils.UTC,
+        Locale.US,
         null,
         null,
         new QueryPragmas(Settings.EMPTY),

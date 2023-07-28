@@ -6,6 +6,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import java.lang.Override;
 import java.lang.String;
+import java.util.Locale;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -24,10 +25,13 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
 
   private final EvalOperator.ExpressionEvaluator formatter;
 
+  private final Locale locale;
+
   public DateFormatEvaluator(EvalOperator.ExpressionEvaluator val,
-      EvalOperator.ExpressionEvaluator formatter) {
+      EvalOperator.ExpressionEvaluator formatter, Locale locale) {
     this.val = val;
     this.formatter = formatter;
+    this.locale = locale;
   }
 
   @Override
@@ -65,7 +69,7 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
         result.appendNull();
         continue position;
       }
-      result.appendBytesRef(DateFormat.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch)));
+      result.appendBytesRef(DateFormat.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch), locale));
     }
     return result.build();
   }
@@ -75,13 +79,13 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
     BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
     BytesRef formatterScratch = new BytesRef();
     position: for (int p = 0; p < positionCount; p++) {
-      result.appendBytesRef(DateFormat.process(valVector.getLong(p), formatterVector.getBytesRef(p, formatterScratch)));
+      result.appendBytesRef(DateFormat.process(valVector.getLong(p), formatterVector.getBytesRef(p, formatterScratch), locale));
     }
     return result.build();
   }
 
   @Override
   public String toString() {
-    return "DateFormatEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
+    return "DateFormatEvaluator[" + "val=" + val + ", formatter=" + formatter + ", locale=" + locale + "]";
   }
 }

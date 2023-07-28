@@ -1078,7 +1078,7 @@ public final class PlanNamedTypes {
     }
 
     static DateFormat readDateFormat(PlanStreamInput in) throws IOException {
-        return new DateFormat(Source.EMPTY, in.readExpression(), in.readOptionalNamed(Expression.class));
+        return new DateFormat(Source.EMPTY, in.readExpression(), in.readOptionalNamed(Expression.class), in.configuration());
     }
 
     static void writeDateFormat(PlanStreamOutput out, DateFormat dateFormat) throws IOException {

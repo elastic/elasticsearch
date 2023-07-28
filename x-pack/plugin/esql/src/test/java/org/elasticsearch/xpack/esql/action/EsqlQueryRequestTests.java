@@ -32,6 +32,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
         ZoneId zoneId = randomZone();
+        Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
         List<Object> params = randomList(5, () -> randomBoolean() ? randomInt(100) : randomAlphaOfLength(10));
         StringBuilder paramsString = new StringBuilder();
@@ -56,15 +57,17 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "query": "%s",
                 "columnar": %s,
                 "time_zone": "%s",
+                "locale": "%s",
                 "filter": %s,
                 "params": %s
-            }""", query, columnar, zoneId, filter, paramsString);
+            }""", query, columnar, zoneId, randomBoolean() ? locale.toString() : locale.toLanguageTag(), filter, paramsString);
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json);
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
         assertEquals(zoneId, request.zoneId());
+        assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
 
         assertEquals(params.size(), request.params().size());

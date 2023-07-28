@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -118,6 +119,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 t.v1(),
                 new EsqlConfiguration(
                     DateUtils.UTC,
+                    Locale.US,
                     null,
                     null,
                     new QueryPragmas(settings),

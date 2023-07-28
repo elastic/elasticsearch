@@ -14,6 +14,7 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
@@ -33,6 +34,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -53,12 +55,14 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     private static final ParseField FILTER_FIELD = new ParseField("filter");
     private static final ParseField PRAGMA_FIELD = new ParseField("pragma");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
+    private static final ParseField LOCALE_FIELD = new ParseField("locale");
 
     private static final ObjectParser<EsqlQueryRequest, Void> PARSER = objectParser(EsqlQueryRequest::new);
 
     private String query;
     private boolean columnar;
     private ZoneId zoneId;
+    private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
     private List<TypedParamValue> params = List.of();
@@ -105,6 +109,14 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         return zoneId;
     }
 
+    public void locale(Locale locale) {
+        this.locale = locale;
+    }
+
+    public Locale locale() {
+        return locale;
+    }
+
     public void filter(QueryBuilder filter) {
         this.filter = filter;
     }
@@ -147,6 +159,8 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
             PRAGMA_FIELD
         );
         parser.declareField(EsqlQueryRequest::params, EsqlQueryRequest::parseParams, PARAMS_FIELD, VALUE_ARRAY);
+        parser.declareString((request, localeTag) -> request.locale(LocaleUtils.parse(localeTag)), LOCALE_FIELD);
+
         return parser;
     }
 

@@ -13,10 +13,12 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -33,13 +36,13 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 
-public class DateFormat extends ScalarFunction implements OptionalArgument, Mappable {
+public class DateFormat extends ConfigurationFunction implements OptionalArgument, Mappable {
 
     private final Expression field;
     private final Expression format;
 
-    public DateFormat(Source source, Expression field, Expression format) {
-        super(source, format != null ? Arrays.asList(field, format) : Arrays.asList(field));
+    public DateFormat(Source source, Expression field, Expression format, Configuration configuration) {
+        super(source, format != null ? Arrays.asList(field, format) : Arrays.asList(field), configuration);
         this.field = field;
         this.format = format;
     }
@@ -85,8 +88,8 @@ public class DateFormat extends ScalarFunction implements OptionalArgument, Mapp
     }
 
     @Evaluator
-    static BytesRef process(long val, BytesRef formatter) {
-        return process(val, toFormatter(formatter));
+    static BytesRef process(long val, BytesRef formatter, @Fixed Locale locale) {
+        return process(val, toFormatter(formatter, locale));
     }
 
     @Override
@@ -101,25 +104,26 @@ public class DateFormat extends ScalarFunction implements OptionalArgument, Mapp
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
         }
         if (format.foldable()) {
-            DateFormatter formatter = toFormatter(format.fold());
+            DateFormatter formatter = toFormatter(format.fold(), ((EsqlConfiguration) configuration()).locale());
             return () -> new DateFormatConstantEvaluator(fieldEvaluator.get(), formatter);
         }
         Supplier<EvalOperator.ExpressionEvaluator> formatEvaluator = toEvaluator.apply(format);
-        return () -> new DateFormatEvaluator(fieldEvaluator.get(), formatEvaluator.get());
+        return () -> new DateFormatEvaluator(fieldEvaluator.get(), formatEvaluator.get(), ((EsqlConfiguration) configuration()).locale());
     }
 
-    private static DateFormatter toFormatter(Object format) {
-        return format == null ? UTC_DATE_TIME_FORMATTER : DateFormatter.forPattern(((BytesRef) format).utf8ToString());
+    private static DateFormatter toFormatter(Object format, Locale locale) {
+        DateFormatter result = format == null ? UTC_DATE_TIME_FORMATTER : DateFormatter.forPattern(((BytesRef) format).utf8ToString());
+        return result.withLocale(locale);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new DateFormat(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null);
+        return new DateFormat(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null, configuration());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, DateFormat::new, field, format);
+        return NodeInfo.create(this, DateFormat::new, field, format, configuration());
     }
 
     @Override

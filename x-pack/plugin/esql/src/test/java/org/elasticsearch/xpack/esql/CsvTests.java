@@ -89,6 +89,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -149,6 +150,7 @@ public class CsvTests extends ESTestCase {
 
     private final EsqlConfiguration configuration = new EsqlConfiguration(
         ZoneOffset.UTC,
+        Locale.US,
         null,
         null,
         new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),
@@ -395,7 +397,14 @@ public class CsvTests extends ESTestCase {
             dataNodePlan.set(new ExchangeSinkExec(e.source(), subplan));
 
             // ugly hack to get the layout
-            var dummyConfig = new EsqlConfiguration(DateUtils.UTC, StringUtils.EMPTY, StringUtils.EMPTY, QueryPragmas.EMPTY, 1000);
+            var dummyConfig = new EsqlConfiguration(
+                DateUtils.UTC,
+                Locale.US,
+                StringUtils.EMPTY,
+                StringUtils.EMPTY,
+                QueryPragmas.EMPTY,
+                1000
+            );
             var planContainingTheLayout = EstimatesRowSize.estimateRowSize(0, CSVlocalPlan(List.of(), dummyConfig, subplan, optimizer));
             // replace the subnode with an exchange source
             return new ExchangeSourceExec(e.source(), e.output(), planContainingTheLayout);

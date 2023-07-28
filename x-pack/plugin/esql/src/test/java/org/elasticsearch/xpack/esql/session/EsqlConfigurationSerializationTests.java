@@ -30,11 +30,12 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
 
     public static EsqlConfiguration randomConfiguration() {
         var zoneId = randomZone();
+        var locale = randomLocale(random());
         var username = randomAlphaOfLengthBetween(1, 10);
         var clusterName = randomAlphaOfLengthBetween(3, 10);
         var truncation = randomNonNegativeInt();
 
-        return new EsqlConfiguration(zoneId, username, clusterName, randomQueryPragmas(), truncation);
+        return new EsqlConfiguration(zoneId, locale, username, clusterName, randomQueryPragmas(), truncation);
     }
 
     @Override
@@ -44,15 +45,16 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
 
     @Override
     protected EsqlConfiguration mutateInstance(EsqlConfiguration in) throws IOException {
-        int ordinal = between(0, 4);
+        int ordinal = between(0, 5);
         return new EsqlConfiguration(
             ordinal == 0 ? randomValueOtherThan(in.zoneId(), () -> randomZone().normalized()) : in.zoneId(),
-            ordinal == 1 ? randomAlphaOfLength(15) : in.username(),
-            ordinal == 2 ? randomAlphaOfLength(15) : in.clusterName(),
-            ordinal == 3
+            ordinal == 1 ? randomValueOtherThan(in.locale(), () -> randomLocale(random())) : in.locale(),
+            ordinal == 2 ? randomAlphaOfLength(15) : in.username(),
+            ordinal == 3 ? randomAlphaOfLength(15) : in.clusterName(),
+            ordinal == 4
                 ? new QueryPragmas(Settings.builder().put(QueryPragmas.EXCHANGE_BUFFER_SIZE.getKey(), between(1, 10)).build())
                 : in.pragmas(),
-            ordinal == 4 ? in.resultTruncationMaxSize() + randomIntBetween(3, 10) : in.resultTruncationMaxSize()
+            ordinal == 5 ? in.resultTruncationMaxSize() + randomIntBetween(3, 10) : in.resultTruncationMaxSize()
         );
     }
 }

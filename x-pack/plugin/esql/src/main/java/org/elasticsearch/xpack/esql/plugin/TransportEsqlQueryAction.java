@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
@@ -77,6 +78,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     protected void doExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         EsqlConfiguration configuration = new EsqlConfiguration(
             request.zoneId() != null ? request.zoneId() : ZoneOffset.UTC,
+            request.locale() != null ? request.locale() : Locale.US,
             // TODO: plug-in security
             null,
             clusterService.getClusterName().value(),

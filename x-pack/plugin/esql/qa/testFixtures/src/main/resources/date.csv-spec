@@ -443,3 +443,13 @@ emp_no:integer | year:long    | month:long    | day:long
 10049          | null         | null          | null
 10050          | 1958         | 5             | 21
 ;
+
+
+dateFormatLocale
+from employees | where emp_no == 10049 or emp_no == 10050 | sort emp_no 
+| eval birth_month = date_format(birth_date, "MMMM") | keep emp_no, birth_date, birth_month;
+
+emp_no:integer  |  birth_date:datetime       | birth_month:keyword
+10049           |  null                      | null
+10050           |  1958-05-21T00:00:00.000Z  | May
+;

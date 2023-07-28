@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ql.session.Configuration;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.Locale;
 import java.util.Objects;
 
 public class EsqlConfiguration extends Configuration implements Writeable {
@@ -23,14 +24,25 @@ public class EsqlConfiguration extends Configuration implements Writeable {
 
     private final int resultTruncationMaxSize;
 
-    public EsqlConfiguration(ZoneId zi, String username, String clusterName, QueryPragmas pragmas, int resultTruncationMaxSize) {
+    private final Locale locale;
+
+    public EsqlConfiguration(
+        ZoneId zi,
+        Locale locale,
+        String username,
+        String clusterName,
+        QueryPragmas pragmas,
+        int resultTruncationMaxSize
+    ) {
         super(zi, username, clusterName);
+        this.locale = locale;
         this.pragmas = pragmas;
         this.resultTruncationMaxSize = resultTruncationMaxSize;
     }
 
     public EsqlConfiguration(StreamInput in) throws IOException {
         super(in.readZoneId(), Instant.ofEpochSecond(in.readVLong(), in.readVInt()), in.readOptionalString(), in.readOptionalString());
+        locale = Locale.forLanguageTag(in.readString());
         this.pragmas = new QueryPragmas(in);
         this.resultTruncationMaxSize = in.readVInt();
     }
@@ -43,6 +55,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         out.writeVInt(instant.getNano());
         out.writeOptionalString(username);
         out.writeOptionalString(clusterName);
+        out.writeString(locale.toLanguageTag());
         pragmas.writeTo(out);
         out.writeVInt(resultTruncationMaxSize);
     }
@@ -55,17 +68,23 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         return resultTruncationMaxSize;
     }
 
+    public Locale locale() {
+        return locale;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (super.equals(o)) {
             EsqlConfiguration that = (EsqlConfiguration) o;
-            return resultTruncationMaxSize == that.resultTruncationMaxSize && Objects.equals(pragmas, that.pragmas);
+            return resultTruncationMaxSize == that.resultTruncationMaxSize
+                && Objects.equals(pragmas, that.pragmas)
+                && Objects.equals(locale, that.locale);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), pragmas, resultTruncationMaxSize);
+        return Objects.hash(super.hashCode(), pragmas, resultTruncationMaxSize, locale);
     }
 }

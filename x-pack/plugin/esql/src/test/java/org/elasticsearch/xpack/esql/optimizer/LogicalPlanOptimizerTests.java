@@ -700,7 +700,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertNullLiteral(rule.rule(new Add(EMPTY, L(randomInt()), Literal.NULL)));
         assertNullLiteral(rule.rule(new Round(EMPTY, Literal.NULL, null)));
         assertNullLiteral(rule.rule(new Pow(EMPTY, Literal.NULL, Literal.NULL)));
-        assertNullLiteral(rule.rule(new DateFormat(EMPTY, Literal.NULL, Literal.NULL)));
+        assertNullLiteral(rule.rule(new DateFormat(EMPTY, Literal.NULL, Literal.NULL, null)));
         assertNullLiteral(rule.rule(new DateParse(EMPTY, Literal.NULL, Literal.NULL)));
         assertNullLiteral(rule.rule(new DateTrunc(EMPTY, Literal.NULL, Literal.NULL)));
         assertNullLiteral(rule.rule(new Substring(EMPTY, Literal.NULL, Literal.NULL, Literal.NULL)));

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -44,9 +45,11 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.time.Duration;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 public class EvalMapperTests extends ESTestCase {
@@ -54,6 +57,8 @@ public class EvalMapperTests extends ESTestCase {
     private static final FieldAttribute DOUBLE2 = field("bar", DataTypes.DOUBLE);
     private static final FieldAttribute LONG = field("long", DataTypes.LONG);
     private static final FieldAttribute DATE = field("date", DataTypes.DATETIME);
+
+    private static final EsqlConfiguration TEST_CONFIG = new EsqlConfiguration(ZoneOffset.UTC, Locale.US, "test", null, null, 10000000);
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static List<Object[]> params() {
@@ -90,8 +95,8 @@ public class EvalMapperTests extends ESTestCase {
             DOUBLE1,
             literal,
             new Length(Source.EMPTY, literal),
-            new DateFormat(Source.EMPTY, DATE, datePattern),
-            new DateFormat(Source.EMPTY, literal, datePattern),
+            new DateFormat(Source.EMPTY, DATE, datePattern, TEST_CONFIG),
+            new DateFormat(Source.EMPTY, literal, datePattern, TEST_CONFIG),
             new StartsWith(Source.EMPTY, literal, literal),
             new Substring(Source.EMPTY, literal, LONG, LONG),
             new DateTrunc(Source.EMPTY, DATE, dateInterval) }) {

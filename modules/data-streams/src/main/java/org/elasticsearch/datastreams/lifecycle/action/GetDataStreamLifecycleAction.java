@@ -210,26 +210,22 @@ public class GetDataStreamLifecycleAction extends ActionType<GetDataStreamLifecy
         }
 
         @Override
-        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-            final Iterator<? extends ToXContent> lifecyclesIterator = dataStreamLifecycles.stream()
-                .map(
-                    dataStreamLifecycle -> (ToXContent) (builder, params) -> dataStreamLifecycle.toXContent(
-                        builder,
-                        params,
-                        rolloverConfiguration
-                    )
-                )
-                .iterator();
-
+        public Iterator<ToXContent> toXContentChunked(ToXContent.Params outerParams) {
             return Iterators.concat(Iterators.single((builder, params) -> {
                 builder.startObject();
                 builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
                 return builder;
-            }), lifecyclesIterator, Iterators.single((ToXContent) (builder, params) -> {
-                builder.endArray();
-                builder.endObject();
-                return builder;
-            }));
+            }),
+                Iterators.map(
+                    dataStreamLifecycles.iterator(),
+                    dataStreamLifecycle -> (builder, params) -> dataStreamLifecycle.toXContent(builder, params, rolloverConfiguration)
+                ),
+                Iterators.single((builder, params) -> {
+                    builder.endArray();
+                    builder.endObject();
+                    return builder;
+                })
+            );
         }
 
         @Override

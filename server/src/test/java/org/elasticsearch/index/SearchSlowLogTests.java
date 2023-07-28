@@ -496,7 +496,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     }
 
     private IndexMetadata newIndexMeta(String name, Settings indexSettings) {
-        return IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, 1, 1).put(indexSettings)).build();
+        return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 1).put(indexSettings)).build();
     }
 
     private SearchContext searchContextWithSourceAndTask(IndexService index) {

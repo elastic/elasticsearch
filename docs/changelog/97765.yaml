@@ -1,0 +1,5 @@
+pr: 97765
+summary: Install data stream template for Kibana reporting
+area: Data streams
+type: enhancement
+issues: []

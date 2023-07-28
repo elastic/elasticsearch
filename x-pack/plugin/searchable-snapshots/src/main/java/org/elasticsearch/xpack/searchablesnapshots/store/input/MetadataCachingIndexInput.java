@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
@@ -24,6 +25,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
@@ -39,6 +41,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Objects;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 
@@ -46,12 +49,13 @@ import static org.elasticsearch.blobcache.BlobCacheUtils.throwEOF;
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.searchablesnapshots.store.input.ChecksumBlobContainerIndexInput.checksumToBytesArray;
 
 /**
  * Searchable snapshots index input that supports fully caching metadata files as well as header/footer information for each file,
  * consisting of a two-level cache (BlobStoreCacheService and CacheService).
  */
-public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIndexInput {
+public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
 
     protected static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
         () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
@@ -65,7 +69,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
      * If > 0, represents a logical file within a compound (CFS) file or is a slice thereof represents the offset of the logical
      * compound file within the physical CFS file
      */
-    protected final long compoundFileOffset;
+    private final long compoundFileOffset;
 
     protected final int defaultRangeSize;
     protected final int recoveryRangeSize;
@@ -78,16 +82,28 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
     /**
      * Range of bytes that should be cached in the blob cache for the current index input's header.
      */
-    protected final ByteRange headerBlobCacheByteRange;
+    private final ByteRange headerBlobCacheByteRange;
 
     /**
      * Range of bytes that should be cached in the blob cache for the current index input's footer. This footer byte range should only be
      * required for slices of CFS files; regular files already have their footers extracted from the
-     * {@link BlobStoreIndexShardSnapshot.FileInfo} (see method {@link BaseSearchableSnapshotIndexInput#maybeReadChecksumFromFileInfo}).
+     * {@link BlobStoreIndexShardSnapshot.FileInfo} (see method {@link MetadataCachingIndexInput#maybeReadChecksumFromFileInfo}).
      */
-    protected final ByteRange footerBlobCacheByteRange;
+    private final ByteRange footerBlobCacheByteRange;
 
-    public MetadataCachingIndexInput(
+    private final Logger logger;
+    private final boolean isCfs;
+    protected final BlobStoreIndexShardSnapshot.FileInfo fileInfo;
+    protected final IOContext context;
+    protected final IndexInputStats stats;
+    protected final long offset;
+    private final long length;
+
+    // the following are only mutable so they can be adjusted after cloning/slicing
+    private volatile boolean isClone;
+    private AtomicBoolean closed;
+
+    protected MetadataCachingIndexInput(
         Logger logger,
         String name,
         SearchableSnapshotDirectory directory,
@@ -103,7 +119,18 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         ByteRange headerBlobCacheByteRange,
         ByteRange footerBlobCacheByteRange
     ) {
-        super(logger, name, directory.blobContainer(), fileInfo, context, stats, offset, length);
+        super(name, context);
+        this.isCfs = IndexFileNames.matchesExtension(name, "cfs");
+        this.logger = Objects.requireNonNull(logger);
+        this.fileInfo = Objects.requireNonNull(fileInfo);
+        this.context = Objects.requireNonNull(context);
+        assert fileInfo.metadata().hashEqualsContents() == false
+            : "this method should only be used with blobs that are NOT stored in metadata's hash field " + "(fileInfo: " + fileInfo + ')';
+        this.stats = Objects.requireNonNull(stats);
+        this.offset = offset;
+        this.length = length;
+        this.closed = new AtomicBoolean(false);
+        this.isClone = false;
         this.directory = Objects.requireNonNull(directory);
         this.cacheFileReference = cacheFileReference;
         this.compoundFileOffset = compoundFileOffset;
@@ -117,28 +144,75 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
     }
 
-    @Override
-    protected void doReadInternal(ByteBuffer b) throws IOException {
-        final long position = getAbsolutePosition();
-        final int length = b.remaining();
-
-        logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + length, length, this);
-
-        try {
-            final ByteRange blobCacheByteRange = rangeToReadFromBlobCache(position, length);
-            if (blobCacheByteRange.isEmpty()) {
-                readWithoutBlobCache(b);
-            } else {
-                readWithBlobCache(b, blobCacheByteRange);
-            }
-        } catch (final Exception e) {
-            // may have partially filled the buffer before the exception was thrown, so try and get the remainder directly.
-            final int alreadyRead = length - b.remaining();
-            final int bytesRead = readDirectlyIfAlreadyClosed(position + alreadyRead, b, e);
-            assert alreadyRead + bytesRead == length : alreadyRead + " + " + bytesRead + " vs " + length;
+    /**
+     * Detects read operations that are executed on the last 16 bytes of the index input which is where Lucene stores the footer checksum
+     * of Lucene files. If such a read is detected this method tries to complete the read operation by reading the checksum from the
+     * {@link BlobStoreIndexShardSnapshot.FileInfo} in memory rather than reading the bytes from the {@link BufferedIndexInput} because
+     * that could trigger more cache operations.
+     *
+     * @return true if the footer checksum has been read from the {@link BlobStoreIndexShardSnapshot.FileInfo}
+     */
+    public static boolean maybeReadChecksumFromFileInfo(
+        BlobStoreIndexShardSnapshot.FileInfo fileInfo,
+        long absolutePosition,
+        boolean isClone,
+        ByteBuffer b
+    ) throws IOException {
+        final int remaining = b.remaining();
+        if (remaining > CodecUtil.footerLength()) {
+            return false;
         }
+        final long checksumPosition = fileInfo.length() - CodecUtil.footerLength();
+        if (absolutePosition < checksumPosition) {
+            return false;
+        }
+        if (isClone) {
+            return false;
+        }
+        boolean success = false;
+        try {
+            final int checksumOffset = toIntBytes(Math.subtractExact(absolutePosition, checksumPosition));
+            assert checksumOffset <= CodecUtil.footerLength() : checksumOffset;
+            assert 0 <= checksumOffset : checksumOffset;
 
-        readComplete(position, length);
+            final byte[] checksum = checksumToBytesArray(fileInfo.checksum());
+            b.put(checksum, checksumOffset, remaining);
+            success = true;
+        } catch (NumberFormatException e) {
+            // tests disable this optimisation by passing an invalid checksum
+        } finally {
+            assert b.remaining() == (success ? 0L : remaining) : b.remaining() + " remaining bytes but success is " + success;
+        }
+        return success;
+    }
+
+    public static boolean assertCurrentThreadMayAccessBlobStore() {
+        return ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.SNAPSHOT,
+            ThreadPool.Names.GENERIC,
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_THROTTLED,
+
+            // Cache asynchronous fetching runs on a dedicated thread pool.
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
+
+            // Cache prewarming also runs on a dedicated thread pool.
+            SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME
+        );
+    }
+
+    public static boolean assertCurrentThreadIsNotCacheFetchAsync() {
+        final String threadName = Thread.currentThread().getName();
+        assert false == threadName.contains('[' + SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME + ']')
+            : "expected the current thread [" + threadName + "] to belong to the cache fetch async thread pool";
+        return true;
+    }
+
+    protected long getAbsolutePosition() {
+        final long position = getFilePointer() + this.offset;
+        assert position >= 0L : "absolute position is negative: " + position;
+        assert position <= fileInfo.length() : position + " vs " + fileInfo.length();
+        return position;
     }
 
     protected abstract void readWithoutBlobCache(ByteBuffer b) throws Exception;
@@ -272,7 +346,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         lastSeekPosition = lastReadPosition;
     }
 
-    protected int readCacheFile(final FileChannel fc, final long position, final ByteBuffer buffer) throws IOException {
+    private int readCacheFile(final FileChannel fc, final long position, final ByteBuffer buffer) throws IOException {
         assert assertFileChannelOpen(fc);
         final int bytesRead = Channels.readFromFileChannel(fc, position, buffer);
         if (bytesRead == -1) {
@@ -282,7 +356,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         return bytesRead;
     }
 
-    protected void writeCacheFile(final FileChannel fc, final long start, final long end, final LongConsumer progressUpdater)
+    private void writeCacheFile(final FileChannel fc, final long start, final long end, final LongConsumer progressUpdater)
         throws IOException {
         assert assertFileChannelOpen(fc);
         assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
@@ -334,7 +408,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         }
     }
 
-    protected static boolean assertFileChannelOpen(FileChannel fileChannel) {
+    private static boolean assertFileChannelOpen(FileChannel fileChannel) {
         assert fileChannel != null;
         assert fileChannel.isOpen();
         return true;
@@ -346,7 +420,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         return fc.write(byteBuffer, start);
     }
 
-    protected int readDirectlyIfAlreadyClosed(long position, ByteBuffer b, Exception e) throws IOException {
+    private int readDirectlyIfAlreadyClosed(long position, ByteBuffer b, Exception e) throws IOException {
         if (e instanceof AlreadyClosedException || (e.getCause() != null && e.getCause() instanceof AlreadyClosedException)) {
             try {
                 // cache file was evicted during the range fetching, read bytes directly from blob container
@@ -370,6 +444,114 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         throw new IOException("failed to read data from cache", e);
     }
 
+    /**
+     * Opens an {@link InputStream} for the given range of bytes which reads the data directly from the blob store. If the requested range
+     * spans multiple blobs then this stream will request them in turn.
+     *
+     * @param position The start of the range of bytes to read, relative to the start of the corresponding Lucene file.
+     * @param readLength The number of bytes to read
+     */
+    protected InputStream openInputStreamFromBlobStore(final long position, final long readLength) throws IOException {
+        assert MetadataCachingIndexInput.assertCurrentThreadMayAccessBlobStore();
+        if (fileInfo.numberOfParts() == 1L) {
+            assert position + readLength <= fileInfo.length()
+                : "cannot read [" + position + "-" + (position + readLength) + "] from [" + fileInfo + "]";
+            stats.addBlobStoreBytesRequested(readLength);
+            return directory.blobContainer().readBlob(fileInfo.name(), position, readLength);
+        } else {
+            final int startPart = getPartNumberForPosition(position);
+            final int endPart = getPartNumberForPosition(position + readLength - 1);
+
+            for (int currentPart = startPart; currentPart <= endPart; currentPart++) {
+                final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
+                final long endInPart;
+                endInPart = currentPart == endPart
+                    ? getRelativePositionInPart(position + readLength - 1) + 1
+                    : fileInfo.partBytes(currentPart);
+                stats.addBlobStoreBytesRequested(endInPart - startInPart);
+            }
+
+            return new SlicedInputStream(endPart - startPart + 1) {
+                @Override
+                protected InputStream openSlice(int slice) throws IOException {
+                    final int currentPart = startPart + slice;
+                    final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
+                    final long endInPart;
+                    endInPart = currentPart == endPart
+                        ? getRelativePositionInPart(position + readLength - 1) + 1
+                        : fileInfo.partBytes(currentPart);
+                    return directory.blobContainer().readBlob(fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
+                }
+            };
+        }
+    }
+
+    /**
+     * Compute the part number that contains the byte at the given position in the corresponding Lucene file.
+     */
+    private int getPartNumberForPosition(long position) {
+        ensureValidPosition(position);
+        final int part = fileInfo.numberOfParts() == 1 ? 0 : Math.toIntExact(position / fileInfo.partSize().getBytes());
+        assert part <= fileInfo.numberOfParts() : "part number [" + part + "] exceeds number of parts: " + fileInfo.numberOfParts();
+        assert part >= 0 : "part number [" + part + "] is negative";
+        return part;
+    }
+
+    /**
+     * Compute the position of the given byte relative to the start of its part.
+     * @param position the position of the required byte (within the corresponding Lucene file)
+     */
+    private long getRelativePositionInPart(long position) {
+        ensureValidPosition(position);
+        final long pos = position % fileInfo.partSize().getBytes();
+        assert pos < fileInfo.partBytes(getPartNumberForPosition(pos)) : "position in part [" + pos + "] exceeds part's length";
+        assert pos >= 0L : "position in part [" + pos + "] is negative";
+        return pos;
+    }
+
+    private void ensureValidPosition(long position) {
+        assert position >= 0L && position < fileInfo.length() : position + " vs " + fileInfo.length();
+        // noinspection ConstantConditions in case assertions are disabled
+        if (position < 0L || position >= fileInfo.length()) {
+            throw new IllegalArgumentException("Position [" + position + "] is invalid for a file of length [" + fileInfo.length() + "]");
+        }
+    }
+
+    @Override
+    protected final void readInternal(ByteBuffer b) throws IOException {
+        assert MetadataCachingIndexInput.assertCurrentThreadIsNotCacheFetchAsync();
+
+        final int bytesToRead = b.remaining();
+        // We can detect that we're going to read the last 16 bytes (that contains the footer checksum) of the file. Such reads are often
+        // executed when opening a Directory and since we have the checksum in the snapshot metadata we can use it to fill the ByteBuffer.
+        if (MetadataCachingIndexInput.maybeReadChecksumFromFileInfo(fileInfo, getAbsolutePosition(), isClone, b)) {
+            logger.trace("read footer of file [{}], bypassing all caches", fileInfo.physicalName());
+        } else {
+            final long position = getAbsolutePosition();
+            if (logger.isTraceEnabled()) {
+                logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + bytesToRead, bytesToRead, this);
+            }
+
+            try {
+                final ByteRange blobCacheByteRange = rangeToReadFromBlobCache(position, bytesToRead);
+                if (blobCacheByteRange.isEmpty()) {
+                    readWithoutBlobCache(b);
+                } else {
+                    readWithBlobCache(b, blobCacheByteRange);
+                }
+            } catch (final Exception e) {
+                // may have partially filled the buffer before the exception was thrown, so try and get the remainder directly.
+                final int alreadyRead = bytesToRead - b.remaining();
+                final int bytesRead = readDirectlyIfAlreadyClosed(position + alreadyRead, b, e);
+                assert alreadyRead + bytesRead == bytesToRead : alreadyRead + " + " + bytesRead + " vs " + bytesToRead;
+            }
+
+            readComplete(position, bytesToRead);
+        }
+        assert b.remaining() == 0L : b.remaining();
+        stats.addLuceneBytesRead(bytesToRead);
+    }
+
     @Override
     protected void seekInternal(long pos) throws IOException {
         BlobCacheUtils.ensureSeek(pos, this);
@@ -379,11 +561,50 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
     }
 
     @Override
+    public final void close() throws IOException {
+        if (closed.compareAndSet(false, true)) {
+            if (isClone == false) {
+                stats.incrementCloseCount();
+            }
+            if (isClone == false) {
+                cacheFileReference.releaseOnClose();
+            }
+        }
+    }
+
+    @Override
+    public final long length() {
+        return length;
+    }
+
+    @Override
+    public MetadataCachingIndexInput clone() {
+        final MetadataCachingIndexInput clone = (MetadataCachingIndexInput) super.clone();
+        clone.closed = new AtomicBoolean(false);
+        clone.isClone = true;
+        return clone;
+    }
+
+    @Override
+    public String toString() {
+        return super.toString() + "[length=" + length() + ", file pointer=" + getFilePointer() + ", offset=" + offset + ']';
+    }
+
+    @Override
+    protected String getFullSliceDescription(String sliceDescription) {
+        final String resourceDesc = super.toString();
+        if (sliceDescription != null) {
+            return "slice(" + sliceDescription + ") of " + resourceDesc;
+        }
+        return resourceDesc;
+    }
+
+    @Override
     public IndexInput slice(String sliceName, long sliceOffset, long sliceLength) {
         BlobCacheUtils.ensureSlice(sliceName, sliceOffset, sliceLength, this);
 
         // Are we creating a slice from a CFS file?
-        final boolean sliceCompoundFile = IndexFileNames.matchesExtension(name, "cfs")
+        final boolean sliceCompoundFile = isCfs
             && IndexFileNames.getExtension(sliceName) != null
             && compoundFileOffset == 0L // not already a compound file
             && isClone == false; // tests aggressively clone and slice
@@ -425,13 +646,6 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         ByteRange sliceFooterByteRange,
         long sliceCompoundFileOffset
     );
-
-    @Override
-    public void doClose() {
-        if (isClone == false) {
-            cacheFileReference.releaseOnClose();
-        }
-    }
 
     static class CacheFileReference implements CacheFile.EvictionListener {
 

@@ -2804,6 +2804,41 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNull(parsedDocument.dynamicMappingsUpdate());
     }
 
+    public void testSubobjectsFalseDocsWithInnerObjectMappedAsFieldThatCanParseNativalyObjects() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("metrics");
+            {
+                b.field("type", "object").field("subobjects", false);
+                b.startObject("properties");
+                {
+                    b.startObject("service.location");
+                    b.field("type", "geo_point");
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        ParsedDocument parsedDocument = mapper.parse(source("""
+            {
+              "metrics": {
+                "service.location" : {
+                    "lat": 41.12,
+                    "lon": -71.34
+                  }
+              }
+            }
+            """));
+        IndexableField location = parsedDocument.rootDoc().getField("metrics.service.location");
+        assertNotNull(location);
+        assertNull(parsedDocument.rootDoc().getField("metrics.service.location.lat"));
+        assertNull(parsedDocument.rootDoc().getField("metrics.service.location.lon"));
+        assertTrue(location instanceof LatLonPoint);
+        Mapper locationMapper = mapper.mappers().getMapper("metrics.service.location");
+        assertNotNull(locationMapper);
+        assertTrue(locationMapper instanceof GeoPointFieldMapper);
+    }
+
     public void testSubobjectsFalseDocsWithInnerObjectMappedAsNonObject() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("metrics");
@@ -2819,7 +2854,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        ParsedDocument parsedDocument = mapper.parse(source("""
+        DocumentParsingException err = expectThrows(DocumentParsingException.class, () -> mapper.parse(source("""
             {
               "metrics": {
                 "service.time" : {
@@ -2827,10 +2862,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 }
               }
             }
-            """));
-
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time.min"));
-        assertNotNull(parsedDocument.dynamicMappingsUpdate());
+            """)));
+        String expectedErrorMessage = "[5:5] failed to parse field [metrics.service.time] of type [long] in document with id '1'. "
+            + "Preview of field's value: '{min=1}'";
+        assertEquals(expectedErrorMessage, err.getMessage());
     }
 
     public void testSubobjectsFalseArrayOfObjectsMixedPaths() throws Exception {

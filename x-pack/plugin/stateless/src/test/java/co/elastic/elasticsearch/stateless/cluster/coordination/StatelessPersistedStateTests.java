@@ -23,7 +23,6 @@ import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -45,6 +44,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -423,7 +423,7 @@ public class StatelessPersistedStateTests extends ESTestCase {
 
     private IndexMetadata getRandomIndexMetadata() {
         return IndexMetadata.builder(randomAlphaOfLength(10).toLowerCase(Locale.ROOT))
-            .settings(settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())))
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())))
             .putMapping(randomMappingMetadata())
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))

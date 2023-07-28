@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,6 +41,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -57,7 +57,7 @@ public class StatelessAllocationDeciderTests extends ESAllocationTestCase {
 
         var indexName = UUIDs.randomBase64UUID();
         var indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
@@ -75,7 +75,7 @@ public class StatelessAllocationDeciderTests extends ESAllocationTestCase {
 
         var indexName = UUIDs.randomBase64UUID();
         var indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();

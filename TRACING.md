@@ -18,12 +18,21 @@ an OTel implementation. Note that while it is possible to programmatically start
 the APM agent, the Security Manager permissions required make this essentially
 impossible.
 
-
 ## How is tracing configured?
 
 You must supply configuration and credentials for the APM server (see below).
-You must also set `tracing.apm.enabled` to `true`, but this can be toggled at
-runtime.
+In your `elasticsearch.yml` add the following configuration:
+
+```
+tracing.apm.enabled: true
+tracing.apm.agent.server_url: https://<your-apm-server>:443
+```
+
+When using a secret token to authenticate with the APM server, you must add it to the Elasticsearch keystore under `tracing.apm.secret_token`. For example, execute:
+
+    bin/elasticsearch-keystore add tracing.apm.secret_token
+
+then enter the token when prompted. If you are using API keys, change the keystore key name to `tracing.apm.api_key`.
 
 All APM settings live under `tracing.apm`. All settings related to the Java agent
 go under `tracing.apm.agent`. Anything you set under there will be propagated to

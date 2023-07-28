@@ -373,10 +373,6 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     @SuppressWarnings("HiddenField")
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (enabled == false) {
-            return Collections.emptyList();
-        }
-
         return Collections.singletonList(
             new FixedExecutorBuilder(
                 settings,

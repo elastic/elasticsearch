@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -209,6 +210,13 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     protected static DiscoveryNode newNode(String nodeId, Version version) {
         return DiscoveryNodeUtils.builder(nodeId).roles(MASTER_DATA_ROLES).version(version).build();
+    }
+
+    protected static DiscoveryNode newNode(String nodeId, Version version, IndexVersion indexVersion) {
+        return DiscoveryNodeUtils.builder(nodeId)
+            .roles(MASTER_DATA_ROLES)
+            .version(version, IndexVersion.MINIMUM_COMPATIBLE, indexVersion)
+            .build();
     }
 
     protected static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {

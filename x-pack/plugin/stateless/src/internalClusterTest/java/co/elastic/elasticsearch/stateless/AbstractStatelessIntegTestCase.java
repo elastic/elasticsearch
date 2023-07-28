@@ -147,7 +147,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     protected String startIndexNode() {
-        return internalCluster().startNode(settingsForRoles(DiscoveryNodeRole.INDEX_ROLE));
+        return startIndexNode(Settings.EMPTY);
     }
 
     protected String startIndexNode(Settings extraSettings) {
@@ -155,7 +155,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     protected String startSearchNode() {
-        return internalCluster().startNode(settingsForRoles(DiscoveryNodeRole.SEARCH_ROLE));
+        return startSearchNode(Settings.EMPTY);
     }
 
     protected String startSearchNode(Settings extraSettings) {

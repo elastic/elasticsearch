@@ -36,11 +36,52 @@ Requires the `manage_search_synonyms` cluster privilege.
 
 The following example retrieves all defined synonyms sets:
 
+////
+[source,console]
+----
+PUT _synonyms/my-synonyms-set
+{
+  "synonyms_set": [
+    {
+      "synonyms": "hello, hi"
+    },
+    {
+      "synonyms": "other, another"
+    },
+    {
+      "synonyms": "bye, goodbye"
+    }
+  ]
+}
+
+PUT _synonyms/ecommerce-synonyms
+{
+  "synonyms_set": [
+    {
+      "synonyms": "pants, trousers"
+    },
+    {
+      "synonyms": "dress, frock"
+    }
+  ]
+}
+
+PUT _synonyms/new-ecommerce-synonyms
+{
+  "synonyms_set": [
+    {
+      "synonyms": "tie, bowtie"
+    }
+  ]
+}
+----
+// TESTSETUP
+////
+
 [source,console]
 ----
 GET _synonyms
 ----
-// TEST[skip:TBD]
 
 A sample response:
 
@@ -51,7 +92,7 @@ A sample response:
   "results": [
     {
       "synonyms_set": "ecommerce-synonyms",
-      "count": 3
+      "count": 2
     },
     {
       "synonyms_set": "my-synonyms-set",
@@ -64,4 +105,3 @@ A sample response:
   ]
 }
 ----
-// TEST[skip:TBD]

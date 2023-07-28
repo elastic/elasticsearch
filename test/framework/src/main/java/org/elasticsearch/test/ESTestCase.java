@@ -39,7 +39,6 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
@@ -1291,12 +1290,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     public Environment newEnvironment(Settings settings) {
         Settings build = buildEnvSettings(settings);
         return TestEnvironment.newEnvironment(build);
-    }
-
-    /** Return consistent index settings for the provided index version. */
-    @Deprecated
-    public static Settings.Builder settings(Version version) {
-        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
     }
 
     /** Return consistent index settings for the provided index version. */

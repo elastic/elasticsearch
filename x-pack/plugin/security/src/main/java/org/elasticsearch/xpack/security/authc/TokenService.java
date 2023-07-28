@@ -826,10 +826,10 @@ public final class TokenService {
     }
 
     private void indexInvalidation(
-            UserToken userToken,
-            Iterator<TimeValue> backoff,
-            String srcPrefix,
-            ActionListener<TokensInvalidationResult> listener
+        UserToken userToken,
+        Iterator<TimeValue> backoff,
+        String srcPrefix,
+        ActionListener<TokensInvalidationResult> listener
     ) {
         indexInvalidation(List.of(userToken), backoff, srcPrefix, null, listener);
     }

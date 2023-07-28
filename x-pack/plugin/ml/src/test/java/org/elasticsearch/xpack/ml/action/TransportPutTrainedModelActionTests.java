@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -54,6 +55,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.getTaskInfoListOfOne;
 import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.mockClientWithTasksResponse;
@@ -65,6 +67,7 @@ import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 
 public class TransportPutTrainedModelActionTests extends ESTestCase {
+    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private ThreadPool threadPool;
 
     @Before
@@ -150,9 +153,16 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
 
         var responseListener = new PlainActionFuture<PutTrainedModelAction.Response>();
 
-        TransportPutTrainedModelAction.checkForExistingTask(client, "modelId", true, responseListener, new PlainActionFuture<Void>());
+        TransportPutTrainedModelAction.checkForExistingTask(
+            client,
+            "modelId",
+            true,
+            responseListener,
+            new PlainActionFuture<Void>(),
+            TIMEOUT
+        );
 
-        var exception = expectThrows(ElasticsearchException.class, responseListener::actionGet);
+        var exception = expectThrows(ElasticsearchException.class, () -> responseListener.actionGet(TIMEOUT));
         assertThat(exception.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(exception.getMessage(), is("Unable to retrieve task information for model id [modelId]"));
     }
@@ -162,9 +172,9 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
 
         var storeListener = new PlainActionFuture<Void>();
 
-        TransportPutTrainedModelAction.checkForExistingTask(client, "modelId", true, new PlainActionFuture<>(), storeListener);
+        TransportPutTrainedModelAction.checkForExistingTask(client, "modelId", true, new PlainActionFuture<>(), storeListener, TIMEOUT);
 
-        assertThat(storeListener.actionGet(), nullValue());
+        assertThat(storeListener.actionGet(TIMEOUT), nullValue());
     }
 
     public void testCheckForExistingTaskThrowsNoModelFoundError() {
@@ -172,9 +182,9 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         prepareGetTrainedModelResponse(client, Collections.emptyList());
 
         var respListener = new PlainActionFuture<PutTrainedModelAction.Response>();
-        TransportPutTrainedModelAction.checkForExistingTask(client, "modelId", true, respListener, new PlainActionFuture<>());
+        TransportPutTrainedModelAction.checkForExistingTask(client, "modelId", true, respListener, new PlainActionFuture<>(), TIMEOUT);
 
-        var exception = expectThrows(ElasticsearchException.class, respListener::actionGet);
+        var exception = expectThrows(ElasticsearchException.class, () -> respListener.actionGet(TIMEOUT));
         assertThat(exception.getMessage(), is("No model information found for a concurrent create model execution for model id [modelId]"));
     }
 
@@ -189,9 +199,9 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         prepareGetTrainedModelResponse(client, List.of(trainedModel));
 
         var respListener = new PlainActionFuture<PutTrainedModelAction.Response>();
-        TransportPutTrainedModelAction.checkForExistingTask(client, "modelId", true, respListener, new PlainActionFuture<>());
+        TransportPutTrainedModelAction.checkForExistingTask(client, "modelId", true, respListener, new PlainActionFuture<>(), TIMEOUT);
 
-        var returnedModel = respListener.actionGet();
+        var returnedModel = respListener.actionGet(TIMEOUT);
         assertThat(returnedModel.getResponse().getModelId(), is(trainedModel.getModelId()));
     }
 

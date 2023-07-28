@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
@@ -38,6 +40,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
@@ -55,14 +58,13 @@ import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.ml.utils.TaskRetriever.getExistingTaskInfo;
+import static org.elasticsearch.xpack.ml.utils.TaskRetriever.getDownloadTaskInfo;
 
 /**
  * The action is a master node action to ensure it reads an up-to-date cluster
  * state in order to determine if there is a processor referencing the trained model
  */
 public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMasterNodeAction<DeleteTrainedModelAction.Request> {
-
     private static final Logger logger = LogManager.getLogger(TransportDeleteTrainedModelAction.class);
 
     private final Client client;
@@ -114,7 +116,68 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
 
         String id = request.getId();
 
-        cancelDownloadTask(client, id, performDeletion);
+        cancelDownloadTask(client, id, performDeletion, request.timeout());
+    }
+
+    // package-private for testing
+    static void cancelDownloadTask(Client client, String modelId, ActionListener<CancelTasksResponse> listener, TimeValue timeout) {
+        logger.debug(() -> format("[%s] Checking if download task exists and cancelling it", modelId));
+
+        OriginSettingClient mlClient = new OriginSettingClient(client, ML_ORIGIN);
+
+        ActionListener<TaskInfo> taskListener = ActionListener.wrap(
+            taskInfo -> executeTaskCancellation(mlClient, modelId, taskInfo, listener, timeout),
+            e -> listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Unable to retrieve existing task information for model id [{}]",
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    e,
+                    modelId
+                )
+            )
+        );
+
+        // setting waitForCompletion to false here so that we don't block waiting for an existing task to complete before returning it
+        getDownloadTaskInfo(mlClient, modelId, false, taskListener, timeout);
+    }
+
+    static Set<String> getReferencedModelKeys(IngestMetadata ingestMetadata, IngestService ingestService) {
+        Set<String> allReferencedModelKeys = new HashSet<>();
+        if (ingestMetadata == null) {
+            return allReferencedModelKeys;
+        }
+        for (Map.Entry<String, PipelineConfiguration> entry : ingestMetadata.getPipelines().entrySet()) {
+            String pipelineId = entry.getKey();
+            Map<String, Object> config = entry.getValue().getConfigAsMap();
+            try {
+                Pipeline pipeline = Pipeline.create(
+                    pipelineId,
+                    config,
+                    ingestService.getProcessorFactories(),
+                    ingestService.getScriptService()
+                );
+                pipeline.getProcessors()
+                    .stream()
+                    .filter(p -> p instanceof InferenceProcessor)
+                    .map(p -> (InferenceProcessor) p)
+                    .map(InferenceProcessor::getModelId)
+                    .forEach(allReferencedModelKeys::add);
+            } catch (Exception ex) {
+                logger.warn(() -> "failed to load pipeline [" + pipelineId + "]", ex);
+            }
+        }
+        return allReferencedModelKeys;
+    }
+
+    static List<String> getModelAliases(ClusterState clusterState, String modelId) {
+        final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(clusterState);
+        final List<String> modelAliases = new ArrayList<>();
+        for (Map.Entry<String, ModelAliasMetadata.ModelAliasEntry> modelAliasEntry : currentMetadata.modelAliases().entrySet()) {
+            if (modelAliasEntry.getValue().getModelId().equals(modelId)) {
+                modelAliases.add(modelAliasEntry.getKey());
+            }
+        }
+        return modelAliases;
     }
 
     private void deleteModel(DeleteTrainedModelAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
@@ -174,92 +237,6 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         }
     }
 
-    // package-private for testing
-    static void cancelDownloadTask(Client client, String modelId, ActionListener<CancelTasksResponse> listener) {
-        logger.debug(format("[%s] Checking if download task exists and cancelling it", modelId));
-
-        OriginSettingClient mlClient = new OriginSettingClient(client, ML_ORIGIN);
-
-        ActionListener<TaskInfo> taskListener = ActionListener.wrap(taskInfo -> {
-            if (taskInfo != null) {
-                ActionListener<CancelTasksResponse> cancelListener = ActionListener.wrap(
-                    listener::onResponse,
-                    e -> listener.onFailure(
-                        new ElasticsearchStatusException(
-                            "Unable to cancel task for model id [{}]",
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            e,
-                            modelId
-                        )
-                    )
-                );
-
-                logger.debug(format("[%s] Download task exists, cancelling it", modelId));
-                // setting waitForCompletion here to wait for the cancellation to complete before executing the listener
-                mlClient.admin()
-                    .cluster()
-                    .prepareCancelTasks()
-                    .setTargetTaskId(taskInfo.taskId())
-                    .waitForCompletion(true)
-                    .execute(cancelListener);
-            } else {
-                logger.debug(format("[%s] No download task exists, proceeding with deletion", modelId));
-                listener.onResponse(null);
-            }
-        },
-            e -> listener.onFailure(
-                new ElasticsearchStatusException(
-                    "Unable to retrieve existing task information for model id [{}]",
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    e,
-                    modelId
-                )
-            )
-        );
-
-        // setting waitForCompletion to false here so that we don't block waiting for an existing task to complete before returning it
-        getExistingTaskInfo(mlClient, modelId, false, taskListener);
-    }
-
-    static Set<String> getReferencedModelKeys(IngestMetadata ingestMetadata, IngestService ingestService) {
-        Set<String> allReferencedModelKeys = new HashSet<>();
-        if (ingestMetadata == null) {
-            return allReferencedModelKeys;
-        }
-        for (Map.Entry<String, PipelineConfiguration> entry : ingestMetadata.getPipelines().entrySet()) {
-            String pipelineId = entry.getKey();
-            Map<String, Object> config = entry.getValue().getConfigAsMap();
-            try {
-                Pipeline pipeline = Pipeline.create(
-                    pipelineId,
-                    config,
-                    ingestService.getProcessorFactories(),
-                    ingestService.getScriptService()
-                );
-                pipeline.getProcessors()
-                    .stream()
-                    .filter(p -> p instanceof InferenceProcessor)
-                    .map(p -> (InferenceProcessor) p)
-                    .map(InferenceProcessor::getModelId)
-                    .forEach(allReferencedModelKeys::add);
-            } catch (Exception ex) {
-                logger.warn(() -> "failed to load pipeline [" + pipelineId + "]", ex);
-            }
-        }
-        return allReferencedModelKeys;
-    }
-
-    static List<String> getModelAliases(ClusterState clusterState, String modelId) {
-        final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(clusterState);
-        final List<String> modelAliases = new ArrayList<>();
-        for (Map.Entry<String, ModelAliasMetadata.ModelAliasEntry> modelAliasEntry : currentMetadata.modelAliases().entrySet()) {
-            if (modelAliasEntry.getValue().getModelId().equals(modelId)) {
-                modelAliases.add(modelAliasEntry.getKey());
-            }
-        }
-        return modelAliases;
-    }
-
     private void forceStopDeployment(String modelId, ActionListener<StopTrainedModelDeploymentAction.Response> listener) {
         StopTrainedModelDeploymentAction.Request request = new StopTrainedModelDeploymentAction.Request(modelId);
         request.setForce(true);
@@ -311,6 +288,47 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
     private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
+    }
+
+    private static void executeTaskCancellation(
+        Client client,
+        String modelId,
+        TaskInfo taskInfo,
+        ActionListener<CancelTasksResponse> listener,
+        TimeValue timeout
+    ) {
+        if (taskInfo != null) {
+            ActionListener<CancelTasksResponse> cancelListener = ActionListener.wrap(listener::onResponse, e -> {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof ResourceNotFoundException) {
+                    logger.debug(() -> format("[%s] Task no longer exists when attempting to cancel it", modelId));
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Unable to cancel task for model id [{}]",
+                            RestStatus.INTERNAL_SERVER_ERROR,
+                            e,
+                            modelId
+                        )
+                    );
+                }
+            });
+
+            logger.debug(() -> format("[%s] Download task exists, cancelling it", modelId));
+
+            // setting waitForCompletion here to wait for the cancellation to complete before executing the listener
+            client.admin()
+                .cluster()
+                .prepareCancelTasks()
+                .setTargetTaskId(taskInfo.taskId())
+                .setTimeout(timeout)
+                .waitForCompletion(true)
+                .execute(cancelListener);
+        } else {
+            logger.debug(() -> format("[%s] No download task exists, proceeding with deletion", modelId));
+            listener.onResponse(null);
+        }
     }
 
     @Override

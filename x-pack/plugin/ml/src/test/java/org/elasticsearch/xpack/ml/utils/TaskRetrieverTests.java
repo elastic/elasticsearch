@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -28,8 +29,9 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.ml.utils.TaskRetriever.getExistingTaskInfo;
+import static org.elasticsearch.xpack.ml.utils.TaskRetriever.getDownloadTaskInfo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -39,7 +41,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TaskRetrieverTests extends ESTestCase {
-
+    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private ThreadPool threadPool;
 
     @Before
@@ -65,9 +67,9 @@ public class TaskRetrieverTests extends ESTestCase {
 
         var listener = new PlainActionFuture<TaskInfo>();
 
-        getExistingTaskInfo(client, "modelId", false, listener);
+        getDownloadTaskInfo(client, "modelId", false, listener, TIMEOUT);
 
-        var exception = expectThrows(ElasticsearchException.class, listener::actionGet);
+        var exception = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(exception.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(exception.getMessage(), is("Unable to retrieve task information for model id [modelId]"));
     }
@@ -76,9 +78,9 @@ public class TaskRetrieverTests extends ESTestCase {
         var client = mockClientWithTasksResponse(Collections.emptyList(), threadPool);
         var listener = new PlainActionFuture<TaskInfo>();
 
-        getExistingTaskInfo(client, "modelId", false, listener);
+        getDownloadTaskInfo(client, "modelId", false, listener, TIMEOUT);
 
-        assertThat(listener.actionGet(), nullValue());
+        assertThat(listener.actionGet(TIMEOUT), nullValue());
     }
 
     public void testGetExistingTaskInfoCallsListenerWithTaskInfoWhenTaskExists() {
@@ -86,9 +88,9 @@ public class TaskRetrieverTests extends ESTestCase {
         var client = mockClientWithTasksResponse(listTaskInfo, threadPool);
         var listener = new PlainActionFuture<TaskInfo>();
 
-        getExistingTaskInfo(client, "modelId", false, listener);
+        getDownloadTaskInfo(client, "modelId", false, listener, TIMEOUT);
 
-        assertThat(listener.actionGet(), is(listTaskInfo.get(0)));
+        assertThat(listener.actionGet(TIMEOUT), is(listTaskInfo.get(0)));
     }
 
     public void testGetExistingTaskInfoCallsListenerWithFirstTaskInfoWhenMultipleTasksExist() {
@@ -96,9 +98,9 @@ public class TaskRetrieverTests extends ESTestCase {
         var client = mockClientWithTasksResponse(listTaskInfo, threadPool);
         var listener = new PlainActionFuture<TaskInfo>();
 
-        getExistingTaskInfo(client, "modelId", false, listener);
+        getDownloadTaskInfo(client, "modelId", false, listener, TIMEOUT);
 
-        assertThat(listener.actionGet(), is(listTaskInfo.get(0)));
+        assertThat(listener.actionGet(TIMEOUT), is(listTaskInfo.get(0)));
     }
 
     /**

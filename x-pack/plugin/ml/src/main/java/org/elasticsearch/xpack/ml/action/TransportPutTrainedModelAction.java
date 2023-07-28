@@ -32,6 +32,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.License;
@@ -81,7 +82,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Request, Response> {
-
     private static final ByteSizeValue MAX_NATIVE_DEFINITION_INDEX_SIZE = ByteSizeValue.ofGb(50);
     private static final Logger logger = LogManager.getLogger(TransportPutTrainedModelAction.class);
 
@@ -331,7 +331,8 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             trainedModelConfig.getModelId(),
             request.isWaitForCompletion(),
             listener,
-            handlePackageAndTagsListener
+            handlePackageAndTagsListener,
+            request.timeout()
         );
     }
 
@@ -343,16 +344,17 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         String modelId,
         boolean isWaitForCompletion,
         ActionListener<Response> sendResponseListener,
-        ActionListener<Void> storeModelListener
+        ActionListener<Void> storeModelListener,
+        TimeValue timeout
     ) {
-        TaskRetriever.getExistingTaskInfo(client, modelId, isWaitForCompletion, ActionListener.wrap(taskInfo -> {
+        TaskRetriever.getDownloadTaskInfo(client, modelId, isWaitForCompletion, ActionListener.wrap(taskInfo -> {
             if (taskInfo != null) {
                 getModelInformation(client, modelId, sendResponseListener);
             } else {
                 // no task exists so proceed with creating the model
                 storeModelListener.onResponse(null);
             }
-        }, sendResponseListener::onFailure));
+        }, sendResponseListener::onFailure), timeout);
     }
 
     private static void getModelInformation(Client client, String modelId, ActionListener<Response> listener) {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.utils;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -29,8 +30,15 @@ public class TaskRetriever {
      *                          wait for the download to complete)
      * @param listener a listener, if a task is found it is returned via {@code ActionListener.onResponse(taskInfo)}.
      *                 If a task is not found null is returned
+     * @param timeout the timeout value in seconds that the request should fail if it does not complete
      */
-    public static void getExistingTaskInfo(Client client, String modelId, boolean waitForCompletion, ActionListener<TaskInfo> listener) {
+    public static void getDownloadTaskInfo(
+        Client client,
+        String modelId,
+        boolean waitForCompletion,
+        ActionListener<TaskInfo> listener,
+        TimeValue timeout
+    ) {
         client.admin()
             .cluster()
             .prepareListTasks()
@@ -38,6 +46,7 @@ public class TaskRetriever {
             .setDetailed(true)
             .setWaitForCompletion(waitForCompletion)
             .setDescriptions(downloadModelTaskDescription(modelId))
+            .setTimeout(timeout)
             .execute(ActionListener.wrap((response) -> {
                 var tasks = response.getTasks();
 
@@ -58,4 +67,6 @@ public class TaskRetriever {
                 )
             ));
     }
+
+    private TaskRetriever() {}
 }

@@ -2985,7 +2985,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testSubobjectsFalseIngestDifferentObjectsRepresentation() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(b -> {}));
 
-        ParsedDocument doc1 = mapper.parse(source("""
+        ParsedDocument doc1 = mapper.parse(new SourceToParse("1", new BytesArray("""
             {
               "foo": {
                 "bar": {
@@ -2996,8 +2996,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 }
               }
             }
-            """));
-        ParsedDocument doc2 = mapper.parse(source("""
+            """), XContentType.JSON));
+        ParsedDocument doc2 = mapper.parse(new SourceToParse("2", new BytesArray("""
             {
               "foo": {
                 "bar.baz" : {
@@ -3006,21 +3006,21 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 }
               }
             }
-            """));
-        ParsedDocument doc3 = mapper.parse(source("""
+            """), XContentType.JSON));
+        ParsedDocument doc3 = mapper.parse(new SourceToParse("3", new BytesArray("""
             {
               "foo.bar.baz": {
                 "max" : 10,
                 "min" : 1
               }
             }
-            """));
-        ParsedDocument doc4 = mapper.parse(source("""
+            """), XContentType.JSON));
+        ParsedDocument doc4 = mapper.parse(new SourceToParse("4", new BytesArray("""
             {
               "foo.bar.baz.max" : 10,
               "foo.bar.baz.min" : 1
             }
-            """));
+            """), XContentType.JSON));
         assertNotNull(doc1.rootDoc().getField("foo.bar.baz.max"));
         assertNotNull(doc1.rootDoc().getField("foo.bar.baz.min"));
         RootObjectMapper root1 = doc1.dynamicMappingsUpdate().getRoot();

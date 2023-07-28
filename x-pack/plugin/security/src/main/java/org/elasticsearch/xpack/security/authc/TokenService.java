@@ -1277,7 +1277,11 @@ public final class TokenService {
             final UpdateRequestBuilder updateRequest = client.prepareUpdate(refreshedTokenIndex.aliasName(), tokenDoc.id())
                 .setDoc("refresh_token", updateMap)
                 .setFetchSource(true)
-                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                .setRefreshPolicy(
+                    refreshTokenStatus.getTransportVersion().onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)
+                        ? RefreshPolicy.NONE
+                        : RefreshPolicy.IMMEDIATE
+                )
                 .setIfSeqNo(tokenDoc.seqNo())
                 .setIfPrimaryTerm(tokenDoc.primaryTerm());
             refreshedTokenIndex.prepareIndexIfNeededThenExecute(

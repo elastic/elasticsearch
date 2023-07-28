@@ -22,7 +22,7 @@ When defining a rule, consider the following:
 --
 * `pinned` will re-write the query into a <<query-dsl-pinned-query, pinned query>>, pinning specified results matching the query rule at the top of the returned result set.
 --
-* The criteria for which this rule will match:
+* The criteria for which this rule will match. Criteria is defined as `type`, `metadata`, and `values`. The allowed types are:
 +
 --
 * `exact` will match when the rule metadata matches the specified value exactly.

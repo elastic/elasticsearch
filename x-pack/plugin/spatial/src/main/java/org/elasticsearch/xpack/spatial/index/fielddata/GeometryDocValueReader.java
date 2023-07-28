@@ -74,7 +74,8 @@ public class GeometryDocValueReader {
      */
     protected int getCentroidX() throws IOException {
         input.setPosition(docValueOffset + 0);
-        return input.readInt();
+        // TODO: write as BE to keep backwards compatibility. Once implemented in the reader it can be removed
+        return Integer.reverseBytes(input.readInt());
     }
 
     /**
@@ -82,10 +83,11 @@ public class GeometryDocValueReader {
      */
     protected int getCentroidY() {
         input.setPosition(docValueOffset + 4);
-        return input.readInt();
+        // TODO: write as BE to keep backwards compatibility. Once implemented in the reader it can be removed
+        return Integer.reverseBytes(input.readInt());
     }
 
-    protected DimensionalShapeType getDimensionalShapeType() {
+    protected DimensionalShapeType getDimensionalShapeType() throws IOException {
         input.setPosition(docValueOffset + 8);
         return DimensionalShapeType.readFrom(input);
     }

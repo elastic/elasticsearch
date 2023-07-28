@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 
@@ -34,10 +35,9 @@ class TriangleTreeWriter {
     private TriangleTreeWriter() {}
 
     /*** Serialize the interval tree in the provided data output */
-    public static void writeTo(ByteBuffersDataOutput out, List<IndexableField> fields) throws IOException {
+    public static void writeTo(DataOutput out, List<IndexableField> fields) throws IOException {
         final Extent extent = new Extent();
         final TriangleTreeNode node = build(fields, extent);
-        ;
         extent.writeCompressed(out);
         node.writeTo(out);
     }
@@ -122,7 +122,7 @@ class TriangleTreeWriter {
             this.component = component;
         }
 
-        private void writeTo(ByteBuffersDataOutput out) throws IOException {
+        private void writeTo(DataOutput out) throws IOException {
             ByteBuffersDataOutput scratchBuffer = new ByteBuffersDataOutput();
             writeMetadata(out);
             writeComponent(out);
@@ -134,8 +134,7 @@ class TriangleTreeWriter {
             }
         }
 
-        private void writeNode(ByteBuffersDataOutput out, int parentMaxX, int parentMaxY, ByteBuffersDataOutput scratchBuffer)
-            throws IOException {
+        private void writeNode(DataOutput out, int parentMaxX, int parentMaxY, ByteBuffersDataOutput scratchBuffer) throws IOException {
             out.writeVLong((long) parentMaxX - maxX);
             out.writeVLong((long) parentMaxY - maxY);
             int size = nodeSize(false, parentMaxX, parentMaxY, scratchBuffer);
@@ -152,7 +151,7 @@ class TriangleTreeWriter {
             }
         }
 
-        private void writeMetadata(ByteBuffersDataOutput out) throws IOException {
+        private void writeMetadata(DataOutput out) throws IOException {
             byte metadata = 0;
             metadata |= left != null ? LEFT : 0;
             metadata |= right != null ? RIGHT : 0;
@@ -169,7 +168,7 @@ class TriangleTreeWriter {
             out.writeByte(metadata);
         }
 
-        private void writeComponent(ByteBuffersDataOutput out) throws IOException {
+        private void writeComponent(DataOutput out) throws IOException {
             out.writeVLong((long) maxX - component.aX);
             out.writeVLong((long) maxY - component.aY);
             if (component.type == ShapeField.DecodedTriangle.TYPE.POINT) {

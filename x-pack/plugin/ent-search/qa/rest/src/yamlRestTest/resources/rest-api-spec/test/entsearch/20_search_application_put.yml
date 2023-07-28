@@ -122,6 +122,13 @@ teardown:
   - is_true: ''
 
   - do:
+      indices.get_alias:
+        index: test-search-application
+
+  - match: { test-index1.aliases.test-search-application: {} }
+  - match: { test-index2.aliases.test-search-application: {} }
+
+  - do:
       search_application.get:
         name: test-search-application
   - match:
@@ -158,6 +165,18 @@ teardown:
               properties:
                 another_query_string:
                   type: "string"
+  - do:
+      indices.exists_alias:
+        name: another-test-search-application
+
+  - is_true: ''
+
+  - do:
+      indices.get_alias:
+        index: another-test-search-application
+
+  - match: { test-index1.aliases.another-test-search-application: {} }
+  - match: { test-index2.aliases.another-test-search-application: {} }
 
   - do:
       search_application.get:
@@ -197,6 +216,13 @@ teardown:
           template: null
 
   - match: { result: "updated" }
+
+  - do:
+      indices.get_alias:
+        index: test-updated-search-application
+
+  - match: { test-index3.aliases.test-updated-search-application: { } }
+  - match: { test-index4.aliases.test-updated-search-application: { } }
 
   - do:
       search_application.get:

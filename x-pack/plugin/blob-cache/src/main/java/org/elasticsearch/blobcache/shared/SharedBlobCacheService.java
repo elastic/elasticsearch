@@ -244,6 +244,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> SHARED_CACHE_COUNT_READS = Setting.boolSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "count_reads",
+        true,
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(SharedBlobCacheService.class);
 
     private final ConcurrentHashMap<RegionKey<KeyType>, Entry<CacheFileRegion>> keyMapping;
@@ -309,7 +315,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 regionSize,
                 environment,
                 writeBytes::add,
-                readBytes::add,
+                SHARED_CACHE_COUNT_READS.get(settings) ? readBytes::add : ignored -> {},
                 SHARED_CACHE_MMAP.get(settings)
             );
         } catch (IOException e) {

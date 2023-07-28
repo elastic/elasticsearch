@@ -1,13 +1,13 @@
-[[put-synoyms-set]]
-=== Put Synonyms Set
+[[put-synonyms-set]]
+=== Put synonyms set
 
 beta::[]
 
 ++++
-<titleabbrev>Put Synonyms Set</titleabbrev>
+<titleabbrev>Put synonyms set</titleabbrev>
 ++++
 
-Creates or updates a Synonyms Set.
+Creates or updates a synonyms set.
 
 [[put-synonyms-set-request]]
 ==== {api-request-title}
@@ -25,7 +25,7 @@ Requires the `manage_search_synonyms` cluster privilege.
 `<synonyms_set>`::
 (Required, string)
 Synonyms set identifier to create.
-This identifier will be used by other <<synonym-management-apis>> to manage the synonyms set.
+This identifier will be used by other <<synonyms-apis>> to manage the synonyms set.
 
 `<body>`::
 (Required, object)
@@ -60,7 +60,7 @@ The synonym rule. This needs to be in <<_solr_synonyms>> format. Some examples a
 [[put-synonyms-set-example]]
 ==== {api-examples-title}
 
-The following example creates a new Synonyms Set called `my-synonyms-set`:
+The following example creates a new synonyms set called `my-synonyms-set`:
 
 [source,console]
 ----

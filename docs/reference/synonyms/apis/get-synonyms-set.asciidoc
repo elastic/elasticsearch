@@ -1,13 +1,13 @@
-[[get-synoyms-set]]
-=== Get Synonyms Set
+[[get-synonyms-set]]
+=== Get synonyms set
 
 beta::[]
 
 ++++
-<titleabbrev>Get Synonyms Set</titleabbrev>
+<titleabbrev>Get synonyms set</titleabbrev>
 ++++
 
-Retrieves a Synonyms Set.
+Retrieves a synonyms set.
 
 [[get-synonyms-set-request]]
 ==== {api-request-title}
@@ -42,12 +42,12 @@ Synonyms set identifier to retrieve.
 The `synonyms_set` identifier was not provided.
 
 `404` (Missing resources)::
-No Synonyms Set with the identifier `synonyms_set` was found.
+No synonyms set with the identifier `synonyms_set` was found.
 
 [[get-synonyms-set-example]]
 ==== {api-examples-title}
 
-The following example retrieves a Synonyms Set called `my-synonyms-set`:
+The following example retrieves a synonyms set called `my-synonyms-set`:
 
 [source,console]
 ----
@@ -55,7 +55,7 @@ GET _synonyms/my-synonyms-set
 ----
 // TEST[skip:TBD]
 
-The Synonyms Set information returned will include the total number of synonyms rules that the synonyms set contains, and the synonyms rules according to the `from` and `size` parameters.
+The synonyms set information returned will include the total number of synonyms rules that the synonyms set contains, and the synonyms rules according to the `from` and `size` parameters.
 
 A sample response:
 

@@ -79,6 +79,38 @@ public class EnrichPolicyRunner implements Runnable {
 
     static final String ENRICH_INDEX_README_TEXT = "This index is managed by Elasticsearch and should not be modified in any way.";
 
+    private static final Set<String> INDEXABLE_MAPPING_FIELDS = Set.of(
+        "geo_shape",
+        "search_as_you_type",
+        "token_count",
+        "icu_collation_keyword",
+        "boolean",
+        "date",
+        "date_nanos",
+        "ip",
+        "keyword",
+        "ip_range",
+        "date_range",
+        "float_range",
+        "double_range",
+        "integer_range",
+        "long_range",
+        "text",
+        "flattened",
+        "dense_vector",
+        "point",
+        "shape",
+        "scaled_float",
+        "geo_point",
+        "half_float",
+        "float",
+        "double",
+        "byte",
+        "short",
+        "integer",
+        "long"
+    );
+
     private final String policyName;
     private final EnrichPolicy policy;
     private final ExecuteEnrichPolicyTask task;
@@ -354,7 +386,9 @@ public class EnrichPolicyRunner implements Runnable {
                     if (typeAndFormat.format != null) {
                         mapping.put("format", typeAndFormat.format);
                     }
-                    mapping.put("index", false); // disable index
+                    if (INDEXABLE_MAPPING_FIELDS.contains(typeAndFormat.type)) {
+                        mapping.put("index", false); // disable index
+                    }
                     fieldMappings.put(enrichField, mapping);
                 }
             }

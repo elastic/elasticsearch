@@ -66,7 +66,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             (Settings) a[0],
             (CompressedXContent) a[1],
             (Map<String, AliasMetadata>) a[2],
-            DataStreamLifecycle.isEnabled() ? (DataStreamLifecycle) a[3] : null
+            DataStreamLifecycle.isFeatureEnabled() ? (DataStreamLifecycle) a[3] : null
         )
     );
 
@@ -93,7 +93,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             return aliasMap;
         }, ALIASES);
         // We adjust the parser to ensure that the error message will be consistent with that of an unknown field.
-        if (DataStreamLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isFeatureEnabled()) {
             PARSER.declareObjectOrNull(
                 ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> DataStreamLifecycle.fromXContent(p),
@@ -122,7 +122,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
-        if (DataStreamLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isFeatureEnabled()) {
             this.lifecycle = lifecycle;
         } else {
             this.lifecycle = null;
@@ -149,7 +149,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         } else {
             this.aliases = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             boolean isExplicitNull = in.readBoolean();
             if (isExplicitNull) {
                 this.lifecycle = NO_LIFECYCLE;
@@ -201,7 +201,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             out.writeBoolean(true);
             out.writeMap(this.aliases, StreamOutput::writeString, (stream, aliasMetadata) -> aliasMetadata.writeTo(stream));
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             boolean isExplicitNull = lifecycle == NO_LIFECYCLE;
             out.writeBoolean(isExplicitNull);
             if (isExplicitNull == false) {

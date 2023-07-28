@@ -30,16 +30,18 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.application.EnterpriseSearch;
+import org.elasticsearch.xpack.application.LocalStateEnterpriseSearch;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.EXACT;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilder> {
@@ -60,7 +62,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(EnterpriseSearch.class);
+        return Collections.singletonList(LocalStateEnterpriseSearch.class);
     }
 
     public void testIllegalArguments() {
@@ -69,10 +71,6 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), MATCH_CRITERIA, ""));
         expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, MATCH_CRITERIA, "rulesetId"));
         expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, Collections.emptyMap(), "rulesetId"));
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), Map.of("invalid_key", "invalid_value"), "rulesetId")
-        );
     }
 
     public void testFromJson() throws IOException {
@@ -143,7 +141,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
                 new QueryRule(
                     "my_rule1",
                     QueryRule.QueryRuleType.PINNED,
-                    List.of(new QueryRuleCriteria(QueryRuleCriteria.CriteriaType.EXACT, "query_string", "elastic")),
+                    List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("elastic"))),
                     Map.of("ids", List.of("id1", "id2"))
                 )
             );
@@ -174,5 +172,13 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         }
 
         return super.simulateMethod(method, args);
+    }
+
+    @Override
+    protected Map<String, String> getObjectsHoldingArbitraryContent() {
+        // document contains arbitrary content, no error expected when an object is added to it
+        final Map<String, String> objects = new HashMap<>();
+        objects.put(RuleQueryBuilder.MATCH_CRITERIA_FIELD.getPreferredName(), null);
+        return objects;
     }
 }

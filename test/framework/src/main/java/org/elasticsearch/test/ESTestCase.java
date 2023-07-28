@@ -1301,7 +1301,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(IndexVersion version) {
-        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version.id());
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
     }
 
     /** Return consistent index settings for the provided index version, shard- and replica-count. */
@@ -1737,7 +1737,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static TestAnalysis createTestAnalysis(Index index, Settings nodeSettings, Settings settings, AnalysisPlugin... analysisPlugins)
         throws IOException {
-        Settings indexSettings = Settings.builder().put(settings).put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder()
+            .put(settings)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .build();
         return createTestAnalysis(IndexSettingsModule.newIndexSettings(index, indexSettings), nodeSettings, analysisPlugins);
     }
 

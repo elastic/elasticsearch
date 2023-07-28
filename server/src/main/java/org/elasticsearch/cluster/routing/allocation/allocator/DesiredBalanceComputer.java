@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfoSimulator;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -39,7 +38,6 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
 
-import static java.util.stream.Collectors.toSet;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
 /**
@@ -81,9 +79,9 @@ public class DesiredBalanceComputer {
 
         final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
         final var routingNodes = routingAllocation.routingNodes();
+        final var knownNodeIds = routingNodes.getAllNodeIds();
         final var changes = routingAllocation.changes();
         final var ignoredShards = getIgnoredShardsWithDiscardedAllocationStatus(desiredBalanceInput.ignoredShards());
-        final var knownNodeIds = routingAllocation.nodes().stream().map(DiscoveryNode::getId).collect(toSet());
         final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation.clusterInfo());
 
         if (routingNodes.size() == 0) {

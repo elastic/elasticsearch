@@ -32,6 +32,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
     private final boolean isPartial;
     private final long startTimeMillis;
     private final long expirationTimeMillis;
+    private final Long completionTimeMillis;
     private final int totalShards;
     private final int successfulShards;
     private final int skippedShards;
@@ -48,6 +49,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         boolean isPartial,
         long startTimeMillis,
         long expirationTimeMillis,
+        Long completionTimeMillis,
         int totalShards,
         int successfulShards,
         int skippedShards,
@@ -60,6 +62,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         this.isPartial = isPartial;
         this.startTimeMillis = startTimeMillis;
         this.expirationTimeMillis = expirationTimeMillis;
+        this.completionTimeMillis = completionTimeMillis;
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.skippedShards = skippedShards;
@@ -112,6 +115,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
             asyncSearchResponse.isPartial(),
             asyncSearchResponse.getStartTime(),
             expirationTimeMillis,
+            asyncSearchResponse.getCompletionTime(),
             totalShards,
             successfulShards,
             skippedShards,
@@ -132,10 +136,15 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         this.skippedShards = in.readVInt();
         this.failedShards = in.readVInt();
         this.completionStatus = (this.isRunning == false) ? RestStatus.readFrom(in) : null;
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_009)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             this.clusters = in.readOptionalWriteable(SearchResponse.Clusters::new);
         } else {
             this.clusters = null;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_035)) {
+            this.completionTimeMillis = in.readOptionalVLong();
+        } else {
+            this.completionTimeMillis = null;
         }
     }
 
@@ -153,9 +162,12 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         if (isRunning == false) {
             RestStatus.writeTo(out, completionStatus);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_009)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             // optional since only CCS uses is; it is null for local-only searches
             out.writeOptionalWriteable(clusters);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_035)) {
+            out.writeOptionalVLong(completionTimeMillis);
         }
     }
 
@@ -172,6 +184,9 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         builder.field("is_partial", isPartial);
         builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
         builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
+        if (completionTimeMillis != null) {
+            builder.timeField("completion_time_in_millis", "completion_time", completionTimeMillis);
+        }
         RestActions.buildBroadcastShardsHeader(builder, params, totalShards, successfulShards, skippedShards, failedShards, null);
         if (clusters != null) {
             builder = clusters.toXContent(builder, null);
@@ -255,6 +270,13 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
     @Override
     public long getExpirationTime() {
         return expirationTimeMillis;
+    }
+
+    /**
+     * @return completion_time_in_millis if set, otherwise null
+     */
+    public Long getCompletionTime() {
+        return completionTimeMillis;
     }
 
     /**

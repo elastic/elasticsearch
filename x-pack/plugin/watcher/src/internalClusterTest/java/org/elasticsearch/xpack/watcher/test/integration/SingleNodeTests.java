@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -61,11 +62,11 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
             )
             .get();
         assertThat(putWatchResponse.isCreated(), is(true));
-        ensureGreen(".watcher-history*");
-        RefreshResponse refreshResponse = indicesAdmin().prepareRefresh(".watcher-history*").get();
-        assertThat(refreshResponse.getStatus(), equalTo(RestStatus.OK));
+        ensureGreen(HistoryStoreField.DATA_STREAM);
 
         assertBusy(() -> {
+            RefreshResponse refreshResponse = indicesAdmin().prepareRefresh(".watcher-history*").get();
+            assertThat(refreshResponse.getStatus(), equalTo(RestStatus.OK));
             SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
             assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(1L)));
         }, 30, TimeUnit.SECONDS);

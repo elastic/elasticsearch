@@ -126,7 +126,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     public Iterable<List<Entry>> entriesByRepo() {
-        return () -> entries.values().stream().map(byRepo -> byRepo.entries).iterator();
+        return () -> Iterators.map(entries.values().iterator(), byRepo -> byRepo.entries);
     }
 
     public Stream<Entry> asStream() {

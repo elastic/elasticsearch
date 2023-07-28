@@ -158,7 +158,6 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
             for (int i = 0; i < NUM_INDICES; i++) {
                 SearchApplicationListItem app = apps.get(i);
                 assertThat(app.name(), equalTo("my_search_app_" + i));
-                assertThat(app.indices(), equalTo(new String[] { "index_" + i }));
             }
         }
 
@@ -173,7 +172,6 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
                 int index = i + 5;
                 SearchApplicationListItem app = apps.get(i);
                 assertThat(app.name(), equalTo("my_search_app_" + index));
-                assertThat(app.indices(), equalTo(new String[] { "index_" + index }));
             }
         }
     }
@@ -208,7 +206,6 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
                 assertThat(apps.size(), equalTo(1));
                 assertThat(searchResponse.totalResults(), equalTo(1L));
                 assertThat(apps.get(0).name(), equalTo("my_search_app_4"));
-                assertThat(apps.get(0).indices(), equalTo(new String[] { "index_4" }));
             }
         }
     }
@@ -246,7 +243,6 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
             for (int i = 0; i < 4; i++) {
                 SearchApplicationListItem app = apps.get(i);
                 assertThat(app.name(), equalTo("my_search_app_" + i));
-                assertThat(app.indices(), equalTo(new String[] { "index_" + i }));
             }
         }
     }

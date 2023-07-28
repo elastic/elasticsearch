@@ -363,7 +363,6 @@ means the document came from the local cluster.
 <4> This document came from `cluster_two`.
 
 
-
 [discrete]
 [[ccs-async-search-minimize-roundtrips-true]]
 === Using async search for {ccs} with ccs_minimize_roundtrips=true
@@ -457,10 +456,6 @@ across all clusters only when the search is completed.
 and all are currently running (since `successful` and `skipped` both equal 0).
 
 
-
-
-
-
 If you query the <<get-async-search,get async search>> endpoint while the query is
 still running, you will see an update in the `_clusters` and `_shards` section of
 the response when the local search has finished.
@@ -516,8 +511,6 @@ is set to 1. The `_clusters` response section will not be updated for the remote
 until all remote searches have finished (either successfully or been skipped).
 <3> Number of hits from the local cluster search. Final hits are not
 shown until searches on all clusters have been completed and merged.
-
-
 
 
 After searches on all the clusters have completed, when you query the
@@ -633,8 +626,6 @@ were searched across all clusters and that all were successful.
 <3> The `_clusters` section shows that searches on all 3 clusters were successful.
 
 
-
-
 [discrete]
 [[ccs-async-search-minimize-roundtrips-false]]
 === Using async search for {ccs} with ccs_minimize_roundtrips=false
@@ -723,12 +714,6 @@ the `wait_for_completion_timeout` duration (see <<async-search>>).
 section for updates to monitor search progress.
 <2> The `_clusters` section shows that shard information was successfully
 gathered from all 3 clusters and that all will be searched (none are being skipped).
-
-
-
-MP 123
-
-
 
 
 [discrete]
@@ -937,5 +922,3 @@ duration of an upgrade is not supported.
 
 For more information about upgrades, see
 {stack-ref}/upgrading-elasticsearch.html[Upgrading {es}].
-
-

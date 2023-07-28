@@ -50,8 +50,9 @@ Criteria must have the following information:
 +
 --
 - `exact`
-Only exact matches meet the criteria defined by the rule
-- `exact_fuzzy`
+Only exact matches meet the criteria defined by the rule.
+Applicable for string or numerical values.
+- `fuzzy`
 Exact matches or matches within the allowed {wikipedia}/Levenshtein_distance[Levenshtein Edit Distance] meet the criteria defined by the rule.
 Only applicable for string values.
 - `prefix`
@@ -75,7 +76,7 @@ Only applicable for numerical values.
 - `gte`
 Matches with a value greater than or equal to this value meet the criteria defined by the rule.
 Only applicable for numerical values.
-- `global`
+- `always`
 Matches all queries, regardless of input.
 --
 - `metadata` (Optional, string)
@@ -148,9 +149,9 @@ PUT _query_rules/my-ruleset
             "type": "pinned",
             "criteria": [
                 {
-                    "type": "exact_fuzzy",
+                    "type": "fuzzy",
                     "metadata": "query_string",
-                    "value": "comic"
+                    "values": [ "comic" ]
                 }
             ],
             "actions": {

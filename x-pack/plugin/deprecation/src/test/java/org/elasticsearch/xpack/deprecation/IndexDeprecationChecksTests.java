@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
@@ -160,7 +159,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             + "} }";
 
         IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.V_7_0_0))
+            .settings(settings(IndexVersion.V_7_0_0))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .putMapping(simpleMapping)

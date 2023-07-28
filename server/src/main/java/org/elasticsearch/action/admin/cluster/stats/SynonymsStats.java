@@ -20,45 +20,33 @@ import java.util.Objects;
 /**
  * Statistics about an index feature.
  */
-public class IndexFeatureStats implements ToXContentObject, Writeable {
+public class SynonymsStats implements ToXContentObject, Writeable {
 
-    final String name;
     int count;
     int indexCount;
 
-    IndexFeatureStats(String name) {
-        this.name = Objects.requireNonNull(name);
-    }
+    SynonymsStats() {}
 
-    IndexFeatureStats(StreamInput in) throws IOException {
-        this.name = in.readString();
+    SynonymsStats(StreamInput in) throws IOException {
         this.count = in.readVInt();
         this.indexCount = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
         out.writeVInt(count);
         out.writeVInt(indexCount);
     }
 
     /**
-     * Return the name of the field type.
-     */
-    public String getName() {
-        return name;
-    }
-
-    /**
-     * Return the number of times this feature is used across the cluster.
+     * Return the number of times this synonym type is used across the cluster.
      */
     public int getCount() {
         return count;
     }
 
     /**
-     * Return the number of indices that use this feature across the cluster.
+     * Return the number of indices that use this synonym type across the cluster.
      */
     public int getIndexCount() {
         return indexCount;
@@ -66,22 +54,21 @@ public class IndexFeatureStats implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object other) {
-        if (other instanceof IndexFeatureStats == false) {
+        if (other instanceof SynonymsStats == false) {
             return false;
         }
-        IndexFeatureStats that = (IndexFeatureStats) other;
-        return name.equals(that.name) && count == that.count && indexCount == that.indexCount;
+        SynonymsStats that = (SynonymsStats) other;
+        return count == that.count && indexCount == that.indexCount;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, count, indexCount);
+        return Objects.hash(count, indexCount);
     }
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("name", name);
         builder.field("count", count);
         builder.field("index_count", indexCount);
         doXContent(builder, params);
@@ -95,6 +82,6 @@ public class IndexFeatureStats implements ToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return "IndexFeatureStats{" + "name='" + name + '\'' + ", count=" + count + ", indexCount=" + indexCount + '}';
+        return "SynonymsStats{count=" + count + ", indexCount=" + indexCount + '}';
     }
 }

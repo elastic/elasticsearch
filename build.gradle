@@ -72,9 +72,29 @@ tasks.register("updateCIBwcVersions") {
       file << "  - \"$it\"\n"
     }
   }
+
+  def wirteBuildkiteSteps = { String outputFilePath, String pipelineTemplatePath, String stepTemplatePath, List<Version> versions ->
+    def outputFile = file(outputFilePath)
+    def pipelineTemplate = file(pipelineTemplatePath)
+    def stepTemplate = file(stepTemplatePath)
+
+    def steps = ""
+    versions.each {
+      steps += "\n" + stepTemplate.text.replaceAll('\\$BWC_VERSION', it.toString())
+    }
+
+    outputFile.text = "# This file is auto-generated. See ${pipelineTemplatePath}\n" + pipelineTemplate.text.replaceAll('\\$BWC_STEPS', steps)
+  }
+
   doLast {
     writeVersions(file(".ci/bwcVersions"), BuildParams.bwcVersions.allIndexCompatible)
     writeVersions(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
+    wirteBuildkiteSteps(
+      ".buildkite/pipelines/periodic.yml",
+      ".buildkite/pipelines/periodic.template.yml",
+      ".buildkite/pipelines/periodic.bwc.template.yml",
+      BuildParams.bwcVersions.allIndexCompatible
+    )
   }
 }
 

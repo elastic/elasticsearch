@@ -692,7 +692,7 @@ public final class TokenService {
                     logger.trace("The access token [{}] is expired and already deleted", accessToken);
                     listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.NOT_FOUND));
                 } else {
-                    indexInvalidation(Collections.singleton(userToken), backoff, "access_token", null, listener);
+                    indexInvalidation(userToken, backoff, "access_token", listener);
                 }
             }, e -> {
                 if (e instanceof IndexNotFoundException || e instanceof IndexClosedException) {
@@ -730,7 +730,7 @@ public final class TokenService {
                     if (refresh.isInvalidated()) {
                         listener.onResponse(new TokensInvalidationResult(List.of(), List.of(userToken.getId()), null, RestStatus.OK));
                     } else {
-                        indexInvalidation(Collections.singletonList(userToken), backoff, "refresh_token", null, listener);
+                        indexInvalidation(userToken, backoff, "refresh_token", listener);
                     }
                 }
             }, e -> {
@@ -823,6 +823,15 @@ public final class TokenService {
         } else {
             indexInvalidation(userTokens, backoff, "access_token", null, listener);
         }
+    }
+
+    private void indexInvalidation(
+            UserToken userToken,
+            Iterator<TimeValue> backoff,
+            String srcPrefix,
+            ActionListener<TokensInvalidationResult> listener
+    ) {
+        indexInvalidation(List.of(userToken), backoff, srcPrefix, null, listener);
     }
 
     /**

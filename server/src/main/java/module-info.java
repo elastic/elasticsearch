@@ -297,8 +297,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.plugins;
     exports org.elasticsearch.plugins.interceptor to org.elasticsearch.security;
     exports org.elasticsearch.plugins.spi;
-    exports org.elasticsearch.plugins.internal to org.elasticsearch.settings.secure;
-    exports org.elasticsearch.plugins.internal.document_parsing_observer to co.elastic.elasticsearch.metering;
+    exports org.elasticsearch.plugins.internal to co.elastic.elasticsearch.metering;
     exports org.elasticsearch.repositories;
     exports org.elasticsearch.repositories.blobstore;
     exports org.elasticsearch.repositories.fs;
@@ -373,6 +372,7 @@ module org.elasticsearch.server {
 
     exports org.elasticsearch.action.datastreams.lifecycle;
     exports org.elasticsearch.action.downsample;
+    exports org.elasticsearch.plugins.internal to co.elastic.elasticsearch.metering, org.elasticsearch.settings.secure;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;

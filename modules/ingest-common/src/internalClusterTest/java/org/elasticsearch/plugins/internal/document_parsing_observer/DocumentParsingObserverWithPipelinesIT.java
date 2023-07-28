@@ -15,6 +15,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentParsingObserverFactory;
+import org.elasticsearch.plugins.internal.DocumentParsingObserverPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
@@ -81,7 +84,7 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
         public TestDocumentParsingObserverPlugin() {}
 
         @Override
-        public DocumentParsingObserverFactory getDocumentParsingObserverFactory() {
+        public DocumentParsingObserverFactory getDocumentParsingObserverSupplier() {
             // returns a static instance, because we want to assert that the wrapping is called only once
             return () -> DOCUMENT_PARSING_OBSERVER;
         }

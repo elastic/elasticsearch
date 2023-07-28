@@ -57,7 +57,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.internal.document_parsing_observer.DocumentParsingObserverFactory;
+import org.elasticsearch.plugins.internal.DocumentParsingObserverFactory;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;

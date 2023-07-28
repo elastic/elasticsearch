@@ -163,7 +163,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.internal.document_parsing_observer.DocumentParsingObserverFactory;
+import org.elasticsearch.plugins.internal.DocumentParsingObserverFactory;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.internal.document_parsing_observer;
+package org.elasticsearch.plugins.internal;
 
 /**
  * An internal plugin that will return a DocumentParsingObserverFactory.
@@ -16,5 +16,5 @@ public interface DocumentParsingObserverPlugin {
     /**
      * @return a documentParsingObserverFactory to allow observing parsing events
      */
-    DocumentParsingObserverFactory getDocumentParsingObserverFactory();
+    DocumentParsingObserverFactory getDocumentParsingObserverSupplier();
 }

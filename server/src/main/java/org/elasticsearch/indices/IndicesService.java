@@ -127,7 +127,7 @@ import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.internal.document_parsing_observer.DocumentParsingObserverFactory;
+import org.elasticsearch.plugins.internal.DocumentParsingObserverFactory;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;

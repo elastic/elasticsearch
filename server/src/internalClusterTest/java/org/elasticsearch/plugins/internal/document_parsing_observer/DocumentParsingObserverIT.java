@@ -11,6 +11,9 @@ package org.elasticsearch.plugins.internal.document_parsing_observer;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentParsingObserverFactory;
+import org.elasticsearch.plugins.internal.DocumentParsingObserverPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
@@ -74,7 +77,7 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
         }
 
         @Override
-        public DocumentParsingObserverFactory getDocumentParsingObserverFactory() {
+        public DocumentParsingObserverFactory getDocumentParsingObserverSupplier() {
             return () -> new TestDocumentParsingObserver();
         }
     }

@@ -22,7 +22,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.plugins.internal.document_parsing_observer.DocumentParsingObserverFactory;
+import org.elasticsearch.plugins.internal.DocumentParsingObserverFactory;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 

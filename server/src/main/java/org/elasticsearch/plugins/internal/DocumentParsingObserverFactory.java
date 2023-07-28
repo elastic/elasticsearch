@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.internal.document_parsing_observer;
+package org.elasticsearch.plugins.internal;
 
 /**
  * An interface of a factory to create a DocumentParsingObserver.

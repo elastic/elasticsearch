@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.internal.document_parsing_observer;
+package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -20,22 +20,30 @@ public interface DocumentParsingObserver {
      * a default noop implementation
      */
     DocumentParsingObserver EMPTY_INSTANCE = new DocumentParsingObserver() {
+        @Override
+        public XContentParser wrapParser(XContentParser xContentParser) {
+            return xContentParser;
+        }
+
+        @Override
+        public void parsingFinished(String indexName) {
+        }
     };
 
     /**
      * Decorates a provided xContentParser with additional logic (gather some state).
      * The Decorator parser should use a state from DocumentParsingObserver
      * in order to allow a parsingFinished method to use that state
+     *
      * @param xContentParser to be decorated
      * @return a decorator xContentParser
      */
-    default XContentParser wrapParser(XContentParser xContentParser) {
-        return xContentParser;
-    }
+    XContentParser wrapParser(XContentParser xContentParser);
 
     /**
      * Reports (perhaps to some external components) the state that was gathered by a decorated wrap
+     *
      * @param indexName an index name that is associated with the parsed document
      */
-    default void parsingFinished(String indexName) {}
+    void parsingFinished(String indexName);
 }

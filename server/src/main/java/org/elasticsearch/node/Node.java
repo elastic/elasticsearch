@@ -179,8 +179,8 @@ import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TracerPlugin;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
-import org.elasticsearch.plugins.internal.document_parsing_observer.DocumentParsingObserverFactory;
-import org.elasticsearch.plugins.internal.document_parsing_observer.DocumentParsingObserverPlugin;
+import org.elasticsearch.plugins.internal.DocumentParsingObserverFactory;
+import org.elasticsearch.plugins.internal.DocumentParsingObserverPlugin;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -1208,7 +1208,7 @@ public class Node implements Closeable {
     private DocumentParsingObserverFactory getDocumentParsingObserverFactory() {
         List<DocumentParsingObserverPlugin> plugins = pluginsService.filterPlugins(DocumentParsingObserverPlugin.class);
         if (plugins.size() == 1) {
-            return plugins.get(0).getDocumentParsingObserverFactory();
+            return plugins.get(0).getDocumentParsingObserverSupplier();
         } else if (plugins.size() == 0) {
             return DocumentParsingObserverFactory.EMPTY_INSTANCE;
         }

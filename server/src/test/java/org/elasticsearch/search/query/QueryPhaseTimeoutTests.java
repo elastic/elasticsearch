@@ -49,7 +49,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.function.Supplier;
 
 public class QueryPhaseTimeoutTests extends IndexShardTestCase {
 
@@ -234,14 +233,10 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     }
 
     private TestSearchContext createSearchContextWithTimeout(TimeoutQuery query, int size) throws IOException {
-        return createSearchContextWithTimeout(query, () -> query.shouldTimeout, size);
-    }
-
-    private TestSearchContext createSearchContextWithTimeout(Query query, Supplier<Boolean> shouldTimeout, int size) throws IOException {
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader)) {
             @Override
             public long getRelativeTimeInMillis() {
-                return shouldTimeout.get() ? 1L : 0L;
+                return query.shouldTimeout ? 1L : 0L;
             }
         };
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));

@@ -305,7 +305,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, successfulShards);
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
-        SearchResponse.Clusters clusters = new SearchResponse.Clusters(100, 99, 1, 99, false);
+        SearchResponse.Clusters clusters = new SearchResponse.Clusters(100, 99, 1);
         SearchResponse searchResponse = new SearchResponse(
             internalSearchResponse,
             null,
@@ -332,6 +332,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, successfulShards);
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
+
         SearchResponse searchResponse = new SearchResponse(
             internalSearchResponse,
             null,
@@ -358,7 +359,26 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, successfulShards);
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
-        SearchResponse.Clusters clusters = new SearchResponse.Clusters(100, 99, 1, 99, false);
+
+        int totalClusters;
+        int successfulClusters;
+        int skippedClusters;
+        SearchResponse.Clusters clusters;
+        if (randomBoolean()) {
+            // local search only
+            totalClusters = 1;
+            successfulClusters = 1;
+            skippedClusters = 0;
+            clusters = new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
+        } else {
+            // CCS search
+            totalClusters = 80;
+            int successful = randomInt(60);
+            int partial = randomInt(20);
+            successfulClusters = successful + partial;
+            skippedClusters = totalClusters - successfulClusters;
+            clusters = AsyncSearchResponseTests.createCCSClusterObject(80, 80, true, successful, skippedClusters, partial);
+        }
         SearchResponse searchResponse = new SearchResponse(
             internalSearchResponse,
             null,
@@ -375,7 +395,9 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         assertNotNull(statusFromStoredSearch);
         assertEquals(0, statusFromStoredSearch.getFailedShards());
         assertEquals(statusFromStoredSearch.getCompletionStatus(), RestStatus.OK);
-        assertEquals(100, statusFromStoredSearch.getClusters().getTotal());
+        assertEquals(totalClusters, statusFromStoredSearch.getClusters().getTotal());
+        assertEquals(skippedClusters, statusFromStoredSearch.getClusters().getSkipped());
+        assertEquals(successfulClusters, statusFromStoredSearch.getClusters().getSuccessful());
     }
 
     public void testGetStatusFromStoredSearchWithNonEmptyClustersStillRunning() {
@@ -386,7 +408,11 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, successfulShards);
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
-        SearchResponse.Clusters clusters = new SearchResponse.Clusters(100, 2, 3, 99, true);
+        int successful = randomInt(10);
+        int partial = randomInt(10);
+        int skipped = randomInt(10);
+        SearchResponse.Clusters clusters = AsyncSearchResponseTests.createCCSClusterObject(100, 99, true, successful, skipped, partial);
+
         SearchResponse searchResponse = new SearchResponse(
             internalSearchResponse,
             null,
@@ -405,7 +431,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         assertEquals(0, statusFromStoredSearch.getFailedShards());
         assertNull("completion_status should not be present if still running", statusFromStoredSearch.getCompletionStatus());
         assertEquals(100, statusFromStoredSearch.getClusters().getTotal());
-        assertEquals(2, statusFromStoredSearch.getClusters().getSuccessful());
-        assertEquals(3, statusFromStoredSearch.getClusters().getSkipped());
+        assertEquals(successful + partial, statusFromStoredSearch.getClusters().getSuccessful());
+        assertEquals(skipped, statusFromStoredSearch.getClusters().getSkipped());
     }
 }

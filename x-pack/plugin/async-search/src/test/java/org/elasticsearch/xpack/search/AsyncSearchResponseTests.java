@@ -146,6 +146,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             clusters
         );
     }
+
     static void assertEqualResponses(AsyncSearchResponse expected, AsyncSearchResponse actual) {
         assertEquals(expected.getId(), actual.getId());
         assertEquals(expected.status(), actual.status());

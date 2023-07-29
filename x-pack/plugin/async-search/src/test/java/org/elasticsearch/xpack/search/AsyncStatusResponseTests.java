@@ -187,11 +187,11 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
     }
 
     public void testGetStatusFromStoredSearchRandomizedInputs() {
-        boolean ccs = randomBoolean();  /// MP: TODO: add later
+        boolean ccs = randomBoolean();
         String searchId = randomSearchId();
         AsyncSearchResponse asyncSearchResponse = AsyncSearchResponseTests.randomAsyncSearchResponse(
             searchId,
-            AsyncSearchResponseTests.randomSearchResponse(false)
+            AsyncSearchResponseTests.randomSearchResponse(ccs)
         );
 
         if (asyncSearchResponse.getSearchResponse() == null

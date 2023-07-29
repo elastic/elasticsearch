@@ -48,7 +48,7 @@ import static org.elasticsearch.xpack.core.async.GetAsyncResultRequestTests.rand
 import static org.hamcrest.Matchers.equalTo;
 
 public class AsyncSearchResponseTests extends ESTestCase {
-    private SearchResponse searchResponse = randomSearchResponse();
+    private SearchResponse searchResponse = randomSearchResponse(randomBoolean());
     private NamedWriteableRegistry namedWriteableRegistry;
 
     @Before
@@ -123,12 +123,18 @@ public class AsyncSearchResponseTests extends ESTestCase {
         };
     }
 
-    static SearchResponse randomSearchResponse() {
+    static SearchResponse randomSearchResponse(boolean ccs) {
         long tookInMillis = randomNonNegativeLong();
         int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, successfulShards);
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
+        SearchResponse.Clusters clusters;
+        if (ccs) {
+            clusters = createCCSClusterObject(20, 19, true, 10, 1, 2);
+        } else {
+            clusters = SearchResponse.Clusters.EMPTY;
+        }
         return new SearchResponse(
             internalSearchResponse,
             null,
@@ -137,10 +143,9 @@ public class AsyncSearchResponseTests extends ESTestCase {
             skippedShards,
             tookInMillis,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            clusters
         );
     }
-
     static void assertEqualResponses(AsyncSearchResponse expected, AsyncSearchResponse actual) {
         assertEquals(expected.getId(), actual.getId());
         assertEquals(expected.status(), actual.status());

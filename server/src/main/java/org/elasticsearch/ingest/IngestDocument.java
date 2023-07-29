@@ -19,7 +19,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.TemplateScript;
-import org.elasticsearch.script.field.WriteField;
+import org.elasticsearch.script.field.FailFastWriteField;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -162,7 +162,7 @@ public final class IngestDocument {
      * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
-        WriteField writeField = getWriteField(path);
+        FailFastWriteField writeField = field(path);
         Object value;
         if (ignoreMissing) {
             value = writeField.get(null);
@@ -172,7 +172,7 @@ public final class IngestDocument {
         return cast(path, value, clazz);
     }
 
-    private WriteField getWriteField(String path) {
+    private FailFastWriteField field(String path) {
         if (Strings.isEmpty(path)) {
             throw new IllegalArgumentException("path cannot be null nor empty");
         }
@@ -194,7 +194,7 @@ public final class IngestDocument {
             throw new IllegalArgumentException("path [" + path + "] is not valid");
         }
 
-        return new WriteField(newPath, () -> initialContext);
+        return new FailFastWriteField(newPath, () -> initialContext);
     }
 
     /**
@@ -276,7 +276,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public boolean hasField(String path, boolean failOutOfRange) {
-        return getWriteField(path).exists(failOutOfRange);
+        return field(path).exists(failOutOfRange);
     }
 
     /**
@@ -294,9 +294,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
      */
     public void removeField(String path) {
-        WriteField writeField = getWriteField(path);
-        writeField.remove();
-        writeField.throwExceptionIfPresent();
+        field(path).remove();
     }
 
     /**
@@ -431,13 +429,12 @@ public final class IngestDocument {
     }
 
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {
-        WriteField writeField = getWriteField(path);
+        FailFastWriteField writeField = field(path);
         if (append) {
             writeField.append(value, allowDuplicates);
         } else {
             writeField.set(value);
         }
-        writeField.throwExceptionIfPresent();
     }
 
     private static <T> T cast(String path, Object object, Class<T> clazz) {

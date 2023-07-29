@@ -414,14 +414,18 @@ public class WriteFieldTests extends ESTestCase {
     }
 
     public void testSetList() {
-        Map<String, Object> root = new HashMap<>(Map.of("a.b", new ArrayList<>(List.of(1))));
-        new WriteField("a.b.0", () -> root).set(42);
-        assertEquals(List.of(42), root.get("a.b"));
+        Map<String, Object> root = new HashMap<>(Map.of("a.b", new ArrayList<>()));
+        new WriteField("a.b.0", () -> root).set(1);
+        assertEquals(List.of(1), root.get("a.b"));
 
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> new WriteField("a.b.1", () -> root).set("foo"));
-        assertEquals("[1] is out of bounds for array with length [1] as part of path [a.b.1]", err.getMessage());
+        new WriteField("a.b.0", () -> root).set(0);
+        assertEquals(List.of(0), root.get("a.b"));
 
-        assertEquals(List.of(42), root.get("a.b"));
+        new WriteField("a.b.1", () -> root).set(1);
+        assertEquals(Arrays.asList(0, 1), root.get("a.b"));
+
+        new WriteField("a.b.3", () -> root).set(3);
+        assertEquals(Arrays.asList(0, 1, null, 3), root.get("a.b"));
     }
 
     @SuppressWarnings("unchecked")
@@ -829,7 +833,7 @@ public class WriteFieldTests extends ESTestCase {
 
     public void testGetNonExisting() {
         Map<String, Object> root = new HashMap<>();
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> new WriteField("a", () -> root).get());
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> new FailFastWriteField("a", () -> root).get());
         assertEquals("field [a] not present as part of path [a]", err.getMessage());
     }
 

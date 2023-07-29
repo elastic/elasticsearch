@@ -18,21 +18,19 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class WriteField implements Field<Object> {
-    private String path;
+    protected String path;
     private Supplier<Map<String, Object>> rootSupplier;
 
     private Object container;
     private String leaf;
-    private Supplier<IllegalArgumentException> error;
 
-    private static final Object MISSING = new Object();
+    protected static final Object MISSING = new Object();
 
     public WriteField(String path, Supplier<Map<String, Object>> rootSupplier) {
         this.path = path;
@@ -56,22 +54,32 @@ public class WriteField implements Field<Object> {
         return exists(false);
     }
 
-    public boolean exists(boolean failOutOfRange) {
+    protected boolean exists(boolean failOutOfRange) {
         if (leaf == null) {
             return false;
         }
         if (container instanceof Map<?, ?> mapContainer) {
             return mapContainer.containsKey(leaf);
         } else if (container instanceof List<?> listContainer) {
-            int i = parseIndex(leaf);
-            if (i >= 0 && i < listContainer.size()) {
-                return true;
-            } else {
-                if (failOutOfRange) {
-                    throw new IllegalArgumentException(
-                        "[" + i + "] is out of bounds for array with length [" + listContainer.size() + "] as part of path [" + path + "]"
-                    );
+            try {
+                int i = Integer.parseInt(leaf);
+                if (i >= 0 && i < listContainer.size()) {
+                    return true;
+                } else {
+                    if (failOutOfRange) {
+                        throw new IllegalArgumentException(
+                            "["
+                                + i
+                                + "] is out of bounds for array with length ["
+                                + listContainer.size()
+                                + "] as part of path ["
+                                + path
+                                + "]"
+                        );
+                    }
+                    return false;
                 }
+            } catch (NumberFormatException e) {
                 return false;
             }
         } else {
@@ -208,24 +216,27 @@ public class WriteField implements Field<Object> {
         if (container instanceof Map<?, ?> mapContainer) {
             mapContainer.remove(leaf);
         } else if (container instanceof List<?> listContainer) {
-            int index = parseIndex(leaf);
+            int index = parseIndexForModification(leaf);
             if (index >= 0 && index < listContainer.size()) {
                 listContainer.remove(index);
             } else {
-                setError(
-                    () -> new IllegalArgumentException(
-                        "["
-                            + index
-                            + "] is out of bounds for array with length ["
-                            + listContainer.size()
-                            + "] as part of path ["
-                            + path
-                            + "]"
-                    )
-                );
+                onRemoveOutOfBounds(listContainer, index);
             }
         }
     }
+
+    protected void onRemoveOutOfBounds(List<?> listContainer, int index) {}
+
+    private int parseIndexForModification(String leaf) {
+        try {
+            return Integer.parseInt(leaf);
+        } catch (NumberFormatException e) {
+            onModificationIndexNotANumber(leaf, e);
+            return -1;
+        }
+    }
+
+    protected void onModificationIndexNotANumber(String leaf, NumberFormatException e) {}
 
     // Value Create
 
@@ -238,35 +249,30 @@ public class WriteField implements Field<Object> {
             throw new IllegalArgumentException("cannot set NestedDocument [" + doc.getDoc() + "] as path [" + path + "]");
         }
         setToContainer(value);
-        throwExceptionIfPresent();
         return this;
     }
 
     @SuppressWarnings("unchecked")
-    private void setToContainer(Object value) {
-        clearErrors();
+    protected void setToContainer(Object value) {
         if (container instanceof Map<?, ?>) {
             Map<String, Object> mapContainer = (Map<String, Object>) container;
             mapContainer.put(leaf, value);
         } else if (container instanceof List<?>) {
             List<Object> listContainer = (List<Object>) container;
-            int index = parseIndex(leaf);
+            int index = parseIndexForModification(leaf);
             if (index >= 0 && index < listContainer.size()) {
                 listContainer.set(index, value);
             } else {
-                setError(
-                    () -> new IllegalArgumentException(
-                        "["
-                            + index
-                            + "] is out of bounds for array with length ["
-                            + listContainer.size()
-                            + "] as part of path ["
-                            + path
-                            + "]"
-                    )
-                );
+                onSetOutOfBounds(value, listContainer, index);
             }
         }
+    }
+
+    protected void onSetOutOfBounds(Object value, List<Object> listContainer, int index) {
+        for (int i = listContainer.size(); i < index; i++) {
+            listContainer.add(null);
+        }
+        listContainer.add(value);
     }
 
     /**
@@ -332,10 +338,6 @@ public class WriteField implements Field<Object> {
         return valuesWereAppended;
     }
 
-    private void clearErrors() {
-        error = null;
-    }
-
     // Value Read
 
     /**
@@ -397,78 +399,50 @@ public class WriteField implements Field<Object> {
         return getFromContainer(leaf, defaultValue);
     }
 
-    public Object get() {
-        Object value = get(MISSING);
-        throwExceptionIfPresent();
-        if (value == MISSING) {
-            throw new IllegalArgumentException("cannot resolve path [" + path + "]");
-        }
-        return value;
-    }
-
-    public void throwExceptionIfPresent() {
-        Optional.ofNullable(error).ifPresent(e -> { throw e.get(); });
-    }
-
     @SuppressWarnings("unchecked")
     private Object getFromContainer(String leaf, Object defaultValue) {
         if (container instanceof Map<?, ?>) {
             Map<Object, Object> mapContainer = (Map<Object, Object>) container;
             if (mapContainer.containsKey(leaf) == false) {
-                setError(() -> new IllegalArgumentException("field [" + leaf + "] not present as part of path [" + path + "]"));
+                onResolutionErrorMissingKey(leaf);
             }
             return mapContainer.getOrDefault(leaf, defaultValue);
         } else if (container instanceof List<?> listContainer) {
-            int index = parseIndex(leaf);
+            int index = parseIndexForResolving(leaf);
             if (index >= 0 && index < listContainer.size()) {
                 return listContainer.get(index);
             } else {
-                setError(
-                    () -> new IllegalArgumentException(
-                        "["
-                            + index
-                            + "] is out of bounds for array with length ["
-                            + listContainer.size()
-                            + "] as part of path ["
-                            + path
-                            + "]"
-                    )
-                );
+                onResolutionErrorOutOfBounds(listContainer, index);
                 return defaultValue;
             }
         } else {
             if (container == null) {
-                setError(() -> new IllegalArgumentException("cannot resolve [" + leaf + "] from null as part of path [" + path + "]"));
+                onResolutionErrorMissingContainer(leaf);
             } else {
-                setError(
-                    () -> new IllegalArgumentException(
-                        "cannot resolve [" + leaf + "] from object of type [" + typeName(container) + "] as part of path [" + path + "]"
-                    )
-                );
+                onResolutionErrorWrongType(leaf, container);
             }
             return defaultValue;
         }
     }
 
-    private void setError(Supplier<IllegalArgumentException> errorSupplier) {
-        if (error == null) {
-            error = errorSupplier;
-        }
-    }
-
-    private int parseIndex(String leaf) {
+    private int parseIndexForResolving(String leaf) {
         try {
             return Integer.parseInt(leaf);
         } catch (NumberFormatException e) {
-            setError(
-                () -> new IllegalArgumentException(
-                    "[" + leaf + "] is not an integer, cannot be used as an index as part of path [" + path + "]",
-                    e
-                )
-            );
+            onResolutionErrorIndexNotANumber(leaf, e);
             return -1;
         }
     }
+
+    protected void onResolutionErrorMissingKey(String leaf) {}
+
+    protected void onResolutionErrorOutOfBounds(List<?> listContainer, int index) {}
+
+    protected void onResolutionErrorMissingContainer(String leaf) {}
+
+    protected void onResolutionErrorWrongType(String leaf, Object container) {}
+
+    protected void onResolutionErrorIndexNotANumber(String leaf, NumberFormatException e) {}
 
     /**
      * Get the value at the given index at this path or {@param defaultValue} if there is no such value.
@@ -791,7 +765,6 @@ public class WriteField implements Field<Object> {
         this.path = path;
         this.leaf = null;
         this.container = null;
-        this.error = null;
     }
 
     /**
@@ -823,7 +796,6 @@ public class WriteField implements Field<Object> {
     @SuppressWarnings("unchecked")
     protected void resolveDepthFlat() {
         container = rootSupplier.get();
-        error = null;
 
         int index = path.indexOf('.');
         int lastIndex = 0;
@@ -858,17 +830,16 @@ public class WriteField implements Field<Object> {
         }
         if (containerFound) {
             leaf = path.substring(lastIndex);
-            error = null;
+            onResolutionSuccess();
         } else {
-            int finalLastIndex = lastIndex;
-            setError(
-                () -> new IllegalArgumentException(
-                    "field [" + path.substring(path.indexOf('.', finalLastIndex) + 1) + "] not present as part of path [" + path + "]"
-                )
-            );
+            onResolutionErrorNotFound(lastIndex);
             leaf = null;
         }
     }
+
+    protected void onResolutionSuccess() {}
+
+    protected void onResolutionErrorNotFound(int lastIndex) {}
 
     /**
      * Create a new Map for each segment in path, if that segment is unmapped or mapped to null.
@@ -878,8 +849,6 @@ public class WriteField implements Field<Object> {
     @SuppressWarnings("unchecked")
     protected void createDepth() {
         Map<String, Object> mapContainer = rootSupplier.get();
-        error = null;
-
         String[] segments = path.split("\\.");
         for (int i = 0; i < segments.length - 1; i++) {
             String segment = segments[i];
@@ -908,7 +877,6 @@ public class WriteField implements Field<Object> {
         }
         container = mapContainer;
         leaf = segments[segments.length - 1];
-        clearErrors();
     }
 
     protected String typeName(Object value) {

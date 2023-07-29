@@ -47,7 +47,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         SearchResponse.Clusters clusters = switch (randomIntBetween(0, 3)) {
             case 1 -> SearchResponse.Clusters.EMPTY;
             case 2 -> new SearchResponse.Clusters(1, 1, 0);
-            case 3 -> new SearchResponse.Clusters(4, 1, 0, 3, true);
+            case 3 -> AsyncSearchResponseTests.createCCSClusterObject(4, 3, true);
             default -> null;  // case 0
         };
         return new AsyncStatusResponse(
@@ -80,7 +80,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         SearchResponse.Clusters clusters = switch (randomIntBetween(0, 3)) {
             case 1 -> SearchResponse.Clusters.EMPTY;
             case 2 -> new SearchResponse.Clusters(1, 1, 0);
-            case 3 -> new SearchResponse.Clusters(4, 1, 0, 3, true);
+            case 3 -> AsyncSearchResponseTests.createCCSClusterObject(4, 3, true); // new SearchResponse.Clusters(4, 1, 0, 3, true);
             default -> null;  // case 0
         };
         return new AsyncStatusResponse(
@@ -140,7 +140,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
                       %s
                     }
                     """, args);
-            } else {
+            } else if (clusters.getTotal() == 1) {
                 Object[] args = new Object[] {
                     response.getId(),
                     response.isRunning(),
@@ -180,6 +180,69 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
                       %s
                     }
                     """, args);
+            } else {
+                Object[] args = new Object[] {
+                    response.getId(),
+                    response.isRunning(),
+                    response.isPartial(),
+                    response.getStartTime(),
+                    response.getExpirationTime(),
+                    completionTimeEntry,
+                    response.getTotalShards(),
+                    response.getSuccessfulShards(),
+                    response.getSkippedShards(),
+                    response.getFailedShards(),
+                    clusters.getTotal(),
+                    clusters.getSuccessful(),
+                    clusters.getSkipped(),
+                    response.getCompletionStatus() == null ? "" : Strings.format("""
+                        ,"completion_status" : %s""", response.getCompletionStatus().getStatus()) };
+
+                expectedJson = Strings.format("""
+                    {
+                      "id" : "%s",
+                      "is_running" : %s,
+                      "is_partial" : %s,
+                      "start_time_in_millis" : %s,
+                      "expiration_time_in_millis" : %s,
+                      %s
+                      "_shards" : {
+                        "total" : %s,
+                        "successful" : %s,
+                        "skipped" : %s,
+                        "failed" : %s
+                      },
+                      "_clusters": {
+                       "total": %s,
+                       "successful": %s,
+                       "skipped": %s,
+                        "details": {
+                          "(local)": {
+                            "status": "running",
+                            "indices": "foo,bar*",
+                            "timed_out": false
+                          },
+                          "cluster_1": {
+                            "status": "running",
+                            "indices": "foo,bar*",
+                            "timed_out": false
+                          },
+                          "cluster_2": {
+                            "status": "running",
+                            "indices": "foo,bar*",
+                            "timed_out": false
+                          },
+                          "cluster_0": {
+                            "status": "running",
+                            "indices": "foo,bar*",
+                            "timed_out": false
+                          }
+                        }
+                      }
+                      %s
+                    }
+                    """, args);
+
             }
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertEquals(XContentHelper.stripWhitespace(expectedJson), Strings.toString(builder));

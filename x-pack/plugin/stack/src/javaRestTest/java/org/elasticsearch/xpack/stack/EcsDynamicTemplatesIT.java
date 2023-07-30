@@ -58,7 +58,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
     // The current ECS state (branch main) as a containing all fields in flattened form
     private static final String ECS_FLAT_FILE_URL = "https://raw.githubusercontent.com/elastic/ecs/main/generated/ecs/ecs_flat.yml";
 
-    private static final Set<String> OMIT_FIELD_TYPES = Set.of("object", "flattened", "nested");
+    private static final Set<String> OMIT_FIELD_TYPES = Set.of("object", "nested");
 
     private static final Set<String> OMIT_FIELDS = Set.of("data_stream.dataset", "data_stream.namespace", "data_stream.type");
 
@@ -280,6 +280,10 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             }
             case "boolean", "bool" -> {
                 return randomBoolean();
+            }
+            case "flattened" -> {
+                // creating multiple subfields
+                return Map.of("subfield1", randomAlphaOfLength(20), "subfield2", randomAlphaOfLength(20));
             }
         }
         throw new IllegalArgumentException("Unknown field type: " + type);

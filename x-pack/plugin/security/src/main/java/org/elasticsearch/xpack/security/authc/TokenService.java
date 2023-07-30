@@ -1714,19 +1714,22 @@ public final class TokenService {
             );
             final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
             try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
-                final SearchRequest request = client.prepareSearch(indicesWithTokens.toArray(new String[0]))
-                    .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
-                    .setQuery(boolQueryBuilder)
-                    .setVersion(false)
-                    .setSize(1000)
-                    .setFetchSource(true)
-                    .request();
-                ScrollHelper.fetchAllByEntity(
-                    client,
-                    request,
-                    new ContextPreservingActionListener<>(supplier, listener),
-                    (SearchHit hit) -> filterAndParseHit(hit, filter)
-                );
+                // refresh the tokens index because post {@code #VERSION_GET_TOKEN_DOC_FOR_REFRESH} tokens are created without refresh
+                client.admin().indices().prepareRefresh(securityTokensIndex.aliasName()).execute(ActionListener.wrap(ignored -> {
+                    final SearchRequest request = client.prepareSearch(indicesWithTokens.toArray(new String[0]))
+                        .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
+                        .setQuery(boolQueryBuilder)
+                        .setVersion(false)
+                        .setSize(1000)
+                        .setFetchSource(true)
+                        .request();
+                    ScrollHelper.fetchAllByEntity(
+                        client,
+                        request,
+                        new ContextPreservingActionListener<>(supplier, listener),
+                        (SearchHit hit) -> filterAndParseHit(hit, filter)
+                    );
+                }, listener::onFailure));
             }
         }, listener::onFailure));
     }

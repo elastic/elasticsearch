@@ -49,21 +49,14 @@ import static org.hamcrest.Matchers.instanceOf;
 @SuppressWarnings("unchecked")
 public class EcsDynamicTemplatesIT extends ESRestTestCase {
 
-    /**
-     * Indicates the ECS version used for the dynamic templates verification.
-     */
-    public static final String TESTED_ECS_VERSION = "8.9";
-
-    // The current ECS state (branch main) as a containing all fields in flattened form
-    private static final String ECS_FLAT_FILE_URL = "https://raw.githubusercontent.com/elastic/ecs/"
-        + TESTED_ECS_VERSION
-        + "/generated/ecs/ecs_flat.yml";
-
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("mapper-extras").module("wildcard").build();
 
     // The dynamic templates we test against
     public static final String ECS_DYNAMIC_TEMPLATES_FILE = "ecs-dynamic-mappings.json";
+
+    // The current ECS state (branch main) containing all fields in flattened form
+    private static final String ECS_FLAT_FILE_URL = "https://raw.githubusercontent.com/elastic/ecs/main/generated/ecs/ecs_flat.yml";
 
     private static final Set<String> OMIT_FIELD_TYPES = Set.of("object", "nested");
 

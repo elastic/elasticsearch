@@ -846,16 +846,16 @@ public final class TokenService {
     ) {
         final Set<String> idsOfRecentTokens = new HashSet<>();
         final Set<String> idsOfOlderTokens = new HashSet<>();
-        boolean refreshTokensIndex = false;
+        boolean anyOlderTokensBeforeRefreshViaGet = false;
         for (UserToken userToken : userTokens) {
             if (userToken.getTransportVersion().onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
                 idsOfRecentTokens.add(userToken.getId());
             } else {
                 idsOfOlderTokens.add(userToken.getId());
             }
-            refreshTokensIndex |= userToken.getTransportVersion().before(VERSION_GET_TOKEN_DOC_FOR_REFRESH);
+            anyOlderTokensBeforeRefreshViaGet |= userToken.getTransportVersion().before(VERSION_GET_TOKEN_DOC_FOR_REFRESH);
         }
-        final boolean shouldRefreshTokensIndex = refreshTokensIndex;
+        final boolean shouldRefreshTokensIndex = anyOlderTokensBeforeRefreshViaGet;
 
         if (false == idsOfOlderTokens.isEmpty()) {
             indexInvalidation(

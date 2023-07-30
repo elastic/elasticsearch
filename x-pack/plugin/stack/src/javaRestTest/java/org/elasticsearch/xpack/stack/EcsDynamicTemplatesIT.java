@@ -53,7 +53,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("mapper-extras").module("wildcard").build();
 
     // The dynamic templates we test against
-    public static final String ECS_DYNAMIC_TEMPLATES_FILE = "/ecs-dynamic-mappings.json";
+    public static final String ECS_DYNAMIC_TEMPLATES_FILE = "ecs-dynamic-mappings.json";
 
     // The current ECS state (branch main) as a containing all fields in flattened form
     private static final String ECS_FLAT_FILE_URL = "https://raw.githubusercontent.com/elastic/ecs/main/generated/ecs/ecs_flat.yml";
@@ -74,7 +74,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
 
     private static void prepareEcsDynamicTemplates() throws IOException {
         String rawEcsComponentTemplate = TemplateUtils.loadTemplate(
-            ECS_DYNAMIC_TEMPLATES_FILE,
+            "/" + ECS_DYNAMIC_TEMPLATES_FILE,
             Integer.toString(1),
             StackTemplateRegistry.TEMPLATE_VERSION_VARIABLE,
             Collections.emptyMap()
@@ -210,14 +210,14 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             if (flattened) {
                 testFieldsMap.put(flattenedFieldName, testValue);
             } else {
-                Map<String, Object> currentFiled = testFieldsMap;
+                Map<String, Object> currentField = testFieldsMap;
                 Iterator<String> fieldPathPartsIterator = Arrays.stream(flattenedFieldName.split("\\.")).iterator();
                 String subfield = fieldPathPartsIterator.next();
                 while (fieldPathPartsIterator.hasNext()) {
-                    currentFiled = (Map<String, Object>) currentFiled.computeIfAbsent(subfield, ignore -> new HashMap<>());
+                    currentField = (Map<String, Object>) currentField.computeIfAbsent(subfield, ignore -> new HashMap<>());
                     subfield = fieldPathPartsIterator.next();
                 }
-                currentFiled.put(subfield, testValue);
+                currentField.put(subfield, testValue);
             }
         }
         return testFieldsMap;
@@ -371,21 +371,33 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             }
         });
 
-        shallowFieldMapCopy.keySet()
-            .forEach(field -> logger.error("ECS field '{}' is not covered by the current ECS dynamic templates", field));
+        shallowFieldMapCopy.forEach(
+            (fieldName, expectedMappings) -> logger.error(
+                "ECS field '{}' is not covered by the current dynamic templates. Update {} so that this field is mapped to type '{}'.",
+                fieldName,
+                ECS_DYNAMIC_TEMPLATES_FILE,
+                expectedMappings.get("type")
+            )
+        );
         shallowMultiFieldMapCopy.keySet().forEach(field -> {
             int lastDotIndex = field.lastIndexOf('.');
             String parentField = field.substring(0, lastDotIndex);
             String subfield = field.substring(lastDotIndex + 1);
-            logger.error("ECS field '{}' is expected to have a multi-field mapping with subfield '{}'", parentField, subfield);
+            logger.error(
+                "ECS field '{}' is expected to have a multi-field mapping with subfield '{}'. Fix {} accordingly.",
+                parentField,
+                subfield,
+                ECS_DYNAMIC_TEMPLATES_FILE
+            );
         });
         fieldToWrongMappingType.forEach((fieldName, actualMappingType) -> {
             String ecsExpectedType = (String) ecsFlatFieldDefinitions.get(fieldName).get("type");
             logger.error(
-                "ECS field '{}' should be mapped to type '{}' but is mapped to type '{}'",
+                "ECS field '{}' should be mapped to type '{}' but is mapped to type '{}'. Update {} accordingly.",
                 fieldName,
                 ecsExpectedType,
-                actualMappingType
+                actualMappingType,
+                ECS_DYNAMIC_TEMPLATES_FILE
             );
         });
         nonEcsFields.forEach(field -> logger.error("The test document contains '{}', which is not an ECS field", field));

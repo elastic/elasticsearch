@@ -109,7 +109,7 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
             return;
         }
 
-        tokenService.findActiveTokensForRealm(realm.name(), containsMetadata(tokenMetadata), ActionListener.wrap(tokens -> {
+        tokenService.searchActiveTokens(realm.name(), containsMetadata(tokenMetadata), ActionListener.wrap(tokens -> {
             LOGGER.debug("Found [{}] token pairs to invalidate for SAML metadata [{}]", tokens.size(), tokenMetadata);
             if (tokens.isEmpty()) {
                 listener.onResponse(0);

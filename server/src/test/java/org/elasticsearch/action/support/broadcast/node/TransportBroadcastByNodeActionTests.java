@@ -11,6 +11,7 @@ package org.elasticsearch.action.support.broadcast.node;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -55,6 +57,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TestTransportChannel;
@@ -139,7 +142,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 new ActionFilters(Set.of()),
                 new MyResolver(),
                 Request::new,
-                ThreadPool.Names.SAME
+                TEST_THREAD_POOL_NAME
             );
         }
 
@@ -209,9 +212,22 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         }
     }
 
+    private static final String TEST_THREAD_POOL_NAME = "test_thread_pool";
+
+    private static void awaitForkedTasks() {
+        PlainActionFuture.get(
+            listener -> THREAD_POOL.executor(TEST_THREAD_POOL_NAME).execute(ActionRunnable.run(listener, () -> {})),
+            10,
+            TimeUnit.SECONDS
+        );
+    }
+
     @BeforeClass
     public static void startThreadPool() {
-        THREAD_POOL = new TestThreadPool(TransportBroadcastByNodeActionTests.class.getSimpleName());
+        THREAD_POOL = new TestThreadPool(
+            TransportBroadcastByNodeActionTests.class.getSimpleName(),
+            new ScalingExecutorBuilder(TEST_THREAD_POOL_NAME, 1, 1, TimeValue.timeValueSeconds(60), true)
+        );
     }
 
     @Before
@@ -293,22 +309,26 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
     public void testGlobalBlock() {
         Request request = new Request(TEST_INDEX);
-        PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         ClusterBlocks.Builder block = ClusterBlocks.builder()
             .addGlobalBlock(new ClusterBlock(1, "test-block", false, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
-        try {
-            action.doExecute(null, request, listener);
-            fail("expected ClusterBlockException");
-        } catch (ClusterBlockException expected) {
-            assertEquals("blocked by: [SERVICE_UNAVAILABLE/1/test-block];", expected.getMessage());
-        }
+
+        assertEquals(
+            "blocked by: [SERVICE_UNAVAILABLE/1/test-block];",
+            expectThrows(
+                ClusterBlockException.class,
+                () -> PlainActionFuture.<Response, RuntimeException>get(
+                    listener -> action.doExecute(null, request, listener),
+                    10,
+                    TimeUnit.SECONDS
+                )
+            ).getMessage()
+        );
     }
 
     public void testRequestBlock() {
         Request request = new Request(TEST_INDEX);
-        PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         ClusterBlocks.Builder block = ClusterBlocks.builder()
             .addIndexBlock(
@@ -316,12 +336,17 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 new ClusterBlock(1, "test-block", false, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL)
             );
         setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
-        try {
-            action.doExecute(null, request, listener);
-            fail("expected ClusterBlockException");
-        } catch (ClusterBlockException expected) {
-            assertEquals("index [" + TEST_INDEX + "] blocked by: [SERVICE_UNAVAILABLE/1/test-block];", expected.getMessage());
-        }
+        assertEquals(
+            "index [" + TEST_INDEX + "] blocked by: [SERVICE_UNAVAILABLE/1/test-block];",
+            expectThrows(
+                ClusterBlockException.class,
+                () -> PlainActionFuture.<Response, RuntimeException>get(
+                    listener -> action.doExecute(null, request, listener),
+                    10,
+                    TimeUnit.SECONDS
+                )
+            ).getMessage()
+        );
     }
 
     public void testOneRequestIsSentToEachNodeHoldingAShard() {
@@ -329,6 +354,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         action.doExecute(null, request, listener);
+        awaitForkedTasks();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[] { TEST_INDEX });
@@ -386,7 +412,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(builder));
 
         action.doExecute(null, request, listener);
-
+        awaitForkedTasks();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
         // the master should not be in the list of nodes that requests were sent to
@@ -475,6 +501,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         }
 
         action.doExecute(null, request, listener);
+        awaitForkedTasks();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
         ShardsIterator shardIt = clusterService.state().getRoutingTable().allShards(new String[] { TEST_INDEX });
@@ -532,6 +559,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
         final PlainActionFuture<Response> listener = new PlainActionFuture<>();
         action.execute(cancellableTask, new Request(TEST_INDEX), listener);
+        awaitForkedTasks();
 
         final List<CapturingTransport.CapturedRequest> capturedRequests = new ArrayList<>(
             Arrays.asList(transport.getCapturedRequestsAndClear())

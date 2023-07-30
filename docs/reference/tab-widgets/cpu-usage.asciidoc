@@ -16,7 +16,7 @@ GET _cat/nodes?v=true&s=cpu:desc
 ----
 
 The response's `cpu` column contains the current CPU usage as a percentage. The
-`node` column contains the node's name.
+`name` column contains the node's name.
 // end::cpu-usage-cat-nodes[]
 
 // end::cloud[]

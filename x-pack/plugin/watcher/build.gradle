@@ -9,7 +9,9 @@ esplugin {
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 
-archivesBaseName = 'x-pack-watcher'
+base {
+  archivesName = 'x-pack-watcher'
+}
 
 ext.compactProfile = 'full'
 

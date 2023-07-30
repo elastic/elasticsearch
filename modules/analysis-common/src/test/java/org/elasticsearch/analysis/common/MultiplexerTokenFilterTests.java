@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -44,7 +45,7 @@ public class MultiplexerTokenFilterTests extends ESTokenStreamTestCase {
             TestEnvironment.newEnvironment(settings),
             Collections.singletonList(new CommonAnalysisPlugin()),
             new StablePluginsRegistry()
-        ).getAnalysisRegistry().build(idxSettings);
+        ).getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
 
         try (NamedAnalyzer analyzer = indexAnalyzers.get("myAnalyzer")) {
             assertNotNull(analyzer);
@@ -79,7 +80,7 @@ public class MultiplexerTokenFilterTests extends ESTokenStreamTestCase {
             TestEnvironment.newEnvironment(settings),
             Collections.singletonList(new CommonAnalysisPlugin()),
             new StablePluginsRegistry()
-        ).getAnalysisRegistry().build(idxSettings);
+        ).getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
 
         try (NamedAnalyzer analyzer = indexAnalyzers.get("myAnalyzer")) {
             assertNotNull(analyzer);

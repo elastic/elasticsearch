@@ -95,6 +95,11 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String SYNTHETICS_ILM_POLICY_NAME = "synthetics";
     public static final String SYNTHETICS_INDEX_TEMPLATE_NAME = "synthetics";
 
+    ///////////////////////////////////
+    // Kibana reporting template
+    ///////////////////////////////////
+    public static final String KIBANA_REPORTING_INDEX_TEMPLATE_NAME = ".kibana-reporting";
+
     public StackTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
@@ -224,7 +229,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
         new IndexTemplateConfig(LOGS_INDEX_TEMPLATE_NAME, "/logs-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
         new IndexTemplateConfig(METRICS_INDEX_TEMPLATE_NAME, "/metrics-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
-        new IndexTemplateConfig(SYNTHETICS_INDEX_TEMPLATE_NAME, "/synthetics-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE)
+        new IndexTemplateConfig(SYNTHETICS_INDEX_TEMPLATE_NAME, "/synthetics-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
+        new IndexTemplateConfig(
+            KIBANA_REPORTING_INDEX_TEMPLATE_NAME,
+            "/kibana-reporting-template.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE
+        )
     );
 
     @Override

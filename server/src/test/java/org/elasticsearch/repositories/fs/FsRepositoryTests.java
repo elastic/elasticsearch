@@ -23,7 +23,6 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -112,7 +111,7 @@ public class FsRepositoryTests extends ESTestCase {
                     new SnapshotIndexCommit(new Engine.IndexCommitRef(indexCommit, () -> {})),
                     null,
                     snapshotStatus,
-                    Version.CURRENT,
+                    IndexVersion.current(),
                     randomMillisUpToYear9999(),
                     snapshot1Future
                 )
@@ -155,7 +154,7 @@ public class FsRepositoryTests extends ESTestCase {
                     new SnapshotIndexCommit(new Engine.IndexCommitRef(incIndexCommit, () -> {})),
                     null,
                     snapshotStatus2,
-                    Version.CURRENT,
+                    IndexVersion.current(),
                     randomMillisUpToYear9999(),
                     snapshot2future
                 )

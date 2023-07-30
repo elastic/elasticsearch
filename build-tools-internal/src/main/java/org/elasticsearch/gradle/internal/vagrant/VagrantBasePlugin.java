@@ -89,7 +89,7 @@ public class VagrantBasePlugin implements Plugin<Project> {
             }
 
             String version = matcher.group(1);
-            List<Integer> versionParts = Stream.of(version.split("\\.")).map(Integer::parseInt).collect(Collectors.toList());
+            List<Integer> versionParts = Stream.of(version.split("\\.")).map(Integer::parseInt).toList();
             for (int i = 0; i < minVersion.length; ++i) {
                 int found = versionParts.get(i);
                 if (found > minVersion[i]) {

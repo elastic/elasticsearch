@@ -22,7 +22,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -86,7 +85,7 @@ public class TypeParsersTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
 
-        IndexVersion olderVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0).indexVersion;
+        IndexVersion olderVersion = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
         MappingParserContext olderContext = new MappingParserContext(
             null,
             type -> typeParser,

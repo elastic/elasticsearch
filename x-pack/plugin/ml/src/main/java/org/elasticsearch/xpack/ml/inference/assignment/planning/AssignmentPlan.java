@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -215,7 +216,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         StringBuilder msg = new StringBuilder();
-        List<Node> nodes = nodeToModel.keySet().stream().sorted(Comparator.comparing(Node::id)).collect(Collectors.toList());
+        List<Node> nodes = nodeToModel.keySet().stream().sorted(Comparator.comparing(Node::id)).toList();
         for (int i = 0; i < nodes.size(); i++) {
             Node n = nodes.get(i);
             msg.append(n);
@@ -223,7 +224,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             for (Tuple<Deployment, Integer> modelAllocations : nodeToModel.get(n)
                 .stream()
                 .sorted(Comparator.comparing(x -> x.v1().id()))
-                .collect(Collectors.toList())) {
+                .toList()) {
                 if (modelAllocations.v2() > 0) {
                     msg.append(" ");
                     msg.append(modelAllocations.v1().id());
@@ -259,10 +260,10 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         private final Map<Deployment, Integer> remainingModelAllocations;
 
         private Builder(Collection<Node> nodes, Collection<Deployment> deployments) {
-            if (nodes.stream().collect(Collectors.toSet()).size() != nodes.size()) {
+            if (new HashSet<>(nodes).size() != nodes.size()) {
                 throw new IllegalArgumentException("there should be no duplicate nodes");
             }
-            if (deployments.stream().collect(Collectors.toSet()).size() != deployments.size()) {
+            if (new HashSet<>(deployments).size() != deployments.size()) {
                 throw new IllegalArgumentException("there should be no duplicate models");
             }
 

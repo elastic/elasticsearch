@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.spatial.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.geo.GeoShapeIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -41,9 +41,9 @@ public class LegacyGeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
     }
 
     @Override
-    protected Version randomSupportedVersion() {
+    protected IndexVersion randomSupportedVersion() {
         // legacy shapes can only be created in version lower than 8.x
-        return VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        return IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
     }
 
     @Override

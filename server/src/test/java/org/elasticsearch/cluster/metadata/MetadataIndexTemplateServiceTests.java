@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.downsample.DownsampleConfig;
@@ -26,6 +25,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -1502,24 +1502,30 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 
-        DataLifecycle emptyLifecycle = new DataLifecycle();
+        DataStreamLifecycle emptyLifecycle = new DataStreamLifecycle();
 
-        DataLifecycle lifecycle30d = new DataLifecycle(TimeValue.timeValueDays(30));
+        DataStreamLifecycle lifecycle30d = DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(30)).build();
         String ct30d = "ct_30d";
         state = addComponentTemplate(service, state, ct30d, lifecycle30d);
 
-        DataLifecycle lifecycle45d = new DataLifecycle(
-            new DataLifecycle.Retention(TimeValue.timeValueDays(45)),
-            new DataLifecycle.Downsampling(
-                List.of(
-                    new DataLifecycle.Downsampling.Round(TimeValue.timeValueDays(30), new DownsampleConfig(new DateHistogramInterval("3h")))
+        DataStreamLifecycle lifecycle45d = DataStreamLifecycle.newBuilder()
+            .dataRetention(TimeValue.timeValueDays(45))
+            .downsampling(
+                new DataStreamLifecycle.Downsampling(
+                    List.of(
+                        new DataStreamLifecycle.Downsampling.Round(
+                            TimeValue.timeValueDays(30),
+                            new DownsampleConfig(new DateHistogramInterval("3h"))
+                        )
+                    )
                 )
             )
-        );
+            .build();
         String ct45d = "ct_45d";
         state = addComponentTemplate(service, state, ct45d, lifecycle45d);
 
-        DataLifecycle lifecycleNullRetention = new DataLifecycle.Builder().dataRetention(DataLifecycle.Retention.NULL).build();
+        DataStreamLifecycle lifecycleNullRetention = new DataStreamLifecycle.Builder().dataRetention(DataStreamLifecycle.Retention.NULL)
+            .build();
         String ctNullRetention = "ct_null_retention";
         state = addComponentTemplate(service, state, ctNullRetention, lifecycleNullRetention);
 
@@ -1559,7 +1565,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             state,
             List.of(ctEmptyLifecycle, ct45d),
             lifecycle30d,
-            new DataLifecycle(lifecycle30d.getDataRetention(), lifecycle45d.getDownsampling())
+            DataStreamLifecycle.newBuilder()
+                .dataRetention(lifecycle30d.getDataRetention())
+                .downsampling(lifecycle45d.getDownsampling())
+                .build()
         );
 
         // Component A: "lifecycle": {"retention": "30d"}
@@ -1580,7 +1589,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             state,
             List.of(ctEmptyLifecycle, ct45d),
             lifecycleNullRetention,
-            new DataLifecycle(DataLifecycle.Retention.NULL, lifecycle45d.getDownsampling())
+            DataStreamLifecycle.newBuilder()
+                .dataRetention(DataStreamLifecycle.Retention.NULL)
+                .downsampling(lifecycle45d.getDownsampling())
+                .build()
         );
 
         // Component A: "lifecycle": {"retention": "30d"}
@@ -1606,9 +1618,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         MetadataIndexTemplateService service,
         ClusterState state,
         String name,
-        DataLifecycle dataLifecycle
+        DataStreamLifecycle lifecycle
     ) throws Exception {
-        ComponentTemplate ct = new ComponentTemplate(new Template(null, null, null, dataLifecycle), null, null);
+        ComponentTemplate ct = new ComponentTemplate(new Template(null, null, null, lifecycle), null, null);
         return service.addComponentTemplate(state, true, name, ct);
     }
 
@@ -1616,8 +1628,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         MetadataIndexTemplateService service,
         ClusterState state,
         List<String> composeOf,
-        DataLifecycle lifecycleZ,
-        DataLifecycle expected
+        DataStreamLifecycle lifecycleZ,
+        DataStreamLifecycle expected
     ) throws Exception {
         ComposableIndexTemplate it = new ComposableIndexTemplate(
             List.of(randomAlphaOfLength(10) + "*"),
@@ -1631,7 +1643,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template");
+        DataStreamLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template");
 
         if (expected == null) {
             assertThat(resolvedLifecycle, nullValue());
@@ -1854,7 +1866,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ClusterState state = ClusterState.EMPTY_STATE;
 
         ComponentTemplate ct = new ComponentTemplate(
-            new Template(null, null, null, new DataLifecycle(randomMillisUpToYear9999())),
+            new Template(null, null, null, DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build()),
             null,
             null
         );
@@ -1992,7 +2004,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-unreferenced-000001")
-                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
                     )
             )
             .build();
@@ -2021,7 +2033,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
                     )
             )
             .build();
@@ -2136,7 +2148,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-unreferenced-000001")
-                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
                     )
             )
             .build();
@@ -2165,7 +2177,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
                     )
             )
             .build();
@@ -2230,7 +2242,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
                     )
             )
             .build();

@@ -140,16 +140,16 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             1,
             -1,
             "xpack.rollup.task_thread_pool",
-            false
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
 
         final FixedExecutorBuilder downsample = new FixedExecutorBuilder(
             settingsToUse,
             Rollup.DOWSAMPLE_TASK_THREAD_POOL_NAME,
-            ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(settingsToUse)),
+            ThreadPool.oneEighthAllocatedProcessors(EsExecutors.allocatedProcessors(settingsToUse)),
             Rollup.DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE,
             "xpack.downsample.thread_pool",
-            false
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
 
         return List.of(rollup, downsample);

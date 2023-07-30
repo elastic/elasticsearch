@@ -260,7 +260,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 matchedDeployments.add(assignment.getDeploymentId());
             }
         }
-        String deployments = matchedDeployments.stream().collect(Collectors.joining(","));
+        String deployments = String.join(",", matchedDeployments);
 
         logger.debug("Fetching stats for deployments [{}]", deployments);
 

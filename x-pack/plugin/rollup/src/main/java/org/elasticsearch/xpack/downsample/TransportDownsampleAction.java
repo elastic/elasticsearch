@@ -70,10 +70,13 @@ import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricField
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.io.IOException;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -102,7 +105,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private static final Set<String> FORBIDDEN_SETTINGS = Set.of(
         IndexSettings.DEFAULT_PIPELINE.getKey(),
         IndexSettings.FINAL_PIPELINE.getKey(),
-        IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()
+        IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(),
+        LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()
     );
 
     private static final Set<String> OVERRIDE_SETTINGS = Set.of(DataTier.TIER_PREFERENCE_SETTING.getKey());
@@ -287,6 +291,14 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     // 3. Rollup index created. Run rollup indexer
                     DownsampleIndexerAction.Request rollupIndexerRequest = new DownsampleIndexerAction.Request(
                         request,
+                        OffsetDateTime.parse(
+                            sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_START_TIME.getKey()),
+                            DateTimeFormatter.ISO_DATE_TIME
+                        ).toInstant().toEpochMilli(),
+                        OffsetDateTime.parse(
+                            sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey()),
+                            DateTimeFormatter.ISO_DATE_TIME
+                        ).toInstant().toEpochMilli(),
                         dimensionFields.toArray(new String[0]),
                         metricFields.toArray(new String[0]),
                         labelFields.toArray(new String[0])

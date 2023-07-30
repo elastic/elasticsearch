@@ -35,6 +35,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
@@ -456,7 +457,7 @@ public final class IndexModule {
     }
 
     public IndexService newIndexService(
-        IndexService.IndexCreationContext indexCreationContext,
+        IndexCreationContext indexCreationContext,
         NodeEnvironment environment,
         XContentParserConfiguration parserConfiguration,
         IndexService.ShardStoreDeleter shardStoreDeleter,
@@ -501,7 +502,7 @@ public final class IndexModule {
                 queryCache = DisabledQueryCache.INSTANCE;
             }
             if (IndexService.needsMapperService(indexSettings, indexCreationContext)) {
-                indexAnalyzers = analysisRegistry.build(indexSettings);
+                indexAnalyzers = analysisRegistry.build(indexCreationContext, indexSettings);
             }
             final IndexService indexService = new IndexService(
                 indexSettings,
@@ -636,7 +637,7 @@ public final class IndexModule {
         return new MapperService(
             clusterService,
             indexSettings,
-            analysisRegistry.build(indexSettings),
+            analysisRegistry.build(IndexCreationContext.METADATA_VERIFICATION, indexSettings),
             parserConfiguration,
             new SimilarityService(indexSettings, scriptService, similarities),
             mapperRegistry,

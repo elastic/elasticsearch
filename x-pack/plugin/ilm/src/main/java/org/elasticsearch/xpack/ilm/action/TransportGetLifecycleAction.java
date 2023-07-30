@@ -85,7 +85,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                 names = Arrays.asList(request.getPolicyNames());
             }
 
-            if (names.size() > 1 && names.stream().filter(Regex::isSimpleMatchPattern).count() > 0) {
+            if (names.size() > 1 && names.stream().anyMatch(Regex::isSimpleMatchPattern)) {
                 throw new IllegalArgumentException(
                     "wildcard only supports a single value, please use comma-separated values or a single wildcard value"
                 );

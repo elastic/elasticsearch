@@ -108,7 +108,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
             .collect(toUnmodifiableMap(k -> k.getKey().prefix(), Map.Entry::getValue));
         Map<String, JarMeta> map = new HashMap<>();
         for (var jarMeta : prefixToCodeBase.keySet()) {
-            jarMeta.packages().stream().forEach(pkg -> {
+            jarMeta.packages().forEach(pkg -> {
                 var prev = map.put(pkg, jarMeta);
                 assert prev == null;
             });

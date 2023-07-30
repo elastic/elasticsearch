@@ -24,6 +24,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -44,6 +46,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -60,9 +63,11 @@ public class QueryRulesIndexService {
     public static final String QUERY_RULES_CONCRETE_INDEX_NAME = ".query-rules-1";
     public static final String QUERY_RULES_INDEX_NAME_PATTERN = ".query-rules-*";
     private final Client clientWithOrigin;
+    private final ClusterSettings clusterSettings;
 
-    public QueryRulesIndexService(Client client) {
+    public QueryRulesIndexService(Client client, ClusterSettings clusterSettings) {
         this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
+        this.clusterSettings = clusterSettings;
     }
 
     /**
@@ -132,7 +137,7 @@ public class QueryRulesIndexService {
                             builder.field("type", "keyword");
                             builder.endObject();
 
-                            builder.startObject(QueryRuleCriteria.VALUE_FIELD.getPreferredName());
+                            builder.startObject(QueryRuleCriteria.VALUES_FIELD.getPreferredName());
                             builder.field("type", "object");
                             builder.field("enabled", false);
                             builder.endObject();
@@ -175,13 +180,13 @@ public class QueryRulesIndexService {
             }
             final Map<String, Object> source = getResponse.getSource();
             @SuppressWarnings("unchecked")
-            final List<QueryRule> rules = ((List<Map<String, Object>>) source.get("rules")).stream()
+            final List<QueryRule> rules = ((List<Map<String, Object>>) source.get(QueryRuleset.RULES_FIELD.getPreferredName())).stream()
                 .map(
                     rule -> new QueryRule(
-                        (String) rule.get("rule_id"),
-                        QueryRuleType.queryRuleType((String) rule.get("type")),
-                        parseCriteria((List<Map<String, Object>>) rule.get("criteria")),
-                        (Map<String, Object>) rule.get("actions")
+                        (String) rule.get(QueryRule.ID_FIELD.getPreferredName()),
+                        QueryRuleType.queryRuleType((String) rule.get(QueryRule.TYPE_FIELD.getPreferredName())),
+                        parseCriteria((List<Map<String, Object>>) rule.get(QueryRule.CRITERIA_FIELD.getPreferredName())),
+                        (Map<String, Object>) rule.get(QueryRule.ACTIONS_FIELD.getPreferredName())
                     )
                 )
                 .collect(Collectors.toList());
@@ -190,14 +195,15 @@ public class QueryRulesIndexService {
         }));
     }
 
+    @SuppressWarnings("unchecked")
     private List<QueryRuleCriteria> parseCriteria(List<Map<String, Object>> rawCriteria) {
         List<QueryRuleCriteria> criteria = new ArrayList<>(rawCriteria.size());
         for (Map<String, Object> entry : rawCriteria) {
             criteria.add(
                 new QueryRuleCriteria(
-                    QueryRuleCriteria.CriteriaType.criteriaType((String) entry.get("type")),
-                    (String) entry.get("metadata"),
-                    entry.get("value")
+                    QueryRuleCriteriaType.type((String) entry.get(QueryRuleCriteria.TYPE_FIELD.getPreferredName())),
+                    (String) entry.get(QueryRuleCriteria.METADATA_FIELD.getPreferredName()),
+                    (List<Object>) entry.get(QueryRuleCriteria.VALUES_FIELD.getPreferredName())
                 )
             );
         }
@@ -212,6 +218,7 @@ public class QueryRulesIndexService {
      */
     public void putQueryRuleset(QueryRuleset queryRuleset, ActionListener<IndexResponse> listener) {
         try {
+            validateQueryRuleset(queryRuleset);
             final IndexRequest indexRequest = new IndexRequest(QUERY_RULES_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
                 .id(queryRuleset.id())
                 .opType(DocWriteRequest.OpType.INDEX)
@@ -222,6 +229,22 @@ public class QueryRulesIndexService {
             listener.onFailure(e);
         }
 
+    }
+
+    private void validateQueryRuleset(QueryRuleset queryRuleset) {
+        @SuppressWarnings("unchecked")
+        Setting<Integer> maxRuleLimitSetting = (Setting<Integer>) clusterSettings.get(QueryRulesConfig.MAX_RULE_LIMIT_SETTING.getKey());
+        int maxRuleLimit = clusterSettings.get(Objects.requireNonNull(maxRuleLimitSetting));
+        if (queryRuleset.rules().size() > maxRuleLimit) {
+            throw new IllegalArgumentException(
+                "The number of rules in a ruleset cannot exceed ["
+                    + maxRuleLimit
+                    + "]."
+                    + "This maximum can be set by changing the ["
+                    + QueryRulesConfig.MAX_RULE_LIMIT_SETTING.getKey()
+                    + "] setting."
+            );
+        }
     }
 
     public void deleteQueryRuleset(String resourceName, ActionListener<DeleteResponse> listener) {

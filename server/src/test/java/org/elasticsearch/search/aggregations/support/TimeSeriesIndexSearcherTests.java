@@ -69,7 +69,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
                     long time = clock.addAndGet(randomIntBetween(0, 10));
                     doc.clear();
                     doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef(tsid)));
-                    doc.add(new NumericDocValuesField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, time));
+                    doc.add(new NumericDocValuesField(DataStream.TIMESTAMP_FIELD_NAME, time));
                     try {
                         iw.addDocument(doc);
                     } catch (IOException e) {
@@ -109,7 +109,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
             long time = clock.addAndGet(j % 10);
             doc.clear();
             doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef(tsid)));
-            doc.add(new NumericDocValuesField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, time));
+            doc.add(new NumericDocValuesField(DataStream.TIMESTAMP_FIELD_NAME, time));
             try {
                 iw.addDocument(doc);
             } catch (IOException e) {
@@ -155,7 +155,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         // segment 1
         // pre add a value
         doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef("tsid")));
-        doc.add(new NumericDocValuesField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 1));
+        doc.add(new NumericDocValuesField(DataStream.TIMESTAMP_FIELD_NAME, 1));
         iw.addDocument(doc);
 
         // segment 1 add value, timestamp is all large then segment 2
@@ -163,7 +163,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
             String tsid = "tsid" + randomIntBetween(0, 1);
             doc.clear();
             doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef(tsid)));
-            doc.add(new NumericDocValuesField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, randomIntBetween(20, 25)));
+            doc.add(new NumericDocValuesField(DataStream.TIMESTAMP_FIELD_NAME, randomIntBetween(20, 25)));
             try {
                 iw.addDocument(doc);
             } catch (IOException e) {
@@ -176,13 +176,13 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         // pre add a value
         doc.clear();
         doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef("tsid")));
-        doc.add(new NumericDocValuesField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 1));
+        doc.add(new NumericDocValuesField(DataStream.TIMESTAMP_FIELD_NAME, 1));
         iw.addDocument(doc);
         for (int j = 0; j < DOC_COUNTS; j++) {
             String tsid = "tsid" + randomIntBetween(0, 1);
             doc.clear();
             doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef(tsid)));
-            doc.add(new NumericDocValuesField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, randomIntBetween(10, 15)));
+            doc.add(new NumericDocValuesField(DataStream.TIMESTAMP_FIELD_NAME, randomIntBetween(10, 15)));
             try {
                 iw.addDocument(doc);
             } catch (IOException e) {
@@ -213,7 +213,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         boolean timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
         Sort sort = new Sort(
             new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, tsidReverse),
-            new SortField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, SortField.Type.LONG, timestampReverse)
+            new SortField(DataStream.TIMESTAMP_FIELD_NAME, SortField.Type.LONG, timestampReverse)
         );
         iwc.setIndexSort(sort);
         return new RandomIndexWriter(random(), dir, iwc);
@@ -232,10 +232,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
             @Override
             public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
                 SortedDocValues tsid = DocValues.getSorted(aggCtx.getLeafReaderContext().reader(), TimeSeriesIdFieldMapper.NAME);
-                NumericDocValues timestamp = DocValues.getNumeric(
-                    aggCtx.getLeafReaderContext().reader(),
-                    DataStream.TimestampField.FIXED_TIMESTAMP_FIELD
-                );
+                NumericDocValues timestamp = DocValues.getNumeric(aggCtx.getLeafReaderContext().reader(), DataStream.TIMESTAMP_FIELD_NAME);
 
                 return new LeafBucketCollector() {
                     @Override

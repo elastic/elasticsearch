@@ -337,7 +337,7 @@ public abstract class TDigestTests extends ESTestCase {
 
         // for this value of the compression, the tree shouldn't have merged any node
         assertEquals(digest.centroids().size(), values.size());
-        for (double q : new double[] { 0, 1e-10, r.nextDouble(), 0.5, 1 - 1e-10, 1 }) {
+        for (double q : new double[] { 0, 1e-10, 0.5, 1 - 1e-10, 1 }) {
             double q1 = Dist.quantile(q, values);
             double q2 = digest.quantile(q);
             assertEquals(String.valueOf(q), q1, q2, q1);

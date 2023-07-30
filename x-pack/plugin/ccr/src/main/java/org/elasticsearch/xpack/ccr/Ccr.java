@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -372,12 +373,15 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     @SuppressWarnings("HiddenField")
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (enabled == false) {
-            return Collections.emptyList();
-        }
-
         return Collections.singletonList(
-            new FixedExecutorBuilder(settings, CCR_THREAD_POOL_NAME, 32, 100, "xpack.ccr.ccr_thread_pool", false)
+            new FixedExecutorBuilder(
+                settings,
+                CCR_THREAD_POOL_NAME,
+                32,
+                100,
+                "xpack.ccr.ccr_thread_pool",
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            )
         );
     }
 

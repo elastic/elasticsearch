@@ -8,7 +8,9 @@
 
 apply plugin: 'elasticsearch.build'
 
-archivesBaseName = 'elasticsearch-plugin-cli'
+base {
+  archivesName = 'elasticsearch-plugin-cli'
+}
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'

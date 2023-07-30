@@ -117,7 +117,6 @@ import java.io.UncheckedIOException;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -278,13 +277,14 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         // the transform services should have been created
         assert transformServices.get() != null;
 
-        return Collections.singletonList(
+        return List.of(
             new TransformPersistentTasksExecutor(
                 client,
                 transformServices.get(),
                 threadPool,
                 clusterService,
                 settingsModule.getSettings(),
+                getTransformInternalIndexAdditionalSettings(),
                 expressionResolver
             )
         );
@@ -327,7 +327,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         try {
-            return Collections.singletonList(TransformInternalIndex.getSystemIndexDescriptor());
+            return List.of(TransformInternalIndex.getSystemIndexDescriptor(getTransformInternalIndexAdditionalSettings()));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -442,5 +442,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     public boolean includeNodeInfo() {
         return true;
+    }
+
+    public Settings getTransformInternalIndexAdditionalSettings() {
+        return Settings.EMPTY;
     }
 }

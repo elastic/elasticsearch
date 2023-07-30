@@ -220,7 +220,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
                 request.taskId,
                 request.taskName,
                 request.params,
-                listener.delegateFailure((delegatedListener, task) -> delegatedListener.onResponse(new PersistentTaskResponse(task)))
+                listener.safeMap(PersistentTaskResponse::new)
             );
         }
     }

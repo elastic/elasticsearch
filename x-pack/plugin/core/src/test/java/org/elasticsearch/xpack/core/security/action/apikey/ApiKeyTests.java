@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomCrossClusterAccessRoleDescriptor;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,7 +53,9 @@ public class ApiKeyTests extends ESTestCase {
         final String username = randomAlphaOfLengthBetween(4, 10);
         final String realmName = randomAlphaOfLengthBetween(3, 8);
         final Map<String, Object> metadata = randomMetadata();
-        final List<RoleDescriptor> roleDescriptors = randomBoolean() ? null : randomUniquelyNamedRoleDescriptors(0, 3);
+        final List<RoleDescriptor> roleDescriptors = type == ApiKey.Type.CROSS_CLUSTER
+            ? List.of(randomCrossClusterAccessRoleDescriptor())
+            : randomFrom(randomUniquelyNamedRoleDescriptors(0, 3), null);
         final List<RoleDescriptor> limitedByRoleDescriptors = type == ApiKey.Type.CROSS_CLUSTER
             ? null
             : randomUniquelyNamedRoleDescriptors(0, 3);
@@ -99,12 +103,23 @@ public class ApiKeyTests extends ESTestCase {
 
         if (roleDescriptors == null) {
             assertThat(map, not(hasKey("role_descriptors")));
+            assertThat(map, not(hasKey("access")));
         } else {
             final var rdMap = (Map<String, Object>) map.get("role_descriptors");
             assertThat(rdMap.size(), equalTo(roleDescriptors.size()));
             for (var roleDescriptor : roleDescriptors) {
                 assertThat(rdMap, hasKey(roleDescriptor.getName()));
                 assertThat(XContentTestUtils.convertToMap(roleDescriptor), equalTo(rdMap.get(roleDescriptor.getName())));
+            }
+
+            if (type == ApiKey.Type.CROSS_CLUSTER) {
+                final var accessMap = (Map<String, Object>) map.get("access");
+                final CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse(
+                    XContentTestUtils.convertToXContent(accessMap, XContentType.JSON).utf8ToString()
+                );
+                assertThat(roleDescriptorBuilder.build(), equalTo(roleDescriptors.get(0)));
+            } else {
+                assertThat(map, not(hasKey("access")));
             }
         }
 

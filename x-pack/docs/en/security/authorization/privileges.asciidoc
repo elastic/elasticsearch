@@ -109,6 +109,12 @@ rollup jobs.
 Enables the use of internal {es} APIs to initiate and manage SAML authentication
 on behalf of other users.
 
+`manage_search_application`::
+All CRUD operations on <<search-application-apis, search applications>>.
+
+`manage_search_query_rules`::
+All CRUD operations on <<query-rules-apis, query rules>>.
+
 `manage_security`::
 All security-related operations such as CRUD operations on users and roles and
 cache clearing.

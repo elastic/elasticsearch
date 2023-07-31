@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.application.search.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 
-public class PutSearchApplicationActionResponseSerializingTests extends AbstractWireSerializingTestCase<
+public class PutSearchApplicationActionResponseBWCSerializingTests extends AbstractBWCWireSerializationTestCase<
     PutSearchApplicationAction.Response> {
 
     @Override
@@ -29,5 +30,13 @@ public class PutSearchApplicationActionResponseSerializingTests extends Abstract
     @Override
     protected PutSearchApplicationAction.Response mutateInstance(PutSearchApplicationAction.Response instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
+    }
+
+    @Override
+    protected PutSearchApplicationAction.Response mutateInstanceForVersion(
+        PutSearchApplicationAction.Response instance,
+        TransportVersion version
+    ) {
+        return instance;
     }
 }

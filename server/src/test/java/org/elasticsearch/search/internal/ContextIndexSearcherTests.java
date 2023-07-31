@@ -31,6 +31,8 @@ import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -61,6 +63,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.util.CombinedBitSet;
+import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -454,6 +457,103 @@ public class ContextIndexSearcherTests extends ESTestCase {
         w.close();
         directoryReader.close();
         dir.close();
+    }
+
+    public void testReduceIsCalledOnTimeout() throws IOException {
+        try (Directory dir = newDirectory();) {
+            try (RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+                int docs = randomIntBetween(1, 1000);
+                for (int i = 0; i < docs; i++) {
+                    Document doc = new Document();
+                    StringField fooField = new StringField("foo", randomBoolean() ? "bar" : "foo", Field.Store.NO);
+                    doc.add(fooField);
+                    w.addDocument(doc);
+                }
+            }
+
+            ThreadPoolExecutor executor = null;
+            try (DirectoryReader directoryReader = DirectoryReader.open(dir)) {
+                if (randomBoolean()) {
+                    executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
+                }
+                ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    1,
+                    true,
+                    executor
+                );
+                boolean[] called = new boolean[1];
+                CollectorManager<Collector, Void> manager = new CollectorManager<>() {
+                    @Override
+                    public Collector newCollector() {
+                        return BucketCollector.NO_OP_COLLECTOR;
+                    }
+
+                    @Override
+                    public Void reduce(Collection<Collector> collectors) {
+                        called[0] = true;
+                        return null;
+                    }
+                };
+                contextIndexSearcher.search(new Query() {
+                    @Override
+                    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+                        if (randomBoolean()) {
+                            contextIndexSearcher.throwTimeExceededException();
+                        }
+                        return super.rewrite(indexSearcher);
+                    }
+
+                    @Override
+                    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+                        if (randomBoolean()) {
+                            contextIndexSearcher.throwTimeExceededException();
+                        }
+                        return new ConstantScoreWeight(this, boost) {
+                            @Override
+                            public Scorer scorer(LeafReaderContext context) {
+                                contextIndexSearcher.throwTimeExceededException();
+                                return new ConstantScoreScorer(this, score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+                            }
+
+                            @Override
+                            public boolean isCacheable(LeafReaderContext ctx) {
+                                return false;
+                            }
+                        };
+                    }
+
+                    @Override
+                    public String toString(String field) {
+                        return "query";
+                    }
+
+                    @Override
+                    public void visit(QueryVisitor visitor) {
+                        visitor.visitLeaf(this);
+                    }
+
+                    @Override
+                    public boolean equals(Object o) {
+                        return sameClassAs(o);
+                    }
+
+                    @Override
+                    public int hashCode() {
+                        return classHash();
+                    }
+                }, manager);
+                assertTrue(contextIndexSearcher.timeExceeded());
+                assertThat(called[0], equalTo(true));
+            } finally {
+                if (executor != null) {
+                    terminate(executor);
+                }
+            }
+        }
     }
 
     private SparseFixedBitSet query(LeafReaderContext leaf, String field, String value) throws IOException {

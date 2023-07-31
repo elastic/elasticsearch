@@ -41,8 +41,8 @@ POST /my-data-stream-two/_rollover/
 ////
 [source,console]
 ----
-DELETE /_data_stream/*
-DELETE /_index_template/*
+DELETE /_data_stream/my-data-stream*
+DELETE /_index_template/template
 ----
 // TEARDOWN
 ////

@@ -42,7 +42,7 @@ import java.util.regex.Pattern;
  * <p>
  * Each ML config version constant has an id number, which for versions prior to 8.10.0 is the same as the release version
  * for backwards compatibility. In 8.10.0 this is changed to an incrementing number, disconnected from the release version,
- * starting at 10.
+ * starting at 10000010.
  * <p>
  * Each version constant has a unique id string. This is not actually used in the binary protocol, but is there to ensure
  * each protocol version is only added to the source file once. This string needs to be unique (normally a UUID,

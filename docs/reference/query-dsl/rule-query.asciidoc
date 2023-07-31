@@ -1,6 +1,9 @@
 [role="xpack"]
 [[query-dsl-rule-query]]
-=== Rule Query
+=== Rule query
+++++
+<titleabbrev>Rule</titleabbrev>
+++++
 
 preview::[]
 

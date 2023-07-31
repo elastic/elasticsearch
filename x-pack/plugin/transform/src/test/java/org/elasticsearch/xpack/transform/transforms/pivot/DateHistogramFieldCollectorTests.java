@@ -25,6 +25,7 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -33,17 +34,17 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DateHistorgramFieldCollectorTests extends ESTestCase {
-    Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
+public class DateHistogramFieldCollectorTests extends ESTestCase {
+    private Map<String, SingleGroupSource> groups;
 
-    SingleValue minTimestamp = mock(NumericMetricsAggregation.SingleValue.class);
-    SingleValue maxTimestamp = mock(NumericMetricsAggregation.SingleValue.class);
+    private SingleValue minTimestamp;
+    private SingleValue maxTimestamp;
 
-    final String TIMESTAMP = "timestamp";
-    final String OUTPUT_TIMESTAMP = "output_timestamp";
-    final String SYNC_TIMESTAMP = "sync_timestamp";
+    private static final String TIMESTAMP = "timestamp";
+    private static final String OUTPUT_TIMESTAMP = "output_timestamp";
+    private static final String SYNC_TIMESTAMP = "sync_timestamp";
 
-    SingleGroupSource groupBy = new DateHistogramGroupSource(
+    private static final SingleGroupSource groupBy = new DateHistogramGroupSource(
         TIMESTAMP,
         null,
         false,
@@ -52,18 +53,23 @@ public class DateHistorgramFieldCollectorTests extends ESTestCase {
         null
     );
 
-    final double MIN_TIMESTAMP_VALUE = 122_633;
-    final double MAX_TIMESTAMP_VALUE = 302_525;
-    final double EXPECTED_LOWER_BOUND = 120_000;
+    private static final double MIN_TIMESTAMP_VALUE = 122_633;
+    private static final double MAX_TIMESTAMP_VALUE = 302_525;
+    private static final double EXPECTED_LOWER_BOUND = 120_000;
 
-    final double EXPECTED_UPPER_BOUND = 360_000;
+    private static final double EXPECTED_UPPER_BOUND = 360_000;
 
     @Before
-    public void setUpDateHistogramFieldCollectorTests() {
+    public void setupDateHistogramFieldCollectorTest() {
+        minTimestamp = mock(NumericMetricsAggregation.SingleValue.class);
+        maxTimestamp = mock(NumericMetricsAggregation.SingleValue.class);
+
         when(minTimestamp.getName()).thenReturn("_transform_change_collector.output_timestamp.min");
         when(maxTimestamp.getName()).thenReturn("_transform_change_collector.output_timestamp.max");
         when(minTimestamp.value()).thenReturn(MIN_TIMESTAMP_VALUE);
         when(maxTimestamp.value()).thenReturn(MAX_TIMESTAMP_VALUE);
+
+        groups = new HashMap<>();
     }
 
     public void testWhenFieldAndSyncFieldSame() {
@@ -125,15 +131,15 @@ public class DateHistorgramFieldCollectorTests extends ESTestCase {
         assertNull(queryBuilder);
     }
 
-    private void assertQuery(QueryBuilder queryBuilder, Double expectedLowerBound, Double expectedUpperBound, String expectedFieldName) {
+    private static void assertQuery(QueryBuilder queryBuilder, Double expectedLowerBound, Double expectedUpperBound, String expectedFieldName) {
         assertQuery(queryBuilder, expectedLowerBound, expectedFieldName);
 
-        // the upper bound is not rounded
+        // the upper bound is rounded up to the nearest time unit
         assertThat(((RangeQueryBuilder) queryBuilder).to(), equalTo(expectedUpperBound.longValue()));
         assertTrue(((RangeQueryBuilder) queryBuilder).includeUpper());
     }
 
-    private void assertQuery(QueryBuilder queryBuilder, Double expectedLowerBound, String expectedFieldName) {
+    private static void assertQuery(QueryBuilder queryBuilder, Double expectedLowerBound, String expectedFieldName) {
         assertNotNull(queryBuilder);
         assertThat(queryBuilder, instanceOf(RangeQueryBuilder.class));
 
@@ -145,19 +151,18 @@ public class DateHistorgramFieldCollectorTests extends ESTestCase {
     }
 
     // Util methods
-    private QueryBuilder buildFilterQuery(ChangeCollector collector) {
+    private static QueryBuilder buildFilterQuery(ChangeCollector collector) {
         return collector.buildFilterQuery(
             new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 66_666L),
             new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 200_222L)
         );
     }
 
-    private SearchResponse buildSearchResponse(SingleValue minTimestamp, SingleValue maxTimestamp) {
+    private static SearchResponse buildSearchResponse(SingleValue minTimestamp, SingleValue maxTimestamp) {
         SearchResponseSections sections = new SearchResponseSections(null, new Aggregations(Arrays.asList(minTimestamp, maxTimestamp)),
             null, false, null, null, 1);
         return new SearchResponse(sections, null, 1, 1, 0, 0,
             ShardSearchFailure.EMPTY_ARRAY, null);
     }
-
-
+    
 }

@@ -35,7 +35,8 @@ teardown:
       enabled: true,
       available: true,
       search_applications: { count: 0 },
-      analytics_collections: { count: 0 }
+      analytics_collections: { count: 0 },
+      query_rulesets: { count: 0 }
     }
   }
 
@@ -59,7 +60,8 @@ teardown:
       enabled: true,
       available: true,
       search_applications: { count: 1 },
-      analytics_collections: { count: 0 }
+      analytics_collections: { count: 0 },
+      query_rulesets: { count: 0 }
     }
   }
 
@@ -87,7 +89,8 @@ teardown:
       enabled: true,
       available: true,
       search_applications: { count: 2 },
-      analytics_collections: { count: 1 }
+      analytics_collections: { count: 1 },
+      query_rulesets: { count: 0 }
     }
   }
 
@@ -103,7 +106,8 @@ teardown:
       enabled: true,
       available: true,
       search_applications: { count: 1 },
-      analytics_collections: { count: 1 }
+      analytics_collections: { count: 1 },
+      query_rulesets: { count: 0 }
     }
   }
 
@@ -119,6 +123,54 @@ teardown:
       enabled: true,
       available: true,
       search_applications: { count: 1 },
-      analytics_collections: { count: 0 }
+      analytics_collections: { count: 0 },
+      query_rulesets: { count: 0 }
     }
   }
+
+  - do:
+      query_ruleset.put:
+        ruleset_id: test-query-ruleset
+        body:
+          rules:
+            - rule_id: query-rule-id1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ elastic ]
+              actions:
+                ids:
+                  - 'id1'
+                  - 'id2'
+  - do:
+      xpack.usage: { }
+
+  - match: {
+    enterprise_search: {
+      enabled: true,
+      available: true,
+      search_applications: { count: 1 },
+      analytics_collections: { count: 0 },
+      query_rulesets: { count: 1 }
+    }
+  }
+
+  - do:
+      query_ruleset.delete:
+        ruleset_id: test-query-ruleset
+
+  - do:
+      xpack.usage: { }
+
+  - match: {
+    enterprise_search: {
+      enabled: true,
+      available: true,
+      search_applications: { count: 1 },
+      analytics_collections: { count: 0 },
+      query_rulesets: { count: 0 }
+    }
+  }
+
+

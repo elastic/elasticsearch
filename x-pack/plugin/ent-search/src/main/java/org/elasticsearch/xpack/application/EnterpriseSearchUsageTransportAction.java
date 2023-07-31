@@ -24,6 +24,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.analytics.action.GetAnalyticsCollectionAction;
+import org.elasticsearch.xpack.application.rules.action.ListQueryRulesetsAction;
 import org.elasticsearch.xpack.application.search.action.ListSearchApplicationAction;
 import org.elasticsearch.xpack.application.utils.LicenseUtils;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -82,6 +83,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
                 LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
                 enabled,
                 Collections.emptyMap(),
+                Collections.emptyMap(),
                 Collections.emptyMap()
             );
             listener.onResponse(new XPackUsageFeatureResponse(usage));
@@ -90,8 +92,9 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
 
         Map<String, Object> searchApplicationsUsage = new HashMap<>();
         Map<String, Object> analyticsCollectionsUsage = new HashMap<>();
+        Map<String, Object> queryRulesUsage = new HashMap<>();
 
-        // Step 2: Fetch search applications count and return usage
+        // Step 3: Fetch search applications count and return usage
         ListSearchApplicationAction.Request searchApplicationsCountRequest = new ListSearchApplicationAction.Request(
             "*",
             new PageParams(0, 0)
@@ -104,7 +107,8 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
                         LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
                         enabled,
                         searchApplicationsUsage,
-                        analyticsCollectionsUsage
+                        analyticsCollectionsUsage,
+                        queryRulesUsage
                     )
                 )
             );
@@ -115,18 +119,17 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
                         LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
                         enabled,
                         Collections.emptyMap(),
-                        analyticsCollectionsUsage
+                        analyticsCollectionsUsage,
+                        queryRulesUsage
                     )
                 )
             );
         });
 
-        // Step 1: Fetch analytics collections count
-        GetAnalyticsCollectionAction.Request analyticsCollectionsCountRequest = new GetAnalyticsCollectionAction.Request(
-            new String[] { "*" }
-        );
-        ActionListener<GetAnalyticsCollectionAction.Response> analyticsCollectionsCountListener = ActionListener.wrap(response -> {
-            addAnalyticsCollectionsUsage(response, analyticsCollectionsUsage);
+        // Step 2: Fetch query rulesets count
+        ListQueryRulesetsAction.Request queryRulesetsCountRequest = new ListQueryRulesetsAction.Request(new PageParams(0, 0));
+        ActionListener<ListQueryRulesetsAction.Response> queryRulesetsCountListener = ActionListener.wrap(response -> {
+            addQueryRulesUsage(response, queryRulesUsage);
             clientWithOrigin.execute(ListSearchApplicationAction.INSTANCE, searchApplicationsCountRequest, searchApplicationsCountListener);
         },
             e -> {
@@ -138,6 +141,15 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
             }
         );
 
+        // Step 1: Fetch analytics collections count
+        GetAnalyticsCollectionAction.Request analyticsCollectionsCountRequest = new GetAnalyticsCollectionAction.Request(
+            new String[] { "*" }
+        );
+        ActionListener<GetAnalyticsCollectionAction.Response> analyticsCollectionsCountListener = ActionListener.wrap(response -> {
+            addAnalyticsCollectionsUsage(response, analyticsCollectionsUsage);
+            clientWithOrigin.execute(ListQueryRulesetsAction.INSTANCE, queryRulesetsCountRequest, queryRulesetsCountListener);
+        }, e -> { clientWithOrigin.execute(ListQueryRulesetsAction.INSTANCE, queryRulesetsCountRequest, queryRulesetsCountListener); });
+
         // Step 0: Kick off requests
         clientWithOrigin.execute(
             GetAnalyticsCollectionAction.INSTANCE,
@@ -148,7 +160,6 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
 
     private void addSearchApplicationsUsage(ListSearchApplicationAction.Response response, Map<String, Object> searchApplicationsUsage) {
         long count = response.queryPage().count();
-
         searchApplicationsUsage.put(EnterpriseSearchFeatureSetUsage.COUNT, count);
     }
 
@@ -157,7 +168,11 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         Map<String, Object> analyticsCollectionsUsage
     ) {
         long count = response.getAnalyticsCollections().size();
-
         analyticsCollectionsUsage.put(EnterpriseSearchFeatureSetUsage.COUNT, count);
+    }
+
+    private void addQueryRulesUsage(ListQueryRulesetsAction.Response response, Map<String, Object> queryRulesUsage) {
+        long count = response.queryPage().count();
+        queryRulesUsage.put(EnterpriseSearchFeatureSetUsage.COUNT, count);
     }
 }

@@ -18,16 +18,14 @@ Creates or updates a query ruleset.
 [[put-query-ruleset-prereqs]]
 ==== {api-prereq-title}
 
-Requires the `manage_cluster` privilege.
+Requires the `manage_search_query_rules` privilege.
 
-[[put-query-ruleset-path-params]]
-==== {api-path-parms-title}
-
-`<body>`::
+[role="child_attributes"]
+[[put-query-ruleset-request-body]]
 (Required, object)
 Contains parameters for a query ruleset:
 
-====
+==== {api-request-body-title}
 `rules`::
 (Required, array of objects)
 The specific rules included in this query ruleset.
@@ -103,8 +101,6 @@ The following actions are allowed:
 --
 
 IMPORTANT: Due to limitations within <<query-dsl-pinned-query,Pinned queries>>, you can only pin documents using `ids` or `docs`, but cannot use both in single rule. It is advised to use one or the other in query rulesets, to avoid errors. Additionally, pinned queries have a maximum limit of 100 pinned hits. If multiple matching rules pin more than 100 documents, only the first 100 documents are pinned in the order they are specified in the ruleset.
-
-====
 
 [[put-query-ruleset-example]]
 ==== {api-examples-title}

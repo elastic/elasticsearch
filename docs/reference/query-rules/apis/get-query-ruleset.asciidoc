@@ -18,7 +18,7 @@ Retrieves information about a query ruleset.
 [[get-query-ruleset-prereq]]
 ==== {api-prereq-title}
 
-Requires the `manage_cluster` privilege.
+Requires the `manage_search_query_rules` privilege.
 
 [[get-query-ruleset-path-params]]
 ==== {api-path-parms-title}

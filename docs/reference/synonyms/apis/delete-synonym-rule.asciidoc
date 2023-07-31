@@ -112,8 +112,8 @@ DELETE _synonyms/my-synonyms-set/test-1
   "acknowledged": true,
   "reload_analyzers_details": {
     "_shards": {
-      "total": 12,
-      "successful": 10,
+      "total": 2,
+      "successful": 1,
       "failed": 0
     },
     "reload_details": [

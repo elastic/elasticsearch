@@ -147,11 +147,7 @@ If any of the synonym rules included is not valid, the API will return an error.
 ----
 PUT _synonyms/my-synonyms-set/test-1
 {
-  "synonyms_set": [
-    {
-      "synonyms": "hello => hi => howdy"
-    }
-  ]
+  "synonyms": "hello => hi => howdy"
 }
 ----
 // TEST[catch:bad_request]

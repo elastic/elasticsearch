@@ -246,7 +246,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             ".fleet-servers" + randomAlphaOfLengthBetween(1, 20),
             ".fleet-artifacts" + randomAlphaOfLengthBetween(1, 20),
             ".fleet-actions-results" + randomAlphaOfLengthBetween(1, 20),
-            ".fleet-fileds" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-fileds" + randomAlphaOfLengthBetween(1, 20)
         ).forEach(index -> {
             final IndexAbstraction dotFleetIndex = mockIndexAbstraction(index);
             assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(dotFleetIndex), is(true));

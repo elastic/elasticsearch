@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.autoscaling.MlAutoscalingStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
@@ -40,6 +41,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
 
 /**
@@ -48,9 +50,13 @@ import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIG
 public final class MlAutoscalingResourceTracker {
     private static final Logger logger = LogManager.getLogger(MlAutoscalingResourceTracker.class);
 
-    record MlJobRequirements(long memory, int cpu) {
+    record MlJobRequirements(long memory, int cpu, int jobs) {
+        static MlJobRequirements of(long memory, int cpu, int jobs) {
+            return new MlJobRequirements(memory, cpu, jobs);
+        }
+
         static MlJobRequirements of(long memory, int cpu) {
-            return new MlJobRequirements(memory, cpu);
+            return new MlJobRequirements(memory, cpu, 1);
         }
     };
 
@@ -75,6 +81,8 @@ public final class MlAutoscalingResourceTracker {
             ? NativeMemoryCalculator.allowedBytesForMl(clusterState.nodes().get(mlNodes[0]), settings).orElse(0L)
             : 0L;
 
+        int maxOpenJobsPerNode = MAX_OPEN_JOBS_PER_NODE.get(settings);
+
         getMlNodeStats(
             mlNodes,
             client,
@@ -85,6 +93,7 @@ public final class MlAutoscalingResourceTracker {
                     mlMemoryTracker,
                     osStatsPerNode,
                     modelMemoryAvailableFirstNode,
+                    maxOpenJobsPerNode,
                     listener
                 ),
                 listener::onFailure
@@ -123,6 +132,7 @@ public final class MlAutoscalingResourceTracker {
         MlMemoryTracker mlMemoryTracker,
         Map<String, OsStats> osStatsPerNode,
         long perNodeAvailableModelMemoryInBytes,
+        int maxOpenJobsPerNode,
         ActionListener<MlAutoscalingStats> listener
     ) {
         Map<String, List<MlJobRequirements>> perNodeModelMemoryInBytes = new HashMap<>();
@@ -177,7 +187,7 @@ public final class MlAutoscalingResourceTracker {
                 modelMemoryBytesSum += jobMemory;
 
                 perNodeModelMemoryInBytes.computeIfAbsent(task.getExecutorNode(), k -> new ArrayList<>())
-                    .add(new MlJobRequirements(jobMemory, 0));
+                    .add(MlJobRequirements.of(jobMemory, 0));
             }
         }
 
@@ -204,7 +214,7 @@ public final class MlAutoscalingResourceTracker {
 
                 modelMemoryBytesSum += jobMemory;
                 perNodeModelMemoryInBytes.computeIfAbsent(task.getExecutorNode(), k -> new ArrayList<>())
-                    .add(new MlJobRequirements(jobMemory, 0));
+                    .add(MlJobRequirements.of(jobMemory, 0));
             }
         }
 
@@ -228,9 +238,12 @@ public final class MlAutoscalingResourceTracker {
                 extraSingleNodeModelMemoryInBytes = Math.max(extraSingleNodeModelMemoryInBytes, estimatedMemoryUsage);
                 extraModelMemoryInBytes += estimatedMemoryUsage;
 
-                // as assignments can be placed on different nodes, we only need numberOfThreadsPerAllocation here
-                extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
-                extraProcessors += numberOfAllocations * numberOfThreadsPerAllocation;
+                // if not low priority, check CPU requirements
+                if (Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority()) == false) {
+                    // as assignments can be placed on different nodes, we only need numberOfThreadsPerAllocation here
+                    extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
+                    extraProcessors += numberOfAllocations * numberOfThreadsPerAllocation;
+                }
             } else {
                 logger.debug(
                     () -> format(
@@ -248,7 +261,14 @@ public final class MlAutoscalingResourceTracker {
 
                 for (String node : modelAssignment.getValue().getNodeRoutingTable().keySet()) {
                     perNodeModelMemoryInBytes.computeIfAbsent(node, k -> new ArrayList<>())
-                        .add(new MlJobRequirements(estimatedMemoryUsage, numberOfThreadsPerAllocation));
+                        .add(
+                            MlJobRequirements.of(
+                                estimatedMemoryUsage,
+                                Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority())
+                                    ? 0
+                                    : numberOfThreadsPerAllocation
+                            )
+                        );
                 }
             }
         }
@@ -267,7 +287,7 @@ public final class MlAutoscalingResourceTracker {
             && extraProcessors == 0
             && modelMemoryBytesSum < perNodeMemoryInBytes * (osStatsPerNode.size() - 1)
             && (perNodeModelMemoryInBytes.size() < osStatsPerNode.size() // a node has no assigned jobs
-                || checkIfOneNodeCouldBeRemoved(perNodeModelMemoryInBytes, perNodeAvailableModelMemoryInBytes))) {
+                || checkIfOneNodeCouldBeRemoved(perNodeModelMemoryInBytes, perNodeAvailableModelMemoryInBytes, maxOpenJobsPerNode))) {
             removeNodeMemoryInBytes = perNodeMemoryInBytes;
         }
 
@@ -290,40 +310,61 @@ public final class MlAutoscalingResourceTracker {
     /**
      * Try to remove node memory
      *
-     * @param perNodeUsedModelMemoryInBytes per Node lists of used model memory
+     * @param perNodeJobRequirements per Node lists of requirements
      * @param perNodeMemoryInBytes total model memory available on every node
+     * @param maxOpenJobsPerNode the maximum number of jobs per node
      * @return true if a node can be removed, false if not
      */
     static boolean checkIfOneNodeCouldBeRemoved(
-        Map<String, List<MlJobRequirements>> perNodeUsedModelMemoryInBytes,
-        long perNodeMemoryInBytes
+        Map<String, List<MlJobRequirements>> perNodeJobRequirements,
+        long perNodeMemoryInBytes,
+        int maxOpenJobsPerNode
     ) {
-        if (perNodeUsedModelMemoryInBytes.size() <= 1) {
+        if (perNodeJobRequirements.size() <= 1) {
             return false;
         }
 
-        Map<String, Long> perNodeModelMemoryInBytesSum = perNodeUsedModelMemoryInBytes.entrySet()
+        Map<String, MlJobRequirements> perNodeMlJobRequirementSum = perNodeJobRequirements.entrySet()
             .stream()
-            .map(entry -> tuple(entry.getKey(), entry.getValue().stream().mapToLong(MlJobRequirements::memory).sum()))
+            .map(
+                entry -> tuple(
+                    entry.getKey(),
+                    entry.getValue()
+                        .stream()
+                        .reduce(
+                            MlJobRequirements.of(0L, 0, 0),
+                            (subtotal, element) -> MlJobRequirements.of(
+                                subtotal.memory + element.memory,
+                                subtotal.cpu + element.cpu,
+                                subtotal.jobs + element.jobs
+                            )
+                        )
+                )
+            )
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
 
-        Optional<Map.Entry<String, Long>> leastLoadedNodeAndMemoryUsage = perNodeModelMemoryInBytesSum.entrySet()
+        Optional<Map.Entry<String, MlJobRequirements>> leastLoadedNodeAndMemoryUsage = perNodeMlJobRequirementSum.entrySet()
             .stream()
-            .min(Comparator.comparingLong(Map.Entry::getValue));
+            .min(Comparator.comparingLong(entry -> entry.getValue().memory));
 
         if (leastLoadedNodeAndMemoryUsage.isPresent() == false) {
             return false;
         }
 
-        assert leastLoadedNodeAndMemoryUsage.get().getValue() >= 0L;
+        assert leastLoadedNodeAndMemoryUsage.get().getValue().memory >= 0L;
 
         // this currently only works based on memory, not CPU
         String candidateNode = leastLoadedNodeAndMemoryUsage.get().getKey();
-        List<MlJobRequirements> candidateJobRequirements = perNodeUsedModelMemoryInBytes.get(candidateNode);
-        perNodeModelMemoryInBytesSum.remove(candidateNode);
+        List<MlJobRequirements> candidateJobRequirements = perNodeJobRequirements.get(candidateNode);
+        perNodeMlJobRequirementSum.remove(candidateNode);
 
         // if all jobs fit on other nodes, we can scale down one node
-        return checkIfJobsCanBeMovedInLeastEfficientWay(candidateJobRequirements, perNodeModelMemoryInBytesSum, perNodeMemoryInBytes) == 0L;
+        return checkIfJobsCanBeMovedInLeastEfficientWay(
+            candidateJobRequirements,
+            perNodeMlJobRequirementSum,
+            perNodeMemoryInBytes,
+            maxOpenJobsPerNode
+        ) == 0L;
     }
 
     /**
@@ -333,38 +374,101 @@ public final class MlAutoscalingResourceTracker {
      * efficient way. That way we ensure that autoscaling is not looping between scaling down, up, down, up ... </p>
      *
      * @param candidateJobRequirements list of job requirements given running on the candidate node
-     * @param perNodeModelMemoryInBytesSum other nodes memory usage
+     * @param perNodeMlJobRequirementsSum other nodes requirements
      * @param perNodeMemoryInBytes available memory per node
      * @return remaining memory, that could not be placed on other nodes, 0L if all jobs got placed
      */
     static long checkIfJobsCanBeMovedInLeastEfficientWay(
         List<MlJobRequirements> candidateJobRequirements,
-        Map<String, Long> perNodeModelMemoryInBytesSum,
-        long perNodeMemoryInBytes
+        Map<String, MlJobRequirements> perNodeMlJobRequirementsSum,
+        long perNodeMemoryInBytes,
+        int maxOpenJobsPerNode
     ) {
         if (candidateJobRequirements.size() == 0) {
             return 0L;
         }
 
         // sort ascending so we put the smaller jobs first, by intention this might make it impossible to place the bigger jobs at the end
-        List<Long> candidateNodeMemoryListSorted = candidateJobRequirements.stream().map(MlJobRequirements::memory).sorted().toList();
+        List<MlJobRequirements> candidateNodeMemoryListSorted = candidateJobRequirements.stream()
+            .sorted(Comparator.comparingLong(MlJobRequirements::memory))
+            .toList();
         long candidateNodeMemorySum = candidateJobRequirements.stream().mapToLong(MlJobRequirements::memory).sum();
 
-        if (perNodeModelMemoryInBytesSum.size() == 0) {
+        if (perNodeMlJobRequirementsSum.size() == 0) {
             return candidateNodeMemorySum;
         }
 
         // use a priority queue that keeps the nodes with the lowest memory usage on top(all have the same size)
         // that way we assign the jobs to the node with most available memory first
-        PriorityQueue<Long> modelMemoryInBytesSums = new PriorityQueue<>(perNodeModelMemoryInBytesSum.values());
+        PriorityQueue<MlJobRequirements> nodesWithSpareCapacitySortedByMemory = perNodeMlJobRequirementsSum.values()
+            .stream()
+            .filter(e -> e.jobs < maxOpenJobsPerNode)
+            .collect(
+                Collectors.toCollection(
+                    () -> new PriorityQueue<>(perNodeMlJobRequirementsSum.size(), Comparator.comparingLong(MlJobRequirements::memory))
+                )
+            );
 
-        for (Long jobMemory : candidateNodeMemoryListSorted) {
-            long memoryAfterAddingJobMemory = modelMemoryInBytesSums.poll() + jobMemory;
-            if (memoryAfterAddingJobMemory <= perNodeMemoryInBytes) {
-                modelMemoryInBytesSums.add(memoryAfterAddingJobMemory);
-                candidateNodeMemorySum -= jobMemory;
+        for (MlJobRequirements jobRequirement : candidateNodeMemoryListSorted) {
+            //
+            assert jobRequirement.jobs == 1;
+
+            if (jobRequirement.cpu == 0) {
+                MlJobRequirements nodeWithSpareCapacity = nodesWithSpareCapacitySortedByMemory.poll();
+                long memoryAfterAddingJobMemory = nodeWithSpareCapacity.memory + jobRequirement.memory;
+                if (memoryAfterAddingJobMemory <= perNodeMemoryInBytes) {
+                    if (nodeWithSpareCapacity.jobs + jobRequirement.jobs <= maxOpenJobsPerNode) {
+                        nodesWithSpareCapacitySortedByMemory.add(
+                            MlJobRequirements.of(
+                                memoryAfterAddingJobMemory,
+                                nodeWithSpareCapacity.cpu,
+                                nodeWithSpareCapacity.jobs + jobRequirement.jobs
+                            )
+                        );
+                    }
+                    candidateNodeMemorySum -= jobRequirement.memory;
+                } else {
+                    // not possible to place the job, downscaling is not possible
+                    break;
+                }
             } else {
-                // not possible to place the job, downscaling is not possible
+                List<MlJobRequirements> stash = new ArrayList<>();
+                boolean foundNodeThatCanTakeTheJob = false;
+                while (nodesWithSpareCapacitySortedByMemory.isEmpty() == false) {
+                    MlJobRequirements nodeWithSpareCapacity = nodesWithSpareCapacitySortedByMemory.poll();
+                    long memoryAfterAddingJobMemory = nodeWithSpareCapacity.memory + jobRequirement.memory;
+                    if (memoryAfterAddingJobMemory > perNodeMemoryInBytes) {
+                        // not possible to place the job, downscaling is not possible
+                        break;
+                    }
+                    if (nodeWithSpareCapacity.cpu >= jobRequirement.cpu) {
+                        if (nodeWithSpareCapacity.jobs + jobRequirement.jobs <= maxOpenJobsPerNode) {
+                            nodesWithSpareCapacitySortedByMemory.add(
+                                MlJobRequirements.of(
+                                    memoryAfterAddingJobMemory,
+                                    nodeWithSpareCapacity.cpu + jobRequirement.cpu,
+                                    nodeWithSpareCapacity.jobs + jobRequirement.jobs
+                                )
+                            );
+                        }
+                        candidateNodeMemorySum -= jobRequirement.memory;
+                        foundNodeThatCanTakeTheJob = true;
+                        break;
+                    } else {
+                        // the node fits regarding memory but not regarding spare CPU capacity, stash it and check the next node
+                        stash.add(nodeWithSpareCapacity);
+                    }
+                }
+                if (foundNodeThatCanTakeTheJob == false) {
+                    break;
+                }
+
+                // add the list of stashed items back to the queue
+                nodesWithSpareCapacitySortedByMemory.addAll(stash);
+            }
+
+            // if nodes got removed due to maxOpenJobsPerNode the queue might be empty
+            if (nodesWithSpareCapacitySortedByMemory.isEmpty()) {
                 break;
             }
         }

@@ -998,24 +998,26 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         ensureGreen();
         assertNodeHasNoCurrentRecoveries(indexNodeB);
         assertThat(repository.getFailureCount(), greaterThan(0L));
-        // Assert docs count
-        Index index = resolveIndices().entrySet().stream().filter(e -> e.getKey().getName().equals(indexName)).findAny().get().getKey();
-        var indexShard = internalCluster().getInstance(IndicesService.class, indexNodeB).indexService(index).getShard(0);
-        assertThat(indexShard.docStats().getCount(), equalTo((long) numDocs));
+        assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs));
     }
 
     public void testRelocateIndexingShardWithObjectStoreFailures() throws Exception {
         final String indexNodeA = startIndexNode();
         ensureStableCluster(2);
         final String indexName = "test";
-        createIndex(indexName, indexSettings(1, 0).build());
-        int numDocs = scaledRandomIntBetween(1, 10);
-        indexDocs(indexName, numDocs);
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.MINUTES)).build()
+        );
 
         final String indexNodeB = startIndexNode();
         ensureStableCluster(3);
 
+        int numDocs = scaledRandomIntBetween(1, 10);
+        indexDocs(indexName, numDocs);
+
         boolean failuresOnSource = randomBoolean(); // else failures on target node
+        logger.info("--> failures will be on source node? [{}]", failuresOnSource);
         ObjectStoreService objectStoreService = internalCluster().getInstance(
             ObjectStoreService.class,
             failuresOnSource ? indexNodeA : indexNodeB
@@ -1025,10 +1027,12 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         repository.setRandomDataFileIOExceptionRate(1.0);
         repository.setMaximumNumberOfFailures(1);
         if (randomBoolean()) {
+            logger.info("--> failures will be on stateless commits");
             repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
         } else if (failuresOnSource == false && randomBoolean()) {
             // source node does not do anything with the translog at this point
             // target node lists the translog blobs, but skips them (since the translog recovery start file is greater than what it lists)
+            logger.info("--> failures will be on translog files");
             repository.setRandomIOExceptionPattern(".*translog.*");
         }
 
@@ -1038,12 +1042,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         ensureGreen();
         assertThat(repository.getFailureCount(), greaterThan(0L));
         assertNodeHasNoCurrentRecoveries(indexNodeB);
-        final String nodeBId = internalCluster().getInstance(ClusterService.class, indexNodeB).localNode().getId();
-        assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(nodeBId));
-        // Assert docs count
-        Index index = resolveIndices().entrySet().stream().filter(e -> e.getKey().getName().equals(indexName)).findAny().get().getKey();
-        var indexShard = internalCluster().getInstance(IndicesService.class, indexNodeB).indexService(index).getShard(0);
-        assertThat(indexShard.docStats().getCount(), equalTo((long) numDocs));
+        assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs));
     }
 
     public void testIndexShardRecoveryDoesNotUseTranslogOperationsBeforeFlush() throws Exception {

@@ -2377,23 +2377,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     logger.trace("[{}] successfully set safe repository generation to [{}]", metadata.name(), newGen);
                     cacheRepositoryData(newRepositoryData, version);
-                    threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(delegate, () -> {
-                        // Delete all now outdated index files up to 1000 blobs back from the new generation.
-                        // If there are more than 1000 dangling index-N cleanup functionality on repo delete will take care of them.
-                        // Deleting one older than the current expectedGen is done for BwC reasons as older versions used to keep
-                        // two index-N blobs around.
-                        try {
+                    delegate.onResponse(newRepositoryData);
+                    threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn(() -> "Failed to clean up old index blobs from before [" + newGen + "]", e);
+                        }
+
+                        @Override
+                        protected void doRun() throws Exception {
+                            // Delete all now outdated index files up to 1000 blobs back from the new generation.
+                            // If there are more than 1000 dangling index-N cleanup functionality on repo delete will take care of them.
+                            // Deleting one older than the current expectedGen is done for BwC reasons as older versions used to keep
+                            // two index-N blobs around.
                             deleteFromContainer(
                                 blobContainer(),
                                 LongStream.range(Math.max(Math.max(expectedGen - 1, 0), newGen - 1000), newGen)
                                     .mapToObj(gen -> INDEX_FILE_PREFIX + gen)
                                     .iterator()
                             );
-                        } catch (IOException e) {
-                            logger.warn(() -> "Failed to clean up old index blobs from before [" + newGen + "]", e);
                         }
-                        return newRepositoryData;
-                    }));
+                    });
                 }
             });
         }));

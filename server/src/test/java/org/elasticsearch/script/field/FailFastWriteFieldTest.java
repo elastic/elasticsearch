@@ -8,15 +8,13 @@
 
 package org.elasticsearch.script.field;
 
-import junit.framework.TestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
-
-public class FailFastWriteFieldTest extends TestCase {
+public class FailFastWriteFieldTest extends ESTestCase {
 
     public void testGetNonExisting() {
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> new FailFastWriteField("foo", Map::of).get());

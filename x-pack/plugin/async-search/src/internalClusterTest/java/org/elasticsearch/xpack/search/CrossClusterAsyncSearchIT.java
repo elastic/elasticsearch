@@ -583,9 +583,11 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    // for remote-only queries, we can't use the SearchListenerPlugin since that listens for search
-    // stage on the local cluster, so we only test final state of the search response
     public void testRemoteClusterOnlyCCSSuccessfulResult() throws Exception {
+        // for remote-only queries, we can't use the SearchListenerPlugin since that listens for search
+        // stage on the local cluster, so we only test final state of the search response
+        SearchListenerPlugin.negate();
+
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String remoteIndex = (String) testClusterInfo.get("remote.index");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
@@ -655,6 +657,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     }
 
     public void testRemoteClusterOnlyCCSWithFailuresOnOneShardOnly() throws Exception {
+        // for remote-only queries, we can't use the SearchListenerPlugin since that listens for search
+        // stage on the local cluster, so we only test final state of the search response
+        SearchListenerPlugin.negate();
+
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String remoteIndex = (String) testClusterInfo.get("remote.index");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
@@ -726,8 +732,11 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     }
 
     public void testRemoteClusterOnlyCCSWithFailuresOnAllShards() throws Exception {
+        // for remote-only queries, we can't use the SearchListenerPlugin since that listens for search
+        // stage on the local cluster, so we only test final state of the search response
+        SearchListenerPlugin.negate();
+
         Map<String, Object> testClusterInfo = setupTwoClusters();
-        String localIndex = (String) testClusterInfo.get("local.index");
         String remoteIndex = (String) testClusterInfo.get("remote.index");
         boolean skipUnavailable = (Boolean) testClusterInfo.get("remote.skip_unavailable");
 
@@ -1155,7 +1164,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         return client().execute(DeleteAsyncResultAction.INSTANCE, new DeleteAsyncResultRequest(id)).get();
     }
 
-    private Map<String, Object> setupTwoClusters() throws Exception {
+    private Map<String, Object> setupTwoClusters() {
         String localIndex = "demo";
         int numShardsLocal = randomIntBetween(3, 6);
         Settings localSettings = indexSettings(numShardsLocal, 0).build();
@@ -1172,7 +1181,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         assertAcked(
             client(REMOTE_CLUSTER).admin()
                 .indices()
-                .prepareCreate("prod")
+                .prepareCreate(remoteIndex)
                 .setSettings(Settings.builder().put(remoteSettings.build()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
         );
         assertFalse(
@@ -1188,7 +1197,9 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         String skipUnavailableKey = Strings.format("cluster.remote.%s.skip_unavailable", REMOTE_CLUSTER);
         Setting<?> skipUnavailableSetting = cluster(REMOTE_CLUSTER).clusterService().getClusterSettings().get(skipUnavailableKey);
-        boolean skipUnavailable = (boolean) cluster("").clusterService().getClusterSettings().get(skipUnavailableSetting);
+        boolean skipUnavailable = (boolean) cluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).clusterService()
+            .getClusterSettings()
+            .get(skipUnavailableSetting);
 
         Map<String, Object> clusterInfo = new HashMap<>();
         clusterInfo.put("local.num_shards", numShardsLocal);
@@ -1217,6 +1228,22 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         private static final AtomicReference<CountDownLatch> startedLatch = new AtomicReference<>();
         private static final AtomicReference<CountDownLatch> queryLatch = new AtomicReference<>();
         private static final AtomicReference<CountDownLatch> failedQueryLatch = new AtomicReference<>();
+
+        /**
+         * For tests that cannot use SearchListenerPlugin, ensure all latches are unset to
+         * avoid test problems around searches of the .async-search index
+         */
+        static void negate() {
+            if (startedLatch.get() != null) {
+                startedLatch.get().countDown();
+            }
+            if (queryLatch.get() != null) {
+                queryLatch.get().countDown();
+            }
+            if (failedQueryLatch.get() != null) {
+                failedQueryLatch.get().countDown();
+            }
+        }
 
         static void reset() {
             startedLatch.set(new CountDownLatch(1));

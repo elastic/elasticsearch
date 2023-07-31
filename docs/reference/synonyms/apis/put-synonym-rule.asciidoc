@@ -1,5 +1,5 @@
 [[put-synonym-rule]]
-=== Put synonym rule
+=== Create or update synonym rule
 
 beta::[]
 

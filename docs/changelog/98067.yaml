@@ -1,0 +1,5 @@
+pr: 98067
+summary: Avoid double get
+area: Authentication
+type: enhancement
+issues: []

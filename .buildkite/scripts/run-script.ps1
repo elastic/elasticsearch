@@ -52,7 +52,6 @@ public class NativeMethods
         public UInt32 SchedulingClass;
     }
 
-
     [StructLayout(LayoutKind.Sequential)]
     struct IO_COUNTERS
     {
@@ -76,10 +75,7 @@ public class NativeMethods
     }
 
     [DllImport("Kernel32.dll", EntryPoint = "AssignProcessToJobObject", SetLastError = true)]
-    private static extern bool NativeAssignProcessToJobObject(
-        SafeHandle hJob,
-        SafeHandle hProcess
-    );
+    private static extern bool NativeAssignProcessToJobObject(SafeHandle hJob, SafeHandle hProcess);
 
     public static void AssignProcessToJobObject(SafeHandle job, SafeHandle process)
     {
@@ -87,49 +83,49 @@ public class NativeMethods
             throw new Win32Exception();
     }
 
-    [DllImport("Kernel32.dll", CharSet = CharSet.Unicode, EntryPoint = "CreateJobObjectW", SetLastError = true)]
+    [DllImport(
+        "Kernel32.dll",
+        CharSet = CharSet.Unicode,
+        EntryPoint = "CreateJobObjectW",
+        SetLastError = true
+    )]
     private static extern SafeFileHandle NativeCreateJobObjectW(
         IntPtr lpJobAttributes,
         string lpName
     );
 
     [DllImport("Kernel32.dll", EntryPoint = "CloseHandle", SetLastError = true)]
-    private static extern bool NativeCloseHandle(
-        SafeHandle hJob
-    );
+    private static extern bool NativeCloseHandle(SafeHandle hJob);
 
     [DllImport("kernel32.dll")]
     public static extern bool SetInformationJobObject(
-        SafeHandle hJob, JOBOBJECTINFOCLASS JobObjectInfoClass,
-        IntPtr lpJobObjectInfo, uint cbJobObjectInfoLength);
+        SafeHandle hJob,
+        JOBOBJECTINFOCLASS JobObjectInfoClass,
+        IntPtr lpJobObjectInfo,
+        uint cbJobObjectInfoLength
+    );
 
     private const UInt32 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000;
 
     public static SafeHandle CreateJobObjectW(string name)
     {
         SafeHandle job = NativeCreateJobObjectW(IntPtr.Zero, name);
-
-        JOBOBJECT_BASIC_LIMIT_INFORMATION info =
-            new JOBOBJECT_BASIC_LIMIT_INFORMATION();
+        JOBOBJECT_BASIC_LIMIT_INFORMATION info = new JOBOBJECT_BASIC_LIMIT_INFORMATION();
         info.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION extendedInfo =
             new JOBOBJECT_EXTENDED_LIMIT_INFORMATION();
         extendedInfo.BasicLimitInformation = info;
-
-        int length = Marshal.SizeOf(
-            typeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
+        int length = Marshal.SizeOf(typeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
         IntPtr extendedInfoPtr = Marshal.AllocHGlobal(length);
         Marshal.StructureToPtr(extendedInfo, extendedInfoPtr, false);
-
-        SetInformationJobObject(job,
-                                JOBOBJECTINFOCLASS.ExtendedLimitInformation,
-                                extendedInfoPtr,
-                                (uint)length);
-
+        SetInformationJobObject(
+            job,
+            JOBOBJECTINFOCLASS.ExtendedLimitInformation,
+            extendedInfoPtr,
+            (uint)length
+        );
         if (job.IsInvalid)
             throw new Win32Exception();
-
         return job;
     }
 
@@ -139,6 +135,7 @@ public class NativeMethods
             throw new Win32Exception();
     }
 }
+
 '@
 
 $guid = [guid]::NewGuid().Guid

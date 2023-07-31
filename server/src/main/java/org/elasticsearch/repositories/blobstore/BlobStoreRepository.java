@@ -2377,7 +2377,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     logger.trace("[{}] successfully set safe repository generation to [{}]", metadata.name(), newGen);
                     cacheRepositoryData(newRepositoryData, version);
-                    delegate.onResponse(newRepositoryData);
                     threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
                         @Override
                         public void onFailure(Exception e) {
@@ -2398,6 +2397,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             );
                         }
                     });
+                    delegate.onResponse(newRepositoryData);
                 }
             });
         }));

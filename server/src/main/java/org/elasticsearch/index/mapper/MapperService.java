@@ -93,7 +93,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         1000L,
         0,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.depth.limit",

@@ -4,7 +4,7 @@
 beta::[]
 
 ++++
-<titleabbrev>Put synonyms set</titleabbrev>
+<titleabbrev>Create or update synonyms set</titleabbrev>
 ++++
 
 Creates or updates a synonyms set.

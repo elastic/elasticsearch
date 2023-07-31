@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -146,7 +147,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
 
         public static final MlConfigVersion VERSION_INTRODUCED = MlConfigVersion.V_7_3_0;
         public static final TransportVersion TRANSPORT_VERSION_INTRODUCED = TransportVersion.V_7_3_0;
-        public static final MlConfigVersion VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED = MlConfigVersion.V_7_10_0;
+        public static final Version VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED = Version.V_7_10_0;
 
         public static final ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,

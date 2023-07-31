@@ -26,7 +26,6 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,7 +100,7 @@ public class ElasticsearchMappings {
 
     private ElasticsearchMappings() {}
 
-    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, MlConfigVersion minVersion) {
+    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion) {
         List<String> indicesToUpdate = new ArrayList<>();
 
         Map<String, MappingMetadata> currentMapping = state.metadata()
@@ -121,7 +120,7 @@ public class ElasticsearchMappings {
                             continue;
                         }
 
-                        MlConfigVersion mappingVersion = MlConfigVersion.fromString(versionString);
+                        Version mappingVersion = Version.fromString(versionString);
 
                         if (mappingVersion.onOrAfter(minVersion)) {
                             continue;
@@ -168,7 +167,7 @@ public class ElasticsearchMappings {
             protected void doRun() throws Exception {
                 String[] concreteIndices = indexAbstraction.getIndices().stream().map(Index::getName).toArray(String[]::new);
 
-                final String[] indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, MlConfigVersion.CURRENT);
+                final String[] indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT);
                 if (indicesThatRequireAnUpdate.length > 0) {
                     String mapping = mappingSupplier.get();
                     PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);

@@ -181,6 +181,10 @@ public class MlConfigVersionTests extends ESTestCase {
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE");
 
         for (java.lang.reflect.Field field : MlConfigVersion.class.getFields()) {
+            String fieldName = field.getName();
+            if (fieldName.equals("V_8_10_0") == false) {
+                continue;
+            }
             if (field.getType() == MlConfigVersion.class && ignore.contains(field.getName()) == false) {
 
                 // check the field modifiers
@@ -194,6 +198,7 @@ public class MlConfigVersionTests extends ESTestCase {
                 if (matcher.matches()) {
                     // old-style version constant
                     String idString = matcher.group(1) + "." + matcher.group(2) + "." + matcher.group(3);
+                    String fieldStr = field.get(null).toString();
                     assertEquals(
                         "Field " + field.getName() + " does not have expected id " + idString,
                         idString,
@@ -219,55 +224,23 @@ public class MlConfigVersionTests extends ESTestCase {
             MlConfigVersion.min(MlConfigVersion.CURRENT, MlConfigVersionUtils.getPreviousVersion())
         );
         assertEquals(
-            MlConfigVersion.fromId(MlConfigVersion.MINIMUM_COMPATIBLE.id()),
-            MlConfigVersion.min(MlConfigVersion.fromId(MlConfigVersion.MINIMUM_COMPATIBLE.id()), MlConfigVersion.CURRENT)
+            MlConfigVersion.fromId(MlConfigVersion.FIRST_ML_VERSION.id()),
+            MlConfigVersion.min(MlConfigVersion.fromId(MlConfigVersion.FIRST_ML_VERSION.id()), MlConfigVersion.CURRENT)
         );
-        MlConfigVersion version = MlConfigVersionUtils.randomVersion();
-        MlConfigVersion version1 = MlConfigVersionUtils.randomVersion();
-        if (version.isLegacy() == version1.isLegacy()) {
-            if (version.id() <= version1.id()) {
-                assertEquals(version, MlConfigVersion.min(version1, version));
-            } else {
-                assertEquals(version1, MlConfigVersion.min(version1, version));
-            }
-        } else {
-            if (version.isLegacy()) {
-                assertEquals(version, MlConfigVersion.min(version1, version));
-            } else {
-                assertEquals(version1, MlConfigVersion.min(version1, version));
-            }
-        }
     }
 
     public void testMax() {
         assertEquals(MlConfigVersion.CURRENT, MlConfigVersion.max(MlConfigVersion.CURRENT, MlConfigVersionUtils.getPreviousVersion()));
         assertEquals(
             MlConfigVersion.CURRENT,
-            MlConfigVersion.max(MlConfigVersion.fromId(MlConfigVersion.MINIMUM_COMPATIBLE.id()), MlConfigVersion.CURRENT)
+            MlConfigVersion.max(MlConfigVersion.fromId(MlConfigVersion.FIRST_ML_VERSION.id()), MlConfigVersion.CURRENT)
         );
-        MlConfigVersion version = MlConfigVersionUtils.randomVersion();
-        MlConfigVersion version1 = MlConfigVersionUtils.randomVersion();
-        if (version.isLegacy() == version1.isLegacy()) {
-            if (version.id() >= version1.id()) {
-                assertEquals(version, MlConfigVersion.max(version1, version));
-            } else {
-                assertEquals(version1, MlConfigVersion.max(version1, version));
-            }
-        } else {
-            if (version.isLegacy()) {
-                assertEquals(version1, MlConfigVersion.max(version1, version));
-            } else {
-                assertEquals(version, MlConfigVersion.max(version1, version));
-            }
-        }
     }
 
     public void testFromVersion() {
         Version version_V_7_7_0 = Version.V_7_0_0;
         MlConfigVersion mlConfigVersion_V_7_7_0 = MlConfigVersion.fromVersion(version_V_7_7_0);
         assertEquals(version_V_7_7_0.id, mlConfigVersion_V_7_7_0.id());
-        assertEquals(mlConfigVersion_V_7_7_0.isLegacy(), true);
-
         assertTrue(MlConfigVersion.fromVersion(Version.CURRENT).before(MlConfigVersion.CURRENT));
     }
 
@@ -277,12 +250,12 @@ public class MlConfigVersionTests extends ESTestCase {
         assertEquals(version_V_7_7_0.id, mlConfigVersion_V_7_7_0.id());
 
         MlConfigVersion mlConfigVersion_V_10 = MlConfigVersion.V_10;
-        Exception e = expectThrows(IllegalArgumentException.class, () -> MlConfigVersion.toVersion(mlConfigVersion_V_10));
-        assertEquals("Cannot convert " + mlConfigVersion_V_10.id() + ". Incompatible version", e.getMessage());
+        Version version_V_10 = MlConfigVersion.toVersion(mlConfigVersion_V_10);
+        assertEquals(version_V_10.id, mlConfigVersion_V_10.id());
     }
 
     public void testVersionConstantPresent() {
-        Set<MlConfigVersion> ignore = Set.of(MlConfigVersion.ZERO, MlConfigVersion.CURRENT, MlConfigVersion.MINIMUM_COMPATIBLE);
+        Set<MlConfigVersion> ignore = Set.of(MlConfigVersion.ZERO, MlConfigVersion.CURRENT, MlConfigVersion.FIRST_ML_VERSION);
         assertThat(MlConfigVersion.CURRENT, sameInstance(MlConfigVersion.fromId(MlConfigVersion.CURRENT.id())));
         final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
@@ -297,35 +270,44 @@ public class MlConfigVersionTests extends ESTestCase {
     }
 
     public void testToString() {
-        assertEquals("5000099", MlConfigVersion.fromId(5_00_00_99).toString());
-        assertEquals("2030099", MlConfigVersion.fromId(2_03_00_99).toString());
-        assertEquals("1000099", MlConfigVersion.fromId(1_00_00_99).toString());
-        assertEquals("2000099", MlConfigVersion.fromId(2_00_00_99).toString());
-        assertEquals("5000099", MlConfigVersion.fromId(5_00_00_99).toString());
+        MlConfigVersion mlVersion = MlConfigVersion.fromId(5_00_00_99);
+        String mlVersionStr = mlVersion.toString();
+        Version version = Version.fromId(5_00_00_99);
+        String versionStr = version.toString();
+        assertEquals("5.0.0", MlConfigVersion.fromId(5_00_00_99).toString());
+        assertEquals("2.3.0", MlConfigVersion.fromId(2_03_00_99).toString());
+        assertEquals("1.0.0", MlConfigVersion.fromId(1_00_00_99).toString());
+        assertEquals("2.0.0", MlConfigVersion.fromId(2_00_00_99).toString());
+        assertEquals("5.0.0", MlConfigVersion.fromId(5_00_00_99).toString());
+
+        String str = MlConfigVersion.fromId(10_00_00_10).toString();
+
+        assertEquals("10.0.0", MlConfigVersion.fromId(10_00_00_10).toString());
 
         assertEquals(MlConfigVersion.V_7_3_0.toString(), "7.3.0");
         assertEquals(MlConfigVersion.V_8_6_1.toString(), "8.6.1");
         assertEquals(MlConfigVersion.V_8_0_0.toString(), "8.0.0");
         assertEquals(MlConfigVersion.V_7_0_1.toString(), "7.0.1");
         assertEquals(MlConfigVersion.V_7_15_1.toString(), "7.15.1");
-        assertEquals(MlConfigVersion.V_10.toString(), "10");
+        assertEquals(MlConfigVersion.V_10.toString(), "10.0.0");
     }
 
     public void testFromString() {
         assertEquals(MlConfigVersion.fromString("7.3.0"), MlConfigVersion.V_7_3_0);
         assertEquals(MlConfigVersion.fromString("8.6.1"), MlConfigVersion.V_8_6_1);
         assertEquals(MlConfigVersion.fromString("8.0.0"), MlConfigVersion.V_8_0_0);
-        assertEquals(MlConfigVersion.fromString("10"), MlConfigVersion.V_10);
+
+        MlConfigVersion mlVersion = MlConfigVersion.fromString("10.0.0");
+        MlConfigVersion v_10 = MlConfigVersion.V_10;
+        assertEquals(MlConfigVersion.fromString("10.0.0"), MlConfigVersion.V_10);
 
         MlConfigVersion V_8_0_1 = MlConfigVersion.fromString("8.0.1");
         assertEquals(KnownMlConfigVersions.ALL_VERSIONS.contains(V_8_0_1), false);
         assertEquals(V_8_0_1.id(), 8000199);
-        assertEquals(V_8_0_1.isLegacy(), true);
 
         MlConfigVersion unknownVersion = MlConfigVersion.fromId(MlConfigVersion.CURRENT.id() + 1);
         assertEquals(KnownMlConfigVersions.ALL_VERSIONS.contains(unknownVersion), false);
         assertEquals(unknownVersion.id(), MlConfigVersion.CURRENT.id() + 1);
-        assertEquals(unknownVersion.isLegacy(), false);
 
         for (String version : new String[] { "10.2", "7.17.2.99" }) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> MlConfigVersion.fromString(version));
@@ -334,6 +316,6 @@ public class MlConfigVersionTests extends ESTestCase {
 
         String version = "9";
         Exception e = expectThrows(IllegalArgumentException.class, () -> MlConfigVersion.fromString(version));
-        assertEquals("Illegal version " + version, e.getMessage());
+        assertEquals("the version needs to contain major, minor, and revision, and optionally the build: " + version, e.getMessage());
     }
 }

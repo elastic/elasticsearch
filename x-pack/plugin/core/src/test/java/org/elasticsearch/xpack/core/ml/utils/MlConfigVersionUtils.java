@@ -112,11 +112,11 @@ public class MlConfigVersionUtils {
 
     /** Returns a random {@code MlConfigVersion} that is compatible with {@link MlConfigVersion#CURRENT} */
     public static MlConfigVersion randomCompatibleVersion(Random random) {
-        return randomVersionBetween(random, MlConfigVersion.MINIMUM_COMPATIBLE, MlConfigVersion.CURRENT);
+        return randomVersionBetween(random, MlConfigVersion.FIRST_ML_VERSION, MlConfigVersion.CURRENT);
     }
 
     /** Returns a random {@code MlConfigVersion} that is compatible with the previous version to {@code version} */
     public static MlConfigVersion randomPreviousCompatibleVersion(Random random, MlConfigVersion version) {
-        return randomVersionBetween(random, MlConfigVersion.MINIMUM_COMPATIBLE, getPreviousVersion(version));
+        return randomVersionBetween(random, MlConfigVersion.FIRST_ML_VERSION, getPreviousVersion(version));
     }
 }

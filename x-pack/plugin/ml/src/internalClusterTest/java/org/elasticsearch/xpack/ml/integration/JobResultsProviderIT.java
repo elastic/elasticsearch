@@ -832,11 +832,11 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         future = new PlainActionFuture<>();
         jobProvider.modelSnapshots("*", 0, 5, null, null, "min_version", false, null, null, future::onResponse, future::onFailure);
         snapshots = future.actionGet().results();
-        assertThat(snapshots.get(0).getSnapshotId(), equalTo("11"));
-        assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
-        assertThat(snapshots.get(2).getSnapshotId(), equalTo("other_snap"));
-        assertThat(snapshots.get(3).getSnapshotId(), equalTo("snap_2"));
-        assertThat(snapshots.get(4).getSnapshotId(), equalTo("other_snap"));
+        assertThat(snapshots.get(0).getSnapshotId(), equalTo("other_snap"));
+        assertThat(snapshots.get(1).getSnapshotId(), equalTo("11"));
+        assertThat(snapshots.get(2).getSnapshotId(), equalTo("snap_1"));
+        assertThat(snapshots.get(3).getSnapshotId(), equalTo("other_snap"));
+        assertThat(snapshots.get(4).getSnapshotId(), equalTo("snap_2"));
 
         // assert that quantiles are not loaded
         assertNull(snapshots.get(0).getQuantiles());

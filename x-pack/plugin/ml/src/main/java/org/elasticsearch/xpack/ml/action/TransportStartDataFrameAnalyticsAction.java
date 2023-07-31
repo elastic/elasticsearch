@@ -818,8 +818,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                     + TaskParams.VERSION_INTRODUCED
                     + "] or higher";
             }
-            if (MlConfigVersion.fromVersion(node.getVersion()).before(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED)
-                && params.getVersion().onOrAfter(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED)) {
+            if (node.getVersion().before(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED)
+                && params.getVersion().onOrAfter(MlConfigVersion.fromVersion(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED))) {
                 return "Not opening job ["
                     + id
                     + "] on node ["

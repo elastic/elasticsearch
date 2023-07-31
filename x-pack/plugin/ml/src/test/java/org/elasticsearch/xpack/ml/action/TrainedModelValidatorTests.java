@@ -28,7 +28,7 @@ public class TrainedModelValidatorTests extends ESTestCase {
     public void testValidateMinimumVersion() {
         {
             final ModelPackageConfig packageConfig = new ModelPackageConfig.Builder(ModelPackageConfigTests.randomModulePackageConfig())
-                .setMinimumVersion("9999")
+                .setMinimumVersion("9999.0.0")
                 .build();
 
             DiscoveryNode node = mock(DiscoveryNode.class);
@@ -52,7 +52,7 @@ public class TrainedModelValidatorTests extends ESTestCase {
             assertEquals(
                 "Validation Failed: 1: The model ["
                     + packageConfig.getPackagedModelId()
-                    + "] requires that all nodes are at least version [9999];",
+                    + "] requires that all nodes are at least version [9999.0.0];",
                 e.getMessage()
             );
         }

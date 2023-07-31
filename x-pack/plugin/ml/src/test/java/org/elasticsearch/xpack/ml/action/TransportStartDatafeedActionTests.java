@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchModule;
@@ -113,11 +112,14 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
     }
 
     public void testRemoteClusterVersionCheck() {
-        Map<String, MlConfigVersion> clusterVersions = MapBuilder.<String, MlConfigVersion>newMapBuilder()
-            .put("modern_cluster_1", MlConfigVersion.CURRENT)
-            .put("modern_cluster_2", MlConfigVersion.CURRENT)
-            .put("old_cluster_1", MlConfigVersion.V_7_0_0)
-            .map();
+        Map<String, MlConfigVersion> clusterVersions = Map.of(
+            "modern_cluster_1",
+            MlConfigVersion.CURRENT,
+            "modern_cluster_2",
+            MlConfigVersion.CURRENT,
+            "old_cluster_1",
+            MlConfigVersion.V_7_0_0
+        );
 
         Map<String, Object> field = Map.of("runtime_field_foo", Map.of("type", "keyword", "script", ""));
 

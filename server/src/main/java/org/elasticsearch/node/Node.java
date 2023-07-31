@@ -44,7 +44,6 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
-import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
@@ -1082,7 +1081,6 @@ public class Node implements Closeable {
                 b.bind(SnapshotsInfoService.class).toInstance(snapshotsInfoService);
                 b.bind(GatewayMetaState.class).toInstance(gatewayMetaState);
                 b.bind(Coordinator.class).toInstance(discoveryModule.getCoordinator());
-                b.bind(Reconfigurator.class).toInstance(discoveryModule.getReconfigurator());
                 {
                     processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
                     final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoryService);

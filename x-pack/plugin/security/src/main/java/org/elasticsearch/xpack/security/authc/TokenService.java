@@ -1227,7 +1227,7 @@ public final class TokenService {
             assert tokenDoc.primaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
             final UpdateRequestBuilder updateRequest = client.prepareUpdate(refreshedTokenIndex.aliasName(), tokenDoc.id())
                 .setDoc("refresh_token", updateMap)
-                .setFetchSource(true)
+                .setFetchSource(logger.isDebugEnabled())
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
                 .setIfSeqNo(tokenDoc.seqNo())
                 .setIfPrimaryTerm(tokenDoc.primaryTerm());

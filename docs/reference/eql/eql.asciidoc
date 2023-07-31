@@ -295,6 +295,9 @@ Missing events are indicated in the response as `missing": true`:
             }
           },
           {
+            "_index": "",
+            "_id": "",
+            "_source": {},
             "missing": true
           },
           {

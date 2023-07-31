@@ -42,6 +42,6 @@ public class DeleteSearchApplicationActionRequestBWCSerializingTests extends Abs
         DeleteSearchApplicationAction.Request instance,
         TransportVersion version
     ) {
-        return new DeleteSearchApplicationAction.Request(instance.getName());
+        return instance;
     }
 }

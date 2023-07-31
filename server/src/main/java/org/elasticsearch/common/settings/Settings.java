@@ -523,14 +523,15 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     /**
      * Returns a parsed version.
      */
-    public <T extends VersionId> T getAsVersionId(String setting, IntFunction<T> parseVersion) throws SettingsException {
+    public <T extends VersionId<T>> T getAsVersionId(String setting, IntFunction<T> parseVersion) throws SettingsException {
         return getAsVersionId(setting, parseVersion, null);
     }
 
     /**
      * Returns a parsed version.
      */
-    public <T extends VersionId> T getAsVersionId(String setting, IntFunction<T> parseVersion, T defaultVersion) throws SettingsException {
+    public <T extends VersionId<T>> T getAsVersionId(String setting, IntFunction<T> parseVersion, T defaultVersion)
+        throws SettingsException {
         String sValue = get(setting);
         if (sValue == null) {
             return defaultVersion;
@@ -1043,7 +1044,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
          * @param version The version value
          * @return The builder
          */
-        public Builder put(String setting, VersionId version) {
+        public Builder put(String setting, VersionId<?> version) {
             put(setting, version.id());
             return this;
         }

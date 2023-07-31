@@ -310,7 +310,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testDynamicTemplatesForIndexTemplate() throws IOException {
-        String mapping = Strings.toString(
+        String mapping1 = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startArray("dynamic_templates")
@@ -333,11 +333,9 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                 .endArray()
                 .endObject()
         );
-        MapperService mapperService = createMapperService(IndexVersion.current(), Settings.EMPTY, () -> true);
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MapperService.MergeReason.INDEX_TEMPLATE);
 
         // There should be no update if templates are not set.
-        mapping = Strings.toString(
+        String mapping2 = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("properties")
@@ -347,9 +345,11 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
         );
+
+        MapperService mapperService = createMapperService(IndexVersion.current(), Settings.EMPTY, () -> true);
         DocumentMapper mapper = mapperService.merge(
             MapperService.SINGLE_MAPPING_NAME,
-            new CompressedXContent(mapping),
+            List.of(new CompressedXContent(mapping1), new CompressedXContent(mapping2)),
             MapperService.MergeReason.INDEX_TEMPLATE
         );
 
@@ -361,7 +361,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertEquals("second", templates[1].pathMatch().get(0));
 
         // Dynamic templates should be appended and deduplicated.
-        mapping = Strings.toString(
+        String mapping3 = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startArray("dynamic_templates")
@@ -386,7 +386,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         );
         mapper = mapperService.merge(
             MapperService.SINGLE_MAPPING_NAME,
-            new CompressedXContent(mapping),
+            new CompressedXContent(mapping3),
             MapperService.MergeReason.INDEX_TEMPLATE
         );
 

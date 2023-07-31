@@ -1331,13 +1331,14 @@ public class MetadataCreateIndexService {
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
         IndexMode indexMode = indexService.getIndexSettings() != null ? indexService.getIndexSettings().getMode() : IndexMode.STANDARD;
+        List<CompressedXContent> allMappings = new ArrayList<>();
         final CompressedXContent defaultMapping = indexMode.getDefaultMapping();
         if (defaultMapping != null) {
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, defaultMapping, MergeReason.INDEX_TEMPLATE);
+            allMappings.add(defaultMapping);
         }
-        for (CompressedXContent mapping : mappings) {
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
-        }
+        allMappings.addAll(mappings);
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, allMappings, MergeReason.INDEX_TEMPLATE);
+
         indexMode.validateTimestampFieldMapping(request.dataStreamName() != null, mapperService.mappingLookup());
 
         if (sourceMetadata == null) {

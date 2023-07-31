@@ -14,7 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class FailFastWriteFieldTest extends ESTestCase {
+public class FailFastWriteFieldTests extends ESTestCase {
 
     public void testGetNonExisting() {
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> new FailFastWriteField("foo", Map::of).get());

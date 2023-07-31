@@ -483,12 +483,20 @@ public final class TokenService {
         }, listener::onFailure));
     }
 
+    /**
+     * Retrieves the {@code UserToken} given the {@param tokenId} and {@param tokenVersion}.
+     * If passed in, {@param storedAccessToken} is verified against the value stored in the token document.
+     * A mismatch here indicates that the token doc represents a different token from the one the client
+     * is referring to.
+     * If {@param validateUserToken} is {@code true} the {@code UserToken} is also checked to not be
+     * invalidated or expired.
+     */
     @SuppressWarnings("unchecked")
     private void getAndValidateUserToken(
         String tokenId,
         TransportVersion tokenVersion,
-        boolean validateUserToken,
         @Nullable String storedAccessToken,
+        boolean validateUserToken,
         ActionListener<UserToken> listener
     ) {
         getTokenDocById(tokenId, tokenVersion, storedAccessToken, null, ActionListener.wrap(doc -> {
@@ -517,6 +525,13 @@ public final class TokenService {
         }, listener::onFailure));
     }
 
+    /**
+     * Retrieves a token doc given the {@param tokenId} and {@param tokenVersion}.
+     * If passed in, {@param storedAccessToken} and {@param storedRefreshToken} are verified against the values stored
+     * in the token document. A mismatch here indicates that the token doc represents a different token from the one
+     * that the client is referring to, even though the client knows (or guessed) the {@param tokenId}. In other words,
+     * the client knows only part of the secret token (some part of it is wrong).
+     */
     @SuppressWarnings("unchecked")
     private void getTokenDocById(
         String tokenId,
@@ -620,7 +635,7 @@ public final class TokenService {
                 userTokenIdDigest.update(accessTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
                 final String userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
                 final String storedAccessToken = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(accessTokenBytes));
-                getAndValidateUserToken(userTokenId, version, validateUserToken, storedAccessToken, listener);
+                getAndValidateUserToken(userTokenId, version, storedAccessToken, validateUserToken, listener);
             } else if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 // The token was created in a > VERSION_ACCESS_TOKENS_UUIDS cluster
                 if (in.available() < MINIMUM_BYTES) {
@@ -630,7 +645,7 @@ public final class TokenService {
                 }
                 final String accessToken = in.readString();
                 final String userTokenId = hashTokenString(accessToken);
-                getAndValidateUserToken(userTokenId, version, validateUserToken, null, listener);
+                getAndValidateUserToken(userTokenId, version, null, validateUserToken, listener);
             } else {
                 // The token was created in a < VERSION_ACCESS_TOKENS_UUIDS cluster so we need to decrypt it to get the tokenId
                 if (in.available() < LEGACY_MINIMUM_BYTES) {
@@ -651,7 +666,7 @@ public final class TokenService {
                             try {
                                 final Cipher cipher = getDecryptionCipher(iv, decodeKey, version, decodedSalt);
                                 final String tokenId = decryptTokenId(encryptedTokenId, cipher, version);
-                                getAndValidateUserToken(tokenId, version, validateUserToken, null, listener);
+                                getAndValidateUserToken(tokenId, version, null, validateUserToken, listener);
                             } catch (IOException | GeneralSecurityException e) {
                                 // could happen with a token that is not ours
                                 logger.warn("invalid token", e);

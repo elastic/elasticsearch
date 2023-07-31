@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -72,7 +73,7 @@ public class MapperServiceFactory {
                     throw new UnsupportedOperationException();
                 }
             },
-            /*()->DocumentParsingObserver.EMPTY_INSTANCE*/null // we don't want to export this package every
+            ()-> DocumentParsingObserver.EMPTY_INSTANCE
         );
 
         try {

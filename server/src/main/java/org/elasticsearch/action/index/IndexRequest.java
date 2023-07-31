@@ -67,6 +67,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
+    private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersion.V_8_500_048;
 
     /**
      * Max length of the source document to include into string()
@@ -120,7 +121,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * rawTimestamp field is used on the coordinate node, it doesn't need to be serialised.
      */
     private Object rawTimestamp;
-    private boolean pipelinesHaveRune = false;
+    private boolean pipelinesHaveRun = false;
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
@@ -162,8 +163,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
             dynamicTemplates = in.readMap(StreamInput::readString);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_048)) {
-            pipelinesHaveRune = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)) {
+            pipelinesHaveRun = in.readBoolean();
         }
     }
 
@@ -722,8 +723,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                 throw new IllegalArgumentException("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later");
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_048)) {
-            out.writeBoolean(pipelinesHaveRune);
+        if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)) {
+            out.writeBoolean(pipelinesHaveRun);
         }
     }
 
@@ -822,10 +823,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public void setPipelinesHaveRun() {
-        pipelinesHaveRune = true;
+        pipelinesHaveRun = true;
     }
 
-    public boolean havePipelinesRun() {
-        return pipelinesHaveRune;
+    public boolean havePipelinesRan() {
+        return pipelinesHaveRun;
     }
 }

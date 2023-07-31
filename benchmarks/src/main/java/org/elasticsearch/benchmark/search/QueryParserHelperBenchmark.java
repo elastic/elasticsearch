@@ -41,6 +41,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -189,7 +190,7 @@ public class QueryParserHelperBenchmark {
                     throw new UnsupportedOperationException();
                 }
             },
-            null
+            ()-> DocumentParsingObserver.EMPTY_INSTANCE
         );
 
         try {

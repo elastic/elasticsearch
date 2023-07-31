@@ -66,8 +66,7 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
                 .source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
         ).actionGet();
         assertTrue(hasWrappedParser);
-        // more assertions in a TestDocumentParsingObserver
-
+        // there are more assertions in a TestDocumentParsingObserver
     }
 
     @Override

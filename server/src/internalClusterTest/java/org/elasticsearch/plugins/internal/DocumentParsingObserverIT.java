@@ -40,7 +40,7 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
             new IndexRequest(TEST_INDEX_NAME).id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
         ).actionGet();
         assertTrue(hasWrappedParser);
-        // more assertions in a TestDocumentParsingObserver
+        // there are more assertions in a TestDocumentParsingObserver
 
         hasWrappedParser = false;
         // the format of the request does not matter
@@ -48,7 +48,7 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
             new IndexRequest(TEST_INDEX_NAME).id("2").source(cborBuilder().startObject().field("test", "I am sam i am").endObject())
         ).actionGet();
         assertTrue(hasWrappedParser);
-        // more assertions in a TestDocumentParsingObserver
+        // there are more assertions in a TestDocumentParsingObserver
 
         hasWrappedParser = false;
         // white spaces does not matter
@@ -60,7 +60,7 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
             }
             """, XContentType.JSON)).actionGet();
         assertTrue(hasWrappedParser);
-        // more assertions in a TestDocumentParsingObserver
+        // there are more assertions in a TestDocumentParsingObserver
     }
 
     @Override

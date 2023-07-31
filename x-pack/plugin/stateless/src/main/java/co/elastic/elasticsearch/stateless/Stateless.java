@@ -247,6 +247,8 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         if (sharedCacheMmapExplicitlySet == false) {
             settings.put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true);
         }
+        // always override counting reads, stateless does not expose this number so the overhead for tracking it is wasted in any case
+        settings.put(SharedBlobCacheService.SHARED_CACHE_COUNT_READS.getKey(), false);
 
         String nodeMemoryAttrName = "node.attr." + RefreshThrottlingService.MEMORY_NODE_ATTR;
         if (settings.get(nodeMemoryAttrName) == null) {

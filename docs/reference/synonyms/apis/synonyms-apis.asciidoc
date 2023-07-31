@@ -18,11 +18,11 @@ This provides an alternative to:
 
 Synonyms sets can be used to configure <<analysis-synonym-graph-tokenfilter,synonym graph token filters>> and <<analysis-synonym-tokenfilter,synonym token filters>>.
 
-Once a synonyms set is used in a synonym token filter, these token filters are used as part of a <<search-analyzer,search analyzers>>.
+When synonyms sets are used in synonym token filters, filters are applied as part of the <<search-analyzer,search analyzer>> analysis process.
 You can dynamically change the synonyms used at search time using these APIs to update the synonyms sets.
-Your search results will immediately reflect the synonyms set change.
+Your search results will immediately reflect the synonyms set changes.
 
-The following APIs can be used to manage synonyms sets:
+Use the following APIs to manage synonyms sets:
 
 * <<put-synonyms-set>>
 * <<get-synonyms-set>>

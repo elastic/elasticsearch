@@ -25,13 +25,17 @@ import com.sun.net.httpserver.HttpHandler;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
@@ -57,4 +61,10 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             .setSecureSettings(mockSecureSettings);
     }
 
+    @Override
+    protected void assertRepositoryStats(RepositoryStats repositoryStats) {
+        final Set<String> expectedRequestNames = Set.of("GetObject", "ListObjects", "PutObject", "PutMultipartObject");
+        assertEquals(expectedRequestNames, repositoryStats.requestCounts.keySet());
+        repositoryStats.requestCounts.values().forEach(count -> assertThat(count, greaterThan(0L)));
+    }
 }

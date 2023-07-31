@@ -417,4 +417,94 @@ public class MapperServiceTests extends MapperServiceTestCase {
         List<IndexableField> fields = parsedDocument.rootDoc().getFields("obj.sub.string");
         assertEquals(1, fields.size());
     }
+
+    public void testBulkMerge() throws IOException {
+        final MapperService mapperService = createMapperService(mapping(b -> {}));
+        CompressedXContent mapping1 = createTestMapping1();
+        CompressedXContent mapping2 = createTestMapping2();
+        mapperService.merge("_doc", mapping1, MergeReason.INDEX_TEMPLATE);
+        DocumentMapper sequentiallyMergedMapper = mapperService.merge("_doc", mapping2, MergeReason.INDEX_TEMPLATE);
+        DocumentMapper bulkMergedMapper = mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
+        assertEquals(sequentiallyMergedMapper.mappingSource(), bulkMergedMapper.mappingSource());
+    }
+
+    public void testMergeSubobjectsFalseOrder() throws IOException {
+        final MapperService mapperService = createMapperService(mapping(b -> {}));
+        CompressedXContent mapping1 = createTestMapping1();
+        CompressedXContent mapping2 = createTestMapping2();
+        DocumentMapper subobjectsFirst = mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
+        DocumentMapper subobjectsLast = mapperService.merge("_doc", List.of(mapping2, mapping1), MergeReason.INDEX_TEMPLATE);
+        assertEquals(subobjectsFirst.mappingSource(), subobjectsLast.mappingSource());
+    }
+
+    public void testMergeContradictingSubobjects() throws IOException {
+        final MapperService mapperService = createMapperService(mapping(b -> {}));
+        CompressedXContent mapping1 = createTestMapping1();
+        CompressedXContent mapping2 = createTestMapping2();
+        CompressedXContent subobjectsTrueExplicitly;
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+            subobjectsTrueExplicitly = new CompressedXContent(
+                BytesReference.bytes(
+                    xContentBuilder.startObject()
+                        .startObject("_doc")
+                        .field("subobjects", true)
+                        .startObject("properties")
+                        .startObject("parent.other_subfield")
+                        .field("type", "text")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            );
+        }
+
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.merge("_doc", List.of(mapping2, mapping1, subobjectsTrueExplicitly), MergeReason.INDEX_TEMPLATE)
+        );
+        assertEquals("Failed to parse mappings: contradicting subobjects settings provided", e.getMessage());
+    }
+
+    private static CompressedXContent createTestMapping1() throws IOException {
+        CompressedXContent mapping1;
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+            mapping1 = new CompressedXContent(
+                BytesReference.bytes(
+                    xContentBuilder.startObject()
+                        .startObject("_doc")
+                        .field("subobjects", false)
+                        .startObject("properties")
+                        .startObject("parent")
+                        .field("type", "text")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            );
+        }
+        return mapping1;
+    }
+
+    private static CompressedXContent createTestMapping2() throws IOException {
+        CompressedXContent mapping2;
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+            mapping2 = new CompressedXContent(
+                BytesReference.bytes(
+                    xContentBuilder.startObject()
+                        .startObject("_doc")
+                        .field("subobjects", false)
+                        .startObject("properties")
+                        .startObject("parent.subfield")
+                        .field("type", "text")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            );
+        }
+        return mapping2;
+    }
 }

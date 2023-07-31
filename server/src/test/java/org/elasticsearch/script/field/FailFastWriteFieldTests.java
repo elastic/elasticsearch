@@ -67,7 +67,7 @@ public class FailFastWriteFieldTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new FailFastWriteField("foo.1", () -> root).set("baz")
         );
-        assertEquals("[bar] is not an integer, cannot be used as an index as part of path [foo.bar]", err.getMessage());
+        assertEquals("[1] is out of bounds for array with length [1] as part of path [foo.1]", err.getMessage());
     }
 
     public void testSetNotANumber() {
@@ -77,7 +77,7 @@ public class FailFastWriteFieldTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new FailFastWriteField("foo.bar", () -> root).set("baz")
         );
-        assertEquals("[1] is out of bounds for array with length [1] as part of path [foo.1]", err.getMessage());
+        assertEquals("[bar] is not an integer, cannot be used as an index as part of path [foo.bar]", err.getMessage());
     }
 
     public void testRemoveOutOfBounds() {

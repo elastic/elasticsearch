@@ -15,7 +15,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
@@ -23,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
@@ -78,7 +78,7 @@ public class DefaultSearchContextTests extends ESTestCase {
         int maxResultWindow = randomIntBetween(50, 100);
         int maxRescoreWindow = randomIntBetween(50, 100);
         int maxSlicesPerScroll = randomIntBetween(50, 100);
-        Settings settings = indexSettings(Version.CURRENT, 2, 1).put("index.max_result_window", maxResultWindow)
+        Settings settings = indexSettings(IndexVersion.current(), 2, 1).put("index.max_result_window", maxResultWindow)
             .put("index.max_slices_per_scroll", maxSlicesPerScroll)
             .put("index.max_rescore_window", maxRescoreWindow)
             .build();
@@ -142,6 +142,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
+                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false
             );
@@ -173,7 +174,16 @@ public class DefaultSearchContextTests extends ESTestCase {
                 shardSearchRequest,
                 randomNonNegativeLong()
             );
-            DefaultSearchContext context1 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null, timeout, null, false);
+            DefaultSearchContext context1 = new DefaultSearchContext(
+                readerContext,
+                shardSearchRequest,
+                target,
+                null,
+                timeout,
+                randomIntBetween(1, Integer.MAX_VALUE),
+                null,
+                false
+            );
             context1.from(300);
             exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess());
             assertThat(
@@ -237,7 +247,16 @@ public class DefaultSearchContextTests extends ESTestCase {
                 }
             };
             // rescore is null but sliceBuilder is not null
-            DefaultSearchContext context2 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null, timeout, null, false);
+            DefaultSearchContext context2 = new DefaultSearchContext(
+                readerContext,
+                shardSearchRequest,
+                target,
+                null,
+                timeout,
+                randomIntBetween(1, Integer.MAX_VALUE),
+                null,
+                false
+            );
 
             SliceBuilder sliceBuilder = mock(SliceBuilder.class);
             int numSlices = maxSlicesPerScroll + randomIntBetween(1, 100);
@@ -263,7 +282,16 @@ public class DefaultSearchContextTests extends ESTestCase {
             when(shardSearchRequest.getAliasFilter()).thenReturn(AliasFilter.EMPTY);
             when(shardSearchRequest.indexBoost()).thenReturn(AbstractQueryBuilder.DEFAULT_BOOST);
 
-            DefaultSearchContext context3 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null, timeout, null, false);
+            DefaultSearchContext context3 = new DefaultSearchContext(
+                readerContext,
+                shardSearchRequest,
+                target,
+                null,
+                timeout,
+                randomIntBetween(1, Integer.MAX_VALUE),
+                null,
+                false
+            );
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess();
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
@@ -279,7 +307,16 @@ public class DefaultSearchContextTests extends ESTestCase {
                 randomNonNegativeLong(),
                 false
             );
-            DefaultSearchContext context4 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null, timeout, null, false);
+            DefaultSearchContext context4 = new DefaultSearchContext(
+                readerContext,
+                shardSearchRequest,
+                target,
+                null,
+                timeout,
+                randomIntBetween(1, Integer.MAX_VALUE),
+                null,
+                false
+            );
             context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess();
             Query query1 = context4.query();
             context4.sliceBuilder(new SliceBuilder(0, 2)).parsedQuery(parsedQuery).preProcess();
@@ -336,7 +373,16 @@ public class DefaultSearchContextTests extends ESTestCase {
                 randomNonNegativeLong(),
                 false
             );
-            DefaultSearchContext context = new DefaultSearchContext(readerContext, shardSearchRequest, target, null, timeout, null, false);
+            DefaultSearchContext context = new DefaultSearchContext(
+                readerContext,
+                shardSearchRequest,
+                target,
+                null,
+                timeout,
+                randomIntBetween(1, Integer.MAX_VALUE),
+                null,
+                false
+            );
 
             assertThat(context.searcher().hasCancellations(), is(false));
             context.searcher().addQueryCancellation(() -> {});

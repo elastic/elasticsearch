@@ -531,7 +531,7 @@ public final class NodeEnvironment implements Closeable {
                     + "] is incompatible. Revert this node to version ["
                     + Version.max(Version.CURRENT.minimumCompatibilityVersion(), metadata.previousNodeVersion())
                     + "] and delete any indices with versions earlier than ["
-                    + Version.CURRENT.minimumIndexCompatibilityVersion()
+                    + IndexVersion.MINIMUM_COMPATIBLE
                     + "] before upgrading to version ["
                     + Version.CURRENT
                     + "]. If all such indices have already been deleted, revert this node to version ["

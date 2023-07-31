@@ -277,7 +277,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.indices.recovery.plan;
     exports org.elasticsearch.indices.store;
     exports org.elasticsearch.ingest;
-    exports org.elasticsearch.internal to org.elasticsearch.serverless.version;
+    exports org.elasticsearch.internal to org.elasticsearch.serverless.version, org.elasticsearch.serverless.buildinfo;
     exports org.elasticsearch.lucene.analysis.miscellaneous;
     exports org.elasticsearch.lucene.grouping;
     exports org.elasticsearch.lucene.queries;
@@ -385,6 +385,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.jdk.ModuleQualifiedExportsService;
     uses org.elasticsearch.node.internal.TerminationHandlerProvider;
     uses org.elasticsearch.internal.VersionExtension;
+    uses org.elasticsearch.internal.BuildExtension;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

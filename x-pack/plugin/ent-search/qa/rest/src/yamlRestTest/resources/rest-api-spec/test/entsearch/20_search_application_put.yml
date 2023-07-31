@@ -63,6 +63,37 @@ teardown:
         ignore: 404
 
 ---
+"Create search application fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      catch: unauthorized
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVucHJpdmlsZWdlZDplbnRzZWFyY2gtdW5wcml2aWxlZ2VkLXVzZXI=" }  # unprivileged
+      search_application.put:
+        name: test-search-application
+        body:
+          indices: [ "test-index1", "test-index2" ]
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
+            dictionary:
+              additionalProperties: false
+              required: [ "query_string" ]
+              properties:
+                query_string:
+                  type: string
+
+  - do:
+      indices.exists_alias:
+        name: test-search-application
+
+  - is_false: ''
+
+---
 "Create Search Application":
   - do:
       search_application.put:

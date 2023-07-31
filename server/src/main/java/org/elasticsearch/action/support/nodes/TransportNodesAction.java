@@ -110,7 +110,7 @@ public abstract class TransportNodesAction<
                     transportNodeAction,
                     nodeRequest,
                     transportRequestOptions,
-                    new ActionListenerResponseHandler<>(listener, nodeResponseReader(discoveryNode))
+                    new ActionListenerResponseHandler<>(listener, nodeResponseReader(discoveryNode), finalExecutor)
                 );
             }
 

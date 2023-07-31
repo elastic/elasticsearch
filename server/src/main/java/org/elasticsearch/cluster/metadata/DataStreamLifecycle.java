@@ -47,7 +47,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>, ToXContentObject {
 
     // Versions over the wire
-    public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersion.V_8_500_047;
+    public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersion.V_8_500_048;
 
     public static final Setting<RolloverConfiguration> CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING = new Setting<>(
         "cluster.lifecycle.default.rollover",

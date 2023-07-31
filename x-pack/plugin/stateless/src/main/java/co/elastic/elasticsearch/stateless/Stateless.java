@@ -38,6 +38,7 @@ import co.elastic.elasticsearch.stateless.autoscaling.search.TransportPublishSha
 import co.elastic.elasticsearch.stateless.cache.ClearBlobCacheRestHandler;
 import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheAction;
 import co.elastic.elasticsearch.stateless.cache.action.TransportClearBlobCacheAction;
+import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessHeartbeatStore;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersistedClusterStateService;
@@ -291,7 +292,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 new SharedBlobCacheService<>(nodeEnvironment, settings, threadPool, ThreadPool.Names.GENERIC)
             )
         );
-        var translogReplicator = setAndGet(this.translogReplicator, new TranslogReplicator(threadPool, settings, objectStoreService));
+
         var statelessElectionStrategy = setAndGet(
             this.electionStrategy,
             new StatelessElectionStrategy(objectStoreService::getTermLeaseBlobContainer, threadPool)
@@ -305,6 +306,8 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 statelessElectionStrategy::getCurrentLeaseTerm
             )
         );
+        var consistencyService = new StatelessClusterConsistencyService(clusterService, statelessElectionStrategy);
+        var translogReplicator = setAndGet(this.translogReplicator, new TranslogReplicator(threadPool, settings, objectStoreService));
         var refreshThrottlingService = setAndGet(this.refreshThrottlingService, new RefreshThrottlingService(settings, clusterService));
 
         // autoscaling
@@ -363,7 +366,8 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             ingestLoadSampler,
             ingestMetricService,
             shardSizesCollector,
-            searchMetricsService
+            searchMetricsService,
+            consistencyService
         );
     }
 

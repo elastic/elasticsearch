@@ -190,7 +190,7 @@ public class QueryParserHelperBenchmark {
                     throw new UnsupportedOperationException();
                 }
             },
-            ()-> DocumentParsingObserver.EMPTY_INSTANCE
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
         );
 
         try {

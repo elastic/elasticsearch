@@ -240,10 +240,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
     }
 
+    /**
+     * Overwrite superclass to force one slice per segment for knn search.
+     * This is only needed temporarily by knn query rewrite, for the main
+     * search collection we forked the search method and inject our own slicing logic
+     * until this is available in Lucene itself
+     */
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-        // needed for AbstractKnnVectorQuery#rewrite, to be changed in Lucene 9.8 which won't use slices for knn rewrite
-        return computeSlices(leaves, Math.max(1, leaves.size()), 1);
+        return IndexSearcher.slices(leaves, Math.max(1, leaves.size()), 1);
     }
 
     /**

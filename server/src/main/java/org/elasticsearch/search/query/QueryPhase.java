@@ -188,7 +188,6 @@ public class QueryPhase {
                 searchContext,
                 searchContext.parsedPostFilter() != null || searchContext.minimumScore() != null
             );
-            // TODO there is a SingleThreadCollectorManager still here that breaks with AssertionErrors once concurrency is enabled
             CollectorManager<? extends Collector, Void> topDocsCollectorManager = topDocsFactory.collectorManager();
             ProfileCollectorManager<Void> topDocsProfileCollectorManager = null;
             if (searchContext.getProfilers() != null) {

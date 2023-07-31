@@ -470,7 +470,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private DfsSearchResult executeDfsPhase(ShardSearchRequest request, SearchShardTask task) throws IOException {
         ReaderContext readerContext = createOrGetReaderContext(request);
-        try (
+        try (@SuppressWarnings("unused") // withScope call is necessary to instrument search execution
+        Releasable scope = tracer.withScope(task);
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false)
         ) {
@@ -1089,11 +1090,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return searchContext;
     }
 
-    private static boolean concurrentSearchEnabled(ResultsType resultsType, SearchSourceBuilder source) {
-        // TODO enable concurrency for other phases as well. Currently blocked by e.g. SingleThreadCollectorManager still
-        // in use in QueryPhase
-        return resultsType == ResultsType.DFS
-            && (source != null && source.aggregations() != null && source.aggregations().supportsConcurrentExecution());
+    static boolean concurrentSearchEnabled(ResultsType resultsType, SearchSourceBuilder source) {
+        if (resultsType != ResultsType.DFS) {
+            return false; // only enable concurrent collection for DFS phase for now
+        }
+        if (source != null && source.aggregations() != null) {
+            return source.aggregations().supportsConcurrentExecution();
+        }
+        return true;
     }
 
     private void freeAllContextForIndex(Index index) {

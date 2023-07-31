@@ -200,8 +200,9 @@ public class ContextIndexSearcherTests extends ESTestCase {
             executor.getMaximumPoolSize(),
             1
         );
-        LeafSlice leafSlice = leafSlices[0];
-        int docsFirstSlice = Arrays.stream(leafSlice.leaves).map(LeafReaderContext::reader).mapToInt(LeafReader::maxDoc).sum();
+        // The test collector manager throws an exception when the first segment gets collected.
+        // All documents in that slice count towards the "missing" docs in the later assertion.
+        int docsFirstSlice = Arrays.stream(leafSlices[0].leaves).map(LeafReaderContext::reader).mapToInt(LeafReader::maxDoc).sum();
         CollectorManager<Collector, Void> collectorManager = new CollectorManager<>() {
             boolean first = true;
 

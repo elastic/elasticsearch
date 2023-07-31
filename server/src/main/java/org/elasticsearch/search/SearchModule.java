@@ -282,7 +282,7 @@ public class SearchModule {
     );
 
     public static final Setting<Boolean> INDICES_CONCURRENT_COLLECTION_ENABLED = Setting.boolSetting(
-        "indices.concurrent_collection_enabled",
+        "search.concurrency_enabled",
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

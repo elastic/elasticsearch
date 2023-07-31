@@ -51,16 +51,7 @@ public class SingleNodeReconfigurator extends Reconfigurator {
     }
 
     @Override
-    public ClusterState addVotingExclusion(
-        ClusterState clusterState,
-        Set<CoordinationMetadata.VotingConfigExclusion> exclusions,
-        int maxVotingConfigExclusions
-    ) {
-        return clusterState;
-    }
-
-    @Override
-    public boolean allNodesExcludedFromVotingConfiguration(ClusterState clusterState, Set<String> excludedNodeIds) {
-        return true;
+    public void ensureVotingConfigCanBeModified() {
+        throw new IllegalStateException("Voting configuration cannot be modified using atomic-register based coordination");
     }
 }

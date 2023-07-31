@@ -47,6 +47,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptySet;
@@ -72,6 +73,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
     private ClusterStateObserver clusterStateObserver;
     private ClusterSettings clusterSettings;
     private int staticMaximum;
+    private FakeReconfigurator reconfigurator;
 
     @BeforeClass
     public static void createThreadPoolAndClusterService() {
@@ -117,6 +119,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         }
         final Settings nodeSettings = nodeSettingsBuilder.build();
         clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        reconfigurator = new FakeReconfigurator();
 
         new TransportAddVotingConfigExclusionsAction(
             nodeSettings,
@@ -126,7 +129,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
             threadPool,
             new ActionFilters(emptySet()),
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-            new Reconfigurator(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+            reconfigurator
         ); // registers action
 
         transportService.start();
@@ -478,6 +481,28 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         assertThat(rootCause.getMessage(), startsWith("timed out waiting for voting config exclusions [{other1}"));
     }
 
+    public void testCannotAddVotingConfigExclusionsWhenItIsDisabled() {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        final SetOnce<TransportException> exceptionHolder = new SetOnce<>();
+
+        reconfigurator.disableUserVotingConfigModifications();
+
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
+            new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[] { "other1" }, TimeValue.timeValueMillis(100)),
+            expectError(e -> {
+                exceptionHolder.set(e);
+                countDownLatch.countDown();
+            })
+        );
+
+        safeAwait(countDownLatch);
+        final Throwable rootCause = exceptionHolder.get().getRootCause();
+        assertThat(rootCause, instanceOf(IllegalStateException.class));
+        assertThat(rootCause.getMessage(), startsWith("Unable to modify the voting configuration"));
+    }
+
     private TransportResponseHandler<ActionResponse.Empty> expectSuccess(Consumer<ActionResponse.Empty> onResponse) {
         return responseHandler(onResponse, e -> { throw new AssertionError("unexpected", e); });
     }
@@ -557,6 +582,25 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         @Override
         public void onTimeout(TimeValue timeout) {
             throw new AssertionError("unexpected timeout");
+        }
+    }
+
+    static class FakeReconfigurator extends Reconfigurator {
+        private final AtomicBoolean canModifyVotingConfiguration = new AtomicBoolean(true);
+
+        FakeReconfigurator() {
+            super(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        }
+
+        @Override
+        public void ensureVotingConfigCanBeModified() {
+            if (canModifyVotingConfiguration.get() == false) {
+                throw new IllegalStateException("Unable to modify the voting configuration");
+            }
+        }
+
+        void disableUserVotingConfigModifications() {
+            canModifyVotingConfiguration.set(false);
         }
     }
 

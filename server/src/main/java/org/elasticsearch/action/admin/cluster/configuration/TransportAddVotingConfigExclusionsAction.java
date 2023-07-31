@@ -21,9 +21,11 @@ import org.elasticsearch.cluster.ClusterStateObserver.Listener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -98,6 +100,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
         ClusterState state,
         ActionListener<ActionResponse.Empty> listener
     ) throws Exception {
+        reconfigurator.ensureVotingConfigCanBeModified();
 
         resolveVotingConfigExclusionsAndCheckMaximum(request, state, maxVotingConfigExclusions);
         // throws IAE if no nodes matched or maximum exceeded
@@ -112,7 +115,12 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
                 final int finalMaxVotingConfigExclusions = TransportAddVotingConfigExclusionsAction.this.maxVotingConfigExclusions;
                 resolvedExclusions = resolveVotingConfigExclusionsAndCheckMaximum(request, currentState, finalMaxVotingConfigExclusions);
 
-                return reconfigurator.addVotingExclusion(currentState, resolvedExclusions, finalMaxVotingConfigExclusions);
+                final CoordinationMetadata.Builder builder = CoordinationMetadata.builder(currentState.coordinationMetadata());
+                resolvedExclusions.forEach(builder::addVotingConfigExclusion);
+                final Metadata newMetadata = Metadata.builder(currentState.metadata()).coordinationMetadata(builder.build()).build();
+                final ClusterState newState = ClusterState.builder(currentState).metadata(newMetadata).build();
+                assert newState.getVotingConfigExclusions().size() <= finalMaxVotingConfigExclusions;
+                return newState;
             }
 
             @Override
@@ -134,10 +142,10 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
                     .map(VotingConfigExclusion::getNodeId)
                     .collect(Collectors.toSet());
 
-                final Predicate<ClusterState> allNodesRemoved = clusterState -> reconfigurator.allNodesExcludedFromVotingConfiguration(
-                    clusterState,
-                    excludedNodeIds
-                );
+                final Predicate<ClusterState> allNodesRemoved = clusterState -> {
+                    final Set<String> votingConfigNodeIds = clusterState.getLastCommittedConfiguration().getNodeIds();
+                    return excludedNodeIds.stream().noneMatch(votingConfigNodeIds::contains);
+                };
 
                 final Listener clusterStateListener = new Listener() {
                     @Override

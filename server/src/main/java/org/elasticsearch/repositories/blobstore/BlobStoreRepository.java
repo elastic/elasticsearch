@@ -2387,8 +2387,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         protected void doRun() throws Exception {
                             // Delete all now outdated index files up to 1000 blobs back from the new generation.
                             // If there are more than 1000 dangling index-N cleanup functionality on repo delete will take care of them.
-                            // Deleting one older than the current expectedGen is done for BwC reasons as older versions used to keep
-                            // two index-N blobs around.
                             deleteFromContainer(
                                 blobContainer(),
                                 LongStream.range(Math.max(Math.max(expectedGen - 1, 0), newGen - 1000), newGen)

@@ -50,6 +50,7 @@ not be included yet.
 * <<snapshot-restore-apis,Snapshot and restore APIs>>
 * <<snapshot-lifecycle-management-api,Snapshot lifecycle management APIs>>
 * <<sql-apis,SQL APIs>>
+* <<synonyms-apis,Synonyms APIs>>
 * <<transform-apis,{transform-cap} APIs>>
 * <<usage-api,Usage API>>
 * <<watcher-api,Watcher APIs>>

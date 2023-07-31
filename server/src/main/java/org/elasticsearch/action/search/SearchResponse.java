@@ -603,7 +603,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 builder.field(TOTAL_FIELD.getPreferredName(), total);
                 builder.field(SUCCESSFUL_FIELD.getPreferredName(), getSuccessful());
                 builder.field(SKIPPED_FIELD.getPreferredName(), getSkipped());
-                // builder.field(FAILED_FIELD.getPreferredName(), getFailed());
+                // TODO: add FAILED_FIELD
                 if (clusterInfo.size() > 0) {
                     builder.startObject("details");
                     for (Cluster cluster : clusterInfo.values()) {
@@ -807,7 +807,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             {
                 builder.field("status", getStatus().toString());
                 builder.field("indices", indexExpression);
-                if (took.get() > 0) {
+                if (took.get() >= 0) {
                     builder.field("took", took.doubleValue());
                 }
                 builder.field("timed_out", timedOut.get());

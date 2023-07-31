@@ -505,10 +505,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
+                    SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
+                    // TODO: in CCS fail fast ticket we may need to fail the query if the cluster is marked as FAILED
+                    ccsClusterInfoUpdate(searchResponse, cluster, skipUnavailable);
+                    cluster.setTook(timeProvider.buildTookInMillis());
+
                     Map<String, SearchProfileShardResult> profileResults = searchResponse.getProfileResults();
                     SearchProfileResults profile = profileResults == null || profileResults.isEmpty()
                         ? null
                         : new SearchProfileResults(profileResults);
+
                     InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
                         searchResponse.getHits(),
                         (InternalAggregations) searchResponse.getAggregations(),
@@ -518,9 +524,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchResponse.isTerminatedEarly(),
                         searchResponse.getNumReducePhases()
                     );
-                    SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
-                    ccsClusterInfoUpdate(searchResponse, cluster);
-                    cluster.setTook(timeProvider.buildTookInMillis());
 
                     listener.onResponse(
                         new SearchResponse(
@@ -752,7 +755,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
-                ccsClusterInfoUpdate(searchResponse, cluster);
+                // TODO: in CCS fail fast ticket we may need to fail the query if the cluster is marked as FAILED
+                ccsClusterInfoUpdate(searchResponse, cluster, skipUnavailable);
                 Instant now = Instant.now();
                 Instant start = Instant.ofEpochMilli(startTime);
                 cluster.setTook(Duration.between(start, now).toMillis());
@@ -773,7 +777,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * @param searchResponse SearchResponse from cluster sub-search
      * @param cluster Cluster object to update
      */
-    private static void ccsClusterInfoUpdate(SearchResponse searchResponse, SearchResponse.Cluster cluster) {
+    private static void ccsClusterInfoUpdate(SearchResponse searchResponse, SearchResponse.Cluster cluster, boolean skipUnavailable) {
         int total = searchResponse.getTotalShards();
         cluster.setTotalShards(total);
         cluster.setSuccessfulShards(searchResponse.getSuccessfulShards());
@@ -782,13 +786,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         /*
          * Cluster Status logic:
-         * 1) FAILED if all shards failed
-         * 2) PARTIAL if it timed out
-         * 3) PARTIAL if it at least one of the shards succeeded but not all
-         * 4) SUCCESSFUL if no shards failed (and did not time out)
+         * 1) FAILED if all shards failed and skip_unavailable=false
+         * 2) SKIPPED if all shards failed and skip_unavailable=true
+         * 3) PARTIAL if it timed out
+         * 4) PARTIAL if it at least one of the shards succeeded but not all
+         * 5) SUCCESSFUL if no shards failed (and did not time out)
          */
         if (searchResponse.getFailedShards() >= total) {
-            cluster.setStatus(SearchResponse.Cluster.Status.FAILED);
+            if (skipUnavailable) {
+                cluster.setStatus(SearchResponse.Cluster.Status.SKIPPED);
+            } else {
+                cluster.setStatus(SearchResponse.Cluster.Status.FAILED);
+            }
         } else if (searchResponse.isTimedOut()) {
             cluster.markAsTimedOut();
             cluster.setStatus(SearchResponse.Cluster.Status.PARTIAL);
@@ -1326,8 +1335,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     abstract static class CCSActionListener<Response, FinalResponse> implements ActionListener<Response> {
-        private final String clusterAlias;
-        private final boolean skipUnavailable;
+        protected final String clusterAlias;
+        protected final boolean skipUnavailable;
         private final CountDown countDown;
         private final AtomicInteger skippedClusters;
         private final AtomicReference<Exception> exceptions;

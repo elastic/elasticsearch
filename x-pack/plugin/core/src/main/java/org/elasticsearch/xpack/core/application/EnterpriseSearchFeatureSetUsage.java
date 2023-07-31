@@ -30,7 +30,7 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
     public static final String COUNT = "count";
     private final Map<String, Object> searchApplicationsUsage;
     private final Map<String, Object> analyticsCollectionsUsage;
-    private final Map<String,Object> queryRulesUsage;
+    private final Map<String, Object> queryRulesUsage;
 
     public EnterpriseSearchFeatureSetUsage(
         boolean available,

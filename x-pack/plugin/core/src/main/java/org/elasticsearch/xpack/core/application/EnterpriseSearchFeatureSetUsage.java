@@ -22,7 +22,6 @@ import java.util.Objects;
 public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
 
     static final TransportVersion BEHAVIORAL_ANALYTICS_TRANSPORT_VERSION = TransportVersion.V_8_8_1;
-    // TODO confirm this transport version is correct
     static final TransportVersion QUERY_RULES_TRANSPORT_VERSION = TransportVersion.V_8_500_046;
 
     public static final String SEARCH_APPLICATIONS = "search_applications";

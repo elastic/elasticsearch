@@ -1,9 +1,0 @@
-steps:
-  - label: concurrent-search-tests
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true check
-    timeout_in_minutes: 180
-    agents:
-      provider: gcp
-      image: family/elasticsearch-ubuntu-2004
-      diskSizeGb: 350
-      machineType: custom-32-98304

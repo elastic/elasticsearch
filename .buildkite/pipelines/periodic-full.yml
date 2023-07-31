@@ -3,7 +3,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / packaging-tests-windows"
         command: |
-          .\.buildkite\scripts\run-script.ps1 .buildkite/generated-scripts/a6f81b402379cfd241ba9e32a55a3d92.bat
+          .\.buildkite\scripts\run-script.ps1 .\.ci\scripts\packaging-test.ps1
         timeout_in_minutes: 180
         matrix:
           setup:

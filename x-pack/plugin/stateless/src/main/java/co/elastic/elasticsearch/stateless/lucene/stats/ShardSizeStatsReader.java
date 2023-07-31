@@ -113,6 +113,8 @@ public class ShardSizeStatsReader {
             // no timestamp field, entire segment is considered interactive
             return true;
         }
+        // TODO check mappings for the granularity of the timestamp field
+        // it could be a nonotime
         var maxTimestamp = LongPoint.decodeDimension(values.getMaxPackedValue(), 0);
         return currentTimeMillis - maxTimestamp <= interactiveDataAge.millis();
     }

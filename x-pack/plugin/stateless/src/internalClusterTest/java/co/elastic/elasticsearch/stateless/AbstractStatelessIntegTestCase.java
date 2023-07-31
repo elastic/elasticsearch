@@ -180,7 +180,11 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     protected String startMasterOnlyNode() {
-        return internalCluster().startMasterOnlyNode(nodeSettings().build());
+        return startMasterOnlyNode(Settings.EMPTY);
+    }
+
+    protected String startMasterOnlyNode(Settings extraSettings) {
+        return internalCluster().startMasterOnlyNode(nodeSettings().put(extraSettings).build());
     }
 
     protected String startMasterAndIndexNode() {

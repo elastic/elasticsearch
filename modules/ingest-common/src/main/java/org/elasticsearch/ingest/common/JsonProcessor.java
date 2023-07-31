@@ -11,10 +11,12 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.script.field.WriteField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -153,7 +155,7 @@ public final class JsonProcessor extends AbstractProcessor {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) value;
             if (conflictStrategy == ConflictStrategy.MERGE) {
-                recursiveMerge(ctx, map);
+                recursiveMerge(new ContentPath(), ctx, map);
             } else {
                 ctx.putAll(map);
             }
@@ -162,22 +164,17 @@ public final class JsonProcessor extends AbstractProcessor {
         }
     }
 
-    public static void recursiveMerge(Map<String, Object> target, Map<String, Object> from) {
+    private static void recursiveMerge(ContentPath contentPath, Map<String, Object> target, Map<String, Object> from) {
         for (String key : from.keySet()) {
-            if (target.containsKey(key)) {
-                Object targetValue = target.get(key);
-                Object fromValue = from.get(key);
-                if (targetValue instanceof Map && fromValue instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> targetMap = (Map<String, Object>) targetValue;
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> fromMap = (Map<String, Object>) fromValue;
-                    recursiveMerge(targetMap, fromMap);
-                } else {
-                    target.put(key, fromValue);
-                }
+            Object value = from.get(key);
+            if (value instanceof Map) {
+                contentPath.add(key);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> mapValue = (Map<String, Object>) value;
+                recursiveMerge(contentPath, target, mapValue);
+                contentPath.remove();
             } else {
-                target.put(key, from.get(key));
+                new WriteField(contentPath.pathAsText(key), () -> target).set(value);
             }
         }
     }

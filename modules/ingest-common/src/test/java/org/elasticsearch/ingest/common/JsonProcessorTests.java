@@ -209,6 +209,27 @@ public class JsonProcessorTests extends ESTestCase {
         assertEquals("quux", ingestDocument.getFieldValue("foo.qux", String.class));
     }
 
+    public void testAddToRootRecursiveMergeDottedIntoNested() throws Exception {
+        String processorTag = randomAlphaOfLength(3);
+        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "json", null, true, MERGE, false);
+
+        Map<String, Object> document = new HashMap<>();
+        String json = """
+            {"foo.bar": "baz"}""";
+        document.put("json", json);
+        Map<String, Object> inner = new HashMap<>();
+        inner.put("bar", "override_me");
+        inner.put("qux", "quux");
+        document.put("foo", inner);
+
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        jsonProcessor.execute(ingestDocument);
+
+        assertFalse(ingestDocument.getCtxMap().containsKey("foo.bar"));
+        assertEquals("baz", ingestDocument.getFieldValue("foo.bar", String.class));
+        assertEquals("quux", ingestDocument.getFieldValue("foo.qux", String.class));
+    }
+
     public void testAddToRootNonRecursiveMerge() throws Exception {
         String processorTag = randomAlphaOfLength(3);
         JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "json", null, true, REPLACE, false);

@@ -84,6 +84,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     // don't create slices with less than this number of docs
     private final int minimumDocsPerSlice;
 
+    private volatile boolean timeExceeded = false;
+
     /** constructor for non-concurrent search */
     public ContextIndexSearcher(
         IndexReader reader,
@@ -298,9 +300,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) throws IOException {
         final C firstCollector = collectorManager.newCollector();
-        // Take advantage of the few extra rewrite rules of ConstantScoreQuery when score are not needed.
-        query = firstCollector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
-        final Weight weight = createWeight(query, firstCollector.scoreMode(), 1);
+        final Weight weight;
+        try {
+            // Take advantage of the few extra rewrite rules of ConstantScoreQuery when score are not needed.
+            query = firstCollector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
+            weight = createWeight(query, firstCollector.scoreMode(), 1);
+        } catch (@SuppressWarnings("unused") TimeExceededException e) {
+            timeExceeded = true;
+            return collectorManager.reduce(Collections.singletonList(firstCollector));
+        }
         return search(weight, collectorManager, firstCollector);
     }
 
@@ -341,8 +349,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             for (Future<C> future : listTasks) {
                 try {
                     collectedCollectors.add(future.get());
-                    // TODO: when there is an exception and we don't want partial results, it would be great
-                    // to cancel the queries / threads
+                    // TODO: when there is an exception, it would be great to cancel the queries / threads
                 } catch (InterruptedException e) {
                     if (exception == null) {
                         exception = new ThreadInterruptedException(e);
@@ -371,8 +378,31 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         collector.setWeight(weight);
-        for (LeafReaderContext ctx : leaves) { // search each subreader
-            searchLeaf(ctx, weight, collector);
+        try {
+            for (LeafReaderContext ctx : leaves) { // search each subreader
+                searchLeaf(ctx, weight, collector);
+            }
+        } catch (@SuppressWarnings("unused") TimeExceededException e) {
+            timeExceeded = true;
+        }
+
+    }
+
+    /**  If the search has timed out following Elasticsearch custom implementation */
+    public boolean timeExceeded() {
+        return timeExceeded;
+    }
+
+    public void throwTimeExceededException() {
+        throw new TimeExceededException();
+    }
+
+    private static class TimeExceededException extends RuntimeException {
+
+        @Override
+        public Throwable fillInStackTrace() {
+            // never re-thrown so we can save the expensive stacktrace
+            return this;
         }
     }
 

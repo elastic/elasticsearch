@@ -2443,6 +2443,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected void setupSuiteScopeCluster() throws Exception {}
 
     protected boolean autoManageVotingExclusions() {
+        // Temporary workaround until #98055 is tackled
         return true;
     }
 

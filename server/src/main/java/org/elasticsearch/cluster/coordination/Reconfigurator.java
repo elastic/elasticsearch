@@ -149,6 +149,7 @@ public class Reconfigurator {
     }
 
     public void ensureVotingConfigCanBeModified() {
+        // Temporary workaround until #98055 is tackled
         // no-op
     }
 

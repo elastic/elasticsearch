@@ -498,7 +498,8 @@ public final class IndexSettings {
         IngestService.NOOP_PIPELINE_NAME,
         Function.identity(),
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
 
     public static final Setting<String> FINAL_PIPELINE = new Setting<>(
@@ -506,7 +507,8 @@ public final class IndexSettings {
         IngestService.NOOP_PIPELINE_NAME,
         Function.identity(),
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
 
     /**
@@ -554,7 +556,8 @@ public final class IndexSettings {
         -1,
         -1,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
     public static final String LIFECYCLE_PARSE_ORIGINATION_DATE = "index.lifecycle.parse_origination_date";
     public static final Setting<Boolean> LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING = Setting.boolSetting(

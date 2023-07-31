@@ -789,7 +789,6 @@ public class WriteField implements Field<Object> {
      *  I)   ['a']['b']['c'] if 'a' is a Map at the root and 'b' is a Map in 'a', 'c' need not exist in 'b'.
      *  II)  ['a']['b.c'] if 'a' is a Map at the root and 'b' does not exist in 'a's Map but 'b.c' does.
      *  III) ['a.b.c'] if 'a' doesn't exist at the root but 'a.b.c' does.
-     *  IV)  ['a.b']['c'] if 'a' doesn't exist at the root but 'a.b' exists as a Map, 'c' need not exist in 'a.b'.
      *
      * {@link #container} and {@link #leaf} and non-null if resolved.
      */
@@ -800,18 +799,19 @@ public class WriteField implements Field<Object> {
         int index = path.indexOf('.');
         int lastIndex = 0;
         String segment;
-        boolean containerFound;
         if (index == -1 && container instanceof Map<?, ?> mapContainer) {
-            containerFound = mapContainer.containsKey(path);
-        } else {
-            containerFound = false;
+            if (mapContainer.containsKey(path)) {
+                onResolutionSuccess(path);
+            } else {
+                onResolutionErrorNotFound(lastIndex);
+            }
+            return;
         }
 
         while (index != -1) {
             segment = path.substring(lastIndex, index);
             Object value = getFromContainer(segment, MISSING);
             if (value instanceof Map<?, ?> || value instanceof List<?>) {
-                containerFound = true;
                 container = value;
                 lastIndex = index + 1;
                 index = path.indexOf('.', lastIndex);
@@ -819,27 +819,36 @@ public class WriteField implements Field<Object> {
                 // Check rest of segments as a single key
                 String rest = path.substring(lastIndex);
                 if (container instanceof Map<?, ?> mapContainer && mapContainer.containsKey(rest)) {
-                    containerFound = true;
-                    break;
-                } else {
-                    // retry with current and next segment
-                    containerFound = false;
-                    index = path.indexOf('.', index + 1);
+                    onResolutionSuccess(rest);
+                    return;
                 }
+                // Check if last segment is an array index
+                int indexOfLastDot = path.lastIndexOf('.');
+                if (indexOfLastDot == -1 || index == indexOfLastDot) {
+                    onResolutionErrorNotFound(lastIndex);
+                    return;
+                }
+                segment = path.substring(lastIndex, indexOfLastDot);
+                value = getFromContainer(segment, MISSING);
+                if (value instanceof List<?>) {
+                    container = value;
+                    onResolutionSuccess(path.substring(indexOfLastDot + 1));
+                    return;
+                }
+                onResolutionErrorNotFound(lastIndex);
+                return;
             }
         }
-        if (containerFound) {
-            leaf = path.substring(lastIndex);
-            onResolutionSuccess();
-        } else {
-            onResolutionErrorNotFound(lastIndex);
-            leaf = null;
-        }
+        onResolutionSuccess(path.substring(lastIndex));
     }
 
-    protected void onResolutionSuccess() {}
+    protected void onResolutionSuccess(String leaf) {
+        this.leaf = leaf;
+    }
 
-    protected void onResolutionErrorNotFound(int lastIndex) {}
+    protected void onResolutionErrorNotFound(int lastIndex) {
+        leaf = null;
+    }
 
     /**
      * Create a new Map for each segment in path, if that segment is unmapped or mapped to null.

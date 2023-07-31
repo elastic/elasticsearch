@@ -74,22 +74,26 @@ public class WriteFieldTests extends ESTestCase {
         assertEquals(1, new WriteField("a.b.c", () -> root).get(null));
     }
 
-    public void testResolveDottedThenNested() {
-        Map<String, Object> root = Map.of("a.b", Map.of("c", 1));
-        assertEquals(1, new WriteField("a.b.c", () -> root).get(null));
-    }
-
     public void testResolvePrecedence() {
         Map<String, Object> root = new HashMap<>(
-            Map.of("a", new HashMap<>(Map.of("b", Map.of("c", 1), "b.c", 2)), "a.b.c", 3, "a.b", Map.of("c", 4))
+            Map.of("a", new HashMap<>(Map.of("b", Map.of("c", 1), "b.c", 2)), "a.b.c", 3)
         );
         assertEquals(1, new WriteField("a.b.c", () -> root).get(null));
         ((Map<?, ?>) root.get("a")).remove("b");
         assertEquals(2, new WriteField("a.b.c", () -> root).get(null));
         root.remove("a");
         assertEquals(3, new WriteField("a.b.c", () -> root).get(null));
-        root.remove("a.b.c");
-        assertEquals(4, new WriteField("a.b.c", () -> root).get(null));
+    }
+
+    public void testResolvePrecedenceList() {
+        Map<String, Object> root = new HashMap<>(
+            Map.of("a", new HashMap<>(Map.of("b", Map.of("c", List.of(1)), "b.c", List.of(2))), "a.b.c", List.of(3))
+        );
+        assertEquals(1, new WriteField("a.b.c.0", () -> root).get(null));
+        ((Map<?, ?>) root.get("a")).remove("b");
+        assertEquals(2, new WriteField("a.b.c.0", () -> root).get(null));
+        root.remove("a");
+        assertEquals(3, new WriteField("a.b.c.0", () -> root).get(null));
     }
 
     public void testExists() {

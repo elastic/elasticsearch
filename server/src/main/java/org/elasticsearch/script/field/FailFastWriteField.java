@@ -41,7 +41,8 @@ public class FailFastWriteField extends WriteField {
         clearResolutionErrors();
     }
 
-    protected void onResolutionSuccess() {
+    protected void onResolutionSuccess(String leaf) {
+        super.onResolutionSuccess(leaf);
         clearResolutionErrors();
     }
 
@@ -69,6 +70,7 @@ public class FailFastWriteField extends WriteField {
     }
 
     protected void onResolutionErrorNotFound(int lastIndex) {
+        super.onResolutionErrorNotFound(lastIndex);
         if (resolutionError == null) {
             resolutionError = () -> new IllegalArgumentException(
                 "field [" + path.substring(path.indexOf('.', lastIndex) + 1) + "] not present as part of path [" + path + "]"

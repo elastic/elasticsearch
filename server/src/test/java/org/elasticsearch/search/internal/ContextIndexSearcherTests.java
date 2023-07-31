@@ -58,6 +58,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -76,7 +79,6 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -199,48 +201,91 @@ public class ContextIndexSearcherTests extends ESTestCase {
             }
         }
 
-        DirectoryReader directoryReader = DirectoryReader.open(directory);
-        int numSegments = directoryReader.getContext().leaves().size();
         // make sure we have more threads than segments available to check later call to execute method
-        int nThreads = randomIntBetween(numSegments, numSegments + 5);
+        int nThreads = randomIntBetween(2, 5);
 
         // use an executor that counts calls to its "execute" method
         AtomicInteger executeCalls = new AtomicInteger(0);
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(
-            nThreads,
-            nThreads,
-            0L,
-            TimeUnit.MILLISECONDS,
-            new LinkedBlockingQueue<Runnable>()
-        ) {
-            @Override
-            public void execute(Runnable command) {
-                executeCalls.incrementAndGet();
-                super.execute(command);
-            }
-        };
+        ThreadPoolExecutor executor = null;
+        DirectoryReader directoryReader = null;
+        try {
+            executor = new PrioritizedEsThreadPoolExecutor(
+                "test",
+                nThreads,
+                Integer.MAX_VALUE,
+                0L,
+                TimeUnit.MILLISECONDS,
+                EsExecutors.daemonThreadFactory("queuetest"),
+                new ThreadContext(Settings.EMPTY),
+                null
+            ) {
+                @Override
+                public void execute(Runnable command) {
+                    executeCalls.incrementAndGet();
+                    super.execute(command);
+                }
+            };
 
-        ContextIndexSearcher searcher = new ContextIndexSearcher(
-            directoryReader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            1,
-            randomBoolean(),
-            executor
-        );
-        // check that we calculate one slice per segment
-        assertEquals(numSegments, searcher.slices(directoryReader.getContext().leaves()).length);
+            directoryReader = DirectoryReader.open(directory);
+            ContextIndexSearcher searcher = new ContextIndexSearcher(
+                directoryReader,
+                IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                1,
+                randomBoolean(),
+                executor
+            );
+            // check that we calculate one slice per segment
+            int numSegments = directoryReader.getContext().leaves().size();
+            assertEquals(numSegments, searcher.slices(directoryReader.getContext().leaves()).length);
 
-        KnnFloatVectorQuery vectorQuery = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, 10, null);
-        vectorQuery.rewrite(searcher);
-        // Note: we expect one execute calls less than segments since the last is executed on the caller thread.
-        // For details see QueueSizeBasedExecutor#processTask
-        assertEquals(numSegments - 1, executeCalls.get());
+            KnnFloatVectorQuery vectorQuery = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, 10, null);
+            Query rewritenQuery = vectorQuery.rewrite(searcher);
+            // Note: we expect one execute calls less than segments since the last is executed on the caller thread.
+            // For details see QueueSizeBasedExecutor#processTask
+            assertEquals(numSegments - 1, executeCalls.get());
 
-        directoryReader.close();
-        directory.close();
-        executor.shutdown();
+            AtomicInteger collectorCalls = new AtomicInteger(0);
+            searcher.search(rewritenQuery, new CollectorManager<Collector, Object>() {
+
+                @Override
+                public Collector newCollector() {
+                    collectorCalls.incrementAndGet();
+                    return new Collector() {
+                        @Override
+                        public LeafCollector getLeafCollector(LeafReaderContext context) {
+                            return new LeafBucketCollector() {
+                                @Override
+                                public void collect(int doc, long owningBucketOrd) throws IOException {
+                                    // noop
+                                }
+                            };
+                        }
+
+                        @Override
+                        public ScoreMode scoreMode() {
+                            return ScoreMode.COMPLETE;
+                        }
+                    };
+                }
+
+                @Override
+                public Object reduce(Collection<Collector> collectors) throws IOException {
+                    return null;
+                }
+            });
+            LeafSlice[] leafSlices = ContextIndexSearcher.computeSlices(
+                directoryReader.getContext().leaves(),
+                executor.getMaximumPoolSize(),
+                1
+            );
+            assertEquals(leafSlices.length, collectorCalls.get());
+        } finally {
+            directoryReader.close();
+            directory.close();
+            executor.shutdown();
+        }
     }
 
     public void testConcurrentSearchAllThreadsFinish() throws Exception {

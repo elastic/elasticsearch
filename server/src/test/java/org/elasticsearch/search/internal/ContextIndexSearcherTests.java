@@ -485,7 +485,6 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     true,
                     executor
                 );
-                contextIndexSearcher.addQueryCancellation(contextIndexSearcher::throwTimeExceededException);
                 boolean[] called = new boolean[1];
                 CollectorManager<Collector, Void> manager = new CollectorManager<>() {
                     @Override
@@ -503,7 +502,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     @Override
                     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
                         if (randomBoolean()) {
-                            contextIndexSearcher.addQueryCancellation(contextIndexSearcher::throwTimeExceededException);
+                            contextIndexSearcher.throwTimeExceededException();
                         }
                         return super.rewrite(indexSearcher);
                     }
@@ -511,12 +510,12 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     @Override
                     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
                         if (randomBoolean()) {
-                            contextIndexSearcher.addQueryCancellation(contextIndexSearcher::throwTimeExceededException);
+                            contextIndexSearcher.throwTimeExceededException();
                         }
                         return new ConstantScoreWeight(this, boost) {
                             @Override
                             public Scorer scorer(LeafReaderContext context) {
-                                contextIndexSearcher.addQueryCancellation(contextIndexSearcher::throwTimeExceededException);
+                                contextIndexSearcher.throwTimeExceededException();
                                 return new ConstantScoreScorer(this, score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
                             }
 

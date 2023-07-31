@@ -308,6 +308,7 @@ Closure commonDebConfig(String architecture) {
 
     into('/usr/share/lintian/overrides') {
       from('src/deb/lintian/elasticsearch')
+      fileMode 0644
     }
   }
 }

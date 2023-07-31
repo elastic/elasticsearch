@@ -295,7 +295,6 @@ public class VersionUtilsTests extends ESTestCase {
      * Tests that {@link Version#minimumCompatibilityVersion()} and {@link VersionUtils#allReleasedVersions()}
      * agree with the list of wire and index compatible versions we build in gradle.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56303")
     public void testGradleVersionsMatchVersionUtils() {
         // First check the index compatible versions
         VersionsFromProperty indexCompatible = new VersionsFromProperty("tests.gradle_index_compat_versions");

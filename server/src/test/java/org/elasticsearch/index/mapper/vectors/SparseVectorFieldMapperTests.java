@@ -74,7 +74,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testSparseVectorWith7xIndex() throws Exception {
         IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version.id()).build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
 
         IndexService indexService = createIndex("index", settings);
         MapperService mapperService = indexService.mapperService();

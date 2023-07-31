@@ -9,6 +9,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
@@ -32,7 +33,7 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.TreeMap;
 
-public class Version implements Comparable<Version>, ToXContentFragment {
+public class Version implements VersionId<Version>, ToXContentFragment {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
      * values below 25 are for alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99
@@ -113,6 +114,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_17_10 = new Version(7_17_10_99, IndexVersion.V_7_17_10);
     public static final Version V_7_17_11 = new Version(7_17_11_99, IndexVersion.V_7_17_11);
     public static final Version V_7_17_12 = new Version(7_17_12_99, IndexVersion.V_7_17_12);
+    public static final Version V_7_17_13 = new Version(7_17_13_99, IndexVersion.V_7_17_13);
     public static final Version V_8_0_0 = new Version(8_00_00_99, IndexVersion.V_8_0_0);
     public static final Version V_8_0_1 = new Version(8_00_01_99, IndexVersion.V_8_0_1);
     public static final Version V_8_1_0 = new Version(8_01_00_99, IndexVersion.V_8_1_0);
@@ -143,8 +145,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_8_8_0 = new Version(8_08_00_99, IndexVersion.V_8_8_0);
     public static final Version V_8_8_1 = new Version(8_08_01_99, IndexVersion.V_8_8_1);
     public static final Version V_8_8_2 = new Version(8_08_02_99, IndexVersion.V_8_8_2);
-    public static final Version V_8_8_3 = new Version(8_08_03_99, IndexVersion.V_8_8_3);
     public static final Version V_8_9_0 = new Version(8_09_00_99, IndexVersion.V_8_9_0);
+    public static final Version V_8_9_1 = new Version(8_09_01_99, IndexVersion.V_8_9_1);
     public static final Version V_8_10_0 = new Version(8_10_00_99, IndexVersion.V_8_10_0);
     public static final Version CURRENT = V_8_10_0;
 
@@ -310,25 +312,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         this.previousMajorId = major > 0 ? (major - 1) * 1000000 + 99 : major;
     }
 
-    public boolean after(Version version) {
-        return version.id < id;
-    }
-
-    public boolean onOrAfter(Version version) {
-        return version.id <= id;
-    }
-
-    public boolean before(Version version) {
-        return version.id > id;
-    }
-
-    public boolean onOrBefore(Version version) {
-        return version.id >= id;
-    }
-
     @Override
-    public int compareTo(Version other) {
-        return Integer.compare(this.id, other.id);
+    public int id() {
+        return id;
     }
 
     @Override

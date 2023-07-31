@@ -44,7 +44,7 @@ public class RestSimulateIndexTemplateAction extends BaseRestHandler {
         simulateIndexTemplateRequest.masterNodeTimeout(
             request.paramAsTime("master_timeout", simulateIndexTemplateRequest.masterNodeTimeout())
         );
-        if (DataStreamLifecycle.isEnabled()) {
+        if (DataStreamLifecycle.isFeatureEnabled()) {
             simulateIndexTemplateRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         }
         if (request.hasContent()) {

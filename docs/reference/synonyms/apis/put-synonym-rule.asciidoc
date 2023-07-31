@@ -4,7 +4,7 @@
 beta::[]
 
 ++++
-<titleabbrev>Put synonym rule</titleabbrev>
+<titleabbrev>Create or update synonym rule</titleabbrev>
 ++++
 
 Creates or updates a synonym rule in a synonyms set.
@@ -30,13 +30,9 @@ Synonyms set identifier to update.
 (Required, string)
 Synonym rule identifier to create or update.
 
-`<body>`::
-(Required, object)
-Contains the definition of the synonym rule to update or create
-+
-.Properties of `<body>` objects
-[%collapsible%open]
-====
+[[put-synonym-rule-request-body]]
+==== {api-request-body-title}
+
 `synonyms`::
 (Required, string)
 The synonym rules definitions for the synonym rule.
@@ -44,8 +40,6 @@ This needs to be in <<_solr_synonyms>> format. Some examples are:
 
 * "i-pod, i pod => ipod",
 * "universe, cosmos"
-
-====
 
 [[put-synonym-rule-example]]
 ==== {api-examples-title}

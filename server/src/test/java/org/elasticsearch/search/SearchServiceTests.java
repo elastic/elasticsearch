@@ -128,7 +128,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
-import static org.elasticsearch.search.SearchModule.INDICES_CONCURRENT_COLLECTION_ENABLED;
+import static org.elasticsearch.search.SearchModule.SEARCH_CONCURRENCY_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
@@ -1904,7 +1904,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             ClusterUpdateSettingsResponse response = client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put(INDICES_CONCURRENT_COLLECTION_ENABLED.getKey(), false).build())
+                .setPersistentSettings(Settings.builder().put(SEARCH_CONCURRENCY_ENABLED.getKey(), false).build())
                 .get();
             assertTrue(response.isAcknowledged());
             assertFalse(service.isConcurrentCollectionEnabled());
@@ -1914,24 +1914,21 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull(INDICES_CONCURRENT_COLLECTION_ENABLED.getKey()).build())
+                .setPersistentSettings(Settings.builder().putNull(SEARCH_CONCURRENCY_ENABLED.getKey()).build())
                 .get();
         }
     }
 
     public void testConcurrencyConditions() {
-        assertTrue(SearchService.concurrentSearchEnabled(randomFrom(ResultsType.DFS), null));
+        SearchSourceBuilder searchSourceBuilder = randomBoolean() ? null : new SearchSourceBuilder();
+        if (searchSourceBuilder != null && randomBoolean()) {
+            searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));
+        }
+        assertTrue(SearchService.concurrentSearchEnabled(ResultsType.DFS, searchSourceBuilder));
         assertFalse(
             SearchService.concurrentSearchEnabled(
                 randomFrom(randomFrom(ResultsType.QUERY, ResultsType.NONE, ResultsType.FETCH)),
-                randomBoolean() ? null : new SearchSourceBuilder()
-            )
-        );
-        assertTrue(SearchService.concurrentSearchEnabled(randomFrom(ResultsType.DFS), new SearchSourceBuilder()));
-        assertFalse(
-            SearchService.concurrentSearchEnabled(
-                randomFrom(ResultsType.DFS),
-                new SearchSourceBuilder().aggregation(new TermsAggregationBuilder("terms"))
+                searchSourceBuilder
             )
         );
     }

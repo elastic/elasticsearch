@@ -281,7 +281,7 @@ public class SearchModule {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Boolean> INDICES_CONCURRENT_COLLECTION_ENABLED = Setting.boolSetting(
+    public static final Setting<Boolean> SEARCH_CONCURRENCY_ENABLED = Setting.boolSetting(
         "search.concurrency_enabled",
         true,
         Setting.Property.NodeScope,

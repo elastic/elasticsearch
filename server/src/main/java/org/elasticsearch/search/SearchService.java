@@ -141,7 +141,7 @@ import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.search.SearchModule.INDICES_CONCURRENT_COLLECTION_ENABLED;
+import static org.elasticsearch.search.SearchModule.SEARCH_CONCURRENCY_ENABLED;
 
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
@@ -344,9 +344,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER, this::setEnableRewriteAggsToFilterByFilter);
 
-        enableConcurrentCollection = INDICES_CONCURRENT_COLLECTION_ENABLED.get(settings);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(INDICES_CONCURRENT_COLLECTION_ENABLED, this::setEnableConcurrentCollection);
+        enableConcurrentCollection = SEARCH_CONCURRENCY_ENABLED.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_CONCURRENCY_ENABLED, this::setEnableConcurrentCollection);
     }
 
     private void setEnableConcurrentCollection(boolean concurrentCollection) {
@@ -1091,13 +1090,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     static boolean concurrentSearchEnabled(ResultsType resultsType, SearchSourceBuilder source) {
-        if (resultsType != ResultsType.DFS) {
-            return false; // only enable concurrent collection for DFS phase for now
+        if (resultsType == ResultsType.DFS) {
+            return true; // only enable concurrent collection for DFS phase for now
         }
-        if (source != null && source.aggregations() != null) {
-            return source.aggregations().supportsConcurrentExecution();
-        }
-        return true;
+        return false;
     }
 
     private void freeAllContextForIndex(Index index) {

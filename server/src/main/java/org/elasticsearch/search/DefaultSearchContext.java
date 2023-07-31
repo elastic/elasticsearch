@@ -158,7 +158,9 @@ final class DefaultSearchContext extends SearchContext {
             minimumDocsPerSlice,
             lowLevelCancellation,
             // TODO not set the for now, this needs a special thread pool and can be enabled after its introduction
-            // parallelize ? (EsThreadPoolExecutor) this.indexService.getThreadPool().executor(ThreadPool.Names.AUTO_COMPLETE) : null
+            // parallelize
+            // ? (EsThreadPoolExecutor) this.indexService.getThreadPool().executor(ThreadPool.Names.CONCURRENT_COLLECTION_TBD)
+            // : null,
             null
         );
         releasables.addAll(List.of(engineSearcher, searcher));

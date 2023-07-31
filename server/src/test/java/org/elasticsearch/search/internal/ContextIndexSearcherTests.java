@@ -31,6 +31,8 @@ import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -50,7 +52,6 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ExceptionsHelper;
@@ -458,55 +459,102 @@ public class ContextIndexSearcherTests extends ESTestCase {
         dir.close();
     }
 
-    public void testTimeExceedCallsReduce() throws IOException {
-        Directory dir = newDirectory();
-        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
-        int docs = randomIntBetween(1, 1000);
-        for (int i = 0; i < docs; i++) {
-            Document doc = new Document();
-            StringField fooField = new StringField("foo", randomBoolean() ? "bar" : "foo", Field.Store.NO);
-            doc.add(fooField);
-            w.addDocument(doc);
+    public void testReduceIsCalledOnTimeout() throws IOException {
+        try (Directory dir = newDirectory();) {
+            try (RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+                int docs = randomIntBetween(1, 1000);
+                for (int i = 0; i < docs; i++) {
+                    Document doc = new Document();
+                    StringField fooField = new StringField("foo", randomBoolean() ? "bar" : "foo", Field.Store.NO);
+                    doc.add(fooField);
+                    w.addDocument(doc);
+                }
+            }
+
+            ThreadPoolExecutor executor = null;
+            try (DirectoryReader directoryReader = DirectoryReader.open(dir)) {
+                if (randomBoolean()) {
+                    executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
+                }
+                ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    1,
+                    true,
+                    executor
+                );
+                contextIndexSearcher.addQueryCancellation(contextIndexSearcher::throwTimeExceededException);
+                boolean[] called = new boolean[1];
+                CollectorManager<Collector, Void> manager = new CollectorManager<>() {
+                    @Override
+                    public Collector newCollector() {
+                        return BucketCollector.NO_OP_COLLECTOR;
+                    }
+
+                    @Override
+                    public Void reduce(Collection<Collector> collectors) {
+                        called[0] = true;
+                        return null;
+                    }
+                };
+                contextIndexSearcher.search(new Query() {
+                    @Override
+                    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+                        if (randomBoolean()) {
+                            contextIndexSearcher.addQueryCancellation(contextIndexSearcher::throwTimeExceededException);
+                        }
+                        return super.rewrite(indexSearcher);
+                    }
+
+                    @Override
+                    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+                        if (randomBoolean()) {
+                            contextIndexSearcher.addQueryCancellation(contextIndexSearcher::throwTimeExceededException);
+                        }
+                        return new ConstantScoreWeight(this, boost) {
+                            @Override
+                            public Scorer scorer(LeafReaderContext context) {
+                                contextIndexSearcher.addQueryCancellation(contextIndexSearcher::throwTimeExceededException);
+                                return new ConstantScoreScorer(this, score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+                            }
+
+                            @Override
+                            public boolean isCacheable(LeafReaderContext ctx) {
+                                return false;
+                            }
+                        };
+                    }
+
+                    @Override
+                    public String toString(String field) {
+                        return "query";
+                    }
+
+                    @Override
+                    public void visit(QueryVisitor visitor) {
+                        visitor.visitLeaf(this);
+                    }
+
+                    @Override
+                    public boolean equals(Object o) {
+                        return sameClassAs(o);
+                    }
+
+                    @Override
+                    public int hashCode() {
+                        return classHash();
+                    }
+                }, manager);
+                assertTrue(contextIndexSearcher.timeExceeded());
+                assertThat(called[0], equalTo(true));
+            } finally {
+                if (executor != null) {
+                    terminate(executor);
+                }
+            }
         }
-
-        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
-        DirectoryReader directoryReader = w.getReader();
-        ContextIndexSearcher searcher = new ContextIndexSearcher(
-            directoryReader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            1,
-            true,
-            executor
-        );
-        boolean[] thrown = new boolean[1];
-        searcher.addQueryCancellation(() -> {
-            if (randomIntBetween(0, 10) == 0) {
-                thrown[0] = true;
-                searcher.throwTimeExceededException();
-            }
-        });
-        boolean[] called = new boolean[1];
-        CollectorManager<Collector, Void> manager = new CollectorManager<>() {
-            @Override
-            public Collector newCollector() {
-                return BucketCollector.NO_OP_COLLECTOR;
-            }
-
-            @Override
-            public Void reduce(Collection<Collector> collectors) {
-                called[0] = true;
-                return null;
-            }
-        };
-        searcher.search(new TermQuery(new Term("foo", new BytesRef("bar"))), manager);
-        assertThat(searcher.timeExceeded(), equalTo(thrown[0]));
-        assertThat(called[0], equalTo(true));
-        executor.shutdown();
-        w.close();
-        directoryReader.close();
-        dir.close();
     }
 
     private SparseFixedBitSet query(LeafReaderContext leaf, String field, String value) throws IOException {

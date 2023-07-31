@@ -301,3 +301,18 @@ teardown:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc1" }
+
+---
+"Search application search fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      catch: unauthorized
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVucHJpdmlsZWdlZDplbnRzZWFyY2gtdW5wcml2aWxlZ2VkLXVzZXI=" }  # unprivileged
+      search_application.search:
+        name: test-search-application
+        body:
+          params:
+            field_value: puggles
+

@@ -21,7 +21,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
@@ -584,7 +584,7 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRoutingPathBwc() throws IOException {
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
         IndexRouting routing = indexRoutingForPath(version, 8, "dim.*,other.*,top");
         /*
          * These when we first added routing_path. If these values change
@@ -627,10 +627,10 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     private IndexRouting indexRoutingForPath(int shards, String path) {
-        return indexRoutingForPath(Version.CURRENT, shards, path);
+        return indexRoutingForPath(IndexVersion.current(), shards, path);
     }
 
-    private IndexRouting indexRoutingForPath(Version createdVersion, int shards, String path) {
+    private IndexRouting indexRoutingForPath(IndexVersion createdVersion, int shards, String path) {
         return IndexRouting.fromIndexMetadata(
             IndexMetadata.builder("test")
                 .settings(settings(createdVersion).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), path))

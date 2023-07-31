@@ -116,12 +116,6 @@ teardown:
   - match: { result: "created" }
 
   - do:
-      indices.exists_alias:
-        name: test-search-application
-
-  - is_true: ''
-
-  - do:
       indices.get_alias:
         index: test-search-application
 
@@ -165,12 +159,6 @@ teardown:
               properties:
                 another_query_string:
                   type: "string"
-  - do:
-      indices.exists_alias:
-        name: another-test-search-application
-
-  - is_true: ''
-
   - do:
       indices.get_alias:
         index: another-test-search-application

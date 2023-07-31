@@ -544,9 +544,9 @@ public class LocalExecutionPlanner {
      * Immutable physical operation.
      */
     public static class PhysicalOperation implements Describable {
-        private final SourceOperatorFactory sourceOperatorFactory;
-        private final List<OperatorFactory> intermediateOperatorFactories;
-        private final SinkOperatorFactory sinkOperatorFactory;
+        final SourceOperatorFactory sourceOperatorFactory;
+        final List<OperatorFactory> intermediateOperatorFactories;
+        final SinkOperatorFactory sinkOperatorFactory;
 
         final Layout layout; // maps field names to channels
 
@@ -662,7 +662,7 @@ public class LocalExecutionPlanner {
             if (configuredPageSize != 0) {
                 return configuredPageSize;
             }
-            return Math.min(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize);
+            return Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize);
         }
     }
 

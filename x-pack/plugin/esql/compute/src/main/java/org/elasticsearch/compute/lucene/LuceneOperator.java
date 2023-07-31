@@ -153,6 +153,14 @@ public abstract class LuceneOperator extends SourceOperator {
                 StreamSupport.stream(Spliterators.spliteratorUnknownSize(sourceOperatorIterator(), Spliterator.ORDERED), false).count()
             );
         }
+
+        public int maxPageSize() {
+            return maxPageSize;
+        }
+
+        public int limit() {
+            return limit;
+        }
     }
 
     /**

@@ -13,7 +13,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -41,6 +40,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -1557,7 +1557,7 @@ public class MetadataIndexTemplateService {
 
         // Create the final aggregate settings, which will be used to create the temporary index metadata to validate everything
         Settings finalResolvedSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(resolvedSettings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
@@ -1630,7 +1630,7 @@ public class MetadataIndexTemplateService {
 
             // create index service for parsing and validating "mappings"
             Settings dummySettings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(settings)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)

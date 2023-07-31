@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -255,7 +256,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         indices.add(TransformInternalIndexConstants.LATEST_INDEX_NAME);
         for (String indexName : indices) {
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
-            indexMetadata.settings(indexSettings(Version.CURRENT, 1, 0));
+            indexMetadata.settings(indexSettings(IndexVersion.current(), 1, 0));
             metadata.put(indexMetadata);
             Index index = new Index(indexName, "_uuid");
             ShardId shardId = new ShardId(index, 0);

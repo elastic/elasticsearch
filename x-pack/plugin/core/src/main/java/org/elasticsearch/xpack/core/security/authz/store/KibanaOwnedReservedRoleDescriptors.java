@@ -215,6 +215,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         ".logs-endpoint.action.responses-*",
                         ".logs-endpoint.diagnostic.collection-*",
                         ".logs-endpoint.actions-*",
+                        ".logs-endpoint.heartbeat-*",
                         ".logs-osquery_manager.actions-*",
                         ".logs-osquery_manager.action.responses-*",
                         "profiling-*"
@@ -335,7 +336,9 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 // SLO observability solution internal indices
                 // Kibana system user uses them to read / write slo data.
-                RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").privileges("all").build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").privileges("all").build(),
+                // Endpoint heartbeat. Kibana reads from these to determine metering/billing for endpoints.
+                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.heartbeat-*").privileges("read").build() },
             null,
             new ConfigurableClusterPrivilege[] {
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("kibana-*")),

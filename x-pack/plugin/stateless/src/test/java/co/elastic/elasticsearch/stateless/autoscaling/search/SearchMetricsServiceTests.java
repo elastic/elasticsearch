@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -36,6 +37,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -77,7 +79,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         var indexMetadata = createIndex(1, 1);
         var state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(1))
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .metadata(Metadata.builder().put(indexMetadata, false))
             .build();
 
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
@@ -102,7 +104,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         var indexMetadata = createIndex(1, 1);
         var state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(2))
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .metadata(Metadata.builder().put(indexMetadata, false))
             .build();
 
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
@@ -131,7 +133,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         var indexMetadata = createIndex(1, 2);
         var state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(2))
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .metadata(Metadata.builder().put(indexMetadata, false))
             .build();
 
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
@@ -159,7 +161,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         var indexMetadata2 = createIndex(1, 1);
         var state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(2))
-            .metadata(Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false).build())
+            .metadata(Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false))
             .build();
 
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
@@ -187,7 +189,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         var indexMetadata = createIndex(1, 1);
         var state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(2))
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .metadata(Metadata.builder().put(indexMetadata, false))
             .build();
 
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
@@ -215,7 +217,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         var indexMetadata = createIndex(1, 1);
         var state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(1))
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .metadata(Metadata.builder().put(indexMetadata, false))
             .build();
 
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
@@ -267,6 +269,26 @@ public class SearchMetricsServiceTests extends ESTestCase {
         );
     }
 
+    public void testMetricsAreNotExactWhenThereIsMetadataReadBlock() {
+
+        var state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(createNodes(1))
+            .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
+            .build();
+        service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
+
+        assertThat(
+            service.getSearchTierMetrics(),
+            equalTo(
+                new SearchTierMetrics(
+                    FIXED_MEMORY_METRICS,
+                    new MaxShardCopies(0, MetricQuality.MINIMUM),
+                    new StorageMetrics(0, 0, 0, MetricQuality.MINIMUM)
+                )
+            )
+        );
+    }
+
     public void testMetricsAreNotExactRightAfterMasterElection() {
         // no cluster state updates yet
 
@@ -287,7 +309,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         var state1 = ClusterState.builder(ClusterState.EMPTY_STATE).nodes(createNodes(1)).build();
         service.clusterChanged(new ClusterChangedEvent("test", state1, ClusterState.EMPTY_STATE));
         var indexMetadata = createIndex(1, 1);
-        var state2 = ClusterState.builder(state1).metadata(Metadata.builder().put(indexMetadata, false).build()).build();
+        var state2 = ClusterState.builder(state1).metadata(Metadata.builder().put(indexMetadata, false)).build();
         service.clusterChanged(new ClusterChangedEvent("test", state2, state1));
         // index-1 is just created no size metrics received yet
 
@@ -309,7 +331,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         var indexMetadata2 = createIndex(1, 1);
         var state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(1))
-            .metadata(Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false).build())
+            .metadata(Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false))
             .build();
 
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
@@ -337,7 +359,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
             .build();
         var state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(1))
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .metadata(Metadata.builder().put(indexMetadata, false))
             .build();
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
         service.processShardSizesRequest(
@@ -362,7 +384,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         var indexMetadata = createIndex(1, 1);
         var state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(1))
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .metadata(Metadata.builder().put(indexMetadata, false))
             .build();
 
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
@@ -384,7 +406,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         indexMetadata = IndexMetadata.builder(indexMetadata)
             .settings(indexSettings(1, 2).put("index.version.created", Version.CURRENT))
             .build();
-        var newState = ClusterState.builder(state).metadata(Metadata.builder().put(indexMetadata, false).build()).build();
+        var newState = ClusterState.builder(state).metadata(Metadata.builder().put(indexMetadata, false)).build();
         service.clusterChanged(new ClusterChangedEvent("test", newState, state));
 
         assertThat(
@@ -407,7 +429,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
 
         var state1 = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(2))
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .metadata(Metadata.builder().put(indexMetadata, false))
             .routingTable(
                 RoutingTable.builder()
                     .add(
@@ -462,14 +484,16 @@ public class SearchMetricsServiceTests extends ESTestCase {
         var indexMetadata = createIndex(1, 1);
         var state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(1))
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .metadata(Metadata.builder().put(indexMetadata, false))
             .build();
 
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
         service.processShardSizesRequest(
             new PublishShardSizesRequest("search_node_1", 1L, Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024)))
         );
-        var newState = ClusterState.builder(state).metadata(Metadata.builder().build()).build();
+        var newState = ClusterState.builder(state)
+            .metadata(Metadata.builder(state.metadata()).remove(indexMetadata.getIndex().getName()))
+            .build();
         service.clusterChanged(new ClusterChangedEvent("test", newState, state));
 
         assertThat(
@@ -489,11 +513,11 @@ public class SearchMetricsServiceTests extends ESTestCase {
         var indexMetadata = createIndex(1, 2);
         var state1 = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(2))
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .metadata(Metadata.builder().put(indexMetadata, false))
             .build();
         var state2 = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(1))
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .metadata(Metadata.builder().put(indexMetadata, false))
             .build();
 
         sendInRandomOrder(
@@ -515,11 +539,11 @@ public class SearchMetricsServiceTests extends ESTestCase {
         var indexMetadata2 = createIndex(1, 2);
         var state1 = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(1))
-            .metadata(Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false).build())
+            .metadata(Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false))
             .build();
         var state2 = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(1))
-            .metadata(Metadata.builder().put(indexMetadata1, false).build())
+            .metadata(Metadata.builder().put(indexMetadata1, false))
             .build();
 
         sendInRandomOrder(

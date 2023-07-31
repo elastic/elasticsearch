@@ -2037,8 +2037,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             mockPlugins,
             getClientWrapper(),
             forbidPrivateIndexSettings(),
-            forceSingleDataPath(),
-            autoManageVotingExclusions()
+            forceSingleDataPath()
         );
     }
 
@@ -2441,11 +2440,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @see SuiteScopeTestCase
      */
     protected void setupSuiteScopeCluster() throws Exception {}
-
-    protected boolean autoManageVotingExclusions() {
-        // Temporary workaround until #98055 is tackled
-        return true;
-    }
 
     private static boolean isSuiteScopedTest(Class<?> clazz) {
         return clazz.getAnnotation(SuiteScopeTestCase.class) != null;

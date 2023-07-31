@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
-import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -58,7 +57,6 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
     );
 
     private volatile int maxVotingConfigExclusions;
-    private final Reconfigurator reconfigurator;
 
     @Inject
     public TransportAddVotingConfigExclusionsAction(
@@ -68,8 +66,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Reconfigurator reconfigurator
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             AddVotingConfigExclusionsAction.NAME,
@@ -86,7 +83,6 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
 
         maxVotingConfigExclusions = MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING, this::setMaxVotingConfigExclusions);
-        this.reconfigurator = reconfigurator;
     }
 
     private void setMaxVotingConfigExclusions(int maxVotingConfigExclusions) {
@@ -100,7 +96,6 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
         ClusterState state,
         ActionListener<ActionResponse.Empty> listener
     ) throws Exception {
-        reconfigurator.ensureVotingConfigCanBeModified();
 
         resolveVotingConfigExclusionsAndCheckMaximum(request, state, maxVotingConfigExclusions);
         // throws IAE if no nodes matched or maximum exceeded

@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
-import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -23,7 +22,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -40,7 +38,6 @@ import org.junit.BeforeClass;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptySet;
@@ -60,7 +57,6 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
     private static VotingConfigExclusion otherNode1Exclusion, otherNode2Exclusion;
 
     private TransportService transportService;
-    private FakeReconfigurator reconfigurator;
 
     @BeforeClass
     public static void createThreadPoolAndClusterService() {
@@ -90,15 +86,13 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
             null,
             emptySet()
         );
-        reconfigurator = new FakeReconfigurator();
 
         new TransportClearVotingConfigExclusionsAction(
             transportService,
             clusterService,
             threadPool,
             new ActionFilters(emptySet()),
-            TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-            reconfigurator
+            TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext())
         ); // registers action
 
         transportService.start();
@@ -191,28 +185,6 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
     }
 
-    public void testCannotClearVotingConfigurationWhenItIsDisabled() {
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<TransportException> exceptionHolder = new SetOnce<>();
-
-        reconfigurator.disableUserVotingConfigModifications();
-
-        transportService.sendRequest(
-            localNode,
-            ClearVotingConfigExclusionsAction.NAME,
-            new ClearVotingConfigExclusionsRequest(),
-            expectError(e -> {
-                exceptionHolder.set(e);
-                countDownLatch.countDown();
-            })
-        );
-
-        safeAwait(countDownLatch);
-        final Throwable rootCause = exceptionHolder.get().getRootCause();
-        assertThat(rootCause, instanceOf(IllegalStateException.class));
-        assertThat(rootCause.getMessage(), startsWith("Unable to modify the voting configuration"));
-    }
-
     private TransportResponseHandler<ActionResponse.Empty> expectSuccess(Consumer<ActionResponse.Empty> onResponse) {
         return responseHandler(onResponse, e -> { throw new AssertionError("unexpected", e); });
     }
@@ -241,24 +213,5 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
                 return ActionResponse.Empty.INSTANCE;
             }
         };
-    }
-
-    static class FakeReconfigurator extends Reconfigurator {
-        private final AtomicBoolean canModifyVotingConfiguration = new AtomicBoolean(true);
-
-        FakeReconfigurator() {
-            super(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        }
-
-        @Override
-        public void ensureVotingConfigCanBeModified() {
-            if (canModifyVotingConfiguration.get() == false) {
-                throw new IllegalStateException("Unable to modify the voting configuration");
-            }
-        }
-
-        void disableUserVotingConfigModifications() {
-            canModifyVotingConfiguration.set(false);
-        }
     }
 }

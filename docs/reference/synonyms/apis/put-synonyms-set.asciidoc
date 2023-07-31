@@ -1,5 +1,5 @@
 [[put-synonyms-set]]
-=== Put synonyms set
+=== Create or update synonyms set
 
 beta::[]
 

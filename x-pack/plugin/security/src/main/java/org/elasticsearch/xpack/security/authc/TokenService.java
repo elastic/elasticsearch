@@ -1616,6 +1616,7 @@ public final class TokenService {
     /**
      * Search for refresh and access tokens that have not been invalidated or expired, and, optionally, that were issued against
      * the specified realm and pass the predicate test on the token doc source (also optional).
+     * Note that searches on the tokens index is discouraged, so please avoid using this method, if possible.
      *
      * @param realmName The name of the realm for which to get the tokens
      * @param filter    an optional Predicate to test the source of the found documents against

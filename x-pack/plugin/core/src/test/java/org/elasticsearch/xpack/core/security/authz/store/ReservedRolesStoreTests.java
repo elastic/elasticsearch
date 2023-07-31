@@ -753,7 +753,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".fleet-enrollment-api-keys",
             ".fleet-policies",
             ".fleet-actions-results",
-            ".fleet-servers"
+            ".fleet-servers",
+            ".fleet-fileds",
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
 
         final IndexAbstraction dotFleetSecretsIndex = mockIndexAbstraction(".fleet-secrets");

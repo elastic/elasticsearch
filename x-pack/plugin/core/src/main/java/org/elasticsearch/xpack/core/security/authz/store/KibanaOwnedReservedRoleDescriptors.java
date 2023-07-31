@@ -173,6 +173,11 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-fileds*")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),
                 // Fleet telemetry queries Agent Logs indices in kibana task runner
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-elastic_agent*").privileges("read").build(),
                 // Legacy "Alerts as data" used in Security Solution.

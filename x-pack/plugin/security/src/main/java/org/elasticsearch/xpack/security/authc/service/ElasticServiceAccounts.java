@@ -127,6 +127,11 @@ final class ElasticServiceAccounts {
                     .allowRestrictedIndices(true)
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-fileds*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
                     .indices("synthetics-*")
                     // Fleet Server needs "read" privilege to be able to retrieve multi-agent docs
                     .privileges("read", "write", "create_index", "auto_configure")

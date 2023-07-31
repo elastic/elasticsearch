@@ -45,10 +45,12 @@ You can manage synonym rules for a specific synonyms set instead of updating the
 Use the following APIs to manage individual synonym rules in a synonyms set:
 
 * <<put-synonym-rule>>
+* <<get-synonym-rule>>
 
 include::put-synonyms-set.asciidoc[]
 include::get-synonyms-set.asciidoc[]
 include::list-synonyms-sets.asciidoc[]
 include::delete-synonyms-set.asciidoc[]
 include::put-synonym-rule.asciidoc[]
+include::get-synonym-rule.asciidoc[]
 

@@ -262,27 +262,6 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
         return version1.id > version2.id ? version1 : version2;
     }
 
-    public boolean after(MlConfigVersion version) {
-        return version.id < id;
-    }
-
-    public boolean onOrAfter(MlConfigVersion version) {
-        return version.id <= id;
-    }
-
-    public boolean before(MlConfigVersion version) {
-        return version.id > id;
-    }
-
-    public boolean onOrBefore(MlConfigVersion version) {
-        return version.id >= id;
-    }
-
-    public boolean between(MlConfigVersion lowerInclusive, MlConfigVersion upperExclusive) {
-        if (upperExclusive.onOrBefore(lowerInclusive)) throw new IllegalArgumentException();
-        return onOrAfter(lowerInclusive) && before(upperExclusive);
-    }
-
     public static MlConfigVersion fromVersion(Version version) {
         return fromId(version.id);
     }

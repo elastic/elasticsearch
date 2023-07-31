@@ -278,7 +278,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         APIBlock(String name, ClusterBlock block) {
             this.name = name;
             this.settingName = "index.blocks." + name;
-            this.setting = Setting.boolSetting(settingName, false, Property.Dynamic, Property.IndexScope);
+            this.setting = Setting.boolSetting(settingName, false, Property.Dynamic, Property.IndexScope, Property.ServerlessPublic);
             this.block = block;
         }
 

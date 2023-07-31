@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -13,7 +14,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
@@ -135,7 +135,7 @@ public final class AnomalyDetectorsIndex {
     public static String resultsMapping() {
         return TemplateUtils.loadTemplate(
             RESOURCE_PATH + "results_index_mappings.json",
-            MlConfigVersion.CURRENT.toString(),
+            Version.CURRENT.toString(),
             RESULTS_MAPPINGS_VERSION_VARIABLE
         );
     }

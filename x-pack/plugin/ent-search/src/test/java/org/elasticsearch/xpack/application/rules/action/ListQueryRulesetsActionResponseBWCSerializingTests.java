@@ -7,13 +7,15 @@
 
 package org.elasticsearch.xpack.application.rules.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.application.rules.QueryRuleset;
 import org.elasticsearch.xpack.application.rules.QueryRulesetListItem;
 import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
-public class ListQueryRulesetsActionResponseSerializingTests extends AbstractWireSerializingTestCase<ListQueryRulesetsAction.Response> {
+public class ListQueryRulesetsActionResponseBWCSerializingTests extends AbstractBWCWireSerializationTestCase<
+    ListQueryRulesetsAction.Response> {
 
     @Override
     protected Writeable.Reader<ListQueryRulesetsAction.Response> instanceReader() {
@@ -35,5 +37,13 @@ public class ListQueryRulesetsActionResponseSerializingTests extends AbstractWir
     @Override
     protected ListQueryRulesetsAction.Response createTestInstance() {
         return randomQueryRulesetListItem();
+    }
+
+    @Override
+    protected ListQueryRulesetsAction.Response mutateInstanceForVersion(
+        ListQueryRulesetsAction.Response instance,
+        TransportVersion version
+    ) {
+        return instance;
     }
 }

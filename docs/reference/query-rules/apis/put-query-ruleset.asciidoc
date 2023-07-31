@@ -134,8 +134,7 @@ PUT _query_rules/my-ruleset
                     "type": "exact",
                     "metadata": "user.country",
                     "values": [ "us" ]
-                },
-
+                }
             ],
             "actions": {
                 "ids": [

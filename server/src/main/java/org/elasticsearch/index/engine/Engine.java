@@ -146,7 +146,7 @@ public abstract class Engine implements Closeable {
         return engineConfig;
     }
 
-    protected abstract SegmentInfos getLastCommittedSegmentInfos();
+    public abstract SegmentInfos getLastCommittedSegmentInfos();
 
     public MergeStats getMergeStats() {
         return new MergeStats();

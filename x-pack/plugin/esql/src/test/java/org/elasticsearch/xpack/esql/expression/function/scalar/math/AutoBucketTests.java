@@ -32,17 +32,23 @@ public class AutoBucketTests extends AbstractScalarFunctionTestCase {
     }
 
     private Expression build(Source source, Expression arg) {
-        return new AutoBucket(
-            source,
-            arg,
-            new Literal(Source.EMPTY, 50, DataTypes.INTEGER),
-            new Literal(Source.EMPTY, new BytesRef("2023-02-01T00:00:00.00Z"), DataTypes.KEYWORD),
-            new Literal(Source.EMPTY, new BytesRef("2023-03-01T00:00:00.00Z"), DataTypes.KEYWORD)
-        );
+        Literal from;
+        Literal to;
+        if (arg.dataType() == DataTypes.DATETIME) {
+            from = new Literal(Source.EMPTY, new BytesRef("2023-02-01T00:00:00.00Z"), DataTypes.KEYWORD);
+            to = new Literal(Source.EMPTY, new BytesRef("2023-03-01T00:00:00.00Z"), DataTypes.KEYWORD);
+        } else {
+            from = new Literal(Source.EMPTY, 0, DataTypes.DOUBLE);
+            to = new Literal(Source.EMPTY, 1000, DataTypes.DOUBLE);
+        }
+        return new AutoBucket(source, arg, new Literal(Source.EMPTY, 50, DataTypes.INTEGER), from, to);
     }
 
     @Override
     protected DataType expectedType(List<DataType> argTypes) {
+        if (argTypes.get(0).isNumeric()) {
+            return DataTypes.DOUBLE;
+        }
         return argTypes.get(0);
     }
 
@@ -63,7 +69,11 @@ public class AutoBucketTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected List<ArgumentSpec> argSpec() {
-        return List.of(required(DataTypes.DATETIME));
+        DataType[] numerics = numerics();
+        DataType[] all = new DataType[numerics.length + 1];
+        all[0] = DataTypes.DATETIME;
+        System.arraycopy(numerics, 0, all, 1, numerics.length);
+        return List.of(required(all));
     }
 
     @Override
@@ -73,6 +83,6 @@ public class AutoBucketTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Matcher<String> badTypeError(List<ArgumentSpec> spec, int badArgPosition, DataType badArgType) {
-        return equalTo("first argument of [exp] must be [datetime], found value [arg0] type [" + badArgType.typeName() + "]");
+        return equalTo("first argument of [exp] must be [datetime or numeric], found value [arg0] type [" + badArgType.typeName() + "]");
     }
 }

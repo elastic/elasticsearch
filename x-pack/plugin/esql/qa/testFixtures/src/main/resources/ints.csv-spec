@@ -354,3 +354,29 @@ row a = [1, 2, 2, 3] | eval da = mv_dedupe(a);
    a:integer | da:integer
 [1, 2, 2, 3] | [1, 2, 3]
 ;
+
+autoBucket
+// tag::auto_bucket[]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| EVAL bs = auto_bucket(salary, 20, 25324, 74999)
+| SORT hire_date
+| KEEP hire_date, salary, bs
+// end::auto_bucket[]
+;
+
+// tag::auto_bucket-result[]
+hire_date:date           | salary:integer | bs:double
+1985-02-18T00:00:00.000Z | 66174          | 65000.0
+1985-02-24T00:00:00.000Z | 26436          | 25000.0
+1985-05-13T00:00:00.000Z | 44817          | 40000.0
+1985-07-09T00:00:00.000Z | 62405          | 60000.0
+1985-09-17T00:00:00.000Z | 49095          | 45000.0
+1985-10-14T00:00:00.000Z | 54329          | 50000.0
+1985-10-20T00:00:00.000Z | 48735          | 45000.0
+1985-11-19T00:00:00.000Z | 52833          | 50000.0
+1985-11-20T00:00:00.000Z | 74999          | 70000.0
+1985-11-20T00:00:00.000Z | 33956          | 30000.0
+1985-11-21T00:00:00.000Z | 56371          | 55000.0
+// end::auto_bucket-result[]
+;

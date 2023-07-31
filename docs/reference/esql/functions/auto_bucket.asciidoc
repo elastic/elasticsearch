@@ -52,3 +52,20 @@ include::{esql-specs}/date.csv-spec[tag=auto_bucket_in_agg-result]
 
 NOTE: `AUTO_BUCKET` does not create buckets that don't match any documents. That's
 why the example above is missing `1985-02-01` and other dates.
+
+==== Numeric fields
+
+`auto_bucket` can also operate on numeric fields like this:
+[source.merge.styled,esql]
+----
+include::{esql-specs}/ints.csv-spec[tag=auto_bucket]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/ints.csv-spec[tag=auto_bucket-result]
+|===
+
+Unlike the example above where you are intentionally filtering on a date range,
+you rarely want to filter on a numeric range. So you have find the `min` and `max`
+separately. We don't yet have an easy way to do that automatically. Improvements
+coming!

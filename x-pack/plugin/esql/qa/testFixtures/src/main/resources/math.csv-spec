@@ -733,3 +733,17 @@ TAU():double
 6.283185307179586
 // end::tau-result[]
 ;
+
+floor
+// tag::floor[]
+ROW a=1.8 | EVAL a=FLOOR(a)
+// end::floor[]
+;
+
+// tag::floor-result[]
+a:double
+1
+// end::floor-result[]
+;
+
+

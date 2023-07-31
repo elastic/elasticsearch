@@ -18,6 +18,7 @@ these functions:
 * <<esql-date_parse>>
 * <<esql-date_trunc>>
 * <<esql-e>>
+* <<esql-floor>>
 * <<esql-is_finite>>
 * <<esql-is_infinite>>
 * <<esql-is_nan>>
@@ -61,6 +62,7 @@ include::functions/date_format.asciidoc[]
 include::functions/date_parse.asciidoc[]
 include::functions/date_trunc.asciidoc[]
 include::functions/e.asciidoc[]
+include::functions/floor.asciidoc[]
 include::functions/is_finite.asciidoc[]
 include::functions/is_infinite.asciidoc[]
 include::functions/is_nan.asciidoc[]

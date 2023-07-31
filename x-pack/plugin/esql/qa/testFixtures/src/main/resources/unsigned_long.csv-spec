@@ -124,3 +124,17 @@ from ul_logs | where case(bytes_in == to_ul(154551962150890564), true, false);
        @timestamp:date  |    bytes_in:ul   |     bytes_out:ul  |      id:i     |    status:k
 2017-11-10T20:21:58.000Z|154551962150890564|9382204513185396493|63             |OK
 ;
+
+autoBucket
+FROM ul_logs
+| WHERE @timestamp >= "2017-11-10T20:30:00Z" AND @timestamp < "2017-11-10T20:35:00Z"
+| EVAL bh = auto_bucket(bytes_in, 20, 5480608687137202404, 17764691215469285192)
+| SORT @timestamp
+| KEEP @timestamp, bytes_in, bh
+;
+
+@timestamp:date          | bytes_in:ul          | bh:double
+2017-11-10T20:32:57.000Z |  8420006392678593250 | 8.0E18
+2017-11-10T20:33:06.000Z |  5480608687137202404 | 5.0E18
+2017-11-10T20:34:43.000Z | 17764691215469285192 | 1.75E19
+;

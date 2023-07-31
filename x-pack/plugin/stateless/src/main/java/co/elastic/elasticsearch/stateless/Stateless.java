@@ -52,6 +52,9 @@ import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsReader;
+import co.elastic.elasticsearch.stateless.metering.GetBlobStoreStatsRestHandler;
+import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsAction;
+import co.elastic.elasticsearch.stateless.metering.action.TransportGetBlobStoreStatsAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import co.elastic.elasticsearch.stateless.upgrade.StatelessUpgrader;
 import co.elastic.elasticsearch.stateless.xpack.DummySearchableSnapshotsInfoTransportAction;
@@ -210,7 +213,8 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             new ActionHandler<>(PublishNodeIngestLoadAction.INSTANCE, TransportPublishNodeIngestLoadMetric.class),
             new ActionHandler<>(ClearBlobCacheAction.INSTANCE, TransportClearBlobCacheAction.class),
             new ActionHandler<>(PublishShardSizesAction.INSTANCE, TransportPublishShardSizes.class),
-            new ActionHandler<>(StatelessPrimaryRelocationAction.INSTANCE, TransportStatelessPrimaryRelocationAction.class)
+            new ActionHandler<>(StatelessPrimaryRelocationAction.INSTANCE, TransportStatelessPrimaryRelocationAction.class),
+            new ActionHandler<>(GetBlobStoreStatsAction.INSTANCE, TransportGetBlobStoreStatsAction.class)
         );
     }
 
@@ -224,7 +228,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new ClearBlobCacheRestHandler());
+        return List.of(new ClearBlobCacheRestHandler(), new GetBlobStoreStatsRestHandler());
     }
 
     @Override

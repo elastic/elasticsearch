@@ -20,6 +20,9 @@ package co.elastic.elasticsearch.stateless.objectstore;
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.repositories.RepositoryStats;
+
+import static org.hamcrest.Matchers.anEmptyMap;
 
 public class FsObjectStoreTests extends AbstractObjectStoreIntegTestCase {
 
@@ -29,4 +32,8 @@ public class FsObjectStoreTests extends AbstractObjectStoreIntegTestCase {
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), randomRepoPath());
     }
 
+    @Override
+    protected void assertRepositoryStats(RepositoryStats repositoryStats) {
+        assertThat(repositoryStats.requestCounts, anEmptyMap());
+    }
 }

@@ -1,0 +1,15 @@
+---
+"Test get blob store stats":
+  - do:
+      _internal.get_blob_store_stats: {}
+
+  - is_true: "cluster_name"
+  - match: { "_nodes.total" : 2 }
+  - match: { "_nodes.successful" : 2}
+  - match: { "_nodes.failed" : 0}
+  - is_true: "_all.object_store_stats"
+  - length: { "nodes": 2 }
+
+  - set:
+      nodes._arbitrary_key_: node_id
+  - is_true: "nodes.$node_id.object_store_stats"

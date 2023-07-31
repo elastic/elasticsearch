@@ -53,7 +53,7 @@ public class ClearBlobCacheNodesResponseTests extends AbstractWireSerializingTes
         );
     }
 
-    public List<FailedNodeException> createErrors(int numErrors) {
+    public static List<FailedNodeException> createErrors(int numErrors) {
 
         return IntStream.range(0, numErrors).mapToObj(num -> {
             var numString = Integer.toString(num);
@@ -62,7 +62,7 @@ public class ClearBlobCacheNodesResponseTests extends AbstractWireSerializingTes
         }).toList();
     }
 
-    public FailedNodeException createError(String nodeId) {
+    public static FailedNodeException createError(String nodeId) {
         return new FailedNodeException(nodeId, nodeId + " reason", new Throwable(nodeId + " caused by reason"));
     }
 

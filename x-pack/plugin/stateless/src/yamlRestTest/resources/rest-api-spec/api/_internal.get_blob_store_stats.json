@@ -1,0 +1,23 @@
+{
+  "_internal.get_blob_store_stats":{
+    "documentation":{
+      "url":"",
+      "description": "This API retrieves metering stats of the object store"
+    },
+    "stability":"experimental",
+    "visibility":"private",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_internal/blob_store/stats",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -26,6 +26,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.azure.AzureRepositoryPlugin;
 
 import java.nio.charset.StandardCharsets;
@@ -34,9 +35,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.greaterThan;
+
 @LuceneTestCase.AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-5680")
+// TODO: When the above AwaitsFix is removed, we will want to ensure the assertRepositoryStats method actually asserts correctly.
+// It was added while this test class is muted so that the assertions are never exercised. Specifically, the assertions state
+// that every type of object store requests is performed at least once. This may or may not be true for request types like
+// PutBlock and PutBlockList.
 public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     private static final String DEFAULT_ACCOUNT_NAME = "account";
@@ -75,4 +83,10 @@ public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase 
         return settings;
     }
 
+    @Override
+    protected void assertRepositoryStats(RepositoryStats repositoryStats) {
+        final Set<String> expectedRequestNames = Set.of("GetBlob", "ListBlobs", "GetBlobProperties", "PutBlob", "PutBlock", "PutBlockList");
+        assertEquals(expectedRequestNames, repositoryStats.requestCounts.keySet());
+        repositoryStats.requestCounts.values().forEach(count -> assertThat(count, greaterThan(0L)));
+    }
 }

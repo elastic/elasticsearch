@@ -28,10 +28,14 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
@@ -62,4 +66,10 @@ public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase
         return settings;
     }
 
+    @Override
+    protected void assertRepositoryStats(RepositoryStats repositoryStats) {
+        final Set<String> expectedRequestNames = Set.of("GetObject", "ListObjects", "InsertObject");
+        assertEquals(expectedRequestNames, repositoryStats.requestCounts.keySet());
+        repositoryStats.requestCounts.values().forEach(count -> assertThat(count, greaterThan(0L)));
+    }
 }

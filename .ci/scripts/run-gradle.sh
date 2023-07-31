@@ -1,12 +1,5 @@
 #!/bin/bash
 
-if [[ -z "${WORKSPACE:-}" && "$BUILDKITE" ]]; then
-  source .buildkite/hooks/pre-command
-fi
-
-GRADLE_USER_HOME="$HOME/.gradle"
-export GRADLE_USER_HOME
-
 rm -Rfv ~/.gradle/init.d
 mkdir -p ~/.gradle/init.d && cp -v $WORKSPACE/.ci/init.gradle ~/.gradle/init.d
 

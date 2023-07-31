@@ -12,7 +12,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: elastic
+                  values: [elastic]
               actions:
                 ids:
                   - 'id1'
@@ -22,7 +22,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: kibana
+                  values: [kibana]
               actions:
                 ids:
                   - 'id3'
@@ -38,7 +38,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: elastic
+                  values: [elastic]
               actions:
                 ids:
                   - 'id1'
@@ -48,7 +48,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: kibana
+                  values: [kibana]
               actions:
                 ids:
                   - 'id3'
@@ -58,7 +58,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: logstash
+                  values: [logstash]
               actions:
                 ids:
                   - 'id5'
@@ -74,7 +74,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: elastic
+                  values: [elastic]
               actions:
                 ids:
                   - 'id1'
@@ -84,7 +84,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: kibana
+                  values: [kibana]
               actions:
                 ids:
                   - 'id3'
@@ -94,7 +94,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: logstash
+                  values: [logstash]
               actions:
                 ids:
                   - 'id5'
@@ -104,7 +104,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: beats
+                  values: [beats]
               actions:
                 ids:
                   - 'id7'

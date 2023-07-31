@@ -76,7 +76,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -194,12 +193,6 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final List<Path> found = new ArrayList<>();
         forEachFileRecursively(dir, ((path, basicFileAttributes) -> found.add(path)));
         assertEquals("Unexpected file count, found: [" + found + "].", expectedCount, found.size());
-    }
-
-    public static int numberOfFiles(Path dir) throws IOException {
-        final AtomicInteger count = new AtomicInteger();
-        forEachFileRecursively(dir, ((path, basicFileAttributes) -> count.incrementAndGet()));
-        return count.get();
     }
 
     protected void stopNode(final String node) throws IOException {

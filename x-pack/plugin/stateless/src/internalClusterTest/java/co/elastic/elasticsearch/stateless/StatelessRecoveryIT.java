@@ -35,6 +35,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -67,7 +68,10 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -80,6 +84,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -87,8 +92,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
 
+import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -101,6 +108,9 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 
+// TODO: ClusterScope with autoManageMasterNodes = false has been added to avoid calling voting config APIs when restarting the master (used
+//       e.g. in testOngoingIndexShardRelocationAndMasterFailOver). It can be removed after ES PR #97959 is resolved.
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
 public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
     @Override
@@ -110,11 +120,14 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
+        // TODO: remove heartbeat setting once ES-6481 is done. It is currently needed for testOngoingIndexShardRelocationAndMasterFailOver.
+        return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .put(HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(5));
     }
 
     @Before
     public void init() {
+        internalCluster().setBootstrapMasterNodeIndex(0);
         startMasterOnlyNode();
     }
 
@@ -1095,4 +1108,62 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             .get();
         assertThat((long) recoveryState.getTranslog().recoveredOperations(), lessThanOrEqualTo(maxSeqNoAfterFlush - maxSeqNoBeforeFlush));
     }
+
+    public void testOngoingIndexShardRelocationAndMasterFailOver() throws Exception {
+        String indexName = "test";
+        startMasterOnlyNode(); // second master eligible node
+        final String indexNodeA = startIndexNode();
+        ensureStableCluster(3);
+        createIndex(indexName, indexSettings(1, 0).build());
+        int numDocs = scaledRandomIntBetween(1, 10);
+        indexDocs(indexName, numDocs);
+        final String indexNodeB = startIndexNode();
+        ensureStableCluster(4);
+        final boolean blockSourceNode = randomBoolean(); // else block target node
+
+        final String nodeToBlock = blockSourceNode ? indexNodeA : indexNodeB;
+        MockTransportService transport = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeToBlock);
+        final SubscribableListener<Void> blockedListeners = new SubscribableListener<>();
+        CountDownLatch relocationStartReadyBlocked = new CountDownLatch(1);
+        transport.addSendBehavior((connection, requestId, action, request, options) -> {
+            final String actionToBlock = blockSourceNode ? PRIMARY_CONTEXT_HANDOFF_ACTION_NAME : START_RELOCATION_ACTION_NAME;
+            if (actionToBlock.equals(action)) {
+                logger.info("--> Blocking the action [{}]", action);
+                blockedListeners.addListener(
+                    ActionListener.wrap(ignored -> connection.sendRequest(requestId, action, request, options), e -> {
+                        if (e instanceof NodeNotConnectedException) {
+                            logger.info("Ignoring network connectivity exception", e);
+                        } else {
+                            logger.warn("Unexpected exception", e);
+                            fail();
+                        }
+                    })
+                );
+                relocationStartReadyBlocked.countDown();
+            } else {
+                connection.sendRequest(requestId, action, request, options);
+            }
+        });
+        try {
+            logger.info("--> move primary shard from: {} to: {}", indexNodeA, indexNodeB);
+            clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB)).execute().actionGet();
+
+            safeAwait(relocationStartReadyBlocked);
+            internalCluster().restartNode(
+                clusterService().state().nodes().getMasterNode().getName(),
+                new InternalTestCluster.RestartCallback()
+            );
+        } finally {
+            logger.info("--> Unblocking actions");
+            blockedListeners.onResponse(null);
+        }
+
+        // Assert number of documents
+        startSearchNode();
+        setReplicaCount(1, indexName);
+        assertFalse(clusterAdmin().prepareHealth(indexName).setWaitForActiveShards(2).get().isTimedOut());
+        ensureGreen(indexName);
+        assertHitCount(client().prepareSearch(indexName).get(), numDocs);
+    }
+
 }

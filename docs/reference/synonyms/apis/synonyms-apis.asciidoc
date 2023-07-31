@@ -17,8 +17,8 @@ This provides an alternative to:
 - Using synonyms files, which implies uploading and managing file consistency on all cluster nodes.
 
 Synonyms sets can be used to configure <<analysis-synonym-graph-tokenfilter,synonym graph token filters>> and <<analysis-synonym-tokenfilter,synonym token filters>>.
+These filters are applied as part of the <<search-analyzer,search analyzer>> analysis process.
 
-When synonyms sets are used in synonym token filters, filters are applied as part of the <<search-analyzer,search analyzer>> analysis process.
 You can dynamically change the synonyms used at search time using these APIs to update the synonyms sets.
 Your search results will immediately reflect the synonyms set changes.
 

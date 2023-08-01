@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Great
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
@@ -158,5 +160,28 @@ abstract class ComparisonMapper<T extends BinaryComparison> extends EvalMapper.E
             EvalMapper.toEvaluator(op.right(), layout)
         );
         return () -> buildEvaluator.apply(lhs.get(), rhs.get());
+    }
+
+    static Supplier<EvalOperator.ExpressionEvaluator> castToEvaluator(
+        BinaryOperator<?, ?, ?, ?> op,
+        Layout layout,
+        DataType required,
+        TriFunction<
+            Source,
+            EvalOperator.ExpressionEvaluator,
+            EvalOperator.ExpressionEvaluator,
+            EvalOperator.ExpressionEvaluator> buildEvaluator
+    ) {
+        Supplier<EvalOperator.ExpressionEvaluator> lhs = Cast.cast(
+            op.left().dataType(),
+            required,
+            EvalMapper.toEvaluator(op.left(), layout)
+        );
+        Supplier<EvalOperator.ExpressionEvaluator> rhs = Cast.cast(
+            op.right().dataType(),
+            required,
+            EvalMapper.toEvaluator(op.right(), layout)
+        );
+        return () -> buildEvaluator.apply(op.source(), lhs.get(), rhs.get());
     }
 }

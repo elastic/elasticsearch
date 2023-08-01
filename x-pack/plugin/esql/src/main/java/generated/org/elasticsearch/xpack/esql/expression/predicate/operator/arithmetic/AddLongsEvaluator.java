@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -11,18 +12,23 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Add}.
  * This class is generated. Do not edit it.
  */
 public final class AddLongsEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator lhs;
 
   private final EvalOperator.ExpressionEvaluator rhs;
 
-  public AddLongsEvaluator(EvalOperator.ExpressionEvaluator lhs,
+  public AddLongsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       EvalOperator.ExpressionEvaluator rhs) {
+    this.warnings = new Warnings(source);
     this.lhs = lhs;
     this.rhs = rhs;
   }
@@ -47,7 +53,7 @@ public final class AddLongsEvaluator implements EvalOperator.ExpressionEvaluator
     if (rhsVector == null) {
       return eval(page.getPositionCount(), lhsBlock, rhsBlock);
     }
-    return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
+    return eval(page.getPositionCount(), lhsVector, rhsVector);
   }
 
   public LongBlock eval(int positionCount, LongBlock lhsBlock, LongBlock rhsBlock) {
@@ -61,15 +67,25 @@ public final class AddLongsEvaluator implements EvalOperator.ExpressionEvaluator
         result.appendNull();
         continue position;
       }
-      result.appendLong(Add.processLongs(lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsBlock.getLong(rhsBlock.getFirstValueIndex(p))));
+      try {
+        result.appendLong(Add.processLongs(lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsBlock.getLong(rhsBlock.getFirstValueIndex(p))));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }
 
-  public LongVector eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
-    LongVector.Builder result = LongVector.newVectorBuilder(positionCount);
+  public LongBlock eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
+    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
-      result.appendLong(Add.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
+      try {
+        result.appendLong(Add.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }

@@ -22,6 +22,7 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -91,14 +92,18 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                     () -> type == DataTypes.NULL || (insertNulls && rarely()) ? singletonList(null) : List.of(dataForPosition(type))
                 );
                 Expression expression = build(Source.EMPTY, field("f", type));
-                Block result = evaluator(expression).get().eval(new Page(BlockUtils.fromList(data)));
-                for (int p = 0; p < data.size(); p++) {
-                    if (data.get(p).get(0) == null) {
-                        assertTrue(type.toString(), result.isNull(p));
-                    } else {
-                        assertFalse(type.toString(), result.isNull(p));
-                        assertThat(type.toString(), toJavaObject(result, p), resultMatcherForInput((List<?>) data.get(p).get(0), type));
+                try {
+                    Block result = evaluator(expression).get().eval(new Page(BlockUtils.fromList(data)));
+                    for (int p = 0; p < data.size(); p++) {
+                        if (data.get(p).get(0) == null) {
+                            assertTrue(type.toString(), result.isNull(p));
+                        } else {
+                            assertFalse(type.toString(), result.isNull(p));
+                            assertThat(type.toString(), toJavaObject(result, p), resultMatcherForInput((List<?>) data.get(p).get(0), type));
+                        }
                     }
+                } catch (ArithmeticException ae) {
+                    assertThat(ae.getMessage(), equalTo(type.typeName() + " overflow"));
                 }
             }
         }
@@ -118,7 +123,11 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             List<Object> data = type == DataTypes.NULL ? null : randomList(1, 100, () -> randomLiteral(type).value());
             Expression expression = build(Source.EMPTY, new Literal(Source.EMPTY, data, type));
             assertTrue(expression.foldable());
-            assertThat(expression.fold(), resultMatcherForInput(data, type));
+            try {
+                assertThat(expression.fold(), resultMatcherForInput(data, type));
+            } catch (ArithmeticException ae) {
+                assertThat(ae.getMessage(), equalTo(type.typeName() + " overflow"));
+            }
         }
     }
 

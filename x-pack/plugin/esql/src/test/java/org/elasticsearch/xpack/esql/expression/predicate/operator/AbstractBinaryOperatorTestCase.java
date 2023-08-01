@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.commonType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -83,9 +84,17 @@ public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTes
                     field("rhs", rhsType)
                 );
                 Object result = toJavaObject(evaluator(op).get().eval(row(List.of(lhs.value(), rhs.value()))), 0);
-                // The type's currently only used for distinguishing between LONG and UNSIGNED_LONG. UL requires both operands be of the
-                // same type, so either left or right type can be provided below. But otherwise the common type can be used instead.
-                assertThat(op.toString(), result, resultMatcher(List.of(lhs.value(), rhs.value()), lhsType));
+                if (result == null) {
+                    assertCriticalWarnings(
+                        "Line -1:-1: evaluation of [" + op + "] failed, treating result as null. Only first 20 failures recorded.",
+                        "java.lang.ArithmeticException: " + commonType(lhsType, rhsType).typeName() + " overflow"
+                    );
+                } else {
+                    // The type's currently only used for distinguishing between LONG and UNSIGNED_LONG. UL requires both operands be of
+                    // the same type, so either left or right type can be provided below. But otherwise the common type can be used
+                    // instead.
+                    assertThat(op.toString(), result, resultMatcher(List.of(lhs.value(), rhs.value()), lhsType));
+                }
             }
         }
     }

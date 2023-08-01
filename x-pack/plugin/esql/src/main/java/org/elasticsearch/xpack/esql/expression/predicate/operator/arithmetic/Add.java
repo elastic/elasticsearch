@@ -9,22 +9,22 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.compute.ann.Evaluator;
 
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAddExact;
 
 public class Add {
-    @Evaluator(extraName = "Ints")
+    @Evaluator(extraName = "Ints", warnExceptions = { ArithmeticException.class })
     static int processInts(int lhs, int rhs) {
-        return lhs + rhs;
+        return Math.addExact(lhs, rhs);
     }
 
-    @Evaluator(extraName = "Longs")
+    @Evaluator(extraName = "Longs", warnExceptions = { ArithmeticException.class })
     static long processLongs(long lhs, long rhs) {
-        return lhs + rhs;
+        return Math.addExact(lhs, rhs);
     }
 
-    @Evaluator(extraName = "UnsignedLongs")
+    @Evaluator(extraName = "UnsignedLongs", warnExceptions = { ArithmeticException.class })
     public static long processUnsignedLongs(long lhs, long rhs) {
-        return asLongUnsigned(lhs + rhs);
+        return unsignedLongAddExact(lhs, rhs);
     }
 
     @Evaluator(extraName = "Doubles")

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.fleet.rest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.fleet.action.GetSecretAction;
 import org.elasticsearch.xpack.fleet.action.GetSecretRequest;
@@ -17,6 +19,7 @@ import org.elasticsearch.xpack.fleet.action.GetSecretRequest;
 import java.io.IOException;
 import java.util.List;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetSecretsAction extends BaseRestHandler {
 
     @Override

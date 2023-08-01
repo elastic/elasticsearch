@@ -35,20 +35,6 @@ final class ByteSizeCachingDirectory extends ByteSizeDirectory {
         }
     }
 
-    private static long estimateSizeInBytes(Directory directory) throws IOException {
-        long estimatedSize = 0;
-        String[] files = directory.listAll();
-        for (String file : files) {
-            try {
-                estimatedSize += directory.fileLength(file);
-            } catch (NoSuchFileException | FileNotFoundException | AccessDeniedException e) {
-                // ignore, the file is not there no more; on Windows, if one thread concurrently deletes a file while
-                // calling Files.size, you can also sometimes hit AccessDeniedException
-            }
-        }
-        return estimatedSize;
-    }
-
     private final SingleObjectCache<SizeAndModCount> size;
     // Both these variables need to be accessed under `this` lock.
     private long modCount = 0;
@@ -110,6 +96,11 @@ final class ByteSizeCachingDirectory extends ByteSizeDirectory {
             // we wrapped in the cache and unwrap here
             throw e.getCause();
         }
+    }
+
+    @Override
+    public long estimateDataSetSizeInBytes() throws IOException {
+           return estimateSizeInBytes(); // data set size is equal to directory size for most implementations
     }
 
     @Override

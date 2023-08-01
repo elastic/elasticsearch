@@ -355,7 +355,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public StoreStats stats(long reservedBytes, LongUnaryOperator localSizeFunction) throws IOException {
         ensureOpen();
         long sizeInBytes = directory.estimateSizeInBytes();
-        return new StoreStats(localSizeFunction.applyAsLong(sizeInBytes), sizeInBytes, reservedBytes);
+        long dataSetSizeInBytes = directory.estimateDataSetSizeInBytes();
+        return new StoreStats(localSizeFunction.applyAsLong(sizeInBytes), dataSetSizeInBytes, reservedBytes);
     }
 
     /**
@@ -741,6 +742,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         @Override
         public long estimateSizeInBytes() throws IOException {
             return ((ByteSizeDirectory) getDelegate()).estimateSizeInBytes();
+        }
+
+        @Override
+        public long estimateDataSetSizeInBytes() throws IOException {
+            return ((ByteSizeDirectory) getDelegate()).estimateDataSetSizeInBytes();
         }
 
         @Override

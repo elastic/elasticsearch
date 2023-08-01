@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,12 +48,19 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class IngestMetricsServiceTests extends ESTestCase {
+
+    private MemoryMetricsService memoryMetricsService;
+
+    @Before
+    public void init() {
+        memoryMetricsService = new MemoryMetricsService();
+    }
+
     public void testServiceOnlyReturnDataWhenLocalNodeIsElectedAsMaster() {
         var localNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID());
         var remoteNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID());
         var nodes = DiscoveryNodes.builder().add(localNode).add(remoteNode).localNodeId(localNode.getId()).build();
-
-        var service = new IngestMetricsService(clusterSettings(Settings.EMPTY), () -> 0, new MemoryMetricsService());
+        var service = new IngestMetricsService(clusterSettings(Settings.EMPTY), () -> 0, memoryMetricsService);
         var indexTierMetrics = service.getIndexTierMetrics();
         // If the node is not elected as master (i.e. we haven't got any cluster state notification) it shouldn't return any info
         assertThat(indexTierMetrics.nodesLoad(), is(empty()));
@@ -79,7 +87,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             .localNodeId(localNode.getId())
             .build();
 
-        var service = new IngestMetricsService(clusterSettings(Settings.EMPTY), () -> 0, new MemoryMetricsService());
+        var service = new IngestMetricsService(clusterSettings(Settings.EMPTY), () -> 0, memoryMetricsService);
 
         service.clusterChanged(
             new ClusterChangedEvent(
@@ -117,7 +125,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
                     .build()
             ),
             fakeClock::get,
-            new MemoryMetricsService()
+            memoryMetricsService
         );
 
         service.clusterChanged(new ClusterChangedEvent("master node elected", clusterState(nodesWithElectedMaster), clusterState(nodes)));
@@ -190,7 +198,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
 
         final var nodesWithElectedMaster = DiscoveryNodes.builder(nodes).masterNodeId(masterNode.getId()).build();
 
-        var service = new IngestMetricsService(clusterSettings(Settings.EMPTY), () -> 1, new MemoryMetricsService());
+        var service = new IngestMetricsService(clusterSettings(Settings.EMPTY), () -> 0, memoryMetricsService);
 
         service.clusterChanged(new ClusterChangedEvent("master node elected", clusterState(nodesWithElectedMaster), clusterState(nodes)));
 
@@ -224,7 +232,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             .localNodeId(localNode.getId())
             .build();
 
-        var service = new IngestMetricsService(clusterSettings(Settings.EMPTY), () -> 0, new MemoryMetricsService());
+        var service = new IngestMetricsService(clusterSettings(Settings.EMPTY), () -> 0, memoryMetricsService);
 
         service.clusterChanged(
             new ClusterChangedEvent(

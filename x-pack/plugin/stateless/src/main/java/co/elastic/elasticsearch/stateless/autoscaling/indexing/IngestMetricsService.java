@@ -121,7 +121,10 @@ public class IngestMetricsService implements ClusterStateListener {
                 ingestLoads.add(value.getIngestLoadSnapshot());
             }
         }
-        return new IndexTierMetrics(Collections.unmodifiableList(ingestLoads), memoryMetricsService.getMemoryMetrics());
+        return new IndexTierMetrics(
+            Collections.unmodifiableList(ingestLoads),
+            memoryMetricsService.getMemoryMetrics(DiscoveryNodeRole.INDEX_ROLE)
+        );
     }
 
     private long relativeTimeInNanos() {

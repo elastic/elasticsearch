@@ -50,6 +50,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -70,6 +71,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportResponse;
@@ -78,6 +81,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -1169,6 +1173,85 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             .findFirst()
             .get();
         assertThat((long) recoveryState.getTranslog().recoveredOperations(), lessThanOrEqualTo(maxSeqNoAfterFlush - maxSeqNoBeforeFlush));
+    }
+
+    public void testRelocateIndexingShardWithActionFailures() throws Exception {
+        final String indexNodeA = startIndexNode();
+        ensureStableCluster(2);
+        final String indexName = "test";
+        createIndex(indexName, indexSettings(1, 0).build());
+        int numDocs = scaledRandomIntBetween(1, 10);
+        indexDocs(indexName, numDocs);
+
+        final String indexNodeB = startIndexNode();
+        ensureStableCluster(3);
+
+        String actionToBreak = randomBoolean() ? START_RELOCATION_ACTION_NAME : PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+        final CountDownLatch requestFailed = startBreakingActions(indexNodeA, indexNodeB, actionToBreak);
+
+        logger.info("--> move primary shard from: {} to: {}", indexNodeA, indexNodeB);
+        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB)).execute().actionGet();
+
+        assertTrue(requestFailed.await(30, TimeUnit.SECONDS));
+        stopBreakingActions(indexNodeA, indexNodeB);
+
+        ensureGreen();
+        assertNodeHasNoCurrentRecoveries(indexNodeB);
+        assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs));
+    }
+
+    private CountDownLatch startBreakingActions(String nodeA, String nodeB, String recoveryActionToBlock) throws Exception {
+        logger.info("--> will break requests between node [{}] & node [{}] for actions [{}]", nodeA, nodeB, recoveryActionToBlock);
+
+        MockTransportService nodeAMockTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            nodeA
+        );
+        MockTransportService nodeBMockTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            nodeB
+        );
+        TransportService nodeATransportService = internalCluster().getInstance(TransportService.class, nodeA);
+        TransportService nodeBTransportService = internalCluster().getInstance(TransportService.class, nodeB);
+        final CountDownLatch requestFailed = new CountDownLatch(1);
+
+        if (randomBoolean()) {
+            final StubbableTransport.SendRequestBehavior sendRequestBehavior = (connection, requestId, action, request, options) -> {
+                if (recoveryActionToBlock.equals(action)) {
+                    requestFailed.countDown();
+                    logger.info("--> preventing {} request by throwing ConnectTransportException", action);
+                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
+                }
+                connection.sendRequest(requestId, action, request, options);
+            };
+            // Fail on the sending side
+            nodeAMockTransportService.addSendBehavior(nodeBTransportService, sendRequestBehavior);
+            nodeBMockTransportService.addSendBehavior(nodeATransportService, sendRequestBehavior);
+        } else {
+            // Fail on the receiving side.
+            nodeAMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
+                logger.info("--> preventing {} response by closing response channel", recoveryActionToBlock);
+                requestFailed.countDown();
+                nodeBMockTransportService.disconnectFromNode(nodeAMockTransportService.getLocalDiscoNode());
+                handler.messageReceived(request, channel, task);
+            });
+            nodeBMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
+                logger.info("--> preventing {} response by closing response channel", recoveryActionToBlock);
+                requestFailed.countDown();
+                nodeAMockTransportService.disconnectFromNode(nodeBMockTransportService.getLocalDiscoNode());
+                handler.messageReceived(request, channel, task);
+            });
+        }
+
+        return requestFailed;
+    }
+
+    private void stopBreakingActions(String... nodes) throws Exception {
+        for (String node : nodes) {
+            MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
+            mockTransportService.clearAllRules();
+        }
+        logger.info("--> stopped breaking requests on nodes [{}]", Strings.collectionToCommaDelimitedString(Arrays.stream(nodes).toList()));
     }
 
     public void testOngoingIndexShardRelocationAndMasterFailOver() throws Exception {

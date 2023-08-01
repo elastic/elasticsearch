@@ -7,11 +7,17 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -23,8 +29,10 @@ import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlQueryRequestTests extends ESTestCase {
 
@@ -97,7 +105,33 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""");
         assertNotNull(request.validate());
         assertThat(request.validate().getMessage(), containsString("[query] is required"));
+    }
 
+    public void testTask() throws IOException {
+        String query = randomAlphaOfLength(10);
+        int id = randomInt();
+
+        EsqlQueryRequest request = parseEsqlQueryRequest("""
+            {
+                "query": "QUERY"
+            }""".replace("QUERY", query));
+        Task task = request.createTask(id, "transport", EsqlQueryAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
+        assertThat(task.getDescription(), equalTo(query));
+
+        String localNode = randomAlphaOfLength(2);
+        TaskInfo taskInfo = task.taskInfo(localNode, true);
+        String json = taskInfo.toString();
+        String expected = Streams.readFully(getClass().getClassLoader().getResourceAsStream("query_task.json")).utf8ToString();
+        expected = expected.replaceAll("\s*<\\d+>", "")
+            .replaceAll("FROM test \\| STATS MAX\\(d\\) by a, b", query)
+            .replaceAll("5326", Integer.toString(id))
+            .replaceAll("2j8UKw1bRO283PMwDugNNg", localNode)
+            .replaceAll("2023-07-31T15:46:32\\.328Z", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()))
+            .replaceAll("1690818392328", Long.toString(taskInfo.startTime()))
+            .replaceAll("41.7ms", TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString())
+            .replaceAll("41770830", Long.toString(taskInfo.runningTimeNanos()))
+            .trim();
+        assertThat(json, equalTo(expected));
     }
 
     private static void assertParserErrorMessage(String json, String message) {

@@ -241,7 +241,8 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        // Pass the query as the description
+        return new CancellableTask(id, type, action, query, parentTaskId, headers);
     }
 
     protected static void validateParams(List<TypedParamValue> params) {

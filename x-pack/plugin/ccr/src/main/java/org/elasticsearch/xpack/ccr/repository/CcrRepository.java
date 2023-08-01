@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -365,7 +364,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             ),
             () -> IOUtils.close(toClose)
         );
-        try {
+        ActionListener.run(restoreListener, restoreListener1 -> {
             // TODO: Add timeouts to network calls / the restore process.
             createEmptyStore(store);
 
@@ -413,24 +412,25 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(store.indexSettings().getNodeSettings()),
                 Ccr.CCR_THREAD_POOL_NAME
             );
+            // Some tests depend on closing session before cancelling retention lease renewal
             toClose.add(() -> {
                 logger.trace("{} canceling background renewal of retention lease [{}] at the end of restore", shardId, retentionLeaseId);
                 renewable.cancel();
             });
             // TODO: There should be some local timeout. And if the remote cluster returns an unknown session
             // response, we should be able to retry by creating a new session.
-            ActionListener<RestoreSession> sessionListener = restoreListener.delegateFailureAndWrap((l1, restoreSession) -> {
-                toClose.addFirst(restoreSession); // Some tests depend on closing session before cancelling retention lease renewal
-                restoreSession.restoreFiles(store, l1.delegateFailureAndWrap((l2, v) -> {
-                    logger.trace("[{}] completed CCR restore", shardId);
-                    updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, shardId.getIndex());
-                    l2.onResponse(null);
-                }));
+            ActionListener<RestoreSession> sessionListener = restoreListener1.delegateFailureAndWrap((l1, restoreSession) -> {
+                restoreSession.restoreFiles(
+                    store,
+                    l1.delegateResponse((listener1, e) -> restoreSession.close(listener1)).delegateFailureAndWrap((l2, v) -> {
+                        logger.trace("[{}] completed CCR restore", shardId);
+                        updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, shardId.getIndex());
+                        restoreSession.close(l2);
+                    })
+                );
             });
             openSession(metadata.name(), remoteClient, leaderShardId, shardId, recoveryState, sessionListener);
-        } catch (Exception e) {
-            restoreListener.onFailure(e);
-        }
+        });
     }
 
     private static void createEmptyStore(Store store) {
@@ -599,7 +599,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         );
     }
 
-    private static class RestoreSession extends FileRestoreContext implements Closeable {
+    private static class RestoreSession extends FileRestoreContext {
 
         private final Client remoteClient;
         private final String sessionUUID;
@@ -760,11 +760,16 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             multiFileTransfer.start();
         }
 
-        @Override
-        public void close() {
+        public void close(ActionListener<Void> listener) {
+            var closeListener = ListenerTimeouts.wrapWithTimeout(
+                threadPool,
+                listener,
+                ccrSettings.getRecoveryActionTimeout(),
+                ThreadPool.Names.GENERIC,
+                ClearCcrRestoreSessionAction.INTERNAL_NAME
+            );
             ClearCcrRestoreSessionRequest clearRequest = new ClearCcrRestoreSessionRequest(sessionUUID, node, leaderShardId);
-            ActionResponse.Empty response = remoteClient.execute(ClearCcrRestoreSessionAction.INTERNAL_INSTANCE, clearRequest)
-                .actionGet(ccrSettings.getRecoveryActionTimeout());
+            remoteClient.execute(ClearCcrRestoreSessionAction.INTERNAL_INSTANCE, clearRequest, closeListener.map(empty -> null));
         }
 
         private record FileChunk(StoreFileMetadata md, int bytesRequested, boolean lastChunk) implements MultiChunkTransfer.ChunkRequest {}

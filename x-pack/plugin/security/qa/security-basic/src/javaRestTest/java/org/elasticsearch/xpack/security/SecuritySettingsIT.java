@@ -47,8 +47,8 @@ public class SecuritySettingsIT extends SecurityInBasicRestTestCase {
     }
 
     /**
-     * This test only checks the main and profiles indices. All indices are tested in the YAML tests, and
-     * leaving the tokens index un-created allows us
+     * This test only checks the main and profiles indices. Making sure the tokens index is not trivial;
+     * this test should be updated to do so (and also un-mute the docs test for this API).
      * @throws IOException
      */
     public void testBasicWorkflow() throws IOException {
@@ -91,7 +91,7 @@ public class SecuritySettingsIT extends SecurityInBasicRestTestCase {
 
     public void testIndexDoesntExistThrowsException() throws IOException {
         Request req = new Request("PUT", "/_security/settings");
-        req.setJsonEntity("{\"security-tokens\": {\"index.auto_expand_replicas\": \"0-all\"}}"); // Disallowed setting chosen arbitrarily
+        req.setJsonEntity("{\"security-tokens\": {\"index.auto_expand_replicas\": \"0-all\"}}");
         ResponseException ex = expectThrows(ResponseException.class, () -> adminClient().performRequest(req));
         assertThat(
             EntityUtils.toString(ex.getResponse().getEntity()),

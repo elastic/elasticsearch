@@ -58,24 +58,68 @@ public class UpdateSecuritySettingsActionTests extends ESTestCase {
         String disallowedSetting = "index."
             + randomValueOtherThanMany((value) -> ALLOWED_SETTING_KEYS.contains("index." + value), () -> randomAlphaOfLength(5));
         Map<String, Object> disallowedSettingMap = Map.of(disallowedSetting, randomAlphaOfLength(5));
-        var req = new UpdateSecuritySettingsAction.Request(disallowedSettingMap, disallowedSettingMap, disallowedSettingMap);
-        List<String> errors = req.validate().validationErrors();
-        assertThat(errors, hasSize(3));
-        for (String errorMsg : errors) {
-            assertThat(
-                errorMsg,
-                matchesRegex(
-                    "illegal settings for index \\[("
-                        + Pattern.quote(MAIN_INDEX_NAME)
-                        + "|"
-                        + Pattern.quote(TOKENS_INDEX_NAME)
-                        + "|"
-                        + Pattern.quote(PROFILES_INDEX_NAME)
-                        + ")\\]: \\["
-                        + disallowedSetting
-                        + "\\], these settings may not be configured. Only the following settings may be configured for that index.*"
-                )
-            );
+        Map<String, Object> validOrEmptySettingMap = randomFrom(
+            Collections.emptyMap(),
+            Map.of(randomFrom(ALLOWED_SETTING_KEYS), randomAlphaOfLength(5))
+        );
+        {
+            var req = new UpdateSecuritySettingsAction.Request(validOrEmptySettingMap, disallowedSettingMap, validOrEmptySettingMap);
+            List<String> errors = req.validate().validationErrors();
+            assertThat(errors, hasSize(1));
+            for (String errorMsg : errors) {
+                assertThat(
+                    errorMsg,
+                    matchesRegex(
+                        "illegal settings for index \\["
+                            + Pattern.quote(TOKENS_INDEX_NAME)
+                            + "\\]: \\["
+                            + disallowedSetting
+                            + "\\], these settings may not be configured. Only the following settings may be configured for that index.*"
+                    )
+                );
+            }
+        }
+
+        {
+            var req = new UpdateSecuritySettingsAction.Request(disallowedSettingMap, validOrEmptySettingMap, disallowedSettingMap);
+            List<String> errors = req.validate().validationErrors();
+            assertThat(errors, hasSize(2));
+            for (String errorMsg : errors) {
+                assertThat(
+                    errorMsg,
+                    matchesRegex(
+                        "illegal settings for index \\[("
+                            + Pattern.quote(MAIN_INDEX_NAME)
+                            + "|"
+                            + Pattern.quote(PROFILES_INDEX_NAME)
+                            + ")\\]: \\["
+                            + disallowedSetting
+                            + "\\], these settings may not be configured. Only the following settings may be configured for that index.*"
+                    )
+                );
+            }
+        }
+
+        {
+            var req = new UpdateSecuritySettingsAction.Request(disallowedSettingMap, disallowedSettingMap, disallowedSettingMap);
+            List<String> errors = req.validate().validationErrors();
+            assertThat(errors, hasSize(3));
+            for (String errorMsg : errors) {
+                assertThat(
+                    errorMsg,
+                    matchesRegex(
+                        "illegal settings for index \\[("
+                            + Pattern.quote(MAIN_INDEX_NAME)
+                            + "|"
+                            + Pattern.quote(TOKENS_INDEX_NAME)
+                            + "|"
+                            + Pattern.quote(PROFILES_INDEX_NAME)
+                            + ")\\]: \\["
+                            + disallowedSetting
+                            + "\\], these settings may not be configured. Only the following settings may be configured for that index.*"
+                    )
+                );
+            }
         }
     }
 

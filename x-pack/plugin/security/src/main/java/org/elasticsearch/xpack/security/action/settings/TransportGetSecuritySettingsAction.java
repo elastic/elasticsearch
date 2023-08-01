@@ -24,7 +24,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.settings.GetSecuritySettingsAction;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.UpdateWatcherSettingsAction;
+import org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction;
 
 import java.util.List;
 import java.util.Optional;
@@ -75,7 +75,7 @@ public class TransportGetSecuritySettingsAction extends TransportMasterNodeActio
     }
 
     /**
-     * Filters the settings to only those settable by the user (using the update watcher settings API).
+     * Filters the settings to only those settable by the user (using the update security settings API).
      */
     private static Settings getFilteredSettingsForIndex(String indexName, ClusterState state) {
         // Check the indices lookup to resolve the alias
@@ -84,7 +84,7 @@ public class TransportGetSecuritySettingsAction extends TransportMasterNodeActio
             .map(IndexMetadata::getSettings)
             .map(settings -> {
                 Settings.Builder builder = Settings.builder();
-                for (String settingName : UpdateWatcherSettingsAction.ALLOWED_SETTING_KEYS) {
+                for (String settingName : UpdateSecuritySettingsAction.ALLOWED_SETTING_KEYS) {
                     if (settings.hasValue(settingName)) {
                         builder.put(settingName, settings.get(settingName));
                     }

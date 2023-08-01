@@ -113,6 +113,7 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
             settingsUpdateRequests.forEach(req -> updateSettingsService.updateSettings(req, groupedListener));
         } else {
             // All settings blocks were empty, which doesn't do anything, so this was probably a mistake
+            assert false : "getting this far with an empty settings block should have been prevented by earlier request validation";
             throw new IllegalArgumentException("No settings to update");
         }
     }

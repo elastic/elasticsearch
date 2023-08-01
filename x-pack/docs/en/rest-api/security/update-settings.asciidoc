@@ -25,15 +25,14 @@ PUT /_security/settings
         "index.auto_expand_replicas": "0-all"
     },
     "security-tokens": {
-            "index.auto_expand_replicas": "0-all"
+        "index.auto_expand_replicas": "0-all"
     },
     "security-profile": {
-            "index.auto_expand_replicas": "0-all"
+        "index.auto_expand_replicas": "0-all"
     }
 }
 -----------------------------------------------------------
-// TEST[setup:user_profiles]
-// TEST[setup:service_token42]
+// TEST[skip:making sure all the indices have been created reliably is difficult]
 
 The configured settings can be retrieved using the <<security-api-get-settings,Get Security index settings>> API. If a
 given index is not in use on the system, but settings are provided for it, the request will be rejected - this API does
@@ -45,7 +44,7 @@ not yet support configuring the settings for these indices before they are in us
 and roles configured via the API.
 
 `security-tokens`::
-(Optional, object) Settings to be used for the index used to store tokens.
+(Optional, object) Settings to be used for the index used to store <<tokens,security-api-get-token>>.
 
 `security`::
-(Optional, object) Settings to be used for the index used to store Profile information.
+(Optional, object) Settings to be used for the index used to store <<Profile,security-api-activate-user-profile>> information.

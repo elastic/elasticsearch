@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.query;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnByteVectorField;
@@ -37,24 +39,32 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.action.search.SearchShardTask;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
 
+@Repeat(iterations = 100)
 public class QueryPhaseTimeoutTests extends IndexShardTestCase {
 
     private static Directory dir;
     private static IndexReader reader;
     private static int numDocs;
+    private static EsThreadPoolExecutor threadPoolExecutor;
+    private static ThreadPool threadPool;
     private IndexShard indexShard;
 
     @BeforeClass
@@ -75,6 +85,17 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         }
         w.close();
         reader = DirectoryReader.open(dir);
+
+        int numThreads = randomIntBetween(2, 4);
+        threadPool = new TestThreadPool(AggregatorTestCase.class.getName());
+        threadPoolExecutor = EsExecutors.newFixed(
+            "test",
+            numThreads,
+            10,
+            EsExecutors.daemonThreadFactory("test"),
+            threadPool.getThreadContext(),
+            randomFrom(EsExecutors.TaskTrackingConfig.DEFAULT, EsExecutors.TaskTrackingConfig.DO_NOT_TRACK)
+        );
     }
 
     @AfterClass
@@ -83,6 +104,8 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             reader.close();
         }
         dir.close();
+        threadPoolExecutor.shutdown();
+        threadPool.shutdown();
     }
 
     @Override
@@ -103,7 +126,9 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             LuceneTestCase.MAYBE_CACHE_POLICY,
-            true
+            1,
+            true,
+            randomBoolean() ? threadPoolExecutor : null
         );
     }
 

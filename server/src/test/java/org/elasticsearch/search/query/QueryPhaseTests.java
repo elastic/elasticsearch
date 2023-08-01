@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.query;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
@@ -60,6 +62,8 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.search.SearchShardTask;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -103,17 +107,28 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@Repeat(iterations = 10)
 public class QueryPhaseTests extends IndexShardTestCase {
 
     private Directory dir;
     private IndexReader reader;
     private IndexShard indexShard;
+    private EsThreadPoolExecutor threadPoolExecutor;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         dir = newDirectory();
         indexShard = newShard(true);
+        int numThreads = randomIntBetween(2, 4);
+        threadPoolExecutor = EsExecutors.newFixed(
+            "test",
+            numThreads,
+            10,
+            EsExecutors.daemonThreadFactory("test"),
+            threadPool.getThreadContext(),
+            randomFrom(EsExecutors.TaskTrackingConfig.DEFAULT, EsExecutors.TaskTrackingConfig.DO_NOT_TRACK)
+        );
     }
 
     @Override
@@ -124,6 +139,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         dir.close();
         closeShards(indexShard);
+        threadPoolExecutor.shutdown();
     }
 
     private TestSearchContext createContext(ContextIndexSearcher searcher, Query query) {
@@ -1051,12 +1067,15 @@ public class QueryPhaseTests extends IndexShardTestCase {
         reader = DirectoryReader.open(dir);
 
         final List<Query> executed = new ArrayList<>();
+        // TODO maybe add executor here too
         ContextIndexSearcher searcher = new ContextIndexSearcher(
             reader,
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
-            true
+            1,
+            true,
+            null
         ) {
             @Override
             public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) throws IOException {
@@ -1118,27 +1137,32 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
     };
 
-    private static ContextIndexSearcher newContextSearcher(IndexReader reader) throws IOException {
+    private ContextIndexSearcher newContextSearcher(IndexReader reader) throws IOException {
+        // TODO randomly set executor for parallel collection here
         return new ContextIndexSearcher(
             reader,
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             NEVER_CACHE_POLICY,
-            true
+            1,
+            true,
+            this.threadPoolExecutor
         );
     }
 
-    private static ContextIndexSearcher noCollectionContextSearcher(IndexReader reader) throws IOException {
+    private ContextIndexSearcher noCollectionContextSearcher(IndexReader reader) throws IOException {
         return earlyTerminationContextSearcher(reader, 0);
     }
 
-    private static ContextIndexSearcher earlyTerminationContextSearcher(IndexReader reader, int size) throws IOException {
+    private ContextIndexSearcher earlyTerminationContextSearcher(IndexReader reader, int size) throws IOException {
         return new ContextIndexSearcher(
             reader,
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             NEVER_CACHE_POLICY,
-            true
+            1,
+            true,
+            this.threadPoolExecutor
         ) {
 
             @Override

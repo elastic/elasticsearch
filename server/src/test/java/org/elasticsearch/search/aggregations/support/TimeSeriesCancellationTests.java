@@ -79,12 +79,15 @@ public class TimeSeriesCancellationTests extends ESTestCase {
     }
 
     public void testLowLevelCancellationActions() throws IOException {
+        // TODO randomly set executor for parallel collection here
         ContextIndexSearcher searcher = new ContextIndexSearcher(
             reader,
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
-            true
+            1,
+            true,
+            null
         );
         TimeSeriesIndexSearcher timeSeriesIndexSearcher = new TimeSeriesIndexSearcher(searcher, List.of(() -> {
             throw new TaskCancelledException("Cancel");

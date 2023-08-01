@@ -447,12 +447,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
         SearchContext ctx = mock(SearchContext.class);
         try {
             when(ctx.searcher()).thenReturn(
+                // TODO maybe randomly use parallel executor here
                 new ContextIndexSearcher(
                     searchExecutionContext.searcher().getIndexReader(),
                     searchExecutionContext.searcher().getSimilarity(),
                     DisabledQueryCache.INSTANCE,
                     TrivialQueryCachingPolicy.NEVER,
-                    false
+                    1,
+                    false,
+                    null
                 )
             );
         } catch (IOException e) {

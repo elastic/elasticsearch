@@ -57,6 +57,7 @@ public class QueryProfilerTests extends ESTestCase {
     public static void setup() throws IOException {
         dir = newDirectory();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        // might need more documents if we want to hit the concurrent search path more often
         final int numDocs = TestUtil.nextInt(random(), 1, 20);
         for (int i = 0; i < numDocs; ++i) {
             final int numHoles = random().nextInt(5);
@@ -69,12 +70,15 @@ public class QueryProfilerTests extends ESTestCase {
         }
         reader = w.getReader();
         w.close();
+        // TODO randomly set executor for parallel collection here
         searcher = new ContextIndexSearcher(
             reader,
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             TrivialQueryCachingPolicy.ALWAYS,
-            true
+            1,
+            true,
+            null
         );
     }
 

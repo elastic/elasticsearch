@@ -8,8 +8,13 @@
 package org.elasticsearch.xpack.application;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -24,6 +29,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.analytics.action.GetAnalyticsCollectionAction;
+import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
+import org.elasticsearch.xpack.application.rules.QueryRulesetListItem;
 import org.elasticsearch.xpack.application.rules.action.ListQueryRulesetsAction;
 import org.elasticsearch.xpack.application.search.action.ListSearchApplicationAction;
 import org.elasticsearch.xpack.application.utils.LicenseUtils;
@@ -36,6 +43,8 @@ import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.IntSummaryStatistics;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
@@ -44,6 +53,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
     private static final Logger logger = LogManager.getLogger(EnterpriseSearchUsageTransportAction.class);
     private final XPackLicenseState licenseState;
     private final OriginSettingClient clientWithOrigin;
+    private final IndicesAdminClient indicesAdminClient;
 
     private final boolean enabled;
 
@@ -68,6 +78,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         );
         this.licenseState = licenseState;
         this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
+        this.indicesAdminClient = clientWithOrigin.admin().indices();
         this.enabled = XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings);
     }
 
@@ -126,10 +137,10 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
             );
         });
 
-        // Step 2: Fetch query rulesets count
-        ListQueryRulesetsAction.Request queryRulesetsCountRequest = new ListQueryRulesetsAction.Request(new PageParams(0, 0));
-        ActionListener<ListQueryRulesetsAction.Response> queryRulesetsCountListener = ActionListener.wrap(response -> {
-            addQueryRulesUsage(response, queryRulesUsage);
+        // Step 2: Fetch query rules stats
+
+        ActionListener<ListQueryRulesetsAction.Response> listQueryRulesetsListener = ActionListener.wrap(response -> {
+            addQueryRulesetUsage(response, queryRulesUsage);
             clientWithOrigin.execute(ListSearchApplicationAction.INSTANCE, searchApplicationsCountRequest, searchApplicationsCountListener);
         },
             e -> {
@@ -141,14 +152,47 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
             }
         );
 
+        IndicesStatsRequest indicesStatsRequest =
+            indicesAdminClient.prepareStats(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME).setDocs(true).request();
+
         // Step 1: Fetch analytics collections count
         GetAnalyticsCollectionAction.Request analyticsCollectionsCountRequest = new GetAnalyticsCollectionAction.Request(
             new String[] { "*" }
         );
+
         ActionListener<GetAnalyticsCollectionAction.Response> analyticsCollectionsCountListener = ActionListener.wrap(response -> {
             addAnalyticsCollectionsUsage(response, analyticsCollectionsUsage);
-            clientWithOrigin.execute(ListQueryRulesetsAction.INSTANCE, queryRulesetsCountRequest, queryRulesetsCountListener);
-        }, e -> { clientWithOrigin.execute(ListQueryRulesetsAction.INSTANCE, queryRulesetsCountRequest, queryRulesetsCountListener); });
+            indicesAdminClient.execute(IndicesStatsAction.INSTANCE, indicesStatsRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(IndicesStatsResponse indicesStatsResponse) {
+                    Map<String, IndexStats> indicesStats = indicesStatsResponse.getIndices();
+                    int queryRulesetCount = 0;
+                    for (Map.Entry<String, IndexStats> entry : indicesStats.entrySet()) {
+                        IndexStats indexStats = entry.getValue();
+                        queryRulesetCount += indexStats.getPrimaries().getDocs().getCount();
+                    }
+                    ListQueryRulesetsAction.Request queryRulesetsCountRequest =
+                        new ListQueryRulesetsAction.Request(new PageParams(0, queryRulesetCount));
+                    clientWithOrigin.execute(ListQueryRulesetsAction.INSTANCE, queryRulesetsCountRequest, listQueryRulesetsListener);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    clientWithOrigin.execute(ListSearchApplicationAction.INSTANCE,
+                        searchApplicationsCountRequest,
+                        searchApplicationsCountListener
+                    );
+                }
+            });
+        },
+            e -> {
+                clientWithOrigin.execute(
+                    ListSearchApplicationAction.INSTANCE,
+                    searchApplicationsCountRequest,
+                    searchApplicationsCountListener
+                );
+            }
+        );
 
         // Step 0: Kick off requests
         clientWithOrigin.execute(
@@ -171,8 +215,18 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         analyticsCollectionsUsage.put(EnterpriseSearchFeatureSetUsage.COUNT, count);
     }
 
-    private void addQueryRulesUsage(ListQueryRulesetsAction.Response response, Map<String, Object> queryRulesUsage) {
-        long count = response.queryPage().count();
-        queryRulesUsage.put(EnterpriseSearchFeatureSetUsage.COUNT, count);
+    private void addQueryRulesetUsage(ListQueryRulesetsAction.Response response, Map<String, Object> queryRulesUsage) {
+        // Aggregate query rules stats
+        List<QueryRulesetListItem> results = response.queryPage().results();
+        IntSummaryStatistics stats = results.stream().mapToInt(QueryRulesetListItem::numRules).summaryStatistics();
+        Map<String,Object> rules = new HashMap<>();
+        rules.put(EnterpriseSearchFeatureSetUsage.COUNT, stats.getSum());
+        rules.put(EnterpriseSearchFeatureSetUsage.MAX, stats.getMax());
+        rules.put(EnterpriseSearchFeatureSetUsage.MIN, stats.getMin());
+
+        // Query ruleset stats
+        queryRulesUsage.put(EnterpriseSearchFeatureSetUsage.COUNT, response.queryPage().count());
+        queryRulesUsage.put("rules", rules);
+
     }
 }

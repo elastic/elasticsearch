@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.DoubleSupplier;
 import java.util.stream.IntStream;
@@ -405,6 +406,68 @@ public class IngestLoadSamplerTests extends ESTestCase {
         // The sampler is not started since the node is not an index node
         assertThat(publishedMetrics, is(empty()));
         assertThat(deterministicTaskQueue.hasDeferredTasks(), is(false));
+    }
+
+    public void testMetricsArePublishedAfterFailures() {
+        var deterministicTaskQueue = new DeterministicTaskQueue();
+        var threadPool = deterministicTaskQueue.getThreadPool();
+
+        var minSensitivityRatio = 0;
+        var samplingFrequency = TimeValue.timeValueSeconds(1);
+        var maxTimeBetweenMetricPublications = TimeValue.timeValueSeconds(10);
+        var clusterSettings = clusterSettings(
+            Settings.builder()
+                .put(IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING.getKey(), minSensitivityRatio)
+                .put(IngestLoadSampler.SAMPLING_FREQUENCY_SETTING.getKey(), samplingFrequency)
+                .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), maxTimeBetweenMetricPublications)
+                .build()
+        );
+
+        var numProcessors = randomIntBetween(2, 32);
+
+        // Increasing load
+        var indexLoadOverTime = IntStream.range(0, 32).mapToDouble(l -> l).boxed().toList();
+        var currentIndexLoadSupplier = indexLoadOverTime.iterator();
+
+        var publishedMetrics = new ArrayList<Double>();
+        var publicationFails = new AtomicBoolean(true);
+        var publicationFailures = new AtomicInteger();
+        var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
+            @Override
+            public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
+                if (publicationFails.get()) {
+                    publicationFailures.incrementAndGet();
+                    listener.onFailure(new IllegalArgumentException("Boom"));
+                } else {
+                    publishedMetrics.add(ingestionLoad);
+                    listener.onResponse(null);
+                }
+            }
+        };
+        var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
+
+        var sampler = new IngestLoadSampler(
+            threadPool,
+            writeLoadSampler,
+            ingestLoadPublisher,
+            currentIndexLoadSupplier::next,
+            true,
+            numProcessors,
+            clusterSettings
+        );
+        sampler.setMinTransportVersion(TransportVersion.current());
+        sampler.setNodeId(randomIdentifier());
+        sampler.start();
+
+        runFor(deterministicTaskQueue, samplingFrequency.millis());
+        // It tries to publish the first reading + 1 reading per second
+        assertThat(publicationFailures.get(), is(equalTo(2)));
+        publicationFails.set(false);
+
+        runFor(deterministicTaskQueue, maxTimeBetweenMetricPublications.millis());
+        // The sampler publishes the first reading + publishes 1 reading per second until 10 second elapses
+        assertThat(publishedMetrics, hasSize(11));
+        assertThat(publishedMetrics, is(equalTo(indexLoadOverTime.subList(2, 13))));
     }
 
     private void runFor(DeterministicTaskQueue deterministicTaskQueue, long runDurationMillis) {

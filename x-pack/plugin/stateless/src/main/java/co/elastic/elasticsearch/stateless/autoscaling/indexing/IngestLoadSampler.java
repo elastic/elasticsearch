@@ -219,20 +219,19 @@ public class IngestLoadSampler implements ClusterStateListener {
             var ticket = new Object();
             if (inFlightPublicationTicket.compareAndSet(null, ticket)) {
                 final var publishedLoad = ingestionLoad;
-                ingestionLoadPublisher.publishIngestionLoad(publishedLoad, nodeId, new ActionListener<>() {
+                ingestionLoadPublisher.publishIngestionLoad(publishedLoad, nodeId, ActionListener.runAfter(new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {
                         var previousPublicationTime = lastPublicationRelativeTimeInMillis.get();
                         lastPublicationRelativeTimeInMillis.compareAndSet(previousPublicationTime, getRelativeTimeInMillis());
                         latestPublishedIngestionLoad = publishedLoad;
-                        inFlightPublicationTicket.compareAndSet(ticket, null);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
                         logger.log(getExceptionLogLevel(e), () -> "Unable to publish the latest index load", e);
                     }
-                });
+                }, () -> inFlightPublicationTicket.compareAndSet(ticket, null)));
             }
         } catch (Exception e) {
             logger.error("Unable to publish latest ingestion load", e);

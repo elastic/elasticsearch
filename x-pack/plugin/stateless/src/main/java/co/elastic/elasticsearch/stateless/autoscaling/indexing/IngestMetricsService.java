@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.gateway.GatewayService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -54,6 +55,7 @@ public class IngestMetricsService implements ClusterStateListener {
 
     private volatile TimeValue accurateLoadWindow;
     private volatile TimeValue staleLoadWindow;
+    private volatile boolean initialized;
     private final LongSupplier relativeTimeInNanosSupplier;
     private final MemoryMetricsService memoryMetricsService;
     private final Map<String, NodeIngestLoad> nodesIngestLoad = ConcurrentCollections.newConcurrentMap();
@@ -75,17 +77,19 @@ public class IngestMetricsService implements ClusterStateListener {
             return;
         }
 
-        if (event.localNodeMaster() == false) {
+        if (event.localNodeMaster() == false || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             nodesIngestLoad.clear();
+            initialized = false;
             return;
         }
 
-        if (event.nodesDelta().masterNodeChanged()) {
+        if (event.nodesDelta().masterNodeChanged() || initialized == false) {
             for (DiscoveryNode node : event.state().nodes()) {
                 if (isIndexNode(node)) {
                     nodesIngestLoad.computeIfAbsent(node.getId(), unused -> new NodeIngestLoad());
                 }
             }
+            initialized = true;
         }
 
         if (event.nodesChanged()) {

@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
@@ -29,9 +30,11 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -288,6 +291,140 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             assertThat(loadsAfterIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
             assertThat(loadsAfterIndexing.get(0).load(), greaterThan(0.0));
         }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testMetricsAreRepublishedAfterMasterFailover() throws Exception {
+        for (int i = 0; i < 2; i++) {
+            startMasterNode();
+        }
+
+        startIndexNode(
+            Settings.builder()
+                .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+                .build()
+        );
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        int bulks = randomIntBetween(3, 5);
+        for (int i = 0; i < bulks; i++) {
+            indexDocs(indexName, randomIntBetween(10, 100));
+        }
+
+        assertBusy(() -> {
+            var loadsAfterIndexing = getNodeIngestLoad();
+            assertThat(loadsAfterIndexing.size(), equalTo(1));
+            assertThat(loadsAfterIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(loadsAfterIndexing.get(0).load(), greaterThan(0.0));
+        });
+
+        internalCluster().stopCurrentMasterNode();
+
+        assertBusy(() -> {
+            var loadsAfterIndexing = getNodeIngestLoad();
+            assertThat(loadsAfterIndexing.size(), equalTo(1));
+            assertThat(loadsAfterIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(loadsAfterIndexing.get(0).load(), greaterThan(0.0));
+        });
+    }
+
+    public void testMasterFailoverWithOnGoingMetricPublication() throws Exception {
+        for (int i = 0; i < 2; i++) {
+            startMasterNode();
+        }
+
+        startIndexNode(
+            Settings.builder()
+                .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+                .build()
+        );
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        assertBusy(() -> {
+            var loadsBeforeIndexing = getNodeIngestLoad();
+            assertThat(loadsBeforeIndexing.size(), equalTo(1));
+            assertThat(loadsBeforeIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(loadsBeforeIndexing.get(0).load(), equalTo(0.0));
+        });
+
+        var firstNonZeroPublishIndexLoadLatch = new CountDownLatch(1);
+        MockTransportService mockTransportService = (MockTransportService) internalCluster().getCurrentMasterNodeInstance(
+            TransportService.class
+        );
+        mockTransportService.addRequestHandlingBehavior(PublishNodeIngestLoadAction.NAME, (handler, request, channel, task) -> {
+            if (request instanceof PublishNodeIngestLoadRequest publishRequest && publishRequest.getIngestionLoad() > 0) {
+                firstNonZeroPublishIndexLoadLatch.countDown();
+            }
+        });
+
+        int bulks = randomIntBetween(3, 5);
+        for (int i = 0; i < bulks; i++) {
+            indexDocs(indexName, randomIntBetween(10, 100));
+        }
+
+        safeAwait(firstNonZeroPublishIndexLoadLatch);
+        internalCluster().stopCurrentMasterNode();
+
+        assertBusy(() -> {
+            List<NodeIngestLoadSnapshot> loadsAfterIndexing = getNodeIngestLoad();
+            assertThat(loadsAfterIndexing.size(), equalTo(1));
+            assertThat(loadsAfterIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(loadsAfterIndexing.get(0).load(), greaterThan(0.0));
+        });
+    }
+
+    public void testMetricsAreRepublishedAfterMasterNodeHasToRecoverStateFromStore() throws Exception {
+        var masterNode = startMasterNode();
+        startIndexNode(
+            Settings.builder()
+                .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+                .build()
+        );
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        int bulks = randomIntBetween(3, 5);
+        for (int i = 0; i < bulks; i++) {
+            indexDocs(indexName, randomIntBetween(10, 100));
+        }
+
+        assertBusy(() -> {
+            var loadsAfterIndexing = getNodeIngestLoad();
+            assertThat(loadsAfterIndexing.size(), equalTo(1));
+            assertThat(loadsAfterIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(loadsAfterIndexing.get(0).load(), greaterThan(0.0));
+        });
+
+        internalCluster().restartNode(masterNode);
+
+        // After the master node is restarted the index load is re-populated from the indexing node
+        assertBusy(() -> {
+            var loadsAfterIndexing = getNodeIngestLoad();
+            assertThat(loadsAfterIndexing.size(), equalTo(1));
+            assertThat(loadsAfterIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(loadsAfterIndexing.get(0).load(), greaterThan(0.0));
+        });
+    }
+
+    private String startMasterNode() {
+        return internalCluster().startMasterOnlyNode(
+            nodeSettings().put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
+                .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
+                .build()
+        );
+    }
+
+    private static List<NodeIngestLoadSnapshot> getNodeIngestLoad() {
+        var ingestMetricsService = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class);
+        var loadsAfterIndexing = ingestMetricsService.getIndexTierMetrics().nodesLoad();
+        return loadsAfterIndexing;
     }
 
     private void longAwait(CyclicBarrier barrier) {

@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -602,6 +603,15 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         flush(indexName);
 
         assertSegmentsFilesDeletedAfterUpload(shard);
+    }
+
+    public void testCanRestartMasterNodes() throws Exception {
+        var masterNode = internalCluster().startMasterOnlyNode(
+            nodeSettings().put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
+                .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
+                .build()
+        );
+        internalCluster().restartNode(masterNode);
     }
 
     private static void assertSegmentsFilesDeletedAfterUpload(IndexShard indexShard) throws Exception {

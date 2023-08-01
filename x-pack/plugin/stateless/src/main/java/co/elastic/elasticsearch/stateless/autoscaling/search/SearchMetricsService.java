@@ -198,7 +198,7 @@ public class SearchMetricsService implements ClusterStateListener {
         }
 
         return new SearchTierMetrics(
-            memoryMetricsService.getMemoryMetrics(),
+            memoryMetricsService.getMemoryMetrics(DiscoveryNodeRole.SEARCH_ROLE),
             new MaxShardCopies(maxShardCopies, shardCopiesExact ? MetricQuality.EXACT : MetricQuality.MINIMUM),
             new StorageMetrics(
                 maxInteractiveDataSizeInBytes,

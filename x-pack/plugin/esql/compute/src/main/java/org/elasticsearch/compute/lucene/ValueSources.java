@@ -13,12 +13,14 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.FieldContext;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
@@ -47,7 +49,13 @@ public final class ValueSources {
             // MatchOnlyTextFieldMapper class lives in the mapper-extras module. We use string equality
             // for the field type name to avoid adding a dependency to the module
             if (fieldType instanceof TextFieldMapper.TextFieldType || "match_only_text".equals(fieldType.typeName())) {
-                var vs = textValueSource(ctx, fieldType);
+                ValuesSource vs = textValueSource(ctx, fieldType);
+                sources.add(new ValueSourceInfo(CoreValuesSourceType.KEYWORD, vs, elementType, ctx.getIndexReader()));
+                continue;
+            }
+
+            if (IdFieldMapper.NAME.equals(fieldType.name())) {
+                ValuesSource vs = new IdValueSource(new IdFieldIndexFieldData(CoreValuesSourceType.KEYWORD));
                 sources.add(new ValueSourceInfo(CoreValuesSourceType.KEYWORD, vs, elementType, ctx.getIndexReader()));
                 continue;
             }

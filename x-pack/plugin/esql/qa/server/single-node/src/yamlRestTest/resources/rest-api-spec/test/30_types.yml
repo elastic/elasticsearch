@@ -507,6 +507,35 @@ version:
   - match: { values.0.0: [ "1.2.3", "4.5.6-SNOOPY" ] }
 
 ---
+id:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              kw:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index" : { "_index" : "test", "_id" : "id-1" } }
+          - { "kw": "keyword1" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test [metadata _id] | keep _id, kw'
+  - match: { columns.0.name: _id }
+  - match: { columns.0.type: keyword }
+  - length: { values: 1 }
+  - match: { values.0.0:  "id-1"  }
+  - match: { values.0.1:  "keyword1"  }
+
+---
 unsigned_long:
   - do:
       indices.create:

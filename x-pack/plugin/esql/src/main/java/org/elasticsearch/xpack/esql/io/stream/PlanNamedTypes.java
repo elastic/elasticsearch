@@ -15,6 +15,7 @@ import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
+import org.elasticsearch.xpack.esql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -247,6 +248,7 @@ public final class PlanNamedTypes {
             // Attributes
             of(Attribute.class, FieldAttribute.class, PlanNamedTypes::writeFieldAttribute, PlanNamedTypes::readFieldAttribute),
             of(Attribute.class, ReferenceAttribute.class, PlanNamedTypes::writeReferenceAttr, PlanNamedTypes::readReferenceAttr),
+            of(Attribute.class, MetadataAttribute.class, PlanNamedTypes::writeMetadataAttr, PlanNamedTypes::readMetadataAttr),
             of(Attribute.class, UnsupportedAttribute.class, PlanNamedTypes::writeUnsupportedAttr, PlanNamedTypes::readUnsupportedAttr),
             // EsFields
             of(EsField.class, EsField.class, PlanNamedTypes::writeEsField, PlanNamedTypes::readEsField),
@@ -787,6 +789,29 @@ public final class PlanNamedTypes {
         out.writeEnum(referenceAttribute.nullable());
         out.writeLong(Long.parseLong(referenceAttribute.id().toString()));
         out.writeBoolean(referenceAttribute.synthetic());
+    }
+
+    static MetadataAttribute readMetadataAttr(PlanStreamInput in) throws IOException {
+        return new MetadataAttribute(
+            Source.EMPTY,
+            in.readString(),
+            in.dataTypeFromTypeName(in.readString()),
+            in.readOptionalString(),
+            in.readEnum(Nullability.class),
+            in.nameIdFromLongValue(in.readLong()),
+            in.readBoolean(),
+            in.readBoolean()
+        );
+    }
+
+    static void writeMetadataAttr(PlanStreamOutput out, MetadataAttribute metadataAttribute) throws IOException {
+        out.writeString(metadataAttribute.name());
+        out.writeString(metadataAttribute.dataType().typeName());
+        out.writeOptionalString(metadataAttribute.qualifier());
+        out.writeEnum(metadataAttribute.nullable());
+        out.writeLong(Long.parseLong(metadataAttribute.id().toString()));
+        out.writeBoolean(metadataAttribute.synthetic());
+        out.writeBoolean(metadataAttribute.docValues());
     }
 
     static UnsupportedAttribute readUnsupportedAttr(PlanStreamInput in) throws IOException {

@@ -266,27 +266,28 @@ public class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testMetadataFieldsOnMultipleIndices() throws IOException {
-        var request = new Request("POST", "/" + testIndexName() + "-1/_doc/1");
+        var request = new Request("POST", "/" + testIndexName() + "-1/_doc/id-1");
         request.addParameter("refresh", "true");
         request.setJsonEntity("{\"a\": 1}");
         assertEquals(201, client().performRequest(request).getStatusLine().getStatusCode());
-        request = new Request("POST", "/" + testIndexName() + "-1/_doc/1");
+        request = new Request("POST", "/" + testIndexName() + "-1/_doc/id-1");
         request.addParameter("refresh", "true");
         request.setJsonEntity("{\"a\": 2}");
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
-        request = new Request("POST", "/" + testIndexName() + "-2/_doc");
+        request = new Request("POST", "/" + testIndexName() + "-2/_doc/id-2");
         request.addParameter("refresh", "true");
         request.setJsonEntity("{\"a\": 3}");
         assertEquals(201, client().performRequest(request).getStatusLine().getStatusCode());
 
-        var query = fromIndex() + "* [metadata _index, _version] | sort _version";
+        var query = fromIndex() + "* [metadata _index, _version, _id] | sort _version";
         Map<String, Object> result = runEsql(new RequestObjectBuilder().query(query).build());
         var columns = List.of(
             Map.of("name", "a", "type", "long"),
             Map.of("name", "_index", "type", "keyword"),
-            Map.of("name", "_version", "type", "long")
+            Map.of("name", "_version", "type", "long"),
+            Map.of("name", "_id", "type", "keyword")
         );
-        var values = List.of(List.of(3, testIndexName() + "-2", 1), List.of(2, testIndexName() + "-1", 2));
+        var values = List.of(List.of(3, testIndexName() + "-2", 1, "id-2"), List.of(2, testIndexName() + "-1", 2, "id-1"));
 
         assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
     }

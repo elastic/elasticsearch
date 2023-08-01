@@ -36,7 +36,7 @@ teardown:
       available: true,
       search_applications: { count: 0 },
       analytics_collections: { count: 0 },
-      query_rulesets: { count: 0 }
+      query_rulesets: {  count: 0, rules: { count: 0, min: 0, max: 0 } }
     }
   }
 
@@ -61,7 +61,7 @@ teardown:
       available: true,
       search_applications: { count: 1 },
       analytics_collections: { count: 0 },
-      query_rulesets: { count: 0 }
+      query_rulesets: { count: 0, rules: { count: 0, min: 0, max: 0 } }
     }
   }
 
@@ -90,7 +90,7 @@ teardown:
       available: true,
       search_applications: { count: 2 },
       analytics_collections: { count: 1 },
-      query_rulesets: { count: 0 }
+      query_rulesets: { count: 0, rules: { count: 0, min: 0, max: 0 } }
     }
   }
 
@@ -107,7 +107,7 @@ teardown:
       available: true,
       search_applications: { count: 1 },
       analytics_collections: { count: 1 },
-      query_rulesets: { count: 0 }
+      query_rulesets: { count: 0, rules: { count: 0, min: 0, max: 0 } }
     }
   }
 
@@ -124,7 +124,7 @@ teardown:
       available: true,
       search_applications: { count: 1 },
       analytics_collections: { count: 0 },
-      query_rulesets: { count: 0 }
+      query_rulesets: { count: 0, rules: { count: 0, min: 0, max: 0 } }
     }
   }
 
@@ -156,7 +156,7 @@ teardown:
 
   - do:
       query_ruleset.put:
-        ruleset_id: test-query-ruleset
+        ruleset_id: test-query-ruleset2
         body:
           rules:
             - rule_id: query-rule-id1
@@ -199,18 +199,13 @@ teardown:
       available: true,
       search_applications: { count: 1 },
       analytics_collections: { count: 0 },
-      query_rulesets:
-        count: 2
-        rules:
-          total: 5
-          min: 2
-          max: 3
+      query_rulesets: { count: 2, rules: { count: 5, min: 2, max: 3 } }
     }
   }
 
   - do:
       query_ruleset.delete:
-        ruleset_id: test-query-ruleset
+        ruleset_id: test-query-ruleset2
 
   - do:
       xpack.usage: { }
@@ -221,12 +216,7 @@ teardown:
       available: true,
       search_applications: { count: 1 },
       analytics_collections: { count: 0 },
-      query_rulesets:
-        count: 1
-        rules:
-          total: 2
-          min: 2
-          max: 2
+      query_rulesets: { count: 1, rules: { count: 2, min: 2, max: 2 } }
     }
   }
 

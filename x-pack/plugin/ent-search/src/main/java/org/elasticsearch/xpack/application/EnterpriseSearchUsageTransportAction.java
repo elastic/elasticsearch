@@ -180,22 +180,14 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
 
                 @Override
                 public void onFailure(Exception e) {
-                    clientWithOrigin.execute(
-                        ListSearchApplicationAction.INSTANCE,
-                        searchApplicationsCountRequest,
-                        searchApplicationsCountListener
-                    );
+                    ListQueryRulesetsAction.Request queryRulesetsCountRequest = new ListQueryRulesetsAction.Request(new PageParams(0, 0));
+                    clientWithOrigin.execute(ListQueryRulesetsAction.INSTANCE, queryRulesetsCountRequest, listQueryRulesetsListener);
                 }
             });
-        },
-            e -> {
-                clientWithOrigin.execute(
-                    ListSearchApplicationAction.INSTANCE,
-                    searchApplicationsCountRequest,
-                    searchApplicationsCountListener
-                );
-            }
-        );
+        }, e -> {
+            ListQueryRulesetsAction.Request queryRulesetsCountRequest = new ListQueryRulesetsAction.Request(new PageParams(0, 0));
+            clientWithOrigin.execute(ListQueryRulesetsAction.INSTANCE, queryRulesetsCountRequest, listQueryRulesetsListener);
+        });
 
         // Step 0: Kick off requests
         clientWithOrigin.execute(

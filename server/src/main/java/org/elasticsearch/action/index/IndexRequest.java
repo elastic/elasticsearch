@@ -67,7 +67,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
-    private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersion.V_8_500_048;
+    private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersion.V_8_500_049;
 
     /**
      * Max length of the source document to include into string()

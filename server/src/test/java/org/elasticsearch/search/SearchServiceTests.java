@@ -19,6 +19,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
@@ -72,6 +73,7 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.SearchService.ResultsType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -126,6 +128,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
+import static org.elasticsearch.search.SearchModule.SEARCH_CONCURRENCY_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
@@ -515,7 +518,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 reader,
                 requestWithDefaultTimeout,
                 mock(SearchShardTask.class),
-                SearchService.ResultsType.NONE,
+                ResultsType.NONE,
                 randomBoolean()
             )
         ) {
@@ -542,7 +545,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 reader,
                 requestWithCustomTimeout,
                 mock(SearchShardTask.class),
-                SearchService.ResultsType.NONE,
+                ResultsType.NONE,
                 randomBoolean()
             )
         ) {
@@ -582,13 +585,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
         try (
             ReaderContext reader = createReaderContext(indexService, indexShard);
-            SearchContext context = service.createContext(
-                reader,
-                request,
-                mock(SearchShardTask.class),
-                SearchService.ResultsType.NONE,
-                randomBoolean()
-            )
+            SearchContext context = service.createContext(reader, request, mock(SearchShardTask.class), ResultsType.NONE, randomBoolean())
         ) {
             assertNotNull(context);
         }
@@ -596,13 +593,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         searchSourceBuilder.docValueField("unmapped_field");
         try (
             ReaderContext reader = createReaderContext(indexService, indexShard);
-            SearchContext context = service.createContext(
-                reader,
-                request,
-                mock(SearchShardTask.class),
-                SearchService.ResultsType.NONE,
-                randomBoolean()
-            )
+            SearchContext context = service.createContext(reader, request, mock(SearchShardTask.class), ResultsType.NONE, randomBoolean())
         ) {
             assertNotNull(context);
         }
@@ -611,7 +602,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         try (ReaderContext reader = createReaderContext(indexService, indexShard)) {
             IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> service.createContext(reader, request, mock(SearchShardTask.class), SearchService.ResultsType.NONE, randomBoolean())
+                () -> service.createContext(reader, request, mock(SearchShardTask.class), ResultsType.NONE, randomBoolean())
             );
             assertEquals(
                 "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [1] but was [2]. "
@@ -660,7 +651,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     reader,
                     request,
                     mock(SearchShardTask.class),
-                    SearchService.ResultsType.NONE,
+                    ResultsType.NONE,
                     randomBoolean()
                 )
             ) {
@@ -709,7 +700,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     reader,
                     request,
                     mock(SearchShardTask.class),
-                    SearchService.ResultsType.NONE,
+                    ResultsType.NONE,
                     randomBoolean()
                 )
             ) {
@@ -721,7 +712,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             );
             IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> service.createContext(reader, request, mock(SearchShardTask.class), SearchService.ResultsType.NONE, randomBoolean())
+                () -> service.createContext(reader, request, mock(SearchShardTask.class), ResultsType.NONE, randomBoolean())
             );
             assertEquals(
                 "Trying to retrieve too many script_fields. Must be less than or equal to: ["
@@ -762,13 +753,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
         try (
             ReaderContext reader = createReaderContext(indexService, indexShard);
-            SearchContext context = service.createContext(
-                reader,
-                request,
-                mock(SearchShardTask.class),
-                SearchService.ResultsType.NONE,
-                randomBoolean()
-            )
+            SearchContext context = service.createContext(reader, request, mock(SearchShardTask.class), ResultsType.NONE, randomBoolean())
         ) {
             assertEquals(0, context.scriptFields().fields().size());
         }
@@ -1193,7 +1178,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     readerContext,
                     shardRequest,
                     mock(SearchShardTask.class),
-                    SearchService.ResultsType.QUERY,
+                    ResultsType.QUERY,
                     true
                 )
             ) {
@@ -1313,7 +1298,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         try (ReaderContext reader = createReaderContext(indexService, indexService.getShard(shardId.id()))) {
             NullPointerException e = expectThrows(
                 NullPointerException.class,
-                () -> service.createContext(reader, request, mock(SearchShardTask.class), SearchService.ResultsType.NONE, randomBoolean())
+                () -> service.createContext(reader, request, mock(SearchShardTask.class), ResultsType.NONE, randomBoolean())
             );
             assertEquals("expected", e.getMessage());
         }
@@ -1908,6 +1893,44 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertThat(((TestRewriteCounterQueryBuilder) request.source().query()).asyncRewriteCount, equalTo(1));
         final ShardSearchContextId contextId = context.id();
         assertTrue(service.freeReaderContext(contextId));
+    }
+
+    public void testEnableConcurrentCollection() {
+        createIndex("index", Settings.EMPTY);
+        SearchService service = getInstanceFromNode(SearchService.class);
+        assertTrue(service.isConcurrentCollectionEnabled());
+
+        try {
+            ClusterUpdateSettingsResponse response = client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(SEARCH_CONCURRENCY_ENABLED.getKey(), false).build())
+                .get();
+            assertTrue(response.isAcknowledged());
+            assertFalse(service.isConcurrentCollectionEnabled());
+
+        } finally {
+            // reset original default setting
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().putNull(SEARCH_CONCURRENCY_ENABLED.getKey()).build())
+                .get();
+        }
+    }
+
+    public void testConcurrencyConditions() {
+        SearchSourceBuilder searchSourceBuilder = randomBoolean() ? null : new SearchSourceBuilder();
+        if (searchSourceBuilder != null && randomBoolean()) {
+            searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));
+        }
+        assertTrue(SearchService.concurrentSearchEnabled(ResultsType.DFS, searchSourceBuilder));
+        assertFalse(
+            SearchService.concurrentSearchEnabled(
+                randomFrom(randomFrom(ResultsType.QUERY, ResultsType.NONE, ResultsType.FETCH)),
+                searchSourceBuilder
+            )
+        );
     }
 
     private ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {

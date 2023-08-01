@@ -74,9 +74,9 @@ PUT /_data_stream/new-data-stream
 
 [source,console]
 ----
-DELETE /_data_stream/*
+DELETE /_data_stream/my-data-stream*,new-data-stream*
 
-DELETE /_index_template/*
+DELETE /_index_template/my-data-stream-template,new-data-stream-template
 
 DELETE /_ilm/policy/my-data-stream-policy
 ----

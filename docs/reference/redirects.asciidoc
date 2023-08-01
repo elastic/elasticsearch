@@ -1908,12 +1908,12 @@ Refer to <<data-streams-delete-lifecycle,Update data stream lifecycle API>>.
 coming::[8.10.0]
 
 [role="exclude",id="get-synonyms"]
-=== Get synonym set API
+=== Get synonyms set API
 
 coming::[8.10.0]
 
 [role="exclude",id="list-synonyms"]
-=== List synonym sets API
+=== List synonyms sets API
 
 coming::[8.10.0]
 
@@ -1923,11 +1923,11 @@ coming::[8.10.0]
 coming::[8.10.0]
 
 [role="exclude",id="delete-synonyms"]
-=== Delete synonym sets API
+=== Delete synonyms sets API
 
 coming::[8.10.0]
 
 [role="exclude",id="put-synonyms"]
-=== Create or update synonym sets API
+=== Create or update synonyms sets API
 
 coming::[8.10.0]

@@ -146,11 +146,11 @@ Bezalel Simmel    | Bezalel        | Simmel
 multivalueInput
 from employees | where emp_no <= 10006 | dissect job_positions "%{a} %{b} %{c}" | sort emp_no | keep emp_no, a, b, c;
 
-emp_no:integer | a:keyword | b:keyword | c:keyword
-10001          | null      | null      | null
-10002          | Senior    | Team      | Lead
-10003          | null      | null      | null
-10004          | Head      | Human     | Resources
-10005          | null      | null      | null 
-10006          | Principal | Support   | Engineer
+emp_no:integer | a:keyword            | b:keyword         | c:keyword
+10001          | Senior               | Python            | Developer
+10002          | Senior               | Team              | Lead
+10003          | null                 | null              | null
+10004          | Head                 | Human             | Resources
+10005          | null                 | null              | null 
+10006          | [Principal, Senior]  | [Support, Team]   | [Engineer, Lead]
 ;

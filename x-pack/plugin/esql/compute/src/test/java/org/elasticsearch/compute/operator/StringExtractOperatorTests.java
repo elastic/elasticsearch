@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 
@@ -19,6 +20,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class StringExtractOperatorTests extends OperatorTestCase {
     @Override
@@ -70,5 +73,41 @@ public class StringExtractOperatorTests extends OperatorTestCase {
     protected ByteSizeValue smallEnoughToCircuitBreak() {
         assumeTrue("doesn't use big arrays so can't break", false);
         return null;
+    }
+
+    public void testMultivalueDissectInput() {
+
+        StringExtractOperator operator = new StringExtractOperator(
+            new String[] { "test" },
+            (page) -> page.getBlock(0),
+            new FirstWord("test")
+        );
+
+        BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(1);
+        builder.beginPositionEntry();
+        builder.appendBytesRef(new BytesRef("foo1 bar1"));
+        builder.appendBytesRef(new BytesRef("foo2 bar2"));
+        builder.endPositionEntry();
+        builder.beginPositionEntry();
+        builder.appendBytesRef(new BytesRef("foo3 bar3"));
+        builder.appendBytesRef(new BytesRef("foo4 bar4"));
+        builder.appendBytesRef(new BytesRef("foo5 bar5"));
+        builder.endPositionEntry();
+        Page page = new Page(builder.build());
+
+        Page result = operator.process(page);
+        Block resultBlock = result.getBlock(1);
+        assertThat(resultBlock.getPositionCount(), equalTo(2));
+        assertThat(resultBlock.getValueCount(0), equalTo(2));
+        assertThat(resultBlock.getValueCount(1), equalTo(3));
+        BytesRefBlock brb = (BytesRefBlock) resultBlock;
+        BytesRef spare = new BytesRef("");
+        int idx = brb.getFirstValueIndex(0);
+        assertThat(brb.getBytesRef(idx, spare).utf8ToString(), equalTo("foo1"));
+        assertThat(brb.getBytesRef(idx + 1, spare).utf8ToString(), equalTo("foo2"));
+        idx = brb.getFirstValueIndex(1);
+        assertThat(brb.getBytesRef(idx, spare).utf8ToString(), equalTo("foo3"));
+        assertThat(brb.getBytesRef(idx + 1, spare).utf8ToString(), equalTo("foo4"));
+        assertThat(brb.getBytesRef(idx + 2, spare).utf8ToString(), equalTo("foo5"));
     }
 }

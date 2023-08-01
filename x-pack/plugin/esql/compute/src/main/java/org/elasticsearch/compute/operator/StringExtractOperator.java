@@ -72,18 +72,55 @@ public class StringExtractOperator extends AbstractPageMappingOperator {
                 continue;
             }
 
-            // For now more than a single input value will just read the first one
             int position = input.getFirstValueIndex(row);
-            Map<String, String> items = parser.apply(input.getBytesRef(position, spare).utf8ToString());
-            if (items == null) {
-                for (int i = 0; i < fieldNames.length; i++) {
-                    blockBuilders[i].appendNull();
+            int valueCount = input.getValueCount(row);
+            if (valueCount == 1) {
+                Map<String, String> items = parser.apply(input.getBytesRef(position, spare).utf8ToString());
+                if (items == null) {
+                    for (int i = 0; i < fieldNames.length; i++) {
+                        blockBuilders[i].appendNull();
+                    }
+                    continue;
                 }
-                continue;
-            }
-            for (int i = 0; i < fieldNames.length; i++) {
-                String val = items.get(fieldNames[i]);
-                BlockUtils.appendValue(blockBuilders[i], val, ElementType.BYTES_REF);
+                for (int i = 0; i < fieldNames.length; i++) {
+                    String val = items.get(fieldNames[i]);
+                    BlockUtils.appendValue(blockBuilders[i], val, ElementType.BYTES_REF);
+                }
+            } else {
+                // multi-valued input
+                String[] firstValues = new String[fieldNames.length];
+                boolean[] positionEntryOpen = new boolean[fieldNames.length];
+                for (int c = 0; c < valueCount; c++) {
+                    Map<String, String> items = parser.apply(input.getBytesRef(position + c, spare).utf8ToString());
+                    if (items == null) {
+                        continue;
+                    }
+                    for (int i = 0; i < fieldNames.length; i++) {
+                        String val = items.get(fieldNames[i]);
+                        if (val == null) {
+                            continue;
+                        }
+                        if (firstValues[i] == null) {
+                            firstValues[i] = val;
+                        } else {
+                            if (positionEntryOpen[i] == false) {
+                                positionEntryOpen[i] = true;
+                                blockBuilders[i].beginPositionEntry();
+                                BlockUtils.appendValue(blockBuilders[i], firstValues[i], ElementType.BYTES_REF);
+                            }
+                            BlockUtils.appendValue(blockBuilders[i], val, ElementType.BYTES_REF);
+                        }
+                    }
+                }
+                for (int i = 0; i < fieldNames.length; i++) {
+                    if (positionEntryOpen[i]) {
+                        blockBuilders[i].endPositionEntry();
+                    } else if (firstValues[i] == null) {
+                        blockBuilders[i].appendNull();
+                    } else {
+                        BlockUtils.appendValue(blockBuilders[i], firstValues[i], ElementType.BYTES_REF);
+                    }
+                }
             }
         }
 

@@ -152,8 +152,9 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
             }
         );
 
-        IndicesStatsRequest indicesStatsRequest =
-            indicesAdminClient.prepareStats(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME).setDocs(true).request();
+        IndicesStatsRequest indicesStatsRequest = indicesAdminClient.prepareStats(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME)
+            .setDocs(true)
+            .request();
 
         // Step 1: Fetch analytics collections count
         GetAnalyticsCollectionAction.Request analyticsCollectionsCountRequest = new GetAnalyticsCollectionAction.Request(
@@ -166,18 +167,21 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
                 @Override
                 public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                     Map<String, IndexStats> indicesStats = indicesStatsResponse.getIndices();
-                    int queryRulesetCount = indicesStats.values().stream()
+                    int queryRulesetCount = indicesStats.values()
+                        .stream()
                         .mapToInt(indexShardStats -> (int) indexShardStats.getPrimaries().getDocs().getCount())
                         .sum();
 
-                    ListQueryRulesetsAction.Request queryRulesetsCountRequest =
-                        new ListQueryRulesetsAction.Request(new PageParams(0, queryRulesetCount));
+                    ListQueryRulesetsAction.Request queryRulesetsCountRequest = new ListQueryRulesetsAction.Request(
+                        new PageParams(0, queryRulesetCount)
+                    );
                     clientWithOrigin.execute(ListQueryRulesetsAction.INSTANCE, queryRulesetsCountRequest, listQueryRulesetsListener);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    clientWithOrigin.execute(ListSearchApplicationAction.INSTANCE,
+                    clientWithOrigin.execute(
+                        ListSearchApplicationAction.INSTANCE,
                         searchApplicationsCountRequest,
                         searchApplicationsCountListener
                     );
@@ -218,10 +222,10 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         // Aggregate query rules stats
         List<QueryRulesetListItem> results = response.queryPage().results();
         IntSummaryStatistics stats = results.stream().mapToInt(QueryRulesetListItem::numRules).summaryStatistics();
-        Map<String,Object> rules = new HashMap<>();
+        Map<String, Object> rules = new HashMap<>();
         rules.put(EnterpriseSearchFeatureSetUsage.COUNT, stats.getSum());
-        rules.put(EnterpriseSearchFeatureSetUsage.MAX, stats.getMax());
-        rules.put(EnterpriseSearchFeatureSetUsage.MIN, stats.getMin());
+        rules.put(EnterpriseSearchFeatureSetUsage.MIN, results.isEmpty() ? 0 : stats.getMin());
+        rules.put(EnterpriseSearchFeatureSetUsage.MAX, results.isEmpty() ? 0 : stats.getMax());
 
         // Query ruleset stats
         queryRulesUsage.put(EnterpriseSearchFeatureSetUsage.COUNT, response.queryPage().count());

@@ -15,11 +15,8 @@ import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.AccessDeniedException;
-import java.nio.file.NoSuchFileException;
 
 final class ByteSizeCachingDirectory extends ByteSizeDirectory {
 
@@ -100,7 +97,7 @@ final class ByteSizeCachingDirectory extends ByteSizeDirectory {
 
     @Override
     public long estimateDataSetSizeInBytes() throws IOException {
-           return estimateSizeInBytes(); // data set size is equal to directory size for most implementations
+        return estimateSizeInBytes(); // data set size is equal to directory size for most implementations
     }
 
     @Override

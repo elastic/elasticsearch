@@ -35,7 +35,7 @@ Synonym rule identifier to create or update.
 
 `synonyms`::
 (Required, string)
-The synonym rules definitions for the synonym rule.
+The synonym rule definition.
 This needs to be in <<_solr_synonyms>> format. Some examples are:
 
 * "i-pod, i pod => ipod",

@@ -68,7 +68,9 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_030) && in.readBoolean()) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_030)
+                && in.getTransportVersion().id() != TransportVersion.V_8_500_049.id()
+                && in.readBoolean()) {
                 this.indexStartTimeMillis = in.readVLong();
                 this.indexEndTimeMillis = in.readVLong();
             } else {
@@ -131,7 +133,8 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_030)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_030)
+                && out.getTransportVersion().id() != TransportVersion.V_8_500_049.id()) {
                 out.writeBoolean(true);
                 out.writeVLong(indexStartTimeMillis);
                 out.writeVLong(indexEndTimeMillis);

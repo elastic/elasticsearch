@@ -50,7 +50,7 @@ public class PutQueryRulesetActionRequestBWCSerializingTests extends AbstractBWC
     @Override
     protected PutQueryRulesetAction.Request mutateInstanceForVersion(PutQueryRulesetAction.Request instance, TransportVersion version) {
 
-        if (version.before(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
+        if (version.before(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION) || version.id() == TransportVersion.V_8_500_049.id()) {
             List<QueryRule> rules = new ArrayList<>();
             for (QueryRule rule : instance.queryRuleset().rules()) {
                 List<QueryRuleCriteria> newCriteria = new ArrayList<>();

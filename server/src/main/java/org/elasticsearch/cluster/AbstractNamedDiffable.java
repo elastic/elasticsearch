@@ -25,6 +25,7 @@ public abstract class AbstractNamedDiffable<T extends NamedDiffable<T>> implemen
     @Override
     public Diff<T> diff(T previousState) {
         if (this.get().equals(previousState)) {
+            // TODO what about backport version checks?
             return new CompleteNamedDiff<>(previousState.getWriteableName(), previousState.getMinimalSupportedVersion());
         } else {
             return new CompleteNamedDiff<>(get());

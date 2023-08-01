@@ -89,6 +89,7 @@ public abstract class InferenceConfigItemTestCase<T extends VersionedNamedWritea
     @Override
     protected List<TransportVersion> bwcVersions() {
         T obj = createTestInstance();
+        // TODO how to do backport checks here?
         return getAllBWCVersions().stream().filter(v -> v.onOrAfter(obj.getMinimalSupportedVersion())).collect(Collectors.toList());
     }
 }

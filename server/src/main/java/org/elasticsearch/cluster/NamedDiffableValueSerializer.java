@@ -31,11 +31,13 @@ public class NamedDiffableValueSerializer<T extends NamedDiffable<T>> extends Di
 
     @Override
     public boolean supportsVersion(Diff<T> value, TransportVersion version) {
+        // TODO how to do backport version checks here?
         return version.onOrAfter(((NamedDiff<?>) value).getMinimalSupportedVersion());
     }
 
     @Override
     public boolean supportsVersion(T value, TransportVersion version) {
+        // TODO how to do backport version checks here?
         return version.onOrAfter(value.getMinimalSupportedVersion());
     }
 

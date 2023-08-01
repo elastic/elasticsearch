@@ -360,7 +360,7 @@ public final class TokenService {
             final BytesReference tokenDocument;
             try {
                 final String userTokenId;
-                if (tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+                if (tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH) && tokenVersion.id() != TransportVersion.V_8_500_049.id()) {
                     assert accessTokenBytes.length == RAW_TOKEN_BYTES_TOTAL_LENGTH;
                     MessageDigest userTokenIdDigest = sha256();
                     userTokenIdDigest.update(accessTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
@@ -532,7 +532,8 @@ public final class TokenService {
                     }
                     Map<String, Object> accessSource = (Map<String, Object>) response.getSource().get("access_token");
                     Map<String, Object> refreshSource = (Map<String, Object>) response.getSource().get("refresh_token");
-                    boolean versionGetForRefresh = tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH);
+                    boolean versionGetForRefresh = tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)
+                        && tokenVersion.id() != TransportVersion.V_8_500_049.id();
                     if (accessSource == null) {
                         onFailure.accept(new IllegalStateException("token document is missing the access_token field"));
                     } else if (accessSource.containsKey("user_token") == false) {
@@ -604,7 +605,7 @@ public final class TokenService {
         try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
             final TransportVersion version = TransportVersion.readVersion(in);
             in.setTransportVersion(version);
-            if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+            if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH) && version.id() != TransportVersion.V_8_500_049.id()) {
                 byte[] accessTokenBytes = in.readByteArray();
                 if (accessTokenBytes.length != RAW_TOKEN_BYTES_TOTAL_LENGTH) {
                     logger.debug(
@@ -1044,7 +1045,7 @@ public final class TokenService {
             try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
                 final TransportVersion version = TransportVersion.readVersion(in);
                 in.setTransportVersion(version);
-                if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+                if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH) && version.id() != TransportVersion.V_8_500_049.id()) {
                     final byte[] refreshTokenBytes = in.readByteArray();
                     if (refreshTokenBytes.length != RAW_TOKEN_BYTES_TOTAL_LENGTH) {
                         logger.debug(
@@ -1369,7 +1370,8 @@ public final class TokenService {
                 // We expect this to protect against race conditions that manifest within few ms
                 final Iterator<TimeValue> backoff = BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(10), 8).iterator();
                 final String tokenDocId;
-                if (refreshTokenStatus.getTransportVersion().onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+                if (refreshTokenStatus.getTransportVersion().onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)
+                    && refreshTokenStatus.getTransportVersion().id() != TransportVersion.V_8_500_049.id()) {
                     MessageDigest userTokenIdDigest = sha256();
                     userTokenIdDigest.update(
                         Base64.getUrlDecoder().decode(decryptedTokens[0]),
@@ -2068,7 +2070,7 @@ public final class TokenService {
 
     public String prependVersionAndEncodeAccessToken(TransportVersion version, byte[] accessTokenBytes) throws IOException,
         GeneralSecurityException {
-        if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+        if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH) && version.id() != TransportVersion.V_8_500_049.id()) {
             try (BytesStreamOutput out = new BytesStreamOutput(VERSION_BYTES + RAW_TOKEN_BYTES_TOTAL_LENGTH)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
@@ -2114,7 +2116,7 @@ public final class TokenService {
     }
 
     public static String prependVersionAndEncodeRefreshToken(TransportVersion version, byte[] refreshTokenBytes) throws IOException {
-        if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+        if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH) && version.id() != TransportVersion.V_8_500_049.id()) {
             try (BytesStreamOutput out = new BytesStreamOutput(VERSION_BYTES + RAW_TOKEN_BYTES_TOTAL_LENGTH)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
@@ -2211,7 +2213,7 @@ public final class TokenService {
     }
 
     Tuple<byte[], byte[]> getRandomTokenBytes(TransportVersion version, boolean includeRefreshToken) {
-        if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+        if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH) && version.id() != TransportVersion.V_8_500_049.id()) {
             byte[] accessTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_TOTAL_LENGTH);
             if (includeRefreshToken) {
                 byte[] refreshTokenBytes = new byte[RAW_TOKEN_BYTES_TOTAL_LENGTH];

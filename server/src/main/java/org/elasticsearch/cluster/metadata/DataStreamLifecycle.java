@@ -163,7 +163,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             out.writeOptionalWriteable(dataRetention);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_026)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_026)
+            && out.getTransportVersion().id() != TransportVersion.V_8_500_049.id()) {
             out.writeOptionalWriteable(downsampling);
         }
     }
@@ -174,7 +175,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         } else {
             dataRetention = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_026)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_026)
+            && in.getTransportVersion().id() != TransportVersion.V_8_500_049.id()) {
             downsampling = in.readOptionalWriteable(Downsampling::read);
         } else {
             downsampling = null;

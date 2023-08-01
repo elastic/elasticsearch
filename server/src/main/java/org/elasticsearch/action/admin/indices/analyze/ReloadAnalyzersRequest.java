@@ -44,14 +44,17 @@ public class ReloadAnalyzersRequest extends BroadcastRequest<ReloadAnalyzersRequ
     public ReloadAnalyzersRequest(StreamInput in) throws IOException {
         super(in);
         this.resource = in.readOptionalString();
-        this.preview = in.getTransportVersion().onOrAfter(PREVIEW_OPTION_TRANSPORT_VERSION) && in.readBoolean();
+        this.preview = in.getTransportVersion().onOrAfter(PREVIEW_OPTION_TRANSPORT_VERSION)
+            && in.getTransportVersion().id() != TransportVersion.V_8_500_049.id()
+            && in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(resource);
-        if (out.getTransportVersion().onOrAfter(PREVIEW_OPTION_TRANSPORT_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(PREVIEW_OPTION_TRANSPORT_VERSION)
+            && out.getTransportVersion().id() != TransportVersion.V_8_500_049.id()) {
             out.writeBoolean(preview);
         }
     }

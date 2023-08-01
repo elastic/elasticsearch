@@ -165,7 +165,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         settings.fuzzyPrefixLength(in.readVInt());
         settings.fuzzyMaxExpansions(in.readVInt());
         settings.fuzzyTranspositions(in.readBoolean());
-        if (in.getTransportVersion().onOrAfter(TYPE_FIELD_ADDED_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(TYPE_FIELD_ADDED_VERSION)
+            && in.getTransportVersion().id() != TransportVersion.V_8_500_049.id()) {
             this.type = MultiMatchQueryBuilder.Type.readFromStream(in);
         } else {
             this.type = DEFAULT_TYPE;
@@ -192,7 +193,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeVInt(settings.fuzzyPrefixLength());
         out.writeVInt(settings.fuzzyMaxExpansions());
         out.writeBoolean(settings.fuzzyTranspositions());
-        if (out.getTransportVersion().onOrAfter(TYPE_FIELD_ADDED_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(TYPE_FIELD_ADDED_VERSION)
+            && out.getTransportVersion().id() != TransportVersion.V_8_500_049.id()) {
             type.writeTo(out);
         }
     }

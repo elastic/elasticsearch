@@ -62,6 +62,7 @@ public class VersionCheckingStreamOutput extends StreamOutput {
     }
 
     private void checkVersionCompatibility(VersionedNamedWriteable namedWriteable) {
+        // TODO how to do backport checks here?
         if (namedWriteable.getMinimalSupportedVersion().after(getTransportVersion())) {
             throw new IllegalArgumentException(
                 "["

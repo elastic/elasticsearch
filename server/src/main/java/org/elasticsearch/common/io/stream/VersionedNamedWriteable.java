@@ -39,6 +39,7 @@ public interface VersionedNamedWriteable extends NamedWriteable {
      * @return true if the custom should be serialized and false otherwise
      */
     static <T extends VersionedNamedWriteable> boolean shouldSerialize(final StreamOutput out, final T custom) {
+        // TODO how to do backport checks here?
         return out.getTransportVersion().onOrAfter(custom.getMinimalSupportedVersion());
     }
 

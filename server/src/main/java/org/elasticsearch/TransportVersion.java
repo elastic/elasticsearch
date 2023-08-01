@@ -171,9 +171,13 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     public static final TransportVersion V_8_500_046 = registerTransportVersion(8_500_046, "61666d4c-a4f0-40db-8a3d-4806718247c5");
     public static final TransportVersion V_8_500_047 = registerTransportVersion(8_500_047, "4b1682fe-c37e-4184-80f6-7d57fcba9b3d");
     public static final TransportVersion V_8_500_048 = registerTransportVersion(8_500_048, "f9658aa5-f066-4edb-bcb9-40bf256c9294");
+    // V_8_500_049 used to backport of EQL missing events fix to in 8.9
+    // https://github.com/elastic/elasticsearch/commit/9ab8f71b01bba55a39664be8b74a1a3bcd57cf3e
+    public static final TransportVersion V_8_500_049 = registerTransportVersion(8_500_049, "42b43816-a3f3-430f-87c5-a54ec37e574c");
+    public static final TransportVersion V_8_500_050 = registerTransportVersion(8_500_050, "44016124-e960-46e8-9033-67f3ad73d274");
 
     private static class CurrentHolder {
-        private static final TransportVersion CURRENT = findCurrent(V_8_500_048);
+        private static final TransportVersion CURRENT = findCurrent(V_8_500_050);
 
         // finds the pluggable current version, or uses the given fallback
         private static TransportVersion findCurrent(TransportVersion fallback) {

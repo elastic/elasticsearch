@@ -1,0 +1,36 @@
+[[synonyms-apis]]
+== Synonyms APIs
+
+beta::[]
+
+++++
+<titleabbrev>Synonyms APIs</titleabbrev>
+++++
+
+---
+
+The synonyms management API provides a convenient way to define and manage synonyms in an internal system index. Related synonyms can be grouped in a "synonyms set".
+Create as many synonym sets as you need.
+
+This provides an alternative to:
+- Defining inline synonyms in an analyzer definition, which impacts mapping size and can lead to performance issues.
+- Using synonyms files, which implies uploading and managing file consistency on all cluster nodes.
+
+Synonyms sets can be used to configure <<analysis-synonym-graph-tokenfilter,synonym graph token filters>> and <<analysis-synonym-tokenfilter,synonym token filters>>.
+These filters are applied as part of the <<search-analyzer,search analyzer>> analysis process.
+
+You can use these APIs to dynamically update synonyms sets used at search time.
+Your search results will immediately reflect the synonyms set changes.
+
+Use the following APIs to manage synonyms sets:
+
+* <<put-synonyms-set>>
+* <<get-synonyms-set>>
+* <<list-synonyms-sets>>
+* <<delete-synonyms-set>>
+
+include::put-synonyms-set.asciidoc[]
+include::get-synonyms-set.asciidoc[]
+include::list-synonyms-sets.asciidoc[]
+include::delete-synonyms-set.asciidoc[]
+

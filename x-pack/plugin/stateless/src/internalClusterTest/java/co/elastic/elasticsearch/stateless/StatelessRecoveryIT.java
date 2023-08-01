@@ -928,6 +928,73 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertThat(recoveryStats.currentAsTarget(), equalTo(0));
     };
 
+    public void testRecoverIndexingShardWithObjectStoreFailuresDuringIndexing() throws Exception {
+        final String indexNodeA = startIndexNode();
+        ensureStableCluster(2);
+        final String indexName = SYSTEM_INDEX_NAME;
+        createSystemIndex(indexSettings(1, 0).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true).build());
+        final String indexNodeB = startIndexNode();
+        ensureStableCluster(3);
+
+        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeA);
+        MockRepository repository = (MockRepository) objectStoreService.getObjectStore();
+        repository.setRandomControlIOExceptionRate(1.0);
+        repository.setRandomDataFileIOExceptionRate(1.0);
+        repository.setMaximumNumberOfFailures(Long.MAX_VALUE);
+        // This pattern starts failing from file 10. Because file name has 19 digits, and final digit should not be preceded by 18 zeroes.
+        repository.setRandomIOExceptionPattern(".*translog/\\d{18,18}(?<!000000000000000000)\\d.*");
+
+        final AtomicInteger docIdGenerator = new AtomicInteger();
+        final AtomicInteger docsAcknowledged = new AtomicInteger();
+        final AtomicInteger docsFailed = new AtomicInteger();
+        final IntConsumer docIndexer = numDocs -> {
+            var bulkRequest = client().prepareBulk();
+            for (int i = 0; i < numDocs; i++) {
+                bulkRequest.add(
+                    new IndexRequest(indexName).id("doc-" + docIdGenerator.incrementAndGet())
+                        .source("field", randomUnicodeOfCodepointLengthBetween(1, 25))
+                );
+            }
+            BulkResponse response = bulkRequest.get(TimeValue.timeValueSeconds(15));
+            assertThat(response.getItems().length, equalTo(numDocs));
+            for (BulkItemResponse itemResponse : response.getItems()) {
+                if (itemResponse.isFailed()) {
+                    docsFailed.incrementAndGet();
+                } else {
+                    docsAcknowledged.incrementAndGet();
+                }
+            }
+        };
+
+        final AtomicBoolean running = new AtomicBoolean(true);
+        final Thread[] threads = new Thread[scaledRandomIntBetween(1, 3)];
+        for (int j = 0; j < threads.length; j++) {
+            threads[j] = new Thread(() -> {
+                while (running.get()) {
+                    docIndexer.accept(between(1, 20));
+                }
+            });
+            threads[j].start();
+        }
+
+        try {
+            assertBusy(() -> assertThat(repository.getFailureCount(), greaterThan(0L)));
+        } finally {
+            running.set(false);
+            internalCluster().stopNode(indexNodeA);
+            for (Thread thread : threads) {
+                thread.join();
+            }
+        }
+
+        logger.info("--> [{}] documents acknowledged, [{}] documents failed", docsAcknowledged, docsFailed);
+        ensureGreen();
+
+        refresh(indexName); // so that any translog ops become visible for searching
+        final long totalHits = client().prepareSearch(indexName).get().getHits().getTotalHits().value;
+        assertThat(totalHits, greaterThanOrEqualTo((long) docsAcknowledged.get()));
+    }
+
     public void testRecoverSearchShardWithObjectStoreFailures() throws Exception {
         final String indexName = "test";
         startIndexNode();

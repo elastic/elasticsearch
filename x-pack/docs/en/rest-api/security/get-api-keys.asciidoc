@@ -21,9 +21,8 @@ Retrieves information for one or more API keys.
 the API keys that you own. 
 +
 NOTE: Authenticating with an API key that has the `manage_own_api_key` privilege
-does not allow retrieving the authenticated user's own keys using `owner=true`.
-Instead, specify a key ID in the `id` field, or authenticate the user with basic
-credentials.
+does not allow retrieving the authenticated user's own keys. Instead, 
+authenticate the user with basic credentials.
 ** If you have `read_security`, `manage_api_key` or greater
 privileges (including `manage_security`), this API returns all API keys
 regardless of ownership.

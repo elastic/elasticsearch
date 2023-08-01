@@ -38,8 +38,6 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.TotalHitCountCollector;
-import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.lucene.Lucene;
@@ -59,7 +57,6 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -116,33 +113,12 @@ abstract class TopDocsCollectorManagerFactory {
                 // for bwc hit count is set to 0, it will be converted to -1 by the coordinating node
                 this.hitCountSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
             } else {
-                if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
-                    final int[] totalHits = new int[1];
-                    TotalHitCountCollectorManager totalHitCountCollectorManager = new TotalHitCountCollectorManager();
-                    // wrapping total hit count collector manager is needed to bridge the type mismatch between <Void> and <Integer>.
-                    this.collectorManager = new CollectorManager<>() {
-                        @Override
-                        public Collector newCollector() throws IOException {
-                            return totalHitCountCollectorManager.newCollector();
-                        }
-
-                        @Override
-                        public Void reduce(Collection<Collector> collectors) throws IOException {
-                            totalHits[0] = totalHitCountCollectorManager.reduce(
-                                collectors.stream().map(c -> (TotalHitCountCollector) c).toList()
-                            );
-                            return null;
-                        }
-                    };
-                    this.hitCountSupplier = () -> new TotalHits(totalHits[0], TotalHits.Relation.EQUAL_TO);
-                } else {
-                    PartialHitCountCollector.CollectorManager cm = new PartialHitCountCollector.CollectorManager(trackTotalHitsUpTo);
-                    this.collectorManager = cm;
-                    this.hitCountSupplier = () -> new TotalHits(
-                        cm.getTotalHits(),
-                        cm.hasEarlyTerminated() ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO
-                    );
-                }
+                PartialHitCountCollector.CollectorManager cm = new PartialHitCountCollector.CollectorManager(trackTotalHitsUpTo);
+                this.collectorManager = cm;
+                this.hitCountSupplier = () -> new TotalHits(
+                    cm.getTotalHits(),
+                    cm.hasEarlyTerminated() ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO
+                );
             }
         }
 

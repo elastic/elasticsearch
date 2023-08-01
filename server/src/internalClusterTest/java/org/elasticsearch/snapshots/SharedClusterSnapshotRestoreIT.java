@@ -74,6 +74,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -911,6 +912,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertDocCount("test-idx", 100L);
+    }
+
+    private int numberOfFiles(Path dir) throws Exception {
+        awaitMasterFinishRepoOperations(); // wait for potential background blob deletes to complete on master
+        final AtomicInteger count = new AtomicInteger();
+        forEachFileRecursively(dir, ((path, basicFileAttributes) -> count.incrementAndGet()));
+        return count.get();
     }
 
     public void testDeleteRepositoryWhileSnapshotting() throws Exception {

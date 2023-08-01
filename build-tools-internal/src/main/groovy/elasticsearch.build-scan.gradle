@@ -16,7 +16,7 @@ buildScan {
   String buildKiteUrl = System.getenv('BUILDKITE_BUILD_URL') ? System.getenv('BUILDKITE_BUILD_URL') : null
 
   // Automatically publish scans from Elasticsearch CI
-  if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev')) {
+  if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev') || System.getenv('BUILDKITE') == 'true') {
     publishAlways()
     buildScan.server = 'https://gradle-enterprise.elastic.co'
   }

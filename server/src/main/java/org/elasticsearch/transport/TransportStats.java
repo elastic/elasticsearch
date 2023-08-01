@@ -212,11 +212,11 @@ public class TransportStats implements Writeable, ChunkedToXContent {
                 return builder;
             }),
 
-            Iterators.flatMap(transportActionStats.entrySet().iterator(), entry -> Iterators.single((builder, params) -> {
+            Iterators.map(transportActionStats.entrySet().iterator(), entry -> (builder, params) -> {
                 builder.field(entry.getKey());
                 entry.getValue().toXContent(builder, params);
                 return builder;
-            })),
+            }),
 
             Iterators.single((builder, params) -> {
                 if (transportActionStats.isEmpty() == false) {

@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
@@ -35,7 +34,6 @@ public class TransportDeleteSecretAction extends HandledTransportAction<DeleteSe
     @Override
     protected void doExecute(Task task, DeleteSecretRequest request, ActionListener<DeleteSecretResponse> listener) {
         client.prepareDelete(FLEET_SECRETS_INDEX_NAME, request.id())
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute(ActionListener.wrap(deleteResponse -> {
                 if (deleteResponse.getResult() == Result.NOT_FOUND) {
                     listener.onFailure(new ResourceNotFoundException("No secret with id [" + request.id() + "]"));

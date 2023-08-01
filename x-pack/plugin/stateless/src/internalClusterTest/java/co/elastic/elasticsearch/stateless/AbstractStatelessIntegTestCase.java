@@ -482,4 +482,9 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             }
         }
     }
+
+    @Override
+    protected boolean autoManageVotingExclusions() {
+        return false;
+    }
 }

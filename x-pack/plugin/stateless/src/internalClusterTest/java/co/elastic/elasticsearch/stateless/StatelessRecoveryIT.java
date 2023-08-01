@@ -68,7 +68,6 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.NodeNotConnectedException;
@@ -108,9 +107,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 
-// TODO: ClusterScope with autoManageMasterNodes = false has been added to avoid calling voting config APIs when restarting the master (used
-//       e.g. in testOngoingIndexShardRelocationAndMasterFailOver). It can be removed after ES PR #97959 is resolved.
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
 public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
     @Override
@@ -127,7 +123,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
     @Before
     public void init() {
-        internalCluster().setBootstrapMasterNodeIndex(0);
         startMasterOnlyNode();
     }
 

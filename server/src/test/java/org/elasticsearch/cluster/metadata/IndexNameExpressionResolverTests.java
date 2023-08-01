@@ -1557,14 +1557,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
     }
 
-    private static Metadata metadataBuilder(String... indices) {
-        Metadata.Builder mdBuilder = Metadata.builder();
-        for (String concreteIndex : indices) {
-            mdBuilder.put(indexBuilder(concreteIndex));
-        }
-        return mdBuilder.build();
-    }
-
     public void testFilterClosedIndicesOnAliases() {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(indexBuilder("test-0").state(State.OPEN).putAlias(AliasMetadata.builder("alias-0")))

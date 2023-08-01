@@ -99,15 +99,4 @@ public class Distribution {
         }
     }
 
-    public enum Flavor {
-
-        OSS("elasticsearch-oss"),
-        DEFAULT("elasticsearch");
-
-        public final String name;
-
-        Flavor(String name) {
-            this.name = name;
-        }
-    }
 }

@@ -7,7 +7,6 @@
 package org.elasticsearch.smoketest;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -17,7 +16,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.WatcherRestTestCase.deleteAllWatcherData;
-import static org.hamcrest.Matchers.is;
 
 public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 
@@ -42,62 +40,6 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
         );
         adminClient().performRequest(cleanupSettingsRequest);
         deleteAllWatcherData();
-    }
-
-    private void assertMonitoringWatchHasBeenOverWritten(String watchId) throws Exception {
-        assertBusy(() -> {
-            ObjectPath path = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_watcher/watch/" + watchId)));
-            String interval = path.evaluate("watch.trigger.schedule.interval");
-            assertThat(interval, is("1m"));
-        });
-    }
-
-    private void assertTotalWatchCount(int expectedWatches) throws Exception {
-        assertBusy(() -> {
-            refreshAllIndices();
-            final Request countRequest = new Request("POST", "/_watcher/_query/watches");
-            ObjectPath path = ObjectPath.createFromResponse(client().performRequest(countRequest));
-            int count = path.evaluate("count");
-            assertThat(count, is(expectedWatches));
-        });
-    }
-
-    private String createMonitoringWatch() throws Exception {
-        String clusterUUID = getClusterUUID();
-        String watchId = clusterUUID + "_kibana_version_mismatch";
-        Request request = new Request("PUT", "/_watcher/watch/" + watchId);
-        String watch = """
-            {
-              "trigger": {
-                "schedule": {
-                  "interval": "1000m"
-                }
-              },
-              "input": {
-                "simple": {}
-              },
-              "condition": {
-                "always": {}
-              },
-              "actions": {
-                "logme": {
-                  "logging": {
-                    "level": "info",
-                    "text": "foo"
-                  }
-                }
-              }
-            }""";
-        request.setJsonEntity(watch);
-        client().performRequest(request);
-        return watchId;
-    }
-
-    private String getClusterUUID() throws Exception {
-        Response response = client().performRequest(new Request("GET", "/_cluster/state/metadata"));
-        ObjectPath objectPath = ObjectPath.createFromResponse(response);
-        String clusterUUID = objectPath.evaluate("metadata.cluster_uuid");
-        return clusterUUID;
     }
 
     public String getHttpHost() throws IOException {

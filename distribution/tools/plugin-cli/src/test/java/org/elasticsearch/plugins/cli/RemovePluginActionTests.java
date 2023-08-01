@@ -140,10 +140,6 @@ public class RemovePluginActionTests extends ESTestCase {
         assertRemoveCleaned(env);
     }
 
-    private static Version minimumCompatibleVersion(Version v) {
-        return Version.fromString((v.major - 1) + ".0.0");
-    }
-
     public void testBin() throws Exception {
         createPlugin("fake");
         Path binDir = env.binFile().resolve("fake");

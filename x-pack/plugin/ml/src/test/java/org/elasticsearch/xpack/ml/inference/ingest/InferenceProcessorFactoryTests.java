@@ -442,10 +442,6 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         });
     }
 
-    private static ClusterState buildClusterState(Metadata metadata) {
-        return ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
-    }
-
     private static ClusterState buildClusterStateWithModelReferences(String... modelId) throws IOException {
         return builderClusterStateWithModelReferences(Version.CURRENT, modelId);
     }

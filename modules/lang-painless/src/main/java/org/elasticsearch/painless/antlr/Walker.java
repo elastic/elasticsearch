@@ -222,10 +222,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         return new Location(sourceName, ctx.getStart().getStartIndex());
     }
 
-    private Location location(TerminalNode tn) {
-        return new Location(sourceName, tn.getSymbol().getStartIndex());
-    }
-
     @Override
     public ANode visitSource(SourceContext ctx) {
         List<SFunction> functions = new ArrayList<>();

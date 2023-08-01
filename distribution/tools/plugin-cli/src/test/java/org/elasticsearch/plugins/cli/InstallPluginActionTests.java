@@ -89,7 +89,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1578,15 +1577,6 @@ public class InstallPluginActionTests extends ESTestCase {
 
         assertPlugin("stable1", pluginDir, env.v2());
         assertNamedComponentFile("stable1", env.v2().pluginsFile(), namedComponentsJSON());
-    }
-
-    private Map<String, Map<String, String>> namedComponentsMap() {
-        Map<String, Map<String, String>> result = new LinkedHashMap<>();
-        Map<String, String> extensibles = new LinkedHashMap<>();
-        extensibles.put("a_component", "p.A");
-        extensibles.put("b_component", "p.B");
-        result.put("org.elasticsearch.plugins.cli.test_model.ExtensibleInterface", extensibles);
-        return result;
     }
 
     private static String namedComponentsJSON() {

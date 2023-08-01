@@ -2002,24 +2002,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         return minVersion;
     }
 
-    @SuppressWarnings("unchecked")
-    private void ensureGlobalCheckpointSynced(String index) throws Exception {
-        assertBusy(() -> {
-            Map<?, ?> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
-            List<Map<?, ?>> shardStats = (List<Map<?, ?>>) XContentMapValues.extractValue("indices." + index + ".shards.0", stats);
-            shardStats.stream()
-                .map(shard -> (Map<?, ?>) XContentMapValues.extractValue("seq_no", shard))
-                .filter(Objects::nonNull)
-                .forEach(seqNoStat -> {
-                    long globalCheckpoint = ((Number) XContentMapValues.extractValue("global_checkpoint", seqNoStat)).longValue();
-                    long localCheckpoint = ((Number) XContentMapValues.extractValue("local_checkpoint", seqNoStat)).longValue();
-                    long maxSeqNo = ((Number) XContentMapValues.extractValue("max_seq_no", seqNoStat)).longValue();
-                    assertThat(shardStats.toString(), localCheckpoint, equalTo(maxSeqNo));
-                    assertThat(shardStats.toString(), globalCheckpoint, equalTo(maxSeqNo));
-                });
-        }, 60, TimeUnit.SECONDS);
-    }
-
     /**
      * Wait for the license to be applied and active. The specified admin client is used to check the license and this is done using
      * {@link ESTestCase#assertBusy(CheckedRunnable)} to give some time to the License to be applied on nodes.

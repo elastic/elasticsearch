@@ -353,10 +353,6 @@ public class MergePolicyConfigTests extends ESTestCase {
         return Settings.builder().put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(), value).build();
     }
 
-    private Settings build(ByteSizeValue value) {
-        return Settings.builder().put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(), value).build();
-    }
-
     public void testCompoundFileConfiguredByByteSize() throws IOException {
         for (boolean isTimeSeriesIndex : new boolean[] { false, true }) {
             try (Directory dir = newDirectory()) {

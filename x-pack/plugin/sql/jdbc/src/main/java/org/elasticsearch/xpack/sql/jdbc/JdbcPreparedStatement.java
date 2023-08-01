@@ -42,7 +42,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
-import java.util.Locale;
 
 import static java.time.ZoneOffset.UTC;
 import static org.elasticsearch.xpack.sql.jdbc.TypeUtils.scaleOrLength;
@@ -462,10 +461,6 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
                 throw new SQLFeatureNotSupportedException("Objects of type [" + clazz.getName() + "] are not supported");
             }
         }
-    }
-
-    private Calendar getDefaultCalendar() {
-        return Calendar.getInstance(cfg.timeZone(), Locale.ROOT);
     }
 
     @Override

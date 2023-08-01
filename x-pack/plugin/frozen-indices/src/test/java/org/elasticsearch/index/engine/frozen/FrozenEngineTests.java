@@ -28,8 +28,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -273,29 +271,6 @@ public class FrozenEngineTests extends EngineTestCase {
                     }
                     assertFalse(frozenEngine.isReaderOpen());
                 }
-            }
-        }
-    }
-
-    private static void checkOverrideMethods(Class<?> clazz) throws NoSuchMethodException, SecurityException {
-        final Class<?> superClazz = clazz.getSuperclass();
-        for (Method m : superClazz.getMethods()) {
-            final int mods = m.getModifiers();
-            if (Modifier.isStatic(mods)
-                || Modifier.isAbstract(mods)
-                || Modifier.isFinal(mods)
-                || m.isSynthetic()
-                || m.getName().equals("attributes")
-                || m.getName().equals("getStats")) {
-                continue;
-            }
-            // The point of these checks is to ensure that methods from the super class
-            // are overwritten to make sure we never miss a method from FilterLeafReader / FilterDirectoryReader
-            final Method subM = clazz.getMethod(m.getName(), m.getParameterTypes());
-            if (subM.getDeclaringClass() == superClazz
-                && m.getDeclaringClass() != Object.class
-                && m.getDeclaringClass() == subM.getDeclaringClass()) {
-                fail(clazz + " doesn't override" + m + " although it has been declared by it's superclass");
             }
         }
     }

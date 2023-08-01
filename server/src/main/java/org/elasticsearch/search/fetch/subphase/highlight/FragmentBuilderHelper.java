@@ -8,15 +8,11 @@
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo.SubInfo;
 import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.index.analysis.AnalyzerComponentsProvider;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 import java.util.List;
 
@@ -62,19 +58,4 @@ public final class FragmentBuilderHelper {
         return (x < y) ? -1 : ((x == y) ? 0 : 1);
     }
 
-    private static boolean containsBrokenAnalysis(Analyzer analyzer) {
-        // TODO maybe we need a getter on Namedanalyzer that tells if this uses broken Analysis
-        if (analyzer instanceof NamedAnalyzer) {
-            analyzer = ((NamedAnalyzer) analyzer).analyzer();
-        }
-        if (analyzer instanceof AnalyzerComponentsProvider) {
-            final TokenFilterFactory[] tokenFilters = ((AnalyzerComponentsProvider) analyzer).getComponents().getTokenFilters();
-            for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
-                if (tokenFilterFactory.breaksFastVectorHighlighter()) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
 }

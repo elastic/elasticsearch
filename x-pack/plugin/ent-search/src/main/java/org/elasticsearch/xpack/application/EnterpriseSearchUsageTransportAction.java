@@ -166,11 +166,10 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
                 @Override
                 public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                     Map<String, IndexStats> indicesStats = indicesStatsResponse.getIndices();
-                    int queryRulesetCount = 0;
-                    for (Map.Entry<String, IndexStats> entry : indicesStats.entrySet()) {
-                        IndexStats indexStats = entry.getValue();
-                        queryRulesetCount += indexStats.getPrimaries().getDocs().getCount();
-                    }
+                    int queryRulesetCount = indicesStats.values().stream()
+                        .mapToInt(indexShardStats -> (int) indexShardStats.getPrimaries().getDocs().getCount())
+                        .sum();
+
                     ListQueryRulesetsAction.Request queryRulesetsCountRequest =
                         new ListQueryRulesetsAction.Request(new PageParams(0, queryRulesetCount));
                     clientWithOrigin.execute(ListQueryRulesetsAction.INSTANCE, queryRulesetsCountRequest, listQueryRulesetsListener);

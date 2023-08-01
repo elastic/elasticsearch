@@ -29,7 +29,7 @@ public class RestPostSecretsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.POST, "/_fleet/secrets"));
+        return List.of(new Route(RestRequest.Method.POST, "/_fleet/secret"));
     }
 
     @Override

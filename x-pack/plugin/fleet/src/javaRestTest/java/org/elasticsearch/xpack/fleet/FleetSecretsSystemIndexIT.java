@@ -40,7 +40,7 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
     public void testFleetSecretsCRUD() throws Exception {
         // post secret
         final String secretJson = getPostSecretJson();
-        Request postRequest = new Request("POST", "/_fleet/secrets/");
+        Request postRequest = new Request("POST", "/_fleet/secret/");
         postRequest.setJsonEntity(secretJson);
         Response postResponse = client().performRequest(postRequest);
         assertThat(postResponse.getStatusLine().getStatusCode(), is(200));
@@ -50,7 +50,7 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
         final String id = responseMap.get("id").toString();
 
         // get secret
-        Request getRequest = new Request("GET", "/_fleet/secrets/" + id);
+        Request getRequest = new Request("GET", "/_fleet/secret/" + id);
         Response getResponse = client().performRequest(getRequest);
         assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
         responseMap = getResponseMap(getResponse);
@@ -60,7 +60,7 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
         assertThat(responseMap.get("value"), is("test secret"));
 
         // delete secret
-        Request deleteRequest = new Request("DELETE", "/_fleet/secrets/" + id);
+        Request deleteRequest = new Request("DELETE", "/_fleet/secret/" + id);
         Response deleteResponse = client().performRequest(deleteRequest);
         assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
         responseMap = getResponseMap(deleteResponse);
@@ -70,14 +70,14 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
     }
 
     public void testGetNonExistingSecret() {
-        Request getRequest = new Request("GET", "/_fleet/secrets/123");
+        Request getRequest = new Request("GET", "/_fleet/secret/123");
         ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(getRequest));
         Response getResponse = re.getResponse();
         assertThat(getResponse.getStatusLine().getStatusCode(), is(404));
     }
 
     public void testDeleteNonExistingSecret() {
-        Request deleteRequest = new Request("DELETE", "/_fleet/secrets/123");
+        Request deleteRequest = new Request("DELETE", "/_fleet/secret/123");
         ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(deleteRequest));
         Response deleteResponse = re.getResponse();
         assertThat(deleteResponse.getStatusLine().getStatusCode(), is(404));

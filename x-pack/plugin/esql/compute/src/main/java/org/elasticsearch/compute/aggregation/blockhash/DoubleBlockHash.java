@@ -8,8 +8,10 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -70,6 +72,11 @@ final class DoubleBlockHash extends BlockHash {
     @Override
     public IntVector nonEmpty() {
         return IntVector.range(0, Math.toIntExact(longHash.size()));
+    }
+
+    @Override
+    public BitArray seenGroupIds(BigArrays bigArrays) {
+        return new SeenGroupIds.Range(0, Math.toIntExact(longHash.size())).seenGroupIds(bigArrays);
     }
 
     @Override

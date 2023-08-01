@@ -9,8 +9,10 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongArrayVector;
@@ -199,6 +201,11 @@ final class LongLongBlockHash extends BlockHash {
     @Override
     public IntVector nonEmpty() {
         return IntVector.range(0, Math.toIntExact(hash.size()));
+    }
+
+    @Override
+    public BitArray seenGroupIds(BigArrays bigArrays) {
+        return new SeenGroupIds.Range(0, Math.toIntExact(hash.size())).seenGroupIds(bigArrays);
     }
 
     @Override

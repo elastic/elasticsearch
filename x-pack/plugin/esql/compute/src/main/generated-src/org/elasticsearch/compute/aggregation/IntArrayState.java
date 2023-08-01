@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -17,68 +16,48 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Aggregator state for an array of ints.
+ * Aggregator state for an array of ints. It is created in a mode where it
+ * won't track the {@code groupId}s that are sent to it and it is the
+ * responsibility of the caller to only fetch values for {@code groupId}s
+ * that it has sent using the {@code selected} parameter when building the
+ * results. This is fine when there are no {@code null} values in the input
+ * data. But once there are null values in the input data it is
+ * <strong>much</strong> more convenient to only send non-null values and
+ * the tracking built into the grouping code can't track that. In that case
+ * call {@link #enableGroupIdTracking} to transition the state into a mode
+ * where it'll track which {@code groupIds} have been written.
+ * <p>
  * This class is generated. Do not edit it.
+ * </p>
  */
-final class IntArrayState implements GroupingAggregatorState {
-    private final BigArrays bigArrays;
+final class IntArrayState extends AbstractArrayState implements GroupingAggregatorState {
     private final int init;
 
     private IntArray values;
-    /**
-     * Total number of groups {@code <=} values.length.
-     */
-    private int largestIndex;
-    private BitArray nonNulls;
 
     IntArrayState(BigArrays bigArrays, int init) {
-        this.bigArrays = bigArrays;
+        super(bigArrays);
         this.values = bigArrays.newIntArray(1, false);
         this.values.set(0, init);
         this.init = init;
     }
 
-    int get(int index) {
-        return values.get(index);
+    int get(int groupId) {
+        return values.get(groupId);
     }
 
-    int getOrDefault(int index) {
-        return index <= largestIndex ? values.get(index) : init;
+    int getOrDefault(int groupId) {
+        return groupId < values.size() ? values.get(groupId) : init;
     }
 
-    void set(int value, int index) {
-        if (index > largestIndex) {
-            ensureCapacity(index);
-            largestIndex = index;
-        }
-        values.set(index, value);
-        if (nonNulls != null) {
-            nonNulls.set(index);
-        }
-    }
-
-    void putNull(int index) {
-        if (index > largestIndex) {
-            ensureCapacity(index);
-            largestIndex = index;
-        }
-        if (nonNulls == null) {
-            nonNulls = new BitArray(index + 1, bigArrays);
-            for (int i = 0; i < index; i++) {
-                nonNulls.set(i);
-            }
-        } else {
-            // Do nothing. Null is represented by the default value of false for get(int),
-            // and any present value trumps a null value in our aggregations.
-        }
-    }
-
-    boolean hasValue(int index) {
-        return nonNulls == null || nonNulls.get(index);
+    void set(int groupId, int value) {
+        ensureCapacity(groupId);
+        values.set(groupId, value);
+        trackGroupId(groupId);
     }
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected) {
-        if (nonNulls == null) {
+        if (false == trackingGroupIds()) {
             IntVector.Builder builder = IntVector.newVectorBuilder(selected.getPositionCount());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 builder.appendInt(values.get(selected.getInt(i)));
@@ -97,10 +76,10 @@ final class IntArrayState implements GroupingAggregatorState {
         return builder.build();
     }
 
-    private void ensureCapacity(int position) {
-        if (position >= values.size()) {
+    private void ensureCapacity(int groupId) {
+        if (groupId >= values.size()) {
             long prevSize = values.size();
-            values = bigArrays.grow(values, position + 1);
+            values = bigArrays.grow(values, groupId + 1);
             values.fill(prevSize, values.size(), init);
         }
     }
@@ -110,18 +89,22 @@ final class IntArrayState implements GroupingAggregatorState {
     public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
         assert blocks.length >= offset + 2;
         var valuesBuilder = IntBlock.newBlockBuilder(selected.getPositionCount());
-        var nullsBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
+        var hasValueBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
-            valuesBuilder.appendInt(values.get(group));
-            nullsBuilder.appendBoolean(hasValue(group));
+            if (group < values.size()) {
+                valuesBuilder.appendInt(values.get(group));
+            } else {
+                valuesBuilder.appendInt(0); // TODO can we just use null?
+            }
+            hasValueBuilder.appendBoolean(hasValue(group));
         }
         blocks[offset + 0] = valuesBuilder.build();
-        blocks[offset + 1] = nullsBuilder.build();
+        blocks[offset + 1] = hasValueBuilder.build();
     }
 
     @Override
     public void close() {
-        Releasables.close(values, nonNulls);
+        Releasables.close(values, super::close);
     }
 }

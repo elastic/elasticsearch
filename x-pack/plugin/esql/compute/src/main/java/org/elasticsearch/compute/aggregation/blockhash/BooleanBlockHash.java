@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -74,6 +76,17 @@ final class BooleanBlockHash extends BlockHash {
             builder.appendInt(1);
         }
         return builder.build();
+    }
+
+    public BitArray seenGroupIds(BigArrays bigArrays) {
+        BitArray seen = new BitArray(2, bigArrays);
+        if (everSeen[0]) {
+            seen.set(0);
+        }
+        if (everSeen[1]) {
+            seen.set(1);
+        }
+        return seen;
     }
 
     @Override

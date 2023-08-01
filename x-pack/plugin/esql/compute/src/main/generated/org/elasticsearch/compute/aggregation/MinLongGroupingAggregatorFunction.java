@@ -52,24 +52,27 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(Page page) {
+  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+      Page page) {
     Block uncastValuesBlock = page.getBlock(channels.get(0));
     if (uncastValuesBlock.areAllValuesNull()) {
+      state.enableGroupIdTracking(seenGroupIds);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, LongBlock groupIds) {
-          addRawInputAllNulls(positionOffset, groupIds, uncastValuesBlock);
         }
 
         @Override
         public void add(int positionOffset, LongVector groupIds) {
-          addRawInputAllNulls(positionOffset, groupIds, uncastValuesBlock);
         }
       };
     }
     LongBlock valuesBlock = (LongBlock) uncastValuesBlock;
     LongVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
+      if (valuesBlock.mayHaveNulls()) {
+        state.enableGroupIdTracking(seenGroupIds);
+      }
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, LongBlock groupIds) {
@@ -99,13 +102,12 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getLong(groupPosition));
       if (values.isNull(groupPosition + positionOffset)) {
-        state.putNull(groupId);
         continue;
       }
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
-        state.set(MinLongAggregator.combine(state.getOrDefault(groupId), values.getLong(v)), groupId);
+        state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), values.getLong(v)));
       }
     }
   }
@@ -113,15 +115,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
   private void addRawInput(int positionOffset, LongVector groups, LongVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getLong(groupPosition));
-      state.set(MinLongAggregator.combine(state.getOrDefault(groupId), values.getLong(groupPosition + positionOffset)), groupId);
-    }
-  }
-
-  private void addRawInputAllNulls(int positionOffset, LongVector groups, Block values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getLong(groupPosition));
-      assert values.isNull(groupPosition + positionOffset);
-      state.putNull(groupPosition + positionOffset);
+      state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), values.getLong(groupPosition + positionOffset)));
     }
   }
 
@@ -135,13 +129,12 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getLong(g));
         if (values.isNull(groupPosition + positionOffset)) {
-          state.putNull(groupId);
           continue;
         }
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
-          state.set(MinLongAggregator.combine(state.getOrDefault(groupId), values.getLong(v)), groupId);
+          state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), values.getLong(v)));
         }
       }
     }
@@ -156,28 +149,14 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getLong(g));
-        state.set(MinLongAggregator.combine(state.getOrDefault(groupId), values.getLong(groupPosition + positionOffset)), groupId);
-      }
-    }
-  }
-
-  private void addRawInputAllNulls(int positionOffset, LongBlock groups, Block values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
-      }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getLong(g));
-        assert values.isNull(groupPosition + positionOffset);
-        state.putNull(groupPosition + positionOffset);
+        state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), values.getLong(groupPosition + positionOffset)));
       }
     }
   }
 
   @Override
   public void addIntermediateInput(int positionOffset, LongVector groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     LongVector min = page.<LongBlock>getBlock(channels.get(0)).asVector();
     BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
@@ -185,9 +164,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getLong(groupPosition));
       if (seen.getBoolean(groupPosition + positionOffset)) {
-        state.set(MinLongAggregator.combine(state.getOrDefault(groupId), min.getLong(groupPosition + positionOffset)), groupId);
-      } else {
-        state.putNull(groupId);
+        state.set(groupId, MinLongAggregator.combine(min.getLong(groupPosition + positionOffset), state.getOrDefault(groupId)));
       }
     }
   }
@@ -198,10 +175,9 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
     LongArrayState inState = ((MinLongGroupingAggregatorFunction) input).state;
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     if (inState.hasValue(position)) {
-      state.set(MinLongAggregator.combine(state.getOrDefault(groupId), inState.get(position)), groupId);
-    } else {
-      state.putNull(groupId);
+      state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), inState.get(position)));
     }
   }
 

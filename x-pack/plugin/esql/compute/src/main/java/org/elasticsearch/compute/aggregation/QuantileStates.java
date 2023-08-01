@@ -121,10 +121,7 @@ public final class QuantileStates {
         }
 
         private TDigestState getOrAddGroup(int groupId) {
-            if (groupId > largestGroupId) {
-                digests = bigArrays.grow(digests, groupId + 1);
-                largestGroupId = groupId;
-            }
+            digests = bigArrays.grow(digests, groupId + 1);
             TDigestState qs = digests.get(groupId);
             if (qs == null) {
                 qs = TDigestState.create(DEFAULT_COMPRESSION);
@@ -133,16 +130,18 @@ public final class QuantileStates {
             return qs;
         }
 
-        void putNull(int groupId) {
-            getOrAddGroup(groupId);
-        }
-
         void add(int groupId, double v) {
             getOrAddGroup(groupId).add(v);
         }
 
         void add(int groupId, TDigestState other) {
-            getOrAddGroup(groupId).add(other);
+            if (other != null) {
+                getOrAddGroup(groupId).add(other);
+            }
+        }
+
+        void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
+            // We always enable.
         }
 
         void add(int groupId, BytesRef other) {
@@ -160,7 +159,11 @@ public final class QuantileStates {
             var builder = BytesRefBlock.newBlockBuilder(selected.getPositionCount());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                builder.appendBytesRef(serializeDigest(get(group)));
+                TDigestState state = get(group);
+                if (state == null) {
+                    state = TDigestState.create(DEFAULT_COMPRESSION);
+                }
+                builder.appendBytesRef(serializeDigest(state));
             }
             blocks[offset] = builder.build();
         }

@@ -17,6 +17,8 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregator.Factory;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -297,7 +299,7 @@ public class OrdinalsGroupingOperator implements Operator {
 
     }
 
-    static final class OrdinalSegmentAggregator implements Releasable {
+    static final class OrdinalSegmentAggregator implements Releasable, SeenGroupIds {
         private final List<GroupingAggregator> aggregators;
         private final ValuesSource.Bytes.WithOrdinals withOrdinals;
         private final LeafReaderContext leafReaderContext;
@@ -310,16 +312,29 @@ public class OrdinalsGroupingOperator implements Operator {
             LeafReaderContext leafReaderContext,
             BigArrays bigArrays
         ) throws IOException {
-            this.aggregators = aggregators;
-            this.withOrdinals = withOrdinals;
-            this.leafReaderContext = leafReaderContext;
-            final SortedSetDocValues sortedSetDocValues = withOrdinals.ordinalsValues(leafReaderContext);
-            this.currentReader = new BlockOrdinalsReader(sortedSetDocValues);
-            this.visitedOrds = new BitArray(sortedSetDocValues.getValueCount(), bigArrays);
+            boolean success = false;
+            try {
+                this.aggregators = aggregators;
+                this.withOrdinals = withOrdinals;
+                this.leafReaderContext = leafReaderContext;
+                final SortedSetDocValues sortedSetDocValues = withOrdinals.ordinalsValues(leafReaderContext);
+                this.currentReader = new BlockOrdinalsReader(sortedSetDocValues);
+                this.visitedOrds = new BitArray(sortedSetDocValues.getValueCount(), bigArrays);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
         }
 
         void addInput(IntVector docs, Page page) {
             try {
+                GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
+                for (int i = 0; i < prepared.length; i++) {
+                    prepared[i] = aggregators.get(i).prepareProcessPage(this, page);
+                }
+
                 if (BlockOrdinalsReader.canReuse(currentReader, docs.getInt(0)) == false) {
                     currentReader = new BlockOrdinalsReader(withOrdinals.ordinalsValues(leafReaderContext));
                 }
@@ -336,7 +351,7 @@ public class OrdinalsGroupingOperator implements Operator {
                     }
                 }
                 for (GroupingAggregator aggregator : aggregators) {
-                    aggregator.prepareProcessPage(page).add(0, ordinals);
+                    aggregator.prepareProcessPage(this, page).add(0, ordinals);
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -345,6 +360,13 @@ public class OrdinalsGroupingOperator implements Operator {
 
         AggregatedResultIterator getResultIterator() throws IOException {
             return new AggregatedResultIterator(aggregators, visitedOrds, withOrdinals.ordinalsValues(leafReaderContext));
+        }
+
+        @Override
+        public BitArray seenGroupIds(BigArrays bigArrays) {
+            BitArray seen = new BitArray(0, bigArrays);
+            seen.or(visitedOrds);
+            return seen;
         }
 
         @Override

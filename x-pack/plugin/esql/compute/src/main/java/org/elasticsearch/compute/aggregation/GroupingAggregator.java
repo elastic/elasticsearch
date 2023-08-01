@@ -38,7 +38,7 @@ public class GroupingAggregator implements Releasable {
     /**
      * Prepare to process a single page of results.
      */
-    public GroupingAggregatorFunction.AddInput prepareProcessPage(Page page) {
+    public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds, Page page) {
         if (mode.isInputPartial()) {
             return new GroupingAggregatorFunction.AddInput() {
                 @Override
@@ -52,7 +52,7 @@ public class GroupingAggregator implements Releasable {
                 }
             };
         } else {
-            return aggregatorFunction.prepareProcessPage(page);
+            return aggregatorFunction.prepareProcessPage(seenGroupIds, page);
         }
     }
 

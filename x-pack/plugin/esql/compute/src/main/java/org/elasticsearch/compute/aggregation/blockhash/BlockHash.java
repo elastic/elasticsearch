@@ -8,9 +8,11 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
@@ -27,7 +29,7 @@ import java.util.List;
  * @see LongHash
  * @see BytesRefHash
  */
-public abstract sealed class BlockHash implements Releasable //
+public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
     permits BooleanBlockHash, BytesRefBlockHash, DoubleBlockHash, IntBlockHash, LongBlockHash,//
     PackedValuesBlockHash, BytesRefLongBlockHash, LongLongBlockHash {
 
@@ -50,6 +52,10 @@ public abstract sealed class BlockHash implements Releasable //
      * know if there actually were any {@code true} or {@code false} values received.
      */
     public abstract IntVector nonEmpty();
+
+    // TODO merge with nonEmpty
+    @Override
+    public abstract BitArray seenGroupIds(BigArrays bigArrays);
 
     /**
      * Creates a specialized hash table that maps one or more {@link Block}s to ids.

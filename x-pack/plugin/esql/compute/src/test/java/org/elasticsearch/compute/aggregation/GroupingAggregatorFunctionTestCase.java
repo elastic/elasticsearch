@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -29,6 +30,7 @@ import org.elasticsearch.compute.operator.NullInsertingSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -408,17 +410,42 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             public GroupingAggregatorFunction groupingAggregator() {
                 return new GroupingAggregatorFunction() {
                     GroupingAggregatorFunction delegate = supplier.groupingAggregator();
+                    BitArray seenGroupIds = new BitArray(0, nonBreakingBigArrays());
 
                     @Override
-                    public AddInput prepareProcessPage(Page page) {
+                    public AddInput prepareProcessPage(SeenGroupIds ignoredSeenGroupIds, Page page) {
                         return new AddInput() {
-                            AddInput delegateAddInput = delegate.prepareProcessPage(page);
+                            AddInput delegateAddInput = delegate.prepareProcessPage(bigArrays -> {
+                                BitArray seen = new BitArray(0, bigArrays);
+                                seen.or(seenGroupIds);
+                                return seen;
+                            }, page);
 
                             @Override
                             public void add(int positionOffset, LongBlock groupIds) {
                                 for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
                                     LongBlock.Builder builder = LongBlock.newBlockBuilder(emitChunkSize);
-                                    builder.copyFrom(groupIds, offset, Math.min(groupIds.getPositionCount(), offset + emitChunkSize));
+                                    int endP = Math.min(groupIds.getPositionCount(), offset + emitChunkSize);
+                                    for (int p = offset; p < endP; p++) {
+                                        int start = groupIds.getFirstValueIndex(p);
+                                        int count = groupIds.getValueCount(p);
+                                        switch (count) {
+                                            case 0 -> builder.appendNull();
+                                            case 1 -> {
+                                                long group = groupIds.getLong(start);
+                                                seenGroupIds.set(group);
+                                                builder.appendLong(group);
+                                            }
+                                            default -> {
+                                                int end = start + count;
+                                                for (int i = start; i < end; i++) {
+                                                    long group = groupIds.getLong(i);
+                                                    seenGroupIds.set(group);
+                                                    builder.appendLong(group);
+                                                }
+                                            }
+                                        }
+                                    }
                                     delegateAddInput.add(positionOffset + offset, builder.build());
                                 }
                             }
@@ -429,7 +456,9 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                                 for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
                                     int count = 0;
                                     for (int i = offset; i < Math.min(groupIds.getPositionCount(), offset + emitChunkSize); i++) {
-                                        chunk[count++] = groupIds.getLong(i);
+                                        long group = groupIds.getLong(i);
+                                        seenGroupIds.set(group);
+                                        chunk[count++] = group;
                                     }
                                     delegateAddInput.add(positionOffset + offset, new LongArrayVector(chunk, count));
                                 }
@@ -471,7 +500,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
                     @Override
                     public void close() {
-                        delegate.close();
+                        Releasables.close(delegate::close, seenGroupIds);
                     }
 
                     @Override

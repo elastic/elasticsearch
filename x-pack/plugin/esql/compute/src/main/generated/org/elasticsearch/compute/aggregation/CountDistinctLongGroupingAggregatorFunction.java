@@ -59,24 +59,27 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(Page page) {
+  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+      Page page) {
     Block uncastValuesBlock = page.getBlock(channels.get(0));
     if (uncastValuesBlock.areAllValuesNull()) {
+      state.enableGroupIdTracking(seenGroupIds);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, LongBlock groupIds) {
-          addRawInputAllNulls(positionOffset, groupIds, uncastValuesBlock);
         }
 
         @Override
         public void add(int positionOffset, LongVector groupIds) {
-          addRawInputAllNulls(positionOffset, groupIds, uncastValuesBlock);
         }
       };
     }
     LongBlock valuesBlock = (LongBlock) uncastValuesBlock;
     LongVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
+      if (valuesBlock.mayHaveNulls()) {
+        state.enableGroupIdTracking(seenGroupIds);
+      }
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, LongBlock groupIds) {
@@ -106,7 +109,6 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getLong(groupPosition));
       if (values.isNull(groupPosition + positionOffset)) {
-        state.putNull(groupId);
         continue;
       }
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
@@ -124,14 +126,6 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
     }
   }
 
-  private void addRawInputAllNulls(int positionOffset, LongVector groups, Block values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getLong(groupPosition));
-      assert values.isNull(groupPosition + positionOffset);
-      state.putNull(groupPosition + positionOffset);
-    }
-  }
-
   private void addRawInput(int positionOffset, LongBlock groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -142,7 +136,6 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getLong(g));
         if (values.isNull(groupPosition + positionOffset)) {
-          state.putNull(groupId);
           continue;
         }
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
@@ -168,23 +161,9 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
     }
   }
 
-  private void addRawInputAllNulls(int positionOffset, LongBlock groups, Block values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
-      }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getLong(g));
-        assert values.isNull(groupPosition + positionOffset);
-        state.putNull(groupPosition + positionOffset);
-      }
-    }
-  }
-
   @Override
   public void addIntermediateInput(int positionOffset, LongVector groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     BytesRefVector hll = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
     BytesRef scratch = new BytesRef();
@@ -200,6 +179,7 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
     HllStates.GroupingState inState = ((CountDistinctLongGroupingAggregatorFunction) input).state;
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     CountDistinctLongAggregator.combineStates(state, groupId, inState, position);
   }
 

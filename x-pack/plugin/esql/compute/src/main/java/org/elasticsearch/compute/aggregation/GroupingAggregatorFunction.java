@@ -74,7 +74,7 @@ public interface GroupingAggregatorFunction extends Releasable {
      *     select an optimal path and return that path as an {@link AddInput}.
      * </p>
      */
-    AddInput prepareProcessPage(Page page);  // TODO allow returning null to opt out of the callback loop
+    AddInput prepareProcessPage(SeenGroupIds seenGroupIds, Page page);  // TODO allow returning null to opt out of the callback loop
 
     /**
      * Add data produced by {@link #evaluateIntermediate}.

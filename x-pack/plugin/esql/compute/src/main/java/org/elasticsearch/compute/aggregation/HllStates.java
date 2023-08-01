@@ -134,14 +134,12 @@ final class HllStates {
 
         final HyperLogLogPlusPlus hll;
 
-        /**
-         * Maximum group id received. Only needed for estimating max serialization size.
-         * We won't need to do that one day and can remove this.
-         */
-        int maxGroupId;
-
         GroupingState(BigArrays bigArrays, int precision) {
             this.hll = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.precisionFromThreshold(precision), bigArrays, 1);
+        }
+
+        void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
+            // Nothing to do
         }
 
         void collect(int groupId, long v) {
@@ -167,10 +165,6 @@ final class HllStates {
 
         long cardinality(int groupId) {
             return hll.cardinality(groupId);
-        }
-
-        void putNull(int groupId) {
-            maxGroupId = Math.max(maxGroupId, groupId);
         }
 
         void merge(int groupId, AbstractHyperLogLogPlusPlus other, int otherGroup) {

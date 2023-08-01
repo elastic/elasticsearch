@@ -13,8 +13,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
@@ -248,6 +250,11 @@ final class PackedValuesBlockHash extends BlockHash {
     @Override
     public IntVector nonEmpty() {
         return IntVector.range(0, Math.toIntExact(bytesRefHash.size()));
+    }
+
+    @Override
+    public BitArray seenGroupIds(BigArrays bigArrays) {
+        return new SeenGroupIds.Range(0, Math.toIntExact(bytesRefHash.size())).seenGroupIds(bigArrays);
     }
 
     @Override

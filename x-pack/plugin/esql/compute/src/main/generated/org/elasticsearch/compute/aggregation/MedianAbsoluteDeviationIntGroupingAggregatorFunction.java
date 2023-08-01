@@ -57,24 +57,27 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(Page page) {
+  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+      Page page) {
     Block uncastValuesBlock = page.getBlock(channels.get(0));
     if (uncastValuesBlock.areAllValuesNull()) {
+      state.enableGroupIdTracking(seenGroupIds);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, LongBlock groupIds) {
-          addRawInputAllNulls(positionOffset, groupIds, uncastValuesBlock);
         }
 
         @Override
         public void add(int positionOffset, LongVector groupIds) {
-          addRawInputAllNulls(positionOffset, groupIds, uncastValuesBlock);
         }
       };
     }
     IntBlock valuesBlock = (IntBlock) uncastValuesBlock;
     IntVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
+      if (valuesBlock.mayHaveNulls()) {
+        state.enableGroupIdTracking(seenGroupIds);
+      }
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, LongBlock groupIds) {
@@ -104,7 +107,6 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getLong(groupPosition));
       if (values.isNull(groupPosition + positionOffset)) {
-        state.putNull(groupId);
         continue;
       }
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
@@ -122,14 +124,6 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
     }
   }
 
-  private void addRawInputAllNulls(int positionOffset, LongVector groups, Block values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getLong(groupPosition));
-      assert values.isNull(groupPosition + positionOffset);
-      state.putNull(groupPosition + positionOffset);
-    }
-  }
-
   private void addRawInput(int positionOffset, LongBlock groups, IntBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -140,7 +134,6 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getLong(g));
         if (values.isNull(groupPosition + positionOffset)) {
-          state.putNull(groupId);
           continue;
         }
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
@@ -166,23 +159,9 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
     }
   }
 
-  private void addRawInputAllNulls(int positionOffset, LongBlock groups, Block values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
-      }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getLong(g));
-        assert values.isNull(groupPosition + positionOffset);
-        state.putNull(groupPosition + positionOffset);
-      }
-    }
-  }
-
   @Override
   public void addIntermediateInput(int positionOffset, LongVector groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     BytesRefVector quart = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
     BytesRef scratch = new BytesRef();
@@ -198,6 +177,7 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
     QuantileStates.GroupingState inState = ((MedianAbsoluteDeviationIntGroupingAggregatorFunction) input).state;
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     MedianAbsoluteDeviationIntAggregator.combineStates(state, groupId, inState, position);
   }
 

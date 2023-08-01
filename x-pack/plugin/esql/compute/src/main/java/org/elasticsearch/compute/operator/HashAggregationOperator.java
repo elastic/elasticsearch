@@ -68,10 +68,10 @@ public class HashAggregationOperator implements Operator {
         this.aggregators = new ArrayList<>(aggregators.size());
         boolean success = false;
         try {
+            this.blockHash = blockHash.get();
             for (GroupingAggregator.Factory a : aggregators) {
                 this.aggregators.add(a.apply(driverContext));
             }
-            this.blockHash = blockHash.get();
             success = true;
         } finally {
             if (success == false) {
@@ -92,7 +92,7 @@ public class HashAggregationOperator implements Operator {
 
         GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
         for (int i = 0; i < prepared.length; i++) {
-            prepared[i] = aggregators.get(i).prepareProcessPage(page);
+            prepared[i] = aggregators.get(i).prepareProcessPage(blockHash, page);
         }
 
         blockHash.add(wrapPage(page), new GroupingAggregatorFunction.AddInput() {

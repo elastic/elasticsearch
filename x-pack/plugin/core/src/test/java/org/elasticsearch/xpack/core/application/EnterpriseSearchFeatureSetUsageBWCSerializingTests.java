@@ -30,18 +30,7 @@ public class EnterpriseSearchFeatureSetUsageBWCSerializingTests extends Abstract
 
     @Override
     protected EnterpriseSearchFeatureSetUsage mutateInstance(EnterpriseSearchFeatureSetUsage instance) throws IOException {
-        long searchApplicationsCount = (long) instance.getSearchApplicationsUsage().get(EnterpriseSearchFeatureSetUsage.COUNT);
-        searchApplicationsCount = randomValueOtherThan(searchApplicationsCount, () -> randomLongBetween(0, 100000));
-        long analyticsCollectionsCount = (long) instance.getAnalyticsCollectionsUsage().get(EnterpriseSearchFeatureSetUsage.COUNT);
-        analyticsCollectionsCount = randomValueOtherThan(analyticsCollectionsCount, () -> randomLongBetween(0, 100000));
-        long queryRulesCount = (long) instance.getQueryRulesUsage().get(EnterpriseSearchFeatureSetUsage.COUNT);
-        queryRulesCount = randomValueOtherThan(queryRulesCount, () -> randomLongBetween(0, 100000));
-
-        Map<String, Object> searchApplicationsStats = Map.of("count", searchApplicationsCount);
-        Map<String, Object> analyticsCollectionsStats = Map.of("count", analyticsCollectionsCount);
-        Map<String, Object> queryRulesStats = Map.of("count", queryRulesCount);
-
-        return new EnterpriseSearchFeatureSetUsage(true, true, searchApplicationsStats, analyticsCollectionsStats, queryRulesStats);
+        return randomValueOtherThan(instance, this::createTestInstance);
     }
 
     @Override

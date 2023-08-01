@@ -138,11 +138,58 @@ teardown:
               criteria:
                 - type: exact
                   metadata: query_string
-                  values: [ elastic ]
+                  values: [ puggles ]
               actions:
                 ids:
                   - 'id1'
                   - 'id2'
+            - rule_id: query-rule-id2
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ pugs ]
+              actions:
+                ids:
+                  - 'id3'
+                  - 'id4'
+
+  - do:
+      query_ruleset.put:
+        ruleset_id: test-query-ruleset
+        body:
+          rules:
+            - rule_id: query-rule-id1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ beagles ]
+              actions:
+                ids:
+                  - 'id1'
+                  - 'id2'
+            - rule_id: query-rule-id2
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ pugs ]
+              actions:
+                ids:
+                  - 'id3'
+                  - 'id4'
+            - rule_id: query-rule-id3
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ puggles ]
+              actions:
+                ids:
+                  - 'id4'
+                  - 'id5'
+
   - do:
       xpack.usage: { }
 
@@ -152,7 +199,12 @@ teardown:
       available: true,
       search_applications: { count: 1 },
       analytics_collections: { count: 0 },
-      query_rulesets: { count: 1 }
+      query_rulesets:
+        count: 2
+        rules:
+          total: 5
+          min: 2
+          max: 3
     }
   }
 
@@ -169,7 +221,12 @@ teardown:
       available: true,
       search_applications: { count: 1 },
       analytics_collections: { count: 0 },
-      query_rulesets: { count: 0 }
+      query_rulesets:
+        count: 1
+        rules:
+          total: 2
+          min: 2
+          max: 2
     }
   }
 

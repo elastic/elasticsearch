@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -50,16 +50,16 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
     public EnterpriseSearchFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
         this.searchApplicationsUsage = in.readMap();
+        Map<String, Object> analyticsCollectionsUsage = new HashMap<>();
+        Map<String, Object> queryRulesUsage = new HashMap<>();
         if (in.getTransportVersion().onOrAfter(QUERY_RULES_TRANSPORT_VERSION)) {
-            this.analyticsCollectionsUsage = in.readMap();
-            this.queryRulesUsage = in.readMap();
+            analyticsCollectionsUsage = in.readMap();
+            queryRulesUsage = in.readMap();
         } else if (in.getTransportVersion().onOrAfter(BEHAVIORAL_ANALYTICS_TRANSPORT_VERSION)) {
-            this.analyticsCollectionsUsage = in.readMap();
-            this.queryRulesUsage = Collections.emptyMap();
-        } else {
-            this.analyticsCollectionsUsage = Collections.emptyMap();
-            this.queryRulesUsage = Collections.emptyMap();
+            analyticsCollectionsUsage = in.readMap();
         }
+        this.analyticsCollectionsUsage = analyticsCollectionsUsage;
+        this.queryRulesUsage = queryRulesUsage;
     }
 
     @Override

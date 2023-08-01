@@ -138,7 +138,8 @@ final class DefaultSearchContext extends SearchContext {
         TimeValue timeout,
         int minimumDocsPerSlice,
         FetchPhase fetchPhase,
-        boolean lowLevelCancellation
+        boolean lowLevelCancellation,
+        boolean parallelize
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -156,6 +157,10 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getQueryCachingPolicy(),
             minimumDocsPerSlice,
             lowLevelCancellation,
+            // TODO not set the for now, this needs a special thread pool and can be enabled after its introduction
+            // parallelize
+            // ? (EsThreadPoolExecutor) this.indexService.getThreadPool().executor(ThreadPool.Names.CONCURRENT_COLLECTION_TBD)
+            // : null,
             null
         );
         releasables.addAll(List.of(engineSearcher, searcher));

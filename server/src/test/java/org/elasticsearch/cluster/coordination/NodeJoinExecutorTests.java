@@ -99,7 +99,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         Settings.builder().build();
         Metadata.Builder metaBuilder = Metadata.builder();
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.fromString("6.8.0"))) // latest V6 released version
+            .settings(settings(IndexVersion.fromId(6080099))) // latest V6 released version
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();

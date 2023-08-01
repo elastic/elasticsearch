@@ -70,7 +70,8 @@ final class ElasticServiceAccounts {
                         "metrics-*",
                         "traces-*",
                         ".logs-endpoint.diagnostic.collection-*",
-                        ".logs-endpoint.action.responses-*"
+                        ".logs-endpoint.action.responses-*",
+                        ".logs-endpoint.heartbeat-*"
                     )
                     .privileges("write", "create_index", "auto_configure")
                     .build(),

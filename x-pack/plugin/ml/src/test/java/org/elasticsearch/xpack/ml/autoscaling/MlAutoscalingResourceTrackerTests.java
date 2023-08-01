@@ -71,7 +71,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         }
     }
 
-    public void testGetMemoryAndCpuPerNodeMemoryInBytes() throws InterruptedException {
+    public void testGetMemoryAndCpu() throws InterruptedException {
         MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext();
         MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
 
@@ -99,6 +99,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     )
                 ),
                 memory / 2,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 listener
             ),
@@ -135,6 +136,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     )
                 ),
                 memory / 2,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 listener
             ),
@@ -148,13 +150,14 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         );
     }
 
-    public void testTryMoveJobsByMemory() {
+    public void testCheckIfJobsCanBeMovedInLeastEfficientWayMemoryOnly() {
         assertEquals(
             0L,
             MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
                 List.of(MlJobRequirements.of(10L, 0)),
                 Map.of("node_a", MlJobRequirements.of(100L, 0)),
                 1000L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -164,6 +167,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 List.of(MlJobRequirements.of(10L, 0)),
                 Map.of("node_a", MlJobRequirements.of(995L, 0)),
                 1000L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -188,7 +192,33 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     MlJobRequirements.of(967L, 0)
                 ),
                 1000L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
+            )
+        );
+
+        // run into max open job limit
+        assertEquals(
+            10L,
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0),
+                    MlJobRequirements.of(10L, 0)
+                ),
+                Map.of(
+                    "node_a",
+                    MlJobRequirements.of(976L, 0, 3),
+                    "node_b",
+                    MlJobRequirements.of(986L, 0, 3),
+                    "node_c",
+                    MlJobRequirements.of(967L, 0, 2)
+                ),
+                1000L,
+                10,
+                4
             )
         );
 
@@ -211,6 +241,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     MlJobRequirements.of(970L, 0)
                 ),
                 1000L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -237,6 +268,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     MlJobRequirements.of(967L, 0)
                 ),
                 1000L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -261,6 +293,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     MlJobRequirements.of(967L, 0)
                 ),
                 1000L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -286,6 +319,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     MlJobRequirements.of(967L, 0)
                 ),
                 1000L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -311,6 +345,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     MlJobRequirements.of(917L, 0)
                 ),
                 1000L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -336,6 +371,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     MlJobRequirements.of(917L, 0)
                 ),
                 1000L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -346,6 +382,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 List.of(MlJobRequirements.of(500L, 0), MlJobRequirements.of(200L, 0)),
                 Map.of("node_a", MlJobRequirements.of(1400L, 0), "node_b", MlJobRequirements.of(1700L, 0)),
                 2000L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -356,6 +393,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 List.of(MlJobRequirements.of(500L, 0), MlJobRequirements.of(200L, 0)),
                 Collections.emptyMap(),
                 2000L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -366,6 +404,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 Collections.emptyList(),
                 Collections.emptyMap(),
                 2000L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -376,12 +415,178 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 Collections.emptyList(),
                 Map.of("node_a", MlJobRequirements.of(1400L, 0), "node_b", MlJobRequirements.of(1700L, 0)),
                 2000L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
     }
 
-    public void testCheckIfOneNodeCouldBeRemoved() {
+    public void testCheckIfJobsCanBeMovedInLeastEfficientWayCpuAndMemory() {
+        assertEquals(
+            0L,
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(MlJobRequirements.of(10L, 2)),
+                Map.of("node_a", MlJobRequirements.of(100L, 2)),
+                1000L,
+                4,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
+            )
+        );
+
+        // fits memory-wise, but not CPU
+        assertEquals(
+            10L,
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(MlJobRequirements.of(10L, 2)),
+                Map.of("node_a", MlJobRequirements.of(100L, 2)),
+                1000L,
+                3,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
+            )
+        );
+        // fits CPU, but not memory
+        assertEquals(
+            10L,
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(MlJobRequirements.of(10L, 1)),
+                Map.of("node_a", MlJobRequirements.of(995L, 2)),
+                1000L,
+                4,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
+            )
+        );
+
+        // fit, but requires some shuffling
+        assertEquals(
+            0L,
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(
+                    MlJobRequirements.of(10L, 1),
+                    MlJobRequirements.of(10L, 1),
+                    MlJobRequirements.of(10L, 1),
+                    MlJobRequirements.of(10L, 1),
+                    MlJobRequirements.of(10L, 1)
+                ),
+                Map.of(
+                    "node_a",
+                    MlJobRequirements.of(980L, 3),
+                    "node_b",
+                    MlJobRequirements.of(980L, 1),
+                    "node_c",
+                    MlJobRequirements.of(970L, 0)
+                ),
+                1000L,
+                4,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
+            )
+        );
+
+        // special CPU placement
+        assertEquals(
+            0L,
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(
+                    MlJobRequirements.of(10L, 4),
+                    MlJobRequirements.of(10L, 3),
+                    MlJobRequirements.of(10L, 2),
+                    MlJobRequirements.of(10L, 1),
+                    MlJobRequirements.of(10L, 0)
+                ),
+                Map.of(
+                    "node_a",
+                    MlJobRequirements.of(900L, 3),
+                    "node_b",
+                    MlJobRequirements.of(920L, 1),
+                    "node_c",
+                    MlJobRequirements.of(940L, 0),
+                    "node_d",
+                    MlJobRequirements.of(960L, 0)
+                ),
+                1000L,
+                4,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
+            )
+        );
+
+        // special CPU placement, but doesn't fit due to open job limit
+        assertEquals(
+            30L,
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(
+                    MlJobRequirements.of(10L, 4),
+                    MlJobRequirements.of(10L, 3),
+                    MlJobRequirements.of(10L, 2),
+                    MlJobRequirements.of(10L, 1),
+                    MlJobRequirements.of(10L, 0)
+                ),
+                Map.of(
+                    "node_a",
+                    MlJobRequirements.of(900L, 3),
+                    "node_b",
+                    MlJobRequirements.of(920L, 1),
+                    "node_c",
+                    MlJobRequirements.of(940L, 0, 5),
+                    "node_d",
+                    MlJobRequirements.of(960L, 0, 4)
+                ),
+                1000L,
+                4,
+                5
+            )
+        );
+
+        // plenty of space, but no CPU
+        assertEquals(
+            40L,
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(
+                    MlJobRequirements.of(10L, 1),
+                    MlJobRequirements.of(10L, 1),
+                    MlJobRequirements.of(10L, 1),
+                    MlJobRequirements.of(10L, 1),
+                    MlJobRequirements.of(10L, 1)
+                ),
+                Map.of(
+                    "node_a",
+                    MlJobRequirements.of(980L, 3),
+                    "node_b",
+                    MlJobRequirements.of(980L, 4),
+                    "node_c",
+                    MlJobRequirements.of(970L, 4)
+                ),
+                1000L,
+                4,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
+            )
+        );
+
+        // CPU available, but not in combination with memory
+        assertEquals(
+            30L,
+            MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
+                List.of(
+                    MlJobRequirements.of(10L, 1),
+                    MlJobRequirements.of(10L, 1),
+                    MlJobRequirements.of(10L, 1),
+                    MlJobRequirements.of(10L, 1),
+                    MlJobRequirements.of(10L, 1)
+                ),
+                Map.of(
+                    "node_a",
+                    MlJobRequirements.of(980L, 1),
+                    "node_b",
+                    MlJobRequirements.of(980L, 4),
+                    "node_c",
+                    MlJobRequirements.of(970L, 4)
+                ),
+                1000L,
+                4,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
+            )
+        );
+    }
+
+    public void testCheckIfOneNodeCouldBeRemovedMemoryOnly() {
         assertEquals(
             true,
             MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
@@ -400,6 +605,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     )
                 ),
                 600L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -422,6 +628,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     )
                 ),
                 600L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -440,6 +647,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     )
                 ),
                 600L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -449,6 +657,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
                 Collections.emptyMap(),
                 999L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -473,6 +682,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     )
                 ),
                 1000L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -501,6 +711,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     )
                 ),
                 1000L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -528,6 +739,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     )
                 ),
                 1000L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
@@ -555,6 +767,101 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     )
                 ),
                 1000L,
+                10,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
+            )
+        );
+    }
+
+    public void testCheckIfOneNodeCouldBeRemovedCpuAndMemory() {
+        // plenty of CPU and memory
+        assertEquals(
+            true,
+            MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
+                Map.of(
+                    "node_a",
+                    List.of(MlJobRequirements.of(100L, 1), MlJobRequirements.of(200L, 1), MlJobRequirements.of(300L, 1)),
+                    "node_b",
+                    List.of(MlJobRequirements.of(200L, 1), MlJobRequirements.of(300L, 1)),
+                    "node_c",
+                    List.of(
+                        MlJobRequirements.of(10L, 1),
+                        MlJobRequirements.of(10L, 1),
+                        MlJobRequirements.of(10L, 1),
+                        MlJobRequirements.of(10L, 1),
+                        MlJobRequirements.of(10L, 1)
+                    )
+                ),
+                600L,
+                10,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
+            )
+        );
+
+        // cpu limit
+        assertEquals(
+            false,
+            MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
+                Map.of(
+                    "node_a",
+                    List.of(MlJobRequirements.of(100L, 1), MlJobRequirements.of(200L, 1), MlJobRequirements.of(300L, 1)),
+                    "node_b",
+                    List.of(MlJobRequirements.of(200L, 1), MlJobRequirements.of(300L, 1)),
+                    "node_c",
+                    List.of(
+                        MlJobRequirements.of(10L, 1),
+                        MlJobRequirements.of(10L, 1),
+                        MlJobRequirements.of(10L, 1),
+                        MlJobRequirements.of(10L, 1),
+                        MlJobRequirements.of(10L, 1)
+                    )
+                ),
+                600L,
+                2,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
+            )
+        );
+
+        // job limit
+        assertEquals(
+            false,
+            MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
+                Map.of(
+                    "node_a",
+                    List.of(MlJobRequirements.of(100L, 1), MlJobRequirements.of(200L, 1), MlJobRequirements.of(300L, 1)),
+                    "node_b",
+                    List.of(MlJobRequirements.of(200L, 1), MlJobRequirements.of(300L, 1), MlJobRequirements.of(10L, 1)),
+                    "node_c",
+                    List.of(
+                        MlJobRequirements.of(10L, 1),
+                        MlJobRequirements.of(10L, 1),
+                        MlJobRequirements.of(10L, 1),
+                        MlJobRequirements.of(10L, 1),
+                        MlJobRequirements.of(10L, 1)
+                    )
+                ),
+                600L,
+                10,
+                5
+            )
+        );
+
+        // 1 node with some jobs that require CPU
+        assertEquals(
+            false,
+            MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
+                Map.of(
+                    "node_a",
+                    List.of(
+                        MlJobRequirements.of(10L, 1),
+                        MlJobRequirements.of(10L, 1),
+                        MlJobRequirements.of(10L, 1),
+                        MlJobRequirements.of(10L, 1),
+                        MlJobRequirements.of(10L, 3)
+                    )
+                ),
+                600L,
+                10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );

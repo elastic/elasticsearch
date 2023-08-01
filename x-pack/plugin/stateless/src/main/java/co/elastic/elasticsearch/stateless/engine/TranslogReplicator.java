@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -89,6 +90,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private final ObjectStoreService objectStoreService;
     private final ThreadPool threadPool;
     private final ConcurrentHashMap<ShardId, ShardSyncState> shardSyncStates = new ConcurrentHashMap<>();
+    private final ConcurrentLinkedQueue<CompoundTranslog> compoundTranslogs = new ConcurrentLinkedQueue<>();
     private final Object generateFlushLock = new Object();
     private final AtomicLong fileName = new AtomicLong(0);
     private final AtomicLong maxUploadedFileName = new AtomicLong(-1);
@@ -151,6 +153,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     @Override
     protected void doClose() {
+        compoundTranslogs.forEach(CompoundTranslog::close);
         shardSyncStates.values().forEach(ShardSyncState::close);
     }
 
@@ -219,11 +222,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             lastFlushTime.set(getCurrentTimeMillis());
             var checkpoints = new HashMap<ShardId, TranslogMetadata>();
             var onComplete = new ArrayList<Releasable>();
+            var onSuccess = new ArrayList<Releasable>();
 
-            var compoundTranslog = new ReleasableBytesStreamOutput(bigArrays);
+            var compoundTranslogStream = new ReleasableBytesStreamOutput(bigArrays);
             var headerStream = new ReleasableBytesStreamOutput(bigArrays);
 
-            onComplete.add(compoundTranslog);
+            onComplete.add(compoundTranslogStream);
             onComplete.add(headerStream);
 
             for (var entry : shardSyncStates.entrySet()) {
@@ -242,14 +246,14 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 );
 
                 state.markSyncStarting(syncedLocation);
-                onComplete.add(() -> {
+                onSuccess.add(() -> {
                     maxUploadedFileName.getAndAccumulate(fileName, Math::max);
                     state.markSyncFinished(syncedLocation);
                 });
 
-                long position = compoundTranslog.position();
-                buffer.data.bytes().writeTo(compoundTranslog);
-                long size = compoundTranslog.position() - position;
+                long position = compoundTranslogStream.position();
+                buffer.data.bytes().writeTo(compoundTranslogStream);
+                long size = compoundTranslogStream.position() - position;
                 checkpoints.put(shardId, new TranslogMetadata(position, size, buffer.minSeqNo, buffer.maxSeqNo, buffer.totalOps));
 
                 buffer.close();
@@ -265,11 +269,14 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
             long beforeIncrement = this.fileName.getAndIncrement();
             assert beforeIncrement == fileName;
-            return new CompoundTranslog(
+            CompoundTranslog compoundTranslog = new CompoundTranslog(
                 Strings.format("%019d", fileName),
-                CompositeBytesReference.of(headerStream.bytes(), compoundTranslog.bytes()),
+                CompositeBytesReference.of(headerStream.bytes(), compoundTranslogStream.bytes()),
+                onSuccess,
                 onComplete
             );
+            compoundTranslogs.add(compoundTranslog);
+            return compoundTranslog;
         }
     }
 
@@ -283,12 +290,15 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
+                    translog.closeOnSuccess();
                     translog.close();
+                    compoundTranslogs.remove(translog);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     translog.close();
+                    compoundTranslogs.remove(translog);
                     logger.error(() -> "Failed to upload translog file [" + translog.name() + "]", e);
                     // TODO all retry attempts exhausted. Fail this indexing shard
                 }
@@ -306,11 +316,17 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         }.run();
     }
 
-    private record CompoundTranslog(String name, BytesReference data, List<Releasable> onComplete) implements Releasable {
+    private record CompoundTranslog(String name, BytesReference data, List<Releasable> onSuccess, List<Releasable> onComplete)
+        implements
+            Releasable {
 
         @Override
         public void close() {
             Releasables.close(onComplete);
+        }
+
+        public void closeOnSuccess() {
+            Releasables.close(onSuccess);
         }
     }
 

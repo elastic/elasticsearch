@@ -48,6 +48,6 @@ public class GetSearchApplicationActionResponseBWCSerializingTests extends Abstr
         GetSearchApplicationAction.Response instance,
         TransportVersion version
     ) {
-        return new GetSearchApplicationAction.Response(instance.searchApp());
+        return instance;
     }
 }

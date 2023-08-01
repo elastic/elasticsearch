@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
@@ -166,7 +167,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static Attribute resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList, boolean allowCompound) {
-        var matches = maybeResolveAgainstList(u, attrList, allowCompound, false);
+        var matches = maybeResolveAgainstList(
+            u,
+            attrList,
+            allowCompound,
+            false,
+            (ua, na) -> AnalyzerRules.handleSpecialFields(ua, na, allowCompound)
+        );
         return matches.isEmpty() ? null : matches.get(0);
     }
 

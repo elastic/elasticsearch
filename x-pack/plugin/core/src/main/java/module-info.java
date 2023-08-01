@@ -21,6 +21,7 @@ module org.elasticsearch.xcore {
     requires org.apache.lucene.join;
     requires unboundid.ldapsdk;
     requires org.elasticsearch.tdigest;
+    requires org.elasticsearch.xcore.templates;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;
@@ -41,6 +42,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.aggregatemetric;
     exports org.elasticsearch.xpack.core.analytics.action;
     exports org.elasticsearch.xpack.core.analytics;
+    exports org.elasticsearch.xpack.core.api.filtering;
     exports org.elasticsearch.xpack.core.application;
     exports org.elasticsearch.xpack.core.archive;
     exports org.elasticsearch.xpack.core.async;
@@ -96,6 +98,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident;
+    exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel;

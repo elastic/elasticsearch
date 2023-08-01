@@ -364,6 +364,11 @@ public class StringsTests extends ESTestCase {
         assertEquals(validFileName, stripDisallowedChars(invalidFileName.toString()));
     }
 
+    public void testFormat1Decimals() {
+        assertThat(Strings.format1Decimals(100.0 / 2, "%"), equalTo("50%"));
+        assertThat(Strings.format1Decimals(100.0 / 3, "%"), equalTo("33.3%"));
+    }
+
     private static String lowercaseAsciiOnly(String s) {
         // explicitly lowercase just ascii characters
         StringBuilder sb = new StringBuilder(s);

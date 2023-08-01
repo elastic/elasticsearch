@@ -135,16 +135,44 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("view_index_metadata", "monitor").build(),
                 // Endpoint diagnostic information. Kibana reads from these indices to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.diagnostic.collection-*").privileges("read").build(),
-                // Fleet secrets, Kibana can only write to this index.
-                // This definition must come before .fleet* below.
+                // Fleet secrets. Kibana can only write to this index.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-secrets*")
                     .privileges("write", "delete", "create_index")
                     .allowRestrictedIndices(true)
                     .build(),
-                // Fleet Server indices. Kibana create this indice before Fleet Server use them.
-                // Fleet Server indices. Kibana read and write to this indice to manage Elastic Agents
-                RoleDescriptor.IndicesPrivileges.builder().indices(".fleet*").allowRestrictedIndices(true).privileges("all").build(),
+                // Other Fleet indices. Kibana reads and writes to these indices to manage Elastic Agents.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-actions*")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".fleet-agents*").privileges("all").allowRestrictedIndices(true).build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-artifacts*")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-enrollment-api-keys*")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-policies*")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-policies-leader*")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-servers*")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),
                 // Fleet telemetry queries Agent Logs indices in kibana task runner
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-elastic_agent*").privileges("read").build(),
                 // Legacy "Alerts as data" used in Security Solution.
@@ -187,11 +215,17 @@ class KibanaOwnedReservedRoleDescriptors {
                         ".logs-endpoint.action.responses-*",
                         ".logs-endpoint.diagnostic.collection-*",
                         ".logs-endpoint.actions-*",
+                        ".logs-endpoint.heartbeat-*",
                         ".logs-osquery_manager.actions-*",
                         ".logs-osquery_manager.action.responses-*",
                         "profiling-*"
                     )
-                    .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
+                    .privileges(
+                        UpdateSettingsAction.NAME,
+                        PutMappingAction.NAME,
+                        RolloverAction.NAME,
+                        "indices:admin/data_stream/lifecycle/put"
+                    )
                     .build(),
                 // Endpoint specific action responses. Kibana reads from these to display responses to the user.
                 RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.action.responses-*").privileges("read").build(),
@@ -302,7 +336,9 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 // SLO observability solution internal indices
                 // Kibana system user uses them to read / write slo data.
-                RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").privileges("all").build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").privileges("all").build(),
+                // Endpoint heartbeat. Kibana reads from these to determine metering/billing for endpoints.
+                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.heartbeat-*").privileges("read").build() },
             null,
             new ConfigurableClusterPrivilege[] {
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("kibana-*")),

@@ -826,7 +826,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         pipelinesHaveRun = true;
     }
 
-    public boolean havePipelinesRan() {
+    public boolean pipelinesHaveRun() {
         return pipelinesHaveRun;
     }
 }

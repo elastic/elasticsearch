@@ -52,6 +52,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -497,32 +498,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         private final transient boolean ccsMinimizeRoundtrips;
 
         /**
-         * A Clusters object meant for use with CCS holding additional information about
-         * the number of remote clusters and whether ccsMinimizeRoundtrips is being used.
-         * @param total total number of clusters in the search
-         * @param successful number of clusters that have successfully completed the search
-         * @param skipped number of clusters that were skipped (e.g., unavailable or other error)
-         * @param remoteClusters number of remote clusters in the search
-         * @param ccsMinimizeRoundtrips specifies whether a CCS search is using minimizeRoundtrips feature
-         */
-        @Deprecated  // for CCS use the Clusters(OriginalIndices, Map<String, OriginalIndices>, boolean) constructor
-        public Clusters(int total, int successful, int skipped, int remoteClusters, boolean ccsMinimizeRoundtrips) {
-            assert total >= 0 && successful >= 0 && skipped >= 0 && remoteClusters >= 0
-                : "total: " + total + " successful: " + successful + " skipped: " + skipped + " remote: " + remoteClusters;
-            assert successful <= total : "total: " + total + " successful: " + successful + " skipped: " + skipped;
-            assert remoteClusters <= total : "total: " + total + " remote: " + remoteClusters;
-            assert ccsMinimizeRoundtrips == false || remoteClusters > 0
-                : "ccsMinimizeRoundtrips is true but remoteClusters count is not a positive number: " + remoteClusters;
-            int localCount = total - remoteClusters;
-            assert localCount == 0 || localCount == 1 : "total - remoteClusters should only be 0 or 1";
-            this.total = total;
-            this.successful = successful;
-            this.skipped = skipped;
-            this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
-            this.clusterInfo = new ConcurrentHashMap<>();
-        }
-
-        /**
          * For use with cross-cluster searches.
          * When minimizing roundtrips, the number of successful and skipped clusters is not known until
          * the end of the search and it the information in SearchResponse.Cluster object will be updated
@@ -630,11 +605,21 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             if (clusterInfo.isEmpty()) {
                 return successful;
             } else {
-                return (int) clusterInfo.values()
-                    .stream()
-                    .filter(c -> c.getStatus() == Cluster.Status.SUCCESSFUL || c.getStatus() == Cluster.Status.PARTIAL)
-                    .count();
+                return determineCountFromClusterInfo(
+                    cluster -> cluster.getStatus() == Cluster.Status.SUCCESSFUL || cluster.getStatus() == Cluster.Status.PARTIAL
+                );
             }
+        }
+
+        /**
+         * When Clusters is using the clusterInfo map (and Cluster objects are being updated in various
+         * ActionListener threads), this method will count how many clusters match the passed in predicate.
+         *
+         * @param predicate
+         * @return count of clusters matching the predicate
+         */
+        private int determineCountFromClusterInfo(Predicate<Cluster> predicate) {
+            return (int) clusterInfo.values().stream().filter(c -> predicate.test(c)).count();
         }
 
         /**
@@ -644,11 +629,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             if (clusterInfo.isEmpty()) {
                 return skipped;
             } else {
-                return (int) clusterInfo.values()
-                    .stream()
-                    /// MP TODO: do we want a separate counter and XContent field for FAILED?
-                    .filter(c -> c.getStatus() == Cluster.Status.SKIPPED || c.getStatus() == Cluster.Status.FAILED)
-                    .count();
+                return determineCountFromClusterInfo(cluster ->
+                // TODO: change this after adding an XContent field for FAILED clusters
+                cluster.getStatus() == Cluster.Status.SKIPPED || cluster.getStatus() == Cluster.Status.FAILED);
             }
         }
 
@@ -676,15 +659,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 return false;
             }
             Clusters clusters = (Clusters) o;
-            /// MP TODO: not sure what to do about successful and skipped here, since they are calculated differently
-            /// MP TODO: between CCS MRT=true and other search types
             return total == clusters.total && successful == clusters.successful && skipped == clusters.skipped;
         }
 
         @Override
         public int hashCode() {
-            /// MP TODO: not sure what to do about successful and skipped here, since they are calculated differently
-            /// MP TODO: between CCS MRT=true and other search types and are not immutable for CCS
             return Objects.hash(total, successful, skipped);
         }
 

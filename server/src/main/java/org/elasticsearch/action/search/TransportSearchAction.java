@@ -80,8 +80,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -508,8 +506,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
                     // TODO: in CCS fail fast ticket we may need to fail the query if the cluster is marked as FAILED
                     ccsClusterInfoUpdate(searchResponse, cluster, skipUnavailable);
-                    cluster.setTook(timeProvider.buildTookInMillis());
-
                     Map<String, SearchProfileShardResult> profileResults = searchResponse.getProfileResults();
                     SearchProfileResults profile = profileResults == null || profileResults.isEmpty()
                         ? null
@@ -757,9 +753,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             void innerOnResponse(SearchResponse searchResponse) {
                 // TODO: in CCS fail fast ticket we may need to fail the query if the cluster is marked as FAILED
                 ccsClusterInfoUpdate(searchResponse, cluster, skipUnavailable);
-                Instant now = Instant.now();
-                Instant start = Instant.ofEpochMilli(startTime);
-                cluster.setTook(Duration.between(start, now).toMillis());
                 searchResponseMerger.add(searchResponse);
             }
 
@@ -783,6 +776,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         cluster.setSuccessfulShards(searchResponse.getSuccessfulShards());
         cluster.setSkippedShards(searchResponse.getSkippedShards());
         cluster.setFailedShards(searchResponse.getFailedShards());
+        if (searchResponse.getTook() != null) {
+            cluster.setTook(searchResponse.getTook().millis());
+        }
 
         /*
          * Cluster Status logic:

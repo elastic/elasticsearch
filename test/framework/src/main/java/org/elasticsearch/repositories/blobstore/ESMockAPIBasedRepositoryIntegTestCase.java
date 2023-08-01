@@ -226,7 +226,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
     }
 
-    private Map<String, Long> getMockRequestCounts() {
+    protected Map<String, Long> getMockRequestCounts() {
         for (HttpHandler h : handlers.values()) {
             while (h instanceof DelegatingHttpHandler) {
                 if (h instanceof HttpStatsCollectorHandler) {

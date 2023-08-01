@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -140,6 +141,16 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             builder.put(S3ClientSettings.REGION.getConcreteSettingForNamespace("test").getKey(), region);
         }
         return builder.build();
+    }
+
+    @Override
+    protected Map<String, Long> getMockRequestCounts() {
+        Map<String, Long> mockRequestCounts = super.getMockRequestCounts();
+        if (false == mockRequestCounts.containsKey("AbortMultipartObject")) {
+            mockRequestCounts = new HashMap<>(mockRequestCounts);
+            mockRequestCounts.put("AbortMultipartObject", 0L);
+        }
+        return mockRequestCounts;
     }
 
     @Override
@@ -323,6 +334,10 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 trackRequest("PutMultipartObject");
             } else if (Regex.simpleMatch("PUT /*/*", request)) {
                 trackRequest("PutObject");
+            } else if (Regex.simpleMatch("POST /*/?delete", request)) {
+                trackRequest("DeleteObjects");
+            } else if (Regex.simpleMatch("DELETE /*/*?*uploadId=*", request)) {
+                trackRequest("AbortMultipartObject");
             }
         }
 

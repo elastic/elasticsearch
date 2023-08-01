@@ -13,6 +13,8 @@ these functions:
 * <<esql-case>>
 * <<esql-cidr_match>>
 * <<esql-concat>>
+* <<esql-cos>>
+* <<esql-cosh>>
 * <<esql-date_extract>>
 * <<esql-date_format>>
 * <<esql-date_parse>>
@@ -37,9 +39,13 @@ these functions:
 * <<esql-pi>>
 * <<esql-pow>>
 * <<esql-round>>
+* <<esql-sin>>
+* <<esql-sinh>>
 * <<esql-split>>
 * <<esql-starts_with>>
 * <<esql-substring>>
+* <<esql-tan>>
+* <<esql-tanh>>
 * <<esql-tau>>
 * <<esql-to_boolean>>
 * <<esql-to_datetime>>
@@ -57,6 +63,8 @@ include::functions/auto_bucket.asciidoc[]
 include::functions/case.asciidoc[]
 include::functions/cidr_match.asciidoc[]
 include::functions/concat.asciidoc[]
+include::functions/cos.asciidoc[]
+include::functions/cosh.asciidoc[]
 include::functions/date_extract.asciidoc[]
 include::functions/date_format.asciidoc[]
 include::functions/date_parse.asciidoc[]
@@ -81,9 +89,13 @@ include::functions/now.asciidoc[]
 include::functions/pi.asciidoc[]
 include::functions/pow.asciidoc[]
 include::functions/round.asciidoc[]
+include::functions/sin.asciidoc[]
+include::functions/sinh.asciidoc[]
 include::functions/split.asciidoc[]
 include::functions/starts_with.asciidoc[]
 include::functions/substring.asciidoc[]
+include::functions/tan.asciidoc[]
+include::functions/tanh.asciidoc[]
 include::functions/tau.asciidoc[]
 include::functions/to_boolean.asciidoc[]
 include::functions/to_datetime.asciidoc[]

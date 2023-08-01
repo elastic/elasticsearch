@@ -230,3 +230,81 @@ hire_date:date           | height:double | bh:double
 1985-11-20T00:00:00.000Z | 1.93          | 1.9000000000000001
 1985-11-21T00:00:00.000Z | 2.08          | 2.0500000000000003
 ;
+
+cos
+// tag::cos[]
+ROW a=1.8 
+| EVAL cos=COS(a)
+// end::cos[]
+;
+
+// tag::cos-result[]
+a:double | cos:double
+     1.8 | -0.2272020946930871
+// end::cos-result[]
+;
+
+cosh
+// tag::cosh[]
+ROW a=1.8 
+| EVAL cosh=COSH(a)
+// end::cosh[]
+;
+
+// tag::cosh-result[]
+a:double | cosh:double
+     1.8 | 3.1074731763172667
+// end::cosh-result[]
+;
+
+sin
+// tag::sin[]
+ROW a=1.8 
+| EVAL sin=SIN(a)
+// end::sin[]
+;
+
+// tag::sin-result[]
+a:double | sin:double
+     1.8 | 0.9738476308781951
+// end::sin-result[]
+;
+
+sinh
+// tag::sinh[]
+ROW a=1.8 
+| EVAL sinh=SINH(a)
+// end::sinh[]
+;
+
+// tag::sinh-result[]
+a:double | sinh:double
+     1.8 | 2.94217428809568
+// end::sinh-result[]
+;
+
+tan
+// tag::tan[]
+ROW a=1.8 
+| EVAL tan=TAN(a)
+// end::tan[]
+;
+
+// tag::tan-result[]
+a:double | tan:double
+     1.8 | -4.286261674628062
+// end::tan-result[]
+;
+
+tanh
+// tag::tanh[]
+ROW a=1.8 
+| EVAL tanh=TANH(a)
+// end::tanh[]
+;
+
+// tag::tanh-result[]
+a:double | tanh:double
+     1.8 | 0.9468060128462683
+// end::tanh-result[]
+;

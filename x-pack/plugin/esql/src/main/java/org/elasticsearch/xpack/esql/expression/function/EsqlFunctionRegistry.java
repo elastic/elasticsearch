@@ -34,6 +34,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.AutoBucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsFinite;
@@ -43,6 +45,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pi;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
@@ -91,6 +97,8 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),
                 def(AutoBucket.class, AutoBucket::new, "auto_bucket"),
+                def(Cos.class, Cos::new, "cos"),
+                def(Cosh.class, Cosh::new, "cosh"),
                 def(E.class, E::new, "e"),
                 def(Floor.class, Floor::new, "floor"),
                 def(IsFinite.class, IsFinite::new, "is_finite"),
@@ -100,6 +108,10 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Pi.class, Pi::new, "pi"),
                 def(Pow.class, Pow::new, "pow"),
                 def(Round.class, Round::new, "round"),
+                def(Sin.class, Sin::new, "sin"),
+                def(Sinh.class, Sinh::new, "sinh"),
+                def(Tan.class, Tan::new, "tan"),
+                def(Tanh.class, Tanh::new, "tanh"),
                 def(Tau.class, Tau::new, "tau") },
             // string
             new FunctionDefinition[] {

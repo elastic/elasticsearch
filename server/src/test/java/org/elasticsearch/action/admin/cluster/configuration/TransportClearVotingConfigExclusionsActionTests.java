@@ -57,6 +57,7 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
     private static VotingConfigExclusion otherNode1Exclusion, otherNode2Exclusion;
 
     private TransportService transportService;
+    private TransportAddVotingConfigExclusionsActionTests.FakeReconfigurator reconfigurator;
 
     @BeforeClass
     public static void createThreadPoolAndClusterService() {
@@ -86,13 +87,15 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
             null,
             emptySet()
         );
+        reconfigurator = new TransportAddVotingConfigExclusionsActionTests.FakeReconfigurator();
 
         new TransportClearVotingConfigExclusionsAction(
             transportService,
             clusterService,
             threadPool,
             new ActionFilters(emptySet()),
-            TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext())
+            TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+            reconfigurator
         ); // registers action
 
         transportService.start();
@@ -183,6 +186,28 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
+    }
+
+    public void testCannotClearVotingConfigurationWhenItIsDisabled() {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        final SetOnce<TransportException> exceptionHolder = new SetOnce<>();
+
+        reconfigurator.disableUserVotingConfigModifications();
+
+        transportService.sendRequest(
+            localNode,
+            ClearVotingConfigExclusionsAction.NAME,
+            new ClearVotingConfigExclusionsRequest(),
+            expectError(e -> {
+                exceptionHolder.set(e);
+                countDownLatch.countDown();
+            })
+        );
+
+        safeAwait(countDownLatch);
+        final Throwable rootCause = exceptionHolder.get().getRootCause();
+        assertThat(rootCause, instanceOf(IllegalStateException.class));
+        assertThat(rootCause.getMessage(), startsWith("Unable to modify the voting configuration"));
     }
 
     private TransportResponseHandler<ActionResponse.Empty> expectSuccess(Consumer<ActionResponse.Empty> onResponse) {

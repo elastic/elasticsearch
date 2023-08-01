@@ -171,6 +171,15 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         assertArrayEquals(new String[] {}, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousVersion()));
     }
 
+    public void testMappingRequiresUpdateNewerMappingVersionMinor() {
+        ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("version_newer_minor", Version.CURRENT));
+        String[] indices = new String[] { "version_newer_minor" };
+        assertArrayEquals(
+            new String[] {},
+            ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion())
+        );
+    }
+
     @SuppressWarnings({ "unchecked" })
     public void testAddDocMappingIfMissing() {
         ThreadPool threadPool = mock(ThreadPool.class);

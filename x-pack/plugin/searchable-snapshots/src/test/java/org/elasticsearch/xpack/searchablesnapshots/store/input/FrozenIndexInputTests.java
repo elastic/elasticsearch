@@ -89,6 +89,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
             // don't test mmap on Windows since we don't have code to unmap the shared cache file which trips assertions after tests
             .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), WINDOWS == false && randomBoolean())
+            .put(SharedBlobCacheService.SHARED_CACHE_COUNT_READS.getKey(), randomBoolean())
             .put("path.home", createTempDir())
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);

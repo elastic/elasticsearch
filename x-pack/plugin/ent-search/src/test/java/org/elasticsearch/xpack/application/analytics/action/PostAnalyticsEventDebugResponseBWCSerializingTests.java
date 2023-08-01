@@ -7,14 +7,16 @@
 
 package org.elasticsearch.xpack.application.analytics.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomAnalyticsEvent;
 
-public class PostAnalyticsEventDebugResponseSerializingTests extends AbstractWireSerializingTestCase<PostAnalyticsEventAction.Response> {
+public class PostAnalyticsEventDebugResponseBWCSerializingTests extends AbstractBWCWireSerializationTestCase<
+    PostAnalyticsEventAction.Response> {
 
     @Override
     protected Writeable.Reader<PostAnalyticsEventAction.Response> instanceReader() {
@@ -29,5 +31,13 @@ public class PostAnalyticsEventDebugResponseSerializingTests extends AbstractWir
     @Override
     protected PostAnalyticsEventAction.Response mutateInstance(PostAnalyticsEventAction.Response instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
+    }
+
+    @Override
+    protected PostAnalyticsEventAction.Response mutateInstanceForVersion(
+        PostAnalyticsEventAction.Response instance,
+        TransportVersion version
+    ) {
+        return instance;
     }
 }

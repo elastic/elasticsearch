@@ -9,7 +9,6 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
@@ -22,7 +21,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 
-final class ByteSizeCachingDirectory extends FilterDirectory {
+final class ByteSizeCachingDirectory extends ByteSizeDirectory {
 
     private static class SizeAndModCount {
         final long size;
@@ -57,7 +56,7 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
 
     ByteSizeCachingDirectory(Directory in, TimeValue refreshInterval) {
         super(in);
-        size = new SingleObjectCache<SizeAndModCount>(refreshInterval, new SizeAndModCount(0L, -1L, true)) {
+        size = new SingleObjectCache<>(refreshInterval, new SizeAndModCount(0L, -1L, true)) {
             @Override
             protected SizeAndModCount refresh() {
                 // It is ok for the size of the directory to be more recent than
@@ -103,8 +102,8 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
         };
     }
 
-    /** Return the cumulative size of all files in this directory. */
-    long estimateSizeInBytes() throws IOException {
+    @Override
+    public long estimateSizeInBytes() throws IOException {
         try {
             return size.getOrRefresh().size;
         } catch (UncheckedIOException e) {

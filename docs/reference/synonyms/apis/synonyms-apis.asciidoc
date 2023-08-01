@@ -24,7 +24,7 @@ These filters are applied as part of the <<search-analyzer,search analyzer>> ana
 [[synonyms-sets-apis]]
 === Synonyms sets APIs
 
-You can dynamically change the synonyms used at search time using these APIs to update the synonyms sets.
+You can use these APIs to dynamically update synonyms sets used at search time.
 Your search results will immediately reflect the synonyms set changes.
 
 Use the following APIs to manage synonyms sets:

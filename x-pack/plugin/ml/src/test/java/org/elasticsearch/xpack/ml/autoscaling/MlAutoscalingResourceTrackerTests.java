@@ -71,13 +71,13 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         }
     }
 
-    public void testGetMemoryAndCpu() throws InterruptedException {
+    public void testGetMemoryAndProcessors() throws InterruptedException {
         MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext();
         MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
 
         long memory = randomLongBetween(100, 1_000_000);
         this.<MlAutoscalingStats>assertAsync(
-            listener -> MlAutoscalingResourceTracker.getMemoryAndCpu(
+            listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
                 mlAutoscalingContext,
                 mockTracker,
                 Map.of(
@@ -114,7 +114,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
 
         // simulate 1 small, 1 bigger node
         this.<MlAutoscalingStats>assertAsync(
-            listener -> MlAutoscalingResourceTracker.getMemoryAndCpu(
+            listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
                 mlAutoscalingContext,
                 mockTracker,
                 Map.of(
@@ -421,7 +421,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         );
     }
 
-    public void testCheckIfJobsCanBeMovedInLeastEfficientWayCpuAndMemory() {
+    public void testCheckIfJobsCanBeMovedInLeastEfficientWayProcessorsAndMemory() {
         assertEquals(
             0L,
             MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
@@ -433,7 +433,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             )
         );
 
-        // fits memory-wise, but not CPU
+        // fits memory-wise, but not processors
         assertEquals(
             10L,
             MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
@@ -444,7 +444,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
         );
-        // fits CPU, but not memory
+        // fits processors, but not memory
         assertEquals(
             10L,
             MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
@@ -481,7 +481,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             )
         );
 
-        // special CPU placement
+        // special processor placement
         assertEquals(
             0L,
             MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
@@ -508,7 +508,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             )
         );
 
-        // special CPU placement, but doesn't fit due to open job limit
+        // special processor placement, but doesn't fit due to open job limit
         assertEquals(
             30L,
             MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
@@ -535,7 +535,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             )
         );
 
-        // plenty of space, but no CPU
+        // plenty of space, but no processor
         assertEquals(
             40L,
             MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
@@ -560,7 +560,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             )
         );
 
-        // CPU available, but not in combination with memory
+        // processor available, but not in combination with memory
         assertEquals(
             30L,
             MlAutoscalingResourceTracker.checkIfJobsCanBeMovedInLeastEfficientWay(
@@ -773,8 +773,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         );
     }
 
-    public void testCheckIfOneNodeCouldBeRemovedCpuAndMemory() {
-        // plenty of CPU and memory
+    public void testCheckIfOneNodeCouldBeRemovedProcessorAndMemory() {
+        // plenty of processors and memory
         assertEquals(
             true,
             MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
@@ -798,7 +798,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             )
         );
 
-        // cpu limit
+        // processors limit
         assertEquals(
             false,
             MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
@@ -846,7 +846,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             )
         );
 
-        // 1 node with some jobs that require CPU
+        // 1 node with some jobs that require processors
         assertEquals(
             false,
             MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(

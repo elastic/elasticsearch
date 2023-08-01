@@ -40,7 +40,13 @@ class LatencySimulatingBlobStoreRepository extends BlobStoreRepository {
     ) {
         super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
         this.fsRepository = new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+        this.fsRepository.start();
         this.simulator = simulator;
+    }
+
+    @Override
+    protected void doStop() {
+        this.fsRepository.stop();
     }
 
     @Override

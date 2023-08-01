@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -72,7 +73,7 @@ public class LatencySimulatingBlobStoreRepositoryTests extends ESSingleNodeTestC
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(TestPlugin.class);
+        return List.of(TestPlugin.class, SearchableSnapshots.class);
     }
 
     public void testRetrieveSnapshots() throws Exception {

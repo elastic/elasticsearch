@@ -83,7 +83,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         iw.close();
 
         IndexReader reader = DirectoryReader.open(dir);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
 
         TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
 
@@ -119,7 +119,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         iw.close();
 
         IndexReader reader = DirectoryReader.open(dir);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
 
         TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
         indexSearcher.setMinimumScore(2f);
@@ -192,7 +192,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
         iw.close();
         IndexReader reader = DirectoryReader.open(dir);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
 
         TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
 

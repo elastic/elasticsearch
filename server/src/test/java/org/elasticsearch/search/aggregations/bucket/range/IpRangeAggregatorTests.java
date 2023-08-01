@@ -98,7 +98,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
             }
             MappedFieldType fieldType = new IpFieldMapper.IpFieldType("field");
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalBinaryRange range = searchAndReduce(searcher, new AggTestConfig(builder, fieldType));
                 assertEquals(numRanges, range.getBuckets().size());
                 for (int i = 0; i < range.getBuckets().size(); i++) {
@@ -131,7 +131,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
                 .addRange(new IpRangeAggregationBuilder.Range("foo", "192.168.100.0", "192.168.100.255"))
                 .missing("192.168.100.42"); // Apparently we expect a string here
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalBinaryRange range = searchAndReduce(searcher, new AggTestConfig(builder));
                 assertEquals(1, range.getBuckets().size());
             }
@@ -149,7 +149,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
                 .addRange(new IpRangeAggregationBuilder.Range("foo", "192.168.100.0", "192.168.100.255"))
                 .missing(1234);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 expectThrows(IllegalArgumentException.class, () -> { searchAndReduce(searcher, new AggTestConfig(builder)); });
             }
         }

@@ -837,6 +837,25 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
 
+        // read-only index for Endpoint specific heartbeats
+        Arrays.asList(".logs-endpoint.heartbeat-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(PutMappingAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+        });
+
         // Data telemetry reads mappings, metadata and stats of indices
         Arrays.asList(randomAlphaOfLengthBetween(8, 24), "packetbeat-*").forEach((index) -> {
             logger.info("index name [{}]", index);
@@ -965,6 +984,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".logs-endpoint.action.responses-" + randomAlphaOfLengthBetween(3, 8),
             ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(3, 8),
             ".logs-endpoint.actions-" + randomAlphaOfLengthBetween(3, 8),
+            ".logs-endpoint.heartbeat-" + randomAlphaOfLengthBetween(3, 8),
             "profiling-" + randomAlphaOfLengthBetween(3, 8)
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
@@ -995,6 +1015,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             final boolean isAlsoReadIndex = indexName.startsWith(".logs-endpoint.diagnostic.collection-")
                 || indexName.startsWith(".logs-endpoint.actions-")
                 || indexName.startsWith(".logs-endpoint.action.responses-")
+                || indexName.startsWith(".logs-endpoint.heartbeat-")
                 || indexName.startsWith(".logs-osquery_manager.actions-");
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));

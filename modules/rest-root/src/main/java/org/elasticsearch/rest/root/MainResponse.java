@@ -39,7 +39,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         super(in);
         nodeName = in.readString();
         if (in.getTransportVersion().before(TransportVersion.V_8_500_041)
-            && in.getTransportVersion().id() != TransportVersion.V_8_500_049.id()) {
+            || in.getTransportVersion().id() == TransportVersion.V_8_500_049.id()) {
             Version.readVersion(in);
         }
 
@@ -103,7 +103,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeName);
         if (out.getTransportVersion().before(TransportVersion.V_8_500_041)
-            && out.getTransportVersion().id() != TransportVersion.V_8_500_049.id()) {
+            || out.getTransportVersion().id() == TransportVersion.V_8_500_049.id()) {
             Version.writeVersion(Version.CURRENT, out);
         }
 

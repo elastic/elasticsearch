@@ -147,8 +147,12 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
 
     public static final TransportVersion V_8_500_020 = registerTransportVersion(8_500_020, "ECB42C26-B258-42E5-A835-E31AF84A76DE");
 
+    // next two are used to backport EQL missing events fix from 8.10 to 8.9.1
+    public static final TransportVersion V_8_500_038 = registerTransportVersion(8_500_038, "9ef93580-feae-409f-9989-b49e411ca7a9");
+    public static final TransportVersion V_8_500_049 = registerTransportVersion(8_500_049, "42b43816-a3f3-430f-87c5-a54ec37e574c");
+
     private static class CurrentHolder {
-        private static final TransportVersion CURRENT = findCurrent(V_8_500_020);
+        private static final TransportVersion CURRENT = findCurrent(V_8_500_049);
 
         // finds the pluggable current version, or uses the given fallback
         private static TransportVersion findCurrent(TransportVersion fallback) {

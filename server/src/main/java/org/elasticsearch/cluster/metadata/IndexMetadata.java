@@ -264,10 +264,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
 
     public enum APIBlock implements Writeable {
-        READ_ONLY("read_only", INDEX_READ_ONLY_BLOCK),
-        READ("read", INDEX_READ_BLOCK),
-        WRITE("write", INDEX_WRITE_BLOCK),
-        METADATA("metadata", INDEX_METADATA_BLOCK),
+        READ_ONLY("read_only", INDEX_READ_ONLY_BLOCK, Property.ServerlessPublic),
+        READ("read", INDEX_READ_BLOCK, Property.ServerlessPublic),
+        WRITE("write", INDEX_WRITE_BLOCK, Property.ServerlessPublic),
+        METADATA("metadata", INDEX_METADATA_BLOCK, Property.ServerlessPublic),
         READ_ONLY_ALLOW_DELETE("read_only_allow_delete", INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
 
         final String name;
@@ -279,6 +279,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.name = name;
             this.settingName = "index.blocks." + name;
             this.setting = Setting.boolSetting(settingName, false, Property.Dynamic, Property.IndexScope);
+            this.block = block;
+        }
+
+        APIBlock(String name, ClusterBlock block, Property serverlessProperty) {
+            this.name = name;
+            this.settingName = "index.blocks." + name;
+            this.setting = Setting.boolSetting(settingName, false, Property.Dynamic, Property.IndexScope, serverlessProperty);
             this.block = block;
         }
 

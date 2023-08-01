@@ -358,6 +358,7 @@ public final class MlAutoscalingResourceTracker {
             )
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
 
+        // we define least loaded exclusively on memory, not CPU load
         Optional<Map.Entry<String, MlJobRequirements>> leastLoadedNodeAndMemoryUsage = perNodeMlJobRequirementSum.entrySet()
             .stream()
             .min(Comparator.comparingLong(entry -> entry.getValue().memory));
@@ -368,7 +369,6 @@ public final class MlAutoscalingResourceTracker {
 
         assert leastLoadedNodeAndMemoryUsage.get().getValue().memory >= 0L;
 
-        // this currently only works based on memory, not processors
         String candidateNode = leastLoadedNodeAndMemoryUsage.get().getKey();
         List<MlJobRequirements> candidateJobRequirements = perNodeJobRequirements.get(candidateNode);
         perNodeMlJobRequirementSum.remove(candidateNode);

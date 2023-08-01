@@ -7,7 +7,7 @@ beta::[]
 <titleabbrev>Delete synonym rule</titleabbrev>
 ++++
 
-Deletes a synonym rule from a synonyms set.
+Deletes an individual synonym rule from a synonyms set.
 
 [[delete-synonym-rule-request]]
 ==== {api-request-title}

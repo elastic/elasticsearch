@@ -141,7 +141,7 @@ PUT _synonyms/my-synonyms-set/test-1
 
 If the synonyms set is used in analyzers, <<synonyms-set-analyzer-reloading,analyzer reloading>> is performed automatically.
 
-If any of the synonym rules included is not valid, the API will return an error.
+If any of the synonym rules included is invalid, the API will return an error.
 
 [source,console]
 ----

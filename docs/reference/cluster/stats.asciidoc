@@ -863,11 +863,11 @@ Inline synonyms defined using `synonyms` configuration in synonym or synonym gra
 (integer)
 Occurrences of inline synonyms configuration in selected nodes.
 Each inline synonyms configuration will be counted separately, regardless of the synonyms defined.
-Two synonyms configuration with the same synonyms will count as separate ocurrences.
+Two synonyms configurations with the same synonyms will count as separate ocurrences.
 
 `index_count`::
 (integer)
-Number of indices that use inline synonyms configuration for synonyms token filters,
+Number of indices that use inline synonyms configuration for synonyms token filters.
 =======
 
 `synonyms_path`::

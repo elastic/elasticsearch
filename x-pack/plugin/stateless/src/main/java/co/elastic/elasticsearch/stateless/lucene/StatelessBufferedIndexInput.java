@@ -329,11 +329,6 @@ public abstract class StatelessBufferedIndexInput extends IndexInput implements 
         return clone;
     }
 
-    @Override
-    public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-        return wrap(sliceDescription, this, offset, length);
-    }
-
     /** Returns default buffer sizes for the given {@link IOContext} */
     public static int bufferSize(IOContext context) {
         switch (context.context) {
@@ -344,68 +339,6 @@ public abstract class StatelessBufferedIndexInput extends IndexInput implements 
             case READ:
             default:
                 return BUFFER_SIZE;
-        }
-    }
-
-    /**
-     * Wraps a portion of another IndexInput with buffering.
-     *
-     * <p><b>Please note:</b> This is in most cases ineffective, because it may double buffer!
-     */
-    public static StatelessBufferedIndexInput wrap(String sliceDescription, IndexInput other, long offset, long length) {
-        return new SlicedIndexInput(sliceDescription, other, offset, length);
-    }
-
-    /** Implementation of an IndexInput that reads from a portion of a file. */
-    private static final class SlicedIndexInput extends StatelessBufferedIndexInput {
-        IndexInput base;
-        long fileOffset;
-        long length;
-
-        SlicedIndexInput(String sliceDescription, IndexInput base, long offset, long length) {
-            super(
-                (sliceDescription == null) ? base.toString() : (base.toString() + " [slice=" + sliceDescription + "]"),
-                StatelessBufferedIndexInput.BUFFER_SIZE
-            );
-            if (offset < 0 || length < 0 || offset + length > base.length()) {
-                throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: " + base);
-            }
-            this.base = base.clone();
-            this.fileOffset = offset;
-            this.length = length;
-        }
-
-        @Override
-        public SlicedIndexInput clone() {
-            SlicedIndexInput clone = (SlicedIndexInput) super.clone();
-            clone.base = base.clone();
-            clone.fileOffset = fileOffset;
-            clone.length = length;
-            return clone;
-        }
-
-        @Override
-        protected void readInternal(ByteBuffer b) throws IOException {
-            long start = getFilePointer();
-            if (start + b.remaining() > length) {
-                throw new EOFException("read past EOF: " + this);
-            }
-            base.seek(fileOffset + start);
-            base.readBytes(b.array(), b.position(), b.remaining());
-            b.position(b.position() + b.remaining());
-        }
-
-        @Override
-        protected void seekInternal(long pos) {}
-
-        @Override
-        public void close() throws IOException {
-            base.close();
-        }
-
-        @Override
-        public long length() {
-            return length;
         }
     }
 }

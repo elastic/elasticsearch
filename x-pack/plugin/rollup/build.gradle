@@ -6,7 +6,9 @@ esplugin {
   extendedPlugins = ['x-pack-aggregate-metric']
 }
 
-archivesBaseName = 'x-pack-rollup'
+base {
+  archivesName = 'x-pack-rollup'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

@@ -1393,10 +1393,10 @@ public final class Authentication implements ToXContentObject {
 
         final Map<String, Object> roleDescriptorsMap = convertRoleDescriptorsBytesToMap(roleDescriptorsBytes);
         final AtomicBoolean removedAtLeastOne = new AtomicBoolean(false);
-        roleDescriptorsMap.entrySet().stream().forEach(entry -> {
-            if (entry.getValue() instanceof Map) {
+        roleDescriptorsMap.forEach((key, value) -> {
+            if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
-                Map<String, Object> roleDescriptor = (Map<String, Object>) entry.getValue();
+                Map<String, Object> roleDescriptor = (Map<String, Object>) value;
                 boolean removed = roleDescriptor.remove(RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName()) != null;
                 if (removed) {
                     removedAtLeastOne.set(true);

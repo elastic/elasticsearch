@@ -154,6 +154,12 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> READ_SLM_PATTERN = Set.of(GetSnapshotLifecycleAction.NAME, GetStatusAction.NAME);
 
     private static final Set<String> MANAGE_SEARCH_APPLICATION_PATTERN = Set.of("cluster:admin/xpack/application/search_application/*");
+    private static final Set<String> MANAGE_SEARCH_QUERY_RULES_PATTERN = Set.of("cluster:admin/xpack/query_rules/*");
+    private static final Set<String> MANAGE_SEARCH_SYNONYMS_PATTERN = Set.of(
+        "cluster:admin/synonyms/*",
+        "cluster:admin/synonyms_sets/*",
+        "cluster:admin/synonym_rules/*"
+    );
 
     private static final Set<String> CROSS_CLUSTER_SEARCH_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
@@ -277,6 +283,10 @@ public class ClusterPrivilegeResolver {
         "manage_search_application",
         MANAGE_SEARCH_APPLICATION_PATTERN
     );
+    public static final NamedClusterPrivilege MANAGE_SEARCH_SYNONYMS = new ActionClusterPrivilege(
+        "manage_search_synonyms",
+        MANAGE_SEARCH_SYNONYMS_PATTERN
+    );
     public static final NamedClusterPrivilege MANAGE_BEHAVIORAL_ANALYTICS = new ActionClusterPrivilege(
         "manage_behavioral_analytics",
         MANAGE_BEHAVIORAL_ANALYTICS_PATTERN
@@ -287,6 +297,10 @@ public class ClusterPrivilegeResolver {
         POST_BEHAVIORAL_ANALYTICS_EVENT_PATTERN
     );
 
+    public static final NamedClusterPrivilege MANAGE_SEARCH_QUERY_RULES = new ActionClusterPrivilege(
+        "manage_search_query_rules",
+        MANAGE_SEARCH_QUERY_RULES_PATTERN
+    );
     public static final NamedClusterPrivilege CROSS_CLUSTER_SEARCH = new ActionClusterPrivilege(
         "cross_cluster_search",
         CROSS_CLUSTER_SEARCH_PATTERN
@@ -343,8 +357,10 @@ public class ClusterPrivilegeResolver {
             MANAGE_LOGSTASH_PIPELINES,
             CANCEL_TASK,
             MANAGE_SEARCH_APPLICATION,
+            MANAGE_SEARCH_SYNONYMS,
             MANAGE_BEHAVIORAL_ANALYTICS,
             POST_BEHAVIORAL_ANALYTICS_EVENT,
+            MANAGE_SEARCH_QUERY_RULES,
             TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_SEARCH : null,
             TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_REPLICATION : null
         ).filter(Objects::nonNull).toList()

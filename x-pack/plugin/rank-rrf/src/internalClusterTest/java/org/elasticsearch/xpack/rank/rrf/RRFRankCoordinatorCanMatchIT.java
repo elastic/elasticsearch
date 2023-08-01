@@ -95,11 +95,6 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
     }
 
     @Override
-    protected int minimumNumberOfReplicas() {
-        return 0;
-    }
-
-    @Override
     protected int maximumNumberOfReplicas() {
         return 0;
     }

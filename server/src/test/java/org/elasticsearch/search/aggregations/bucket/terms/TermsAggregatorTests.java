@@ -1438,7 +1438,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     StringTerms result = searchAndReduce(
                         newIndexSearcher(indexReader),
                         new AggTestConfig(terms, animalFieldType, nestedFieldType).withQuery(
-                            Queries.newNonNestedFilter(IndexVersion.CURRENT)
+                            Queries.newNonNestedFilter(IndexVersion.current())
                         )
                     );
                     assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("pig"));

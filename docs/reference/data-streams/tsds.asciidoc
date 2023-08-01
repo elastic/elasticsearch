@@ -6,7 +6,7 @@ more time series.
 
 You can use a TSDS to store metrics data more efficiently. In our benchmarks,
 metrics data stored in a TSDS used 70% less disk space than a regular data
-stream.
+stream. The exact impact will vary per data set.
 
 [discrete]
 [[when-to-use-tsds]]
@@ -142,17 +142,20 @@ Accepted metric types vary based on the field type:
 [%collapsible%open]
 ====
 // tag::time-series-metric-counter[]
-`counter`:: A number that only increases or resets to `0` (zero). For
+`counter`:: A cumulative metric that only monotonically increases or resets to `0` (zero). For
 example, a count of errors or completed tasks.
 // end::time-series-metric-counter[]
 +
-Only numeric and `aggregate_metric_double` fields support the `counter` metric
-type.
+A counter field has additional semantic meaning, because it represents a cumulative counter. This works well with
+the `rate` aggregation, since a rate can be derived from a cumulative monotonically increasing counter. However a number
+of aggregations (for example `sum`) compute results that don't make sense for a counter field, because of its cumulative nature.
++
+Only numeric and `aggregate_metric_double` fields support the `counter` metric type.
 
-NOTE: Counter fields do come with a limitation in aggregations. Only the following aggregations are supported with the `counter` field: `rate`, `histogram`, `range`, `min`, `max`, `top_metrics` and `variable_width_histogram`.
+NOTE: Due to the cumulative nature of counter fields, only the following aggregations are allowed with the `counter` field: `rate`, `histogram`, `range`, `min`, `max`, `top_metrics` and `variable_width_histogram`.
 
 // tag::time-series-metric-gauge[]
-`gauge`:: A number that can increase or decrease. For example, a temperature or
+`gauge`:: A metric that represents a single numeric that can arbitrarily increase or decrease. For example, a temperature or
 available disk space.
 // end::time-series-metric-gauge[]
 +

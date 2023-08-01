@@ -40,4 +40,16 @@ public interface InferenceConfig extends NamedXContentObject, VersionedNamedWrit
     String getResultsField();
 
     boolean isAllocateOnly();
+
+    default boolean supportsIngestPipeline() {
+        return true;
+    }
+
+    default boolean supportsPipelineAggregation() {
+        return true;
+    }
+
+    default boolean supportsSearchRescorer() {
+        return false;
+    }
 }

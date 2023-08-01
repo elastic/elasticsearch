@@ -70,7 +70,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
                     queryBuilders[i] = new TermQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(8));
                     DocumentParserContext documentParserContext = new TestDocumentParserContext();
                     PercolatorFieldMapper.createQueryBuilderField(
-                        IndexVersion.CURRENT,
+                        IndexVersion.current(),
                         TransportVersion.current(),
                         fieldMapper,
                         queryBuilders[i],
@@ -81,7 +81,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
             }
 
             SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-            when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.CURRENT);
+            when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.current());
             when(searchExecutionContext.getWriteableRegistry()).thenReturn(writableRegistry());
             when(searchExecutionContext.getParserConfig()).thenReturn(parserConfig());
             when(searchExecutionContext.getForField(fieldMapper.fieldType(), fielddataOperation)).thenReturn(

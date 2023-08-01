@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
@@ -45,6 +44,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
 import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
@@ -101,6 +101,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executor;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -132,6 +133,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private final String remoteClusterAlias;
     private final Client client;
     private final ThreadPool threadPool;
+    private final Executor remoteClientResponseExecutor;
 
     private final CounterMetric throttledTime = new CounterMetric();
 
@@ -145,6 +147,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         this.remoteClusterAlias = Strings.split(metadata.name(), NAME_PREFIX)[1];
         this.client = client;
         this.threadPool = threadPool;
+        this.remoteClientResponseExecutor = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
         csDeduplicator = new SingleResultDeduplicator<>(
             threadPool.getThreadContext(),
             l -> getRemoteClusterClient().admin()
@@ -179,7 +182,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     private Client getRemoteClusterClient() {
-        return client.getRemoteClusterClient(remoteClusterAlias);
+        return client.getRemoteClusterClient(remoteClusterAlias, remoteClientResponseExecutor);
     }
 
     @Override
@@ -197,7 +200,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                         List.copyOf(indicesMap.keySet()),
                         List.copyOf(responseMetadata.dataStreams().keySet()),
                         List.of(),
-                        response.getNodes().getMaxNodeVersion(),
+                        response.getNodes().getMaxDataNodeCompatibleIndexVersion(),
                         SnapshotState.SUCCESS
                     );
                 }))
@@ -276,7 +279,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     final long nowMillis = threadPool.absoluteTimeInMillis();
                     snapshotsDetails.put(
                         indexName,
-                        new RepositoryData.SnapshotDetails(SnapshotState.SUCCESS, Version.CURRENT, nowMillis, nowMillis, "")
+                        new RepositoryData.SnapshotDetails(SnapshotState.SUCCESS, IndexVersion.current(), nowMillis, nowMillis, "")
                     );
                     indexSnapshots.put(new IndexId(indexName, remoteIndices.get(indexName).getIndex().getUUID()), List.of(snapshotId));
                 }
@@ -306,7 +309,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
-        Version repositoryMetaVersion,
+        IndexVersion repositoryMetaVersion,
         SnapshotDeleteListener listener
     ) {
         listener.onFailure(new UnsupportedOperationException("Unsupported for repository of type: " + TYPE));

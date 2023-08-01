@@ -50,14 +50,10 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import java.io.Serializable;
-
-import javax.inject.Inject;
 
 /**
  * Checks files for license headers..
@@ -193,9 +189,8 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         boolean unApprovedLicenses = stats.getNumUnApproved() > 0;
         if (unknownLicenses || unApprovedLicenses) {
             getLogger().error("The following files contain unapproved license headers:");
-            unapprovedFiles(repFile).stream().forEachOrdered(unapprovedFile -> getLogger().error(unapprovedFile));
-            throw new GradleException("Check failed. License header problems were found. Full details: " +
-                    repFile.getAbsolutePath());
+            unapprovedFiles(repFile).forEach(getLogger()::error);
+            throw new GradleException("Check failed. License header problems were found. Full details: " + repFile.getAbsolutePath());
         }
     }
 

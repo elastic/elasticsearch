@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.remotecluster;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -17,9 +16,11 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
@@ -142,7 +143,11 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             assertThat(remoteConnectionInfos, hasSize(1));
             assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
 
-            final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, "my_remote_cluster");
+            final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                threadPool,
+                "my_remote_cluster",
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
 
             // Creating a restore session fails if index is not accessible
             final ShardId privateShardId = new ShardId("private-index", privateIndexUUID, 0);
@@ -275,7 +280,11 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         final Map<String, Object> apiKeyMap = responseAsMap(createApiKeyResponse);
         try (MockTransportService service = startTransport("node", threadPool, (String) apiKeyMap.get("encoded"))) {
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
-            final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, "my_remote_cluster");
+            final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                threadPool,
+                "my_remote_cluster",
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
 
             final ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
@@ -341,7 +350,11 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             final List<RemoteConnectionInfo> remoteConnectionInfos = remoteClusterService.getRemoteConnectionInfos().toList();
             assertThat(remoteConnectionInfos, hasSize(1));
             assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
-            final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, "my_remote_cluster");
+            final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                threadPool,
+                "my_remote_cluster",
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
 
             // 1. Not accessible because API key does not grant the access
             final ElasticsearchSecurityException e1 = expectThrows(
@@ -437,7 +450,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
 
         final MockTransportService service = MockTransportService.createNewService(
             builder.build(),
-            Version.CURRENT,
+            VersionInformation.CURRENT,
             TransportVersion.current(),
             threadPool,
             null

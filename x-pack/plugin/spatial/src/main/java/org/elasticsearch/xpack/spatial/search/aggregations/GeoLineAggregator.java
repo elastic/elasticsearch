@@ -61,7 +61,7 @@ abstract class GeoLineAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoLine(name, new long[0], new double[0], metadata(), true, includeSorts, sortOrder, size);
+        return new InternalGeoLine(name, new long[0], new double[0], metadata(), true, includeSorts, sortOrder, size, true, false);
     }
 
     static class Empty extends GeoLineAggregator {

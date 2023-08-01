@@ -86,6 +86,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             .preference(request.preference())
             .routing(request.routing())
             .allowPartialSearchResults(false);
+        searchRequest.setMaxConcurrentShardRequests(request.maxConcurrentShardRequests());
         searchRequest.setCcsMinimizeRoundtrips(false);
         transportSearchAction.executeRequest((SearchTask) task, searchRequest, listener.map(r -> {
             assert r.pointInTimeId() != null : r;
@@ -117,6 +118,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             ThreadPool threadPool,
             SearchResponse.Clusters clusters
         ) {
+            assert searchRequest.getMaxConcurrentShardRequests() == pitRequest.maxConcurrentShardRequests()
+                : searchRequest.getMaxConcurrentShardRequests() + " != " + pitRequest.maxConcurrentShardRequests();
             return new AbstractSearchAsyncAction<>(
                 actionName,
                 logger,
@@ -132,7 +135,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 clusterState,
                 task,
                 new ArraySearchPhaseResults<>(shardIterators.size()),
-                1,
+                searchRequest.getMaxConcurrentShardRequests(),
                 clusters
             ) {
                 @Override

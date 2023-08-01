@@ -142,7 +142,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         final int portSeparator = url.lastIndexOf(':');
         final var httpHost = new HttpHost(url.substring(0, portSeparator), Integer.parseInt(url.substring(portSeparator + 1)), "http");
         RestClientBuilder builder = RestClient.builder(httpHost);
-        configureClient(builder, Settings.EMPTY);
+        doConfigureClient(builder, Settings.EMPTY);
         builder.setStrictDeprecationMode(true);
         try (RestClient fulfillingClusterClient = builder.build()) {
             final Response createApiKeyResponse = fulfillingClusterClient.performRequest(createApiKeyRequest);

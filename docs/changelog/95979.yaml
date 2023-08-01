@@ -1,5 +1,5 @@
 pr: 95979
-summary: Allow for the data lifecycle and the retention to be explicitly nullified
+summary: Allow for the data stream lifecycle and the retention to be explicitly nullified
 area: DLM
 type: enhancement
 issues: []

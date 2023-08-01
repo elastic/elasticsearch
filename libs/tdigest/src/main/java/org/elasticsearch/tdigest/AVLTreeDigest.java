@@ -24,7 +24,6 @@ package org.elasticsearch.tdigest;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Random;
 
 import static org.elasticsearch.tdigest.IntAVLTree.NIL;
@@ -66,16 +65,6 @@ public class AVLTreeDigest extends AbstractTDigest {
     @Override
     public int centroidCount() {
         return summary.size();
-    }
-
-    @Override
-    public void add(List<? extends TDigest> others) {
-        for (TDigest other : others) {
-            setMinMax(Math.min(min, other.getMin()), Math.max(max, other.getMax()));
-            for (Centroid centroid : other.centroids()) {
-                add(centroid.mean(), centroid.count());
-            }
-        }
     }
 
     @Override

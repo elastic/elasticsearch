@@ -50,7 +50,7 @@ public class TimeSeriesCancellationTests extends ESTestCase {
         iwc.setIndexSort(
             new Sort(
                 new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING),
-                new SortField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, SortField.Type.LONG)
+                new SortField(DataStream.TIMESTAMP_FIELD_NAME, SortField.Type.LONG)
             )
         );
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
@@ -66,7 +66,7 @@ public class TimeSeriesCancellationTests extends ESTestCase {
             String tsid = "tsid" + randomIntBetween(0, 30);
             long time = randomNonNegativeLong();
             doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef(tsid)));
-            doc.add(new NumericDocValuesField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, time));
+            doc.add(new NumericDocValuesField(DataStream.TIMESTAMP_FIELD_NAME, time));
             w.addDocument(doc);
         }
     }

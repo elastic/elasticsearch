@@ -235,14 +235,11 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
 
                 case INDICES -> Iterators.concat(
                     ChunkedToXContentHelper.startObject(Fields.INDICES),
-                    Iterators.flatMap(
-                        createCommonStatsByIndex().entrySet().iterator(),
-                        entry -> Iterators.<ToXContent>single((builder, params) -> {
-                            builder.startObject(entry.getKey().getName());
-                            entry.getValue().toXContent(builder, params);
-                            return builder.endObject();
-                        })
-                    ),
+                    Iterators.map(createCommonStatsByIndex().entrySet().iterator(), entry -> (builder, params) -> {
+                        builder.startObject(entry.getKey().getName());
+                        entry.getValue().toXContent(builder, params);
+                        return builder.endObject();
+                    }),
                     ChunkedToXContentHelper.endObject()
                 );
 

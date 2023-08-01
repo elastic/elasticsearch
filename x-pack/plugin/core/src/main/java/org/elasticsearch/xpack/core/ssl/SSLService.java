@@ -407,9 +407,10 @@ public class SSLService {
     }
 
     public Set<String> getTransportProfileContextNames() {
-        return Collections.unmodifiableSet(
-            this.sslConfigurations.keySet().stream().filter(k -> k.startsWith("transport.profiles.")).collect(Collectors.toSet())
-        );
+        return this.sslConfigurations.keySet()
+            .stream()
+            .filter(k -> k.startsWith("transport.profiles."))
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     /**

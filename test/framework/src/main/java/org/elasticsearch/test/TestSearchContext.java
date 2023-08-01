@@ -55,8 +55,6 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 
 public class TestSearchContext extends SearchContext {
-    public static final SearchShardTarget SHARD_TARGET = new SearchShardTarget("test", new ShardId("test", "test", 0), null);
-
     final IndexService indexService;
     final BitsetFilterCache fixedBitSetFilterCache;
     final IndexShard indexShard;

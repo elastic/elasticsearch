@@ -305,21 +305,21 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
         // Creating an index which does not reference the pipeline should not trigger the database download.
         String indexIdentifier = randomIdentifier();
-        assertAcked(client().admin().indices().prepareCreate(indexIdentifier).get());
+        assertAcked(indicesAdmin().prepareCreate(indexIdentifier).get());
         assertNull(getTask().getState());
 
         // Set the pipeline as default_pipeline or final_pipeline for the index.
         // This should trigger the database download.
         Setting<String> pipelineSetting = randomFrom(IndexSettings.FINAL_PIPELINE, IndexSettings.DEFAULT_PIPELINE);
         Settings indexSettings = Settings.builder().put(pipelineSetting.getKey(), pipelineId).build();
-        assertAcked(client().admin().indices().prepareUpdateSettings(indexIdentifier).setSettings(indexSettings).get());
+        assertAcked(indicesAdmin().prepareUpdateSettings(indexIdentifier).setSettings(indexSettings).get());
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
             assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
         }, 2, TimeUnit.MINUTES);
 
         // Remove the created index.
-        assertAcked(client().admin().indices().prepareDelete(indexIdentifier).get());
+        assertAcked(indicesAdmin().prepareDelete(indexIdentifier).get());
     }
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
@@ -554,7 +554,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             builder.endObject();
             bytes = BytesReference.bytes(builder);
         }
-        assertAcked(client().admin().cluster().preparePutPipeline(pipelineId, bytes, XContentType.JSON).get());
+        assertAcked(clusterAdmin().preparePutPipeline(pipelineId, bytes, XContentType.JSON).get());
     }
 
     /**
@@ -592,7 +592,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             builder.endObject();
             bytes = BytesReference.bytes(builder);
         }
-        assertAcked(client().admin().cluster().preparePutPipeline(pipelineId, bytes, XContentType.JSON).get());
+        assertAcked(clusterAdmin().preparePutPipeline(pipelineId, bytes, XContentType.JSON).get());
     }
 
     private List<Path> getGeoIpTmpDirs() throws IOException {
@@ -662,7 +662,25 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 try {
                     IOUtils.rm(path);
                 } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+                    /*
+                     * If the test is emulating Windows mode then it will throw an IOException if something has an open file handle to this
+                     * directory. ConfigDatabases adds a FileWatcher that lists the contents of this directory every 5 seconds. If the
+                     * timing is unlucky a directory listing can happen just as we are attempting to do this delete. In that case we wait a
+                     * small amount of time and retry once. If it fails a second time then something more serious is going on so we bail
+                     * out.
+                     */
+                    if (path.getFileSystem().provider().getScheme().equals("windows://") && e.getMessage().contains("access denied")) {
+                        logger.debug("Caught an IOException, will sleep and try deleting again", e);
+                        safeSleep(500);
+                        try {
+                            IOUtils.rm(path);
+                        } catch (IOException e2) {
+                            throw new UncheckedIOException(e2);
+                        }
+                    } else {
+                        throw new UncheckedIOException(e);
+                    }
+
                 }
             });
 
@@ -749,11 +767,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 @Override
                 public String getType() {
                     return NON_GEO_PROCESSOR_TYPE;
-                }
-
-                @Override
-                public boolean isAsync() {
-                    return false;
                 }
 
             });

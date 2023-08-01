@@ -292,7 +292,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalNamedWriteable(postQueryBuilder);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_013)) {
             out.writeList(subSearchSourceBuilders);
-        } else if (out.getTransportVersion().before(TransportVersion.V_8_8_0) && subSearchSourceBuilders.size() >= 2) {
+        } else if (out.getTransportVersion().before(TransportVersion.V_8_4_0) && subSearchSourceBuilders.size() >= 2) {
             throw new IllegalArgumentException("cannot serialize [sub_searches] to version [" + out.getTransportVersion() + "]");
         } else {
             out.writeOptionalNamedWriteable(query());
@@ -1616,7 +1616,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (subSearchSourceBuilders.size() == 1) {
                 builder.field(QUERY_FIELD.getPreferredName(), subSearchSourceBuilders.get(0).getQueryBuilder());
             } else {
-                builder.array(SUB_SEARCHES_FIELD.getPreferredName(), subSearchSourceBuilders);
+                builder.xContentList(SUB_SEARCHES_FIELD.getPreferredName(), subSearchSourceBuilders);
             }
         }
 

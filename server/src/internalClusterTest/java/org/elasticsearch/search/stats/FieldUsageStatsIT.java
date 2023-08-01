@@ -49,7 +49,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
     public void testFieldUsageStats() throws ExecutionException, InterruptedException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         int numShards = randomIntBetween(1, 2);
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings(numShards, 1)));
+        assertAcked(indicesAdmin().prepareCreate("test").setSettings(indexSettings(numShards, 1)));
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd", Locale.ROOT);
         LocalDate date = LocalDate.of(2015, 9, 1);
@@ -60,7 +60,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
                 .setSource("field", "value", "field2", "value2", "date_field", formatter.format(date.plusDays(i)))
                 .get();
         }
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         ensureGreen("test");
 

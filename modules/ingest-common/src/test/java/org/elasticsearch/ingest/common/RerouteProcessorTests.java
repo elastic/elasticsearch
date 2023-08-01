@@ -35,7 +35,7 @@ public class RerouteProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
         ingestDocument.setFieldValue("event.dataset", "foo");
 
-        RerouteProcessor processor = createRerouteProcessor(List.of("{{event.dataset}}"), List.of());
+        RerouteProcessor processor = createRerouteProcessor(List.of("{{event.dataset }}"), List.of());
         processor.execute(ingestDocument);
         assertDataSetFields(ingestDocument, "logs", "foo", "default");
         assertThat(ingestDocument.getFieldValue("event.dataset", String.class), equalTo("foo"));
@@ -45,7 +45,7 @@ public class RerouteProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
         ingestDocument.getCtxMap().put("event.dataset", "foo");
 
-        RerouteProcessor processor = createRerouteProcessor(List.of("{{event.dataset}}"), List.of());
+        RerouteProcessor processor = createRerouteProcessor(List.of("{{ event.dataset}}"), List.of());
         processor.execute(ingestDocument);
         assertDataSetFields(ingestDocument, "logs", "foo", "default");
         assertThat(ingestDocument.getCtxMap().get("event.dataset"), equalTo("foo"));
@@ -56,7 +56,7 @@ public class RerouteProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
         ingestDocument.setFieldValue("ds", "foo");
 
-        RerouteProcessor processor = createRerouteProcessor(List.of("{{ds}}"), List.of());
+        RerouteProcessor processor = createRerouteProcessor(List.of("{{ ds }}"), List.of());
         processor.execute(ingestDocument);
         assertDataSetFields(ingestDocument, "logs", "foo", "default");
         assertFalse(ingestDocument.hasField("event.dataset"));

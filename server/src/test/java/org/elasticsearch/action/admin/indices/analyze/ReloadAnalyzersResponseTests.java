@@ -32,6 +32,11 @@ public class ReloadAnalyzersResponseTests extends AbstractBroadcastResponseTestC
         int failedShards,
         List<DefaultShardOperationFailedException> failures
     ) {
+        Map<String, ReloadAnalyzersResponse.ReloadDetails> reloadedIndicesDetails = createRandomReloadDetails();
+        return new ReloadAnalyzersResponse(totalShards, successfulShards, failedShards, failures, reloadedIndicesDetails);
+    }
+
+    public static Map<String, ReloadAnalyzersResponse.ReloadDetails> createRandomReloadDetails() {
         Map<String, ReloadAnalyzersResponse.ReloadDetails> reloadedIndicesDetails = new HashMap<>();
         int randomIndices = randomIntBetween(0, 5);
         for (int i = 0; i < randomIndices; i++) {
@@ -40,7 +45,7 @@ public class ReloadAnalyzersResponseTests extends AbstractBroadcastResponseTestC
             Set<String> reloadedAnalyzers = new HashSet<>(Arrays.asList(generateRandomStringArray(5, 5, false, true)));
             reloadedIndicesDetails.put(name, new ReloadAnalyzersResponse.ReloadDetails(name, reloadedIndicesNodes, reloadedAnalyzers));
         }
-        return new ReloadAnalyzersResponse(totalShards, successfulShards, failedShards, failures, reloadedIndicesDetails);
+        return reloadedIndicesDetails;
     }
 
     @Override

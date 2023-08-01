@@ -30,6 +30,7 @@ testClusters.configureEach {
   numberOfNodes = 3
 
   extraConfigFile 'operator_users.yml', file('src/javaRestTest/resources/operator_users.yml')
+  extraConfigFile 'service_tokens', file('src/javaRestTest/resources/service_tokens')
   extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
 
   setting 'xpack.license.self_generated.type', 'trial'

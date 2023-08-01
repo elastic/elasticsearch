@@ -32,26 +32,42 @@ public class FleetTemplateRegistry extends IndexTemplateRegistry {
         new LifecyclePolicyConfig(".fleet-actions-results-ilm-policy", "/fleet-actions-results-ilm-policy.json").load(
             LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
         ),
-        new LifecyclePolicyConfig(".fleet-file-data-ilm-policy", "/fleet-file-data-ilm-policy.json").load(
+        new LifecyclePolicyConfig(".fleet-file-tohost-data-ilm-policy", "/fleet-file-tohost-data-ilm-policy.json").load(
             LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
         ),
-        new LifecyclePolicyConfig(".fleet-files-ilm-policy", "/fleet-files-ilm-policy.json").load(
+        new LifecyclePolicyConfig(".fleet-file-tohost-meta-ilm-policy", "/fleet-file-tohost-meta-ilm-policy.json").load(
+            LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
+        ),
+        new LifecyclePolicyConfig(".fleet-file-fromhost-data-ilm-policy", "/fleet-file-fromhost-data-ilm-policy.json").load(
+            LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
+        ),
+        new LifecyclePolicyConfig(".fleet-file-fromhost-meta-ilm-policy", "/fleet-file-fromhost-meta-ilm-policy.json").load(
             LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
         )
     );
 
     public static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
-        new IndexTemplateConfig(".fleet-files", "/fleet-files.json", INDEX_TEMPLATE_VERSION, TEMPLATE_VERSION_VARIABLE),
-        new IndexTemplateConfig(".fleet-file-data", "/fleet-file-data.json", INDEX_TEMPLATE_VERSION, TEMPLATE_VERSION_VARIABLE),
         new IndexTemplateConfig(
-            ".fleet-filedelivery-meta",
-            "/fleet-filedelivery-meta.json",
+            ".fleet-fileds-fromhost-meta",
+            "/fleet-file-fromhost-meta.json",
             INDEX_TEMPLATE_VERSION,
             TEMPLATE_VERSION_VARIABLE
         ),
         new IndexTemplateConfig(
-            ".fleet-filedelivery-data",
-            "/fleet-filedelivery-data.json",
+            ".fleet-fileds-fromhost-data",
+            "/fleet-file-fromhost-data.json",
+            INDEX_TEMPLATE_VERSION,
+            TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            ".fleet-fileds-tohost-meta",
+            "/fleet-file-tohost-meta.json",
+            INDEX_TEMPLATE_VERSION,
+            TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            ".fleet-fileds-tohost-data",
+            "/fleet-file-tohost-data.json",
             INDEX_TEMPLATE_VERSION,
             TEMPLATE_VERSION_VARIABLE
         )

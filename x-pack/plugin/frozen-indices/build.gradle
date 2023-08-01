@@ -6,7 +6,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.frozen.FrozenIndices'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-frozen-indices'
+base {
+  archivesName = 'x-pack-frozen-indices'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

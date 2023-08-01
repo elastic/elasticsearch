@@ -197,20 +197,23 @@ public final class MergePolicyConfig {
         DEFAULT_EXPUNGE_DELETES_ALLOWED,
         0.0d,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
     public static final Setting<ByteSizeValue> INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING = Setting.byteSizeSetting(
         "index.merge.policy.floor_segment",
         DEFAULT_FLOOR_SEGMENT,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
     public static final Setting<Integer> INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING = Setting.intSetting(
         "index.merge.policy.max_merge_at_once",
         DEFAULT_MAX_MERGE_AT_ONCE,
         2,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
     public static final Setting<Integer> INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING = Setting.intSetting(
         "index.merge.policy.max_merge_at_once_explicit",
@@ -247,7 +250,8 @@ public final class MergePolicyConfig {
         5.0d,
         50.0d,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     public static final String INDEX_MERGE_ENABLED = "index.merge.enabled";

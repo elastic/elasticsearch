@@ -10,5 +10,5 @@ package org.elasticsearch.rest;
 
 public enum Scope {
     PUBLIC, // available to all requests
-    INTERNAL // available only to requests with a X-elastic-internal-origin header
+    INTERNAL // available only to requests from an operator user
 }

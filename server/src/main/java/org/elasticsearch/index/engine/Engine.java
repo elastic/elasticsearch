@@ -146,7 +146,7 @@ public abstract class Engine implements Closeable {
         return engineConfig;
     }
 
-    protected abstract SegmentInfos getLastCommittedSegmentInfos();
+    public abstract SegmentInfos getLastCommittedSegmentInfos();
 
     public MergeStats getMergeStats() {
         return new MergeStats();
@@ -754,6 +754,13 @@ public abstract class Engine implements Closeable {
      * Checks if the underlying storage sync is required.
      */
     public abstract boolean isTranslogSyncNeeded();
+
+    /**
+     * Whether search idleness may be allowed to be considered for skipping a scheduled refresh.
+     */
+    public boolean allowSearchIdleOptimization() {
+        return true;
+    }
 
     /**
      * Ensures that the location has been written to the underlying storage.

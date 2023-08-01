@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
@@ -32,7 +32,7 @@ public interface TrainedModel extends NamedXContentObject, NamedWriteable, Accou
      */
     long estimatedNumOperations();
 
-    default Version getMinimalCompatibilityVersion() {
-        return Version.V_7_6_0;
+    default TransportVersion getMinimalCompatibilityVersion() {
+        return TransportVersion.V_7_6_0;
     }
 }

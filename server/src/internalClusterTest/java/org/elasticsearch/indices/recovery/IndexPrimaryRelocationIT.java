@@ -33,7 +33,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
 
     public void testPrimaryRelocationWhileIndexing() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
-        client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)).setMapping("field", "type=text").get();
+        indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 0)).setMapping("field", "type=text").get();
         ensureGreen("test");
         AtomicInteger numAutoGenDocs = new AtomicInteger();
         final AtomicBoolean finished = new AtomicBoolean(false);
@@ -52,7 +52,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
         };
         indexingThread.start();
 
-        ClusterState initialState = client().admin().cluster().prepareState().get().getState();
+        ClusterState initialState = clusterAdmin().prepareState().get().getState();
         DiscoveryNode[] dataNodes = initialState.getNodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
         DiscoveryNode relocationSource = initialState.getNodes()
             .getDataNodes()
@@ -63,31 +63,25 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
                 relocationTarget = randomFrom(dataNodes);
             }
             logger.info("--> [iteration {}] relocating from {} to {} ", i, relocationSource.getName(), relocationTarget.getName());
-            client().admin()
-                .cluster()
-                .prepareReroute()
+            clusterAdmin().prepareReroute()
                 .add(new MoveAllocationCommand("test", 0, relocationSource.getId(), relocationTarget.getId()))
                 .execute()
                 .actionGet();
-            ClusterHealthResponse clusterHealthResponse = client().admin()
-                .cluster()
-                .prepareHealth()
+            ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
                 .setTimeout(TimeValue.timeValueSeconds(60))
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNoRelocatingShards(true)
                 .execute()
                 .actionGet();
             if (clusterHealthResponse.isTimedOut()) {
-                final String hotThreads = client().admin()
-                    .cluster()
-                    .prepareNodesHotThreads()
+                final String hotThreads = clusterAdmin().prepareNodesHotThreads()
                     .setIgnoreIdleThreads(false)
                     .get()
                     .getNodes()
                     .stream()
                     .map(NodeHotThreads::getHotThreads)
                     .collect(Collectors.joining("\n"));
-                final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+                final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
                 logger.info(
                     "timed out for waiting for relocation iteration [{}] \ncluster state {} \nhot threads {}",
                     i,
@@ -106,7 +100,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
             }
             if (i > 0 && i % 5 == 0) {
                 logger.info("--> [iteration {}] flushing index", i);
-                client().admin().indices().prepareFlush("test").get();
+                indicesAdmin().prepareFlush("test").get();
             }
         }
         finished.set(true);

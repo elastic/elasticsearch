@@ -60,13 +60,13 @@ public class DeprecationIndexingTemplateRegistry extends IndexTemplateRegistry {
         for (IndexTemplateConfig config : List.of(
             new IndexTemplateConfig(
                 DEPRECATION_INDEXING_MAPPINGS_NAME,
-                "/org/elasticsearch/xpack/deprecation/deprecation-indexing-mappings.json",
+                "/deprecation/deprecation-indexing-mappings.json",
                 INDEX_TEMPLATE_VERSION,
                 DEPRECATION_INDEXING_TEMPLATE_VERSION_VARIABLE
             ),
             new IndexTemplateConfig(
                 DEPRECATION_INDEXING_SETTINGS_NAME,
-                "/org/elasticsearch/xpack/deprecation/deprecation-indexing-settings.json",
+                "/deprecation/deprecation-indexing-settings.json",
                 INDEX_TEMPLATE_VERSION,
                 DEPRECATION_INDEXING_TEMPLATE_VERSION_VARIABLE
             )
@@ -91,7 +91,7 @@ public class DeprecationIndexingTemplateRegistry extends IndexTemplateRegistry {
     private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
         new IndexTemplateConfig(
             DEPRECATION_INDEXING_TEMPLATE_NAME,
-            "/org/elasticsearch/xpack/deprecation/deprecation-indexing-template.json",
+            "/deprecation/deprecation-indexing-template.json",
             INDEX_TEMPLATE_VERSION,
             DEPRECATION_INDEXING_TEMPLATE_VERSION_VARIABLE
         )
@@ -103,10 +103,9 @@ public class DeprecationIndexingTemplateRegistry extends IndexTemplateRegistry {
     }
 
     private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
-        new LifecyclePolicyConfig(
-            DEPRECATION_INDEXING_POLICY_NAME,
-            "/org/elasticsearch/xpack/deprecation/deprecation-indexing-ilm-policy.json"
-        ).load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)
+        new LifecyclePolicyConfig(DEPRECATION_INDEXING_POLICY_NAME, "/deprecation/deprecation-indexing-ilm-policy.json").load(
+            LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
+        )
     );
 
     @Override

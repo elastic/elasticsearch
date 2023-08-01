@@ -41,7 +41,7 @@ public class AnalyticsAggregatorFactory {
             (name, config, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
                 if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
                     double compression = ((PercentilesConfig.TDigest) percentilesConfig).getCompression();
-                    TDigestExecutionHint executionHint = ((PercentilesConfig.TDigest) percentilesConfig).getExecutionHint();
+                    TDigestExecutionHint executionHint = ((PercentilesConfig.TDigest) percentilesConfig).getExecutionHint(context);
                     return new HistoBackedTDigestPercentilesAggregator(
                         name,
                         config,
@@ -85,7 +85,7 @@ public class AnalyticsAggregatorFactory {
             (name, config, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
                 if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
                     double compression = ((PercentilesConfig.TDigest) percentilesConfig).getCompression();
-                    TDigestExecutionHint executionHint = ((PercentilesConfig.TDigest) percentilesConfig).getExecutionHint();
+                    TDigestExecutionHint executionHint = ((PercentilesConfig.TDigest) percentilesConfig).getExecutionHint(context);
                     return new HistoBackedTDigestPercentileRanksAggregator(
                         name,
                         config,

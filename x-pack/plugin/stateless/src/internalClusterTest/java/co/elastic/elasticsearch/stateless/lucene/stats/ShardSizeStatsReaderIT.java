@@ -24,17 +24,23 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.DataStream.TIMESTAMP_FIELD_NAME;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -61,7 +67,7 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
         });
     }
 
-    public void testShardSizeWithNewDataStreamEntries() throws Exception {
+    public void testShardSizesWithAutodetectedMappingAndNewEntries() throws Exception {
         startMasterOnlyNode();
         startIndexNode();
         startSearchNode();
@@ -85,7 +91,7 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
         });
     }
 
-    public void testShardSizeWithOldDataStreamEntries() throws Exception {
+    public void testShardSizesWithAutodetectedMappingAndOldEntries() throws Exception {
         startMasterOnlyNode();
         startIndexNode();
         startSearchNode();
@@ -107,6 +113,80 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
             assertThat(size.interactiveSizeInBytes(), equalTo(0L));
             assertThat(size.nonInteractiveSizeInBytes(), equalTo(getShardSizeFromObjectStore(shard)));
         });
+    }
+
+    public void testShardSizeWithDefinedMappingAndNewDataStreamEntries() throws Exception {
+        startMasterOnlyNode();
+        startIndexNode();
+        startSearchNode();
+
+        var now = System.currentTimeMillis();
+
+        var index = randomIdentifier();
+        createIndex(index, indexSettings(1, 1), createTimestampMapping(randomBoolean()));
+        indexRandom(
+            index,
+            builder -> builder.setSource(TIMESTAMP_FIELD_NAME, getRandomTimestamp(now - DEFAULT_BOOST_WINDOW.millis() + 1, now))
+        );
+
+        var shardId = resolveShardId(index);
+        var shard = findSearchShard(shardId.getIndex(), shardId.id());
+        assertBusy(() -> {
+            var size = getShardSize(shard, now);
+            // shards with no timestamp are considered interactive
+            assertThat(size.interactiveSizeInBytes(), equalTo(getShardSizeFromObjectStore(shard)));
+            assertThat(size.nonInteractiveSizeInBytes(), equalTo(0L));
+        });
+    }
+
+    public void testShardSizeWithDefinedMappingAndOldDataStreamEntries() throws Exception {
+        startMasterOnlyNode();
+        startIndexNode();
+        startSearchNode();
+
+        var now = System.currentTimeMillis();
+
+        var index = randomIdentifier();
+        createIndex(index, indexSettings(1, 1), createTimestampMapping(randomBoolean()));
+        indexRandom(
+            index,
+            builder -> builder.setSource(TIMESTAMP_FIELD_NAME, getRandomTimestamp(0, now - DEFAULT_BOOST_WINDOW.millis() - 1))
+        );
+
+        var shardId = resolveShardId(index);
+        var shard = findSearchShard(shardId.getIndex(), shardId.id());
+        assertBusy(() -> {
+            var size = getShardSize(shard, now);
+            // shards with no timestamp are considered interactive
+            assertThat(size.interactiveSizeInBytes(), equalTo(0L));
+            assertThat(size.nonInteractiveSizeInBytes(), equalTo(getShardSizeFromObjectStore(shard)));
+        });
+    }
+
+    private static Object getRandomTimestamp(long min, long max) {
+        var instant = Instant.ofEpochMilli(randomLongBetween(min, max));
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> instant.toEpochMilli();
+            case 1 -> DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME_NANOS.getName()).format(instant);
+            case 2 -> DateFormatter.forPattern(FormatNames.STRICT_DATE.getName()).format(instant);
+            default -> throw new AssertionError("Unreachable");
+        };
+    }
+
+    private void createIndex(String name, Settings.Builder settings, String mapping) {
+        assertAcked(prepareCreate(name).setSettings(settings).setMapping(mapping));
+    }
+
+    private static String createTimestampMapping(boolean nano) {
+        return Strings.format("""
+            {
+                "properties": {
+                  "%s": {
+                    "type":   "%s"
+                  }
+                }
+            }
+            """, TIMESTAMP_FIELD_NAME, nano ? "date_nanos" : "date");
     }
 
     private void indexRandom(String index, Consumer<IndexRequestBuilder> requestConfigurer) {

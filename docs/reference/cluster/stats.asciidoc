@@ -841,6 +841,70 @@ Occurrences of the built-in analyzer in selected nodes.
 (integer)
 Number of indices using the built-in analyzer in selected nodes.
 ======
+
+`synonyms`::
+(object)
+Contains statistics about synonyms defined in <<analysis-synonym-tokenfilter,synonym>> and <<analysis-synonym-graph-tokenfilter,synonym graph>> token filters configuration.
+
++
+.Properties of `synonyms` objects
+[%collapsible%open]
+======
+`synonyms`::
+(object)
+Inline synonyms defined using `synonyms` configuration in synonym or synonym graph token filters.
+
++
+.Properties of `synonyms` objects
+[%collapsible%open]
+=======
+
+`count`::
+(integer)
+Occurrences of inline synonyms configuration in selected nodes.
+Each inline synonyms configuration will be counted separately, regardless of the synonyms defined.
+Two synonyms configurations with the same synonyms will count as separate ocurrences.
+
+`index_count`::
+(integer)
+Number of indices that use inline synonyms configuration for synonyms token filters.
+=======
+
+`synonyms_path`::
+(object)
+Contains statistics about synonym files defined as `synonyms_path` in <<analysis-synonym-tokenfilter,synonym>> and <<analysis-synonym-graph-tokenfilter,synonym graph>> token filters configuration.
+
++
+.Properties of `synonyms_path` objects
+[%collapsible%open]
+=======
+`count`::
+(integer)
+Occurrences of unique synonym paths in selected nodes.
+
+`index_count`::
+(integer)
+Number of indices that use `synonyms_path` configuration for synonyms token filters.
+=======
+
+`synonyms_sets`::
+(object)
+Contains statistics about synonyms sets configured as `synonyms_set` in <<analysis-synonym-tokenfilter,synonym>> and <<analysis-synonym-graph-tokenfilter,synonym graph>> token filters configuration.
+
++
+.Properties of `synonyms_sets` objects
+[%collapsible%open]
+=======
+`count`::
+(integer)
+Occurrences of unique synonyms sets in selected nodes.
+
+`index_count`::
+(integer)
+Number of indices that use `synonyms_set` configuration for synonyms token filters.
+=======
+
+======
 =====
 
 `search`::

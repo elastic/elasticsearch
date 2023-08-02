@@ -72,6 +72,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -676,7 +677,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             SearchShardsAction.NAME,
                             searchShardsRequest,
                             TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(singleListener, SearchShardsResponse::new)
+                            new ActionListenerResponseHandler<>(
+                                singleListener,
+                                SearchShardsResponse::new,
+                                TransportResponseHandler.TRANSPORT_WORKER
+                            )
                         );
                     } else {
                         ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices).indicesOptions(
@@ -689,7 +694,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
                                 singleListener.map(SearchShardsResponse::fromLegacyResponse),
-                                ClusterSearchShardsResponse::new
+                                ClusterSearchShardsResponse::new,
+                                TransportResponseHandler.TRANSPORT_WORKER
                             )
                         );
                     }

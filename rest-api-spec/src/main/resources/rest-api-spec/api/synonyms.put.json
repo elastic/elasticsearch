@@ -1,7 +1,7 @@
 {
   "synonyms.put": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-synonyms.html",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-synonyms-set.html",
       "description": "Creates or updates a synonyms set"
     },
     "stability": "experimental",

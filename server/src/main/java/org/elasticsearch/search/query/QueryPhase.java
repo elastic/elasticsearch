@@ -274,12 +274,10 @@ public class QueryPhase {
         boolean timeoutSet
     ) throws IOException {
         QuerySearchResult queryResult = searchContext.queryResult();
-        try {
-            searcher.search(query, collectorManager);
-        } catch (TimeExceededException e) {
+        searcher.search(query, collectorManager);
+        if (searcher.timeExceeded()) {
             assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
             if (searchContext.request().allowPartialSearchResults() == false) {
-                // Can't rethrow TimeExceededException because not serializable
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
             queryResult.searchTimedOut(true);
@@ -319,20 +317,11 @@ public class QueryPhase {
             return () -> {
                 final long time = searchContext.getRelativeTimeInMillis();
                 if (time > maxTime) {
-                    throw new TimeExceededException();
+                    searchContext.searcher().throwTimeExceededException();
                 }
             };
         } else {
             return null;
-        }
-    }
-
-    private static class TimeExceededException extends RuntimeException {
-
-        @Override
-        public Throwable fillInStackTrace() {
-            // never re-thrown so we can save the expensive stacktrace
-            return this;
         }
     }
 }

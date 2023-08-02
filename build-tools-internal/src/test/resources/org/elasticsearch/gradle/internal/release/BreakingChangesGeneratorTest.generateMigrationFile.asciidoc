@@ -11,7 +11,6 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 coming::[8.4.0]
 
-
 [discrete]
 [[breaking-changes-8.4]]
 === Breaking changes
@@ -76,7 +75,6 @@ Breaking change details 3
 *Impact* +
 Breaking change impact description 3
 ====
-
 
 [discrete]
 [[deprecated-8.4]]

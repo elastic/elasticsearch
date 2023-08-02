@@ -32,7 +32,7 @@ But there are some less critical breaking changes.
         def breakingByArea = breakingByNotabilityByArea.getOrDefault(isNotable, [])
         if (breakingByArea.isEmpty() == false) {
             breakingByArea.eachWithIndex { area, breakingChanges, i ->
-                print "\n[discrete]\n"
+                print "[discrete]\n"
                 print "[[breaking_${majorMinor}_${ area.toLowerCase().replaceAll("[^a-z0-9]+", "_") }_changes]]\n"
                 print "==== ${area} changes\n"
 
@@ -74,7 +74,7 @@ enable <<deprecation-logging, deprecation logging>>.
         def deprecationsByArea = deprecationsByNotabilityByArea.getOrDefault(isNotable, [])
         if (deprecationsByArea.isEmpty() == false) {
             deprecationsByArea.eachWithIndex { area, deprecations, i ->
-                print "\n[discrete]\n"
+                print "[discrete]\n"
                 print "[[deprecations_${majorMinor}_${ area.toLowerCase().replaceAll("[^a-z0-9]+", "_") }]]\n"
                 print "==== ${area} deprecations\n"
 

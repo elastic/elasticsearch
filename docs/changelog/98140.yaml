@@ -1,5 +1,5 @@
 pr: 98140
-summary: 'Fix APM tracing being set for `CancellableTask` in `TransportLoadTrainedModelPackage`'
+summary: 'Fix ELSER model download when APM tracing is enabled'
 area: Machine Learning
 type: bug
 issues:

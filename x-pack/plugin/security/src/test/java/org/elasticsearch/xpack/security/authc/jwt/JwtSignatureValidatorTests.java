@@ -184,9 +184,9 @@ public class JwtSignatureValidatorTests extends ESTestCase {
     // if 2 threads enter the critical code concurrently, but one thread finishes first the sequence can be
     // thread 1: fail signature -> [reload (1) -> work (3) -> update volatile state (4) ] -> retry signature
     // thread 2: fail signature -> [reload (2) -> work (5) -> already updated (6) ] -> don't retry signature
-    // thread 2 does the work (same work as thread 1) but does results in no update because thread 1 already updated the volatile state
-    // because the state was not updated from the work done in the thread we didn't attempt to retry the signature validation
-    // the fix for the bug checks for changes to the shared volatile state instead of the state returned by the thread
+    // thread 2 results in no update because thread 1 already updated the volatile state and we per the threads
+    // perspective nothing changed so we don't retry the signature validation. this is incorrect since the file did change via
+    // thread 1 so the fix for the bug checks for changes to the shared volatile state instead of the state returned by thread 2
     @SuppressWarnings("unchecked")
     public void testConcurrentWorkflowWithFailureThenSuccess() throws Exception {
 

@@ -40,7 +40,8 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(ProfilingIndexTemplateRegistry.class);
     // history (please add a comment why you increased the version here)
     // version 1: initial
-    public static final int INDEX_TEMPLATE_VERSION = 1;
+    // version 2: Added 'profiling.host.machine' keyword mapping to profiling-hosts
+    public static final int INDEX_TEMPLATE_VERSION = 2;
 
     // history for individual indices / index templates. Only bump these for breaking changes that require to create a new index
     public static final int PROFILING_EVENTS_VERSION = 1;

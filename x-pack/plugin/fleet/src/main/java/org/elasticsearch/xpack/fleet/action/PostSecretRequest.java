@@ -23,8 +23,8 @@ public class PostSecretRequest extends ActionRequest {
     private final XContentType xContentType;
 
     public PostSecretRequest(String source, XContentType xContentType) {
-        this.source = Objects.requireNonNull(source);
-        this.xContentType = Objects.requireNonNull(xContentType);
+        this.source = source;
+        this.xContentType = xContentType;
     }
 
     public PostSecretRequest(StreamInput in) throws IOException {
@@ -50,6 +50,12 @@ public class PostSecretRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
+        if (this.source == null || !this.source.contains("\"value\":")) {
+            ActionRequestValidationException exception = new ActionRequestValidationException();
+            exception.addValidationError("value is missing");
+            return exception;
+        }
+
         return null;
     }
 

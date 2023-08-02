@@ -37,6 +37,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -222,7 +223,17 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         Consumer<ActionResponse.Empty> onResponse,
         Consumer<TransportException> onException
     ) {
-        return new TransportResponseHandler<ActionResponse.Empty>() {
+        return new TransportResponseHandler<>() {
+            @Override
+            public ActionResponse.Empty read(StreamInput in) {
+                return ActionResponse.Empty.INSTANCE;
+            }
+
+            @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
             @Override
             public void handleResponse(ActionResponse.Empty response) {
                 onResponse.accept(response);
@@ -231,11 +242,6 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
             @Override
             public void handleException(TransportException exp) {
                 onException.accept(exp);
-            }
-
-            @Override
-            public ActionResponse.Empty read(StreamInput in) {
-                return ActionResponse.Empty.INSTANCE;
             }
         };
     }

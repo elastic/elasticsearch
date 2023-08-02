@@ -146,7 +146,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                 threadPool,
                 "my_remote_cluster",
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                threadPool.generic()
             );
 
             // Creating a restore session fails if index is not accessible

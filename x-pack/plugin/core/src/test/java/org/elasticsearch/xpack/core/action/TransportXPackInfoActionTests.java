@@ -58,6 +58,18 @@ public class TransportXPackInfoActionTests extends ESTestCase {
                 return null;
             });
         }
+        /*
+         * Now we add a feature that is not present in the system at all (for example, its plugin has been removed from the build). We want
+         * to make sure that we correctly report that the feature is not available.
+         */
+        XPackInfoFeatureAction missingFeature = randomValueOtherThanMany(
+            featureSets::containsKey,
+            () -> randomFrom(XPackInfoFeatureAction.ALL)
+        );
+        featureSets.put(missingFeature, new FeatureSet(missingFeature.name(), false, false));
+        when(client.executeLocally(eq(missingFeature), any(ActionRequest.class), any(ActionListener.class))).thenAnswer(answer -> {
+            throw new IllegalStateException("failed to find action to execute");
+        });
 
         TransportXPackInfoAction action = new TransportXPackInfoAction(
             mock(TransportService.class),

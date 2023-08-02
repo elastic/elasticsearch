@@ -77,11 +77,16 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
             var featureSets = new HashSet<FeatureSet>();
             for (var infoAction : infoActions) {
                 // local actions are executed directly, not on a separate thread, so no thread safe collection is necessary
-                client.executeLocally(
-                    infoAction,
-                    request,
-                    listener.delegateFailureAndWrap((l, response) -> featureSets.add(response.getInfo()))
-                );
+                try {
+                    client.executeLocally(
+                        infoAction,
+                        request,
+                        listener.delegateFailureAndWrap((l, response) -> featureSets.add(response.getInfo()))
+                    );
+                } catch (IllegalStateException e) {
+                    // This can happen if a plugin has been removed from the build so the transport action does not exist
+                    featureSets.add(new FeatureSet(infoAction.name(), false, false));
+                }
             }
             featureSetsInfo = new FeatureSetsInfo(featureSets);
         }

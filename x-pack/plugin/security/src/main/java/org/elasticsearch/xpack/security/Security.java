@@ -1001,7 +1001,6 @@ public class Security extends Plugin
                 securityContext.get(),
                 destructiveOperations,
                 crossClusterAccessAuthcService,
-                null,
                 getLicenseState()
             )
         );

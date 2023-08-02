@@ -211,12 +211,12 @@ public class RemoteConnectionManager implements ConnectionManager {
      * @param connection the transport connection for which to resolve a remote cluster alias
      * @return a cluster alias if the connection target a node in the remote cluster, otherwise an empty result
      */
-    public static Optional<RemoteClusterInfoTuple> resolveRemoteClusterInfoTuple(Transport.Connection connection) {
+    public static RemoteClusterInfoTuple resolveRemoteClusterInfoTuple(Transport.Connection connection) {
         Transport.Connection unwrapped = TransportService.unwrapConnection(connection);
         if (unwrapped instanceof InternalRemoteConnection remoteConnection) {
-            return Optional.of(new RemoteClusterInfoTuple(remoteConnection.getClusterAlias(), remoteConnection.getClusterCredentials()));
+            return new RemoteClusterInfoTuple(remoteConnection.getClusterAlias(), remoteConnection.getClusterCredentials());
         }
-        return Optional.empty();
+        return new RemoteClusterInfoTuple(null, null);
     }
 
     private Transport.Connection getConnectionInternal(DiscoveryNode node) throws NodeNotConnectedException {

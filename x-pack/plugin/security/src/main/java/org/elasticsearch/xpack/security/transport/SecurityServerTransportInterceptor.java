@@ -23,6 +23,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteConnectionManager;
+import org.elasticsearch.transport.RemoteConnectionManager.RemoteClusterInfoTuple;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
@@ -63,7 +64,6 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR;
-import static org.elasticsearch.xpack.security.transport.RemoteClusterCredentialsResolver.RemoteClusterCredentials;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
@@ -85,8 +85,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final Settings settings;
     private final SecurityContext securityContext;
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
-    private final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver;
-    private final Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver;
+    private final Function<Transport.Connection, RemoteClusterInfoTuple> remoteClusterInfoTupleResolver;
     private final XPackLicenseState licenseState;
 
     public SecurityServerTransportInterceptor(
@@ -98,7 +97,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
-        RemoteClusterCredentialsResolver remoteClusterCredentialsResolver,
         XPackLicenseState licenseState
     ) {
         this(
@@ -110,9 +108,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             securityContext,
             destructiveOperations,
             crossClusterAccessAuthcService,
-            remoteClusterCredentialsResolver,
             licenseState,
-            RemoteConnectionManager::resolveRemoteClusterAlias
+            RemoteConnectionManager::resolveRemoteClusterInfoTuple
         );
     }
 
@@ -125,10 +122,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
-        RemoteClusterCredentialsResolver remoteClusterCredentialsResolver,
         XPackLicenseState licenseState,
         // Inject for simplified testing
-        Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver
+        Function<Transport.Connection, RemoteClusterInfoTuple> remoteClusterInfoTupleResolver
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -138,8 +134,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.securityContext = securityContext;
         this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
         this.licenseState = licenseState;
-        this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;
-        this.remoteClusterAliasResolver = remoteClusterAliasResolver;
+        this.remoteClusterInfoTupleResolver = remoteClusterInfoTupleResolver;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
     }
 
@@ -163,8 +158,12 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportResponseHandler<T> handler
             ) {
                 assertNoCrossClusterAccessHeadersInContext();
-                final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
-                if (PreAuthorizationUtils.shouldRemoveParentAuthorizationFromThreadContext(remoteClusterAlias, action, securityContext)) {
+                final RemoteClusterInfoTuple remoteClusterInfoTuple = remoteClusterInfoTupleResolver.apply(connection);
+                if (PreAuthorizationUtils.shouldRemoveParentAuthorizationFromThreadContext(
+                    Optional.ofNullable(remoteClusterInfoTuple.clusterAlias()),
+                    action,
+                    securityContext
+                )) {
                     securityContext.executeAfterRemovingParentAuthorization(original -> {
                         sendRequestInner(
                             sender,
@@ -282,15 +281,14 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
              * Returns cluster credentials if the connection is remote, and cluster credentials are set up for the target cluster.
              */
             private Optional<RemoteClusterCredentials> getRemoteClusterCredentials(Transport.Connection connection) {
-                final Optional<RemoteConnectionManager.RemoteClusterInfoTuple> remoteClusterInfoTuple = RemoteConnectionManager
-                    .resolveRemoteClusterInfoTuple(connection);
-                if (remoteClusterInfoTuple.isEmpty()) {
+                final RemoteClusterInfoTuple remoteClusterInfoTuple = remoteClusterInfoTupleResolver.apply(connection);
+                if (remoteClusterInfoTuple.clusterAlias() == null) {
                     logger.trace("Connection is not remote");
                     return Optional.empty();
                 }
 
-                final String remoteClusterAlias = remoteClusterInfoTuple.get().clusterAlias();
-                if (remoteClusterInfoTuple.get().credentials() == null) {
+                final String remoteClusterAlias = remoteClusterInfoTuple.clusterAlias();
+                if (remoteClusterInfoTuple.credentials() == null) {
                     logger.trace("No cluster credentials are configured for remote cluster [{}]", remoteClusterAlias);
                     return Optional.empty();
                 }
@@ -298,7 +296,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 return Optional.of(
                     new RemoteClusterCredentials(
                         remoteClusterAlias,
-                        ApiKeyService.withApiKeyPrefix(remoteClusterInfoTuple.get().credentials().toString())
+                        ApiKeyService.withApiKeyPrefix(remoteClusterInfoTuple.credentials().toString())
                     )
                 );
             }
@@ -449,7 +447,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             throw new IllegalStateException("there should always be a user when sending a message for action [" + action + "]");
         }
 
-        assert securityContext.getParentAuthorization() == null || remoteClusterAliasResolver.apply(connection).isPresent() == false
+        assert securityContext.getParentAuthorization() == null || remoteClusterInfoTupleResolver.apply(connection).clusterAlias() == null
             : "parent authorization header should not be set for remote cluster requests";
 
         try {
@@ -677,6 +675,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             } finally {
                 receiveMessage.onAfter();
             }
+        }
+    }
+
+    record RemoteClusterCredentials(String clusterAlias, String credentials) {
+        @Override
+        public String toString() {
+            return "RemoteClusterCredentials{clusterAlias='" + clusterAlias + "', credentials='::es_redacted::'}";
         }
     }
 }

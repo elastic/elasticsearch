@@ -22,9 +22,9 @@ The following changes in {es} ${majorDotMinor} might affect your applications
 and prevent them from operating normally.
 Before upgrading to ${majorDotMinor}, review these changes and take the described steps
 to mitigate the impact.
-
 <%
     if (breakingByNotabilityByArea.getOrDefault(true, []).isEmpty()) { %>
+
 There are no notable breaking changes in {es} ${majorDotMinor}.
 But there are some less critical breaking changes.
 <%  }
@@ -69,7 +69,6 @@ after upgrading to ${majorDotMinor}.
 
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
-
 <%
     [true, false].each { isNotable ->
         def deprecationsByArea = deprecationsByNotabilityByArea.getOrDefault(isNotable, [])

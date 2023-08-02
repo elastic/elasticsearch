@@ -21,7 +21,6 @@ and prevent them from operating normally.
 Before upgrading to 8.4, review these changes and take the described steps
 to mitigate the impact.
 
-
 [discrete]
 [[breaking_84_api_changes]]
 ==== API changes
@@ -91,7 +90,6 @@ after upgrading to 8.4.
 
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
-
 
 [discrete]
 [[deprecations_84_cluster_and_node_setting]]

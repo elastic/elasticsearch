@@ -33,6 +33,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -56,7 +57,7 @@ import java.util.function.IntConsumer;
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSeek;
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSlice;
 
-public class IndexDirectory extends FilterDirectory {
+public class IndexDirectory extends ByteSizeDirectory {
 
     private static final String PRUNE_LUCENE_PROPERTY = "es.stateless.prune_lucene_files_on_upload";
     private static final boolean PRUNE_LUCENE_FILES_ON_UPLOAD;
@@ -123,11 +124,16 @@ public class IndexDirectory extends FilterDirectory {
         return cacheDirectory.fileLength(name);
     }
 
-    /**
-     * @return an estimate of the cumulative size of local non-uploaded files on disk
-     */
+    @Override
     public long estimateSizeInBytes() {
+        // size is equal to the sum of local non-uploaded files on disk
         return estimatedSize.get();
+    }
+
+    @Override
+    public long estimateDataSetSizeInBytes() {
+        // data set size is equal to the size of the last commit uploaded to the object store
+        return cacheDirectory.estimateDataSetSizeInBytes();
     }
 
     @Override

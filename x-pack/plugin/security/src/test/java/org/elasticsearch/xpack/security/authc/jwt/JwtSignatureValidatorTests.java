@@ -117,6 +117,14 @@ public class JwtSignatureValidatorTests extends ESTestCase {
             return null;
         }).when(jwkSetLoader).reload(any(ActionListener.class));
 
+        // return the same sha signature. simulates the check for change results in no change after attempting reload
+        Mockito.doAnswer(
+            invocation -> new JwkSetLoader.ContentAndJwksAlgs(
+                "myshavalue".getBytes(StandardCharsets.UTF_8),
+                new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList())
+            )
+        ).when(jwkSetLoader).getContentAndJwksAlgs();
+
         Mockito.doAnswer(invocation -> {
             validateSignatureAttemptCounter.getAndIncrement();
             // don't actually attempt signature, but do throw an exception to represent a failure which will cause a reload
@@ -141,6 +149,18 @@ public class JwtSignatureValidatorTests extends ESTestCase {
             return null;
         }).when(jwkSetLoader).reload(any(ActionListener.class));
 
+        // return a different sha signature on subsequent calls. simulates the check that reload resulted in a change after reload
+        Mockito.doAnswer(invocation -> {
+            String version = "before";
+            if (reloadAttemptCounter.get() > 0) {
+                version = "after";
+            }
+            return new JwkSetLoader.ContentAndJwksAlgs(
+                version.getBytes(StandardCharsets.UTF_8),
+                new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList())
+            );
+        }).when(jwkSetLoader).getContentAndJwksAlgs();
+
         Mockito.doAnswer(invocation -> {
             // don't actually attempt to do the validation the signature
             // throw an exception to represent a failure or return null to represent a success
@@ -159,15 +179,15 @@ public class JwtSignatureValidatorTests extends ESTestCase {
         assertThat(reloadAttemptCounter.get(), is(1));
     }
 
-    // There is a concurrency bug around retry of the signature verification.
-    // This test reproduces the scenario.
+    // There was a concurrency bug around retry of the signature verification.
+    // This test reproduces the scenario and ensures the bug is fixed.
     // critical code is [reload -> work -> update state]
     // if 2 threads enter the critical code concurrently, but one thread finishes first the sequence can be
     // thread 1: fail signature -> [reload (1) -> work (3) -> update volatile state (4) ] -> retry signature
     // thread 2: fail signature -> [reload (2) -> work (5) -> already updated (6) ] -> don't retry signature
     // thread 2 does the work (same work as thread 1) but does results in no update because thread 1 already updated the volatile state
-    // because the state is not updated from the work done in the thread we don't attempt to retry the signature validation which
-    // results in a failure to verify the signature when it should work
+    // because the state was not updated from the work done in the thread we didn't attempt to retry the signature validation
+    // the fix for the bug checks for changes to the shared volatile state instead of the state returned by the thread
     @SuppressWarnings("unchecked")
     public void testConcurrentWorkflowWithFailureThenSuccess() throws Exception {
 
@@ -190,6 +210,19 @@ public class JwtSignatureValidatorTests extends ESTestCase {
             }
             return null;
         }).when(jwkSetLoader).reload(any(ActionListener.class));
+
+        // return a different sha signature on subsequent calls. simulates the check that reload resulted in a change after reload
+        Mockito.doAnswer(invocation -> {
+            String version = "before";
+            // when reload counter is > 1 then we know both threads have failed and attempted to reload
+            if (reloadAttemptCounter.get() > 1) {
+                version = "after";
+            }
+            return new JwkSetLoader.ContentAndJwksAlgs(
+                version.getBytes(StandardCharsets.UTF_8),
+                new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList())
+            );
+        }).when(jwkSetLoader).getContentAndJwksAlgs();
 
         Mockito.doAnswer(invocation -> {
             // don't actually attempt to do the signature
@@ -222,14 +255,10 @@ public class JwtSignatureValidatorTests extends ESTestCase {
         t1.join();
         t2.join();
 
-        /**
-         * THESE VALUES REPRESENT HOW IT ACTUALLY WORKS, NOT HOW IT SHOULD WORK
-         * DUE THE BUG THE SECOND VALIDATION INCORRECTLY FAILS
-         */
-        assertThat(validateSignatureAttemptCounter.get(), is(3)); // should be 4, but the bug results in 1
-        assertThat(finalSuccessCounter.get(), is(1)); // should be 2, but the bug results in 1
-        assertThat(finalFailureCounter.get(), is(1)); // should be 0, but the bug results in 1
-        assertThat(reloadAttemptCounter.get(), is(2)); // 2 is correct with or without the bug
+        assertThat(validateSignatureAttemptCounter.get(), is(4));
+        assertThat(finalSuccessCounter.get(), is(2));
+        assertThat(finalFailureCounter.get(), is(0));
+        assertThat(reloadAttemptCounter.get(), is(2));
     }
 
     public void testJwtSignVerifyPassedForAllSupportedAlgorithms() {

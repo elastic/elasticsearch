@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -267,6 +268,7 @@ public interface JwtSignatureValidator extends Releasable {
             // TODO: assert algorithm?
             final JwkSetLoader.ContentAndJwksAlgs contentAndJwksAlgs = jwkSetLoader.getContentAndJwksAlgs();
             final JwkSetLoader.JwksAlgs jwksAlgs = contentAndJwksAlgs.jwksAlgs();
+            final byte[] initialJwksVersion = contentAndJwksAlgs.sha256();
             try {
                 validateSignature(signedJWT, jwksAlgs.jwks());
                 listener.onResponse(null);
@@ -283,9 +285,12 @@ public interface JwtSignatureValidator extends Releasable {
                 );
 
                 jwkSetLoader.reload(ActionListener.wrap(reloadResult -> {
-                    if (false == reloadResult.v1()) {
-                        // No change in JWKSet
-                        logger.debug("Reloaded same PKC JWKs, can't retry verify JWT token [{}]", tokenPrincipal);
+
+                    if (initialJwksVersion != null && Arrays.equals(jwkSetLoader.getContentAndJwksAlgs().sha256(), initialJwksVersion)) {
+                        logger.debug(
+                            "No change in reloaded JWK set with sha256=[{}] will not retry signature verification",
+                            jwkSetLoader.getContentAndJwksAlgs().sha256()
+                        );
                         listener.onFailure(primaryException);
                         return;
                     }

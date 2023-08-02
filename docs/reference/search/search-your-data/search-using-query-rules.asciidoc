@@ -13,14 +13,12 @@ This allows for more control over results, for example ensuring that promoted do
 Metadata is defined in the query rule, and is matched against the query criteria.
 Query rules use metadata to match a query.
 Metadata is provided as part of the `rule_query` as an object and can be anything that helps differentiate the query, for example:
-+
---
+
 * A user-entered query string
 * Personalized metadata about users (e.g. country, language, etc)
 * A particular topic
 * A referring site
 * etc.
---
 
 Query rules define a metadata key that will be used to match the metadata provided in the `rule_query` with the criteria specified in the rule.
 
@@ -28,16 +26,29 @@ When a query rule matches the `rule_query` metadata according to its defined cri
 
 For example, a query rule could be defined to match a user-entered query string of `pugs` and a country `us` and promote adoptable shelter dogs if the rule query met both criteria.
 
-Rules are defined using the <<query-rules-apis,Query rules API>> and searched using the <<query-dsl-rule-query,rule query>>.
+Rules are defined using the <<query-rules-apis, query rules API>> and searched using the <<query-dsl-rule-query,rule query>>.
+
+[discrete]
+[[query-rule-definition]]
+=== Rule definition
 
 When defining a rule, consider the following:
 
-* The type of rule we want to apply. For the moment there is a single rule type:
-+
---
+[discrete]
+[[query-rule-type]]
+==== Rule type
+
+The type of rule we want to apply. For the moment there is a single rule type:
+
 * `pinned` will re-write the query into a <<query-dsl-pinned-query, pinned query>>, pinning specified results matching the query rule at the top of the returned result set.
---
-* The criteria for which this rule will match. Criteria is defined as `type`, `metadata`, and `values`. The allowed types are:
+
+
+[discrete]
+[[query-rule-criteria]]
+==== Rule criteria
+
+The criteria for which this rule will match. Criteria is defined as `type`, `metadata`, and `values`.
+Allowed criteria types are:
 
 [cols="2*", options="header"]
 |===
@@ -75,12 +86,14 @@ When defining a rule, consider the following:
 |Always matches for all rule queries.
 |===
 
-* The actions to take when the rule matches a query:
-+
---
+[discrete]
+[[query-rule-actions]]
+==== Rule actions
+
+The actions to take when the rule matches a query:
+
 * `ids` will pin the specified <<mapping-id-field,`_id`>>s.
 * `docs` will pin the specified documents in the specified indices.
---
 
 Use `ids` when searching over a single index, and `docs` when searching over multiple indices. See <<query-dsl-pinned-query,pinned query>> for details.
 

@@ -1376,8 +1376,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         for (String modelId : List.of(modelId1, modelId2)) {
             TrainedModelAssignment assignment = trainedModelAssignmentMetadata.getDeploymentAssignment(modelId);
             assertThat(assignment, is(notNullValue()));
-            assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
+            assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(2)));
             assertThat(assignment.getNodeRoutingTable(), hasKey(nodeId1));
+            // TODO fix this
+            assertThat(assignment.getNodeRoutingTable().get(nodeId3).getState(), is(RoutingState.STOPPING));
         }
     }
 

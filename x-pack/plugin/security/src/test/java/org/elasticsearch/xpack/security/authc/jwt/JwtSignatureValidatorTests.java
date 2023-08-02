@@ -198,13 +198,7 @@ public class JwtSignatureValidatorTests extends ESTestCase {
 
             // grab the listener that is passed to reload method and call the onResponse method to simulate a successful reload
             ActionListener<JwkSetLoader.JwksAlgs> listener = invocation.getArgument(0);
-            if (reloadAttemptCounter.getAndIncrement() == 0) {
-                // first reload returns it was indeed reloaded
-                listener.onResponse(new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList()));
-            } else {
-                // subsequent reloads returns it was not reloaded
-                listener.onResponse( new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList()));
-            }
+            listener.onResponse(new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList()));
             return null;
         }).when(jwkSetLoader).reload(any(ActionListener.class));
 

@@ -41,17 +41,16 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -489,7 +488,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         private final int skipped;    // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
 
         // key to map is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
-        private final Map<String, Cluster> clusterInfo;
+        private final Map<String, AtomicReference<Cluster>> clusterInfo;
 
         // this field is not Writeable, as it is only needed on the initial "querying cluster" coordinator of a CCS search
         private final transient boolean ccsMinimizeRoundtrips;
@@ -513,16 +512,18 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.successful = 0; // calculated from clusterInfo map for minimize_roundtrips
             this.skipped = 0;    // calculated from clusterInfo map for minimize_roundtrips
             this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
-            this.clusterInfo = new ConcurrentHashMap<>();
+            Map<String, AtomicReference<Cluster>> m = new HashMap<>();
             if (localIndices != null) {
                 String localKey = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-                clusterInfo.put(localKey, new Cluster(localKey, Arrays.stream(localIndices.indices()).collect(Collectors.joining(","))));
+                Cluster c = new Cluster(localKey, String.join(",", localIndices.indices()));
+                m.put(localKey, new AtomicReference<>(c));
             }
             for (Map.Entry<String, OriginalIndices> remote : remoteClusterIndices.entrySet()) {
                 String clusterAlias = remote.getKey();
-                Cluster c = new Cluster(clusterAlias, Arrays.stream(remote.getValue().indices()).collect(Collectors.joining(",")));
-                clusterInfo.put(clusterAlias, c);
+                Cluster c = new Cluster(clusterAlias, String.join(",", remote.getValue().indices()));
+                m.put(clusterAlias, new AtomicReference<>(c));
             }
+            this.clusterInfo = Collections.unmodifiableMap(m);
         }
 
         /**
@@ -548,7 +549,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.successful = in.readVInt();
             this.skipped = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_053)) {
-                this.clusterInfo = in.readMapValues(Cluster::new, Cluster::getClusterAlias);
+                List<Cluster> clusterList = in.readList(Cluster::new);
+                if (clusterList.isEmpty()) {
+                    this.clusterInfo = Collections.emptyMap();
+                } else {
+                    Map<String, AtomicReference<Cluster>> m = new HashMap<>();
+                    clusterList.forEach(c -> m.put(c.getClusterAlias(), new AtomicReference<>(c)));
+                    this.clusterInfo = Collections.unmodifiableMap(m);
+                }
             } else {
                 this.clusterInfo = Collections.emptyMap();
             }
@@ -564,7 +572,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeVInt(successful);
             out.writeVInt(skipped);
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_053)) {
-                out.writeMapValues(clusterInfo);
+                if (clusterInfo != null) {
+                    List<Cluster> clusterList = clusterInfo.values().stream().map(AtomicReference::get).toList();
+                    out.writeList(clusterList);
+                } else {
+                    out.writeList(Collections.emptyList());
+                }
             }
         }
 
@@ -578,8 +591,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 // TODO: add FAILED_FIELD
                 if (clusterInfo.size() > 0) {
                     builder.startObject("details");
-                    for (Cluster cluster : clusterInfo.values()) {
-                        cluster.toXContent(builder, params);
+                    for (AtomicReference<Cluster> cluster : clusterInfo.values()) {
+                        cluster.get().toXContent(builder, params);
                     }
                     builder.endObject();
                 }
@@ -612,11 +625,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          * When Clusters is using the clusterInfo map (and Cluster objects are being updated in various
          * ActionListener threads), this method will count how many clusters match the passed in predicate.
          *
-         * @param predicate
+         * @param predicate to evaluate
          * @return count of clusters matching the predicate
          */
         private int determineCountFromClusterInfo(Predicate<Cluster> predicate) {
-            return (int) clusterInfo.values().stream().filter(c -> predicate.test(c)).count();
+            return (int) clusterInfo.values().stream().filter(c -> predicate.test(c.get())).count();
         }
 
         /**
@@ -643,12 +656,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          * @param clusterAlias The cluster alias as specified in the cluster collection
          * @return Cluster object associated with teh clusterAlias or null if not present
          */
-        public Cluster getCluster(String clusterAlias) {
+        public AtomicReference<Cluster> getCluster(String clusterAlias) {
             return clusterInfo.get(clusterAlias);
-        }
-
-        public void putCluster(Cluster cluster) {
-            clusterInfo.put(cluster.getClusterAlias(), cluster);
         }
 
         @Override
@@ -677,13 +686,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          * @return true if any underlying Cluster objects have PARTIAL, SKIPPED, FAILED or RUNNING status.
          */
         public boolean hasPartialResults() {
-            for (Cluster cluster : clusterInfo.values()) {
-                switch (cluster.getStatus()) {
-                    case PARTIAL:
-                    case SKIPPED:
-                    case FAILED:
-                    case RUNNING:
+            for (AtomicReference<Cluster> cluster : clusterInfo.values()) {
+                switch (cluster.get().getStatus()) {
+                    case PARTIAL, SKIPPED, FAILED, RUNNING -> {
                         return true;
+                    }
                 }
             }
             return false;
@@ -706,7 +713,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         private final Integer successfulShards;
         private final Integer skippedShards;
         private final Integer failedShards;
-        private final ShardSearchFailure[] failures;
+        private final List<ShardSearchFailure> failures;
         private final TimeValue took;  // search latency in millis for this cluster sub-search
         private final boolean timedOut;
 
@@ -741,12 +748,22 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this(clusterAlias, indexExpression, Status.RUNNING, null, null, null, null, null, null, false);
         }
 
-        public Cluster(String clusterAlias, String indexExpression, Status status, ShardSearchFailure[] failures) {
+        public Cluster(String clusterAlias, String indexExpression, Status status, List<ShardSearchFailure> failures) {
             this(clusterAlias, indexExpression, status, null, null, null, null, failures, null, false);
         }
 
-        public Cluster(String clusterAlias, String indexExpression, Status status, Integer totalShards, Integer successfulShards,
-                       Integer skippedShards, Integer failedShards, ShardSearchFailure[] failures, TimeValue took, boolean timedOut) {
+        public Cluster(
+            String clusterAlias,
+            String indexExpression,
+            Status status,
+            Integer totalShards,
+            Integer successfulShards,
+            Integer skippedShards,
+            Integer failedShards,
+            List<ShardSearchFailure> failures,
+            TimeValue took,
+            boolean timedOut
+        ) {
             this.clusterAlias = clusterAlias;
             this.indexExpression = indexExpression;
             this.status = status;
@@ -754,7 +771,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.successfulShards = successfulShards;
             this.skippedShards = skippedShards;
             this.failedShards = failedShards;
-            this.failures = failures;
+            this.failures = failures == null ? Collections.emptyList() : Collections.unmodifiableList(failures);
             this.took = took;
             this.timedOut = timedOut;
         }
@@ -774,8 +791,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 this.took = new TimeValue(took);
             }
             this.timedOut = in.readBoolean();
-            /// MP TODO: should this be optionalArray or just Array? Is it ever null?
-            this.failures = in.readOptionalArray(ShardSearchFailure::readShardSearchFailure, ShardSearchFailure[]::new);
+            this.failures = Collections.unmodifiableList(in.readList(ShardSearchFailure::readShardSearchFailure));
         }
 
         @Override
@@ -789,7 +805,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeOptionalInt(failedShards);
             out.writeOptionalLong(took == null ? null : took.millis());
             out.writeBoolean(timedOut);
-            out.writeOptionalArray(failures);
+            out.writeList(failures);
         }
 
         @Override
@@ -820,7 +836,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                     }
                     builder.endObject();
                 }
-                if (failures != null && failures.length > 0) {
+                if (failures != null && failures.size() > 0) {
                     builder.startArray("failures");
                     for (ShardSearchFailure failure : failures) {
                         failure.toXContent(builder, params);
@@ -848,7 +864,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             return timedOut;
         }
 
-        public ShardSearchFailure[] getFailures() {
+        public List<ShardSearchFailure> getFailures() {
             return failures;
         }
 

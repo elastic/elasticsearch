@@ -47,7 +47,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         SearchResponse.Clusters clusters = switch (randomIntBetween(0, 3)) {
             case 1 -> SearchResponse.Clusters.EMPTY;
             case 2 -> new SearchResponse.Clusters(1, 1, 0);
-            case 3 -> AsyncSearchResponseTests.createCCSClusterObject(4, 3, true);
+            case 3 -> AsyncSearchResponseTests.createCCSClusterObjects(4, 3, true);
             default -> null;  // case 0
         };
         return new AsyncStatusResponse(
@@ -80,7 +80,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         SearchResponse.Clusters clusters = switch (randomIntBetween(0, 3)) {
             case 1 -> SearchResponse.Clusters.EMPTY;
             case 2 -> new SearchResponse.Clusters(1, 1, 0);
-            case 3 -> AsyncSearchResponseTests.createCCSClusterObject(4, 3, true); // new SearchResponse.Clusters(4, 1, 0, 3, true);
+            case 3 -> AsyncSearchResponseTests.createCCSClusterObjects(4, 3, true); // new SearchResponse.Clusters(4, 1, 0, 3, true);
             default -> null;  // case 0
         };
         return new AsyncStatusResponse(
@@ -377,7 +377,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             int partial = randomInt(20);
             successfulClusters = successful + partial;
             skippedClusters = totalClusters - successfulClusters;
-            clusters = AsyncSearchResponseTests.createCCSClusterObject(80, 80, true, successful, skippedClusters, partial);
+            clusters = AsyncSearchResponseTests.createCCSClusterObjects(80, 80, true, successful, skippedClusters, partial);
         }
         SearchResponse searchResponse = new SearchResponse(
             internalSearchResponse,
@@ -411,7 +411,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         int successful = randomInt(10);
         int partial = randomInt(10);
         int skipped = randomInt(10);
-        SearchResponse.Clusters clusters = AsyncSearchResponseTests.createCCSClusterObject(100, 99, true, successful, skipped, partial);
+        SearchResponse.Clusters clusters = AsyncSearchResponseTests.createCCSClusterObjects(100, 99, true, successful, skipped, partial);
 
         SearchResponse searchResponse = new SearchResponse(
             internalSearchResponse,

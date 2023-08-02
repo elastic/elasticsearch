@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchHits;
@@ -42,10 +43,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.core.async.GetAsyncResultRequestTests.randomSearchId;
-import static org.hamcrest.Matchers.equalTo;
 
 public class AsyncSearchResponseTests extends ESTestCase {
     private SearchResponse searchResponse = randomSearchResponse(randomBoolean());
@@ -131,7 +132,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
         SearchResponse.Clusters clusters;
         if (ccs) {
-            clusters = createCCSClusterObject(20, 19, true, 10, 1, 2);
+            clusters = createCCSClusterObjects(20, 19, true, 10, 1, 2);
         } else {
             clusters = SearchResponse.Clusters.EMPTY;
         }
@@ -217,7 +218,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             9,
             1,
             took,
-            new ShardSearchFailure[0],
+            ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
 
@@ -315,9 +316,9 @@ public class AsyncSearchResponseTests extends ESTestCase {
         SearchHits hits = SearchHits.EMPTY_WITHOUT_TOTAL_HITS;
         SearchResponseSections sections = new SearchResponseSections(hits, null, null, false, null, null, 2);
 
-        SearchResponse.Clusters clusters = createCCSClusterObject(3, 3, true);
+        SearchResponse.Clusters clusters = createCCSClusterObjects(3, 3, true);
 
-        SearchResponse searchResponse = new SearchResponse(sections, null, 10, 9, 1, took, new ShardSearchFailure[0], clusters);
+        SearchResponse searchResponse = new SearchResponse(sections, null, 10, 9, 1, took, ShardSearchFailure.EMPTY_ARRAY, clusters);
 
         AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(
             "id",
@@ -453,51 +454,83 @@ public class AsyncSearchResponseTests extends ESTestCase {
 
         SearchHits hits = SearchHits.EMPTY_WITHOUT_TOTAL_HITS;
         SearchResponseSections sections = new SearchResponseSections(hits, null, null, true, null, null, 2);
-        SearchResponse.Clusters clusters = createCCSClusterObject(4, 3, true, 2, 1, 1);
+        SearchResponse.Clusters clusters = createCCSClusterObjects(4, 3, true);
 
-        SearchResponse.Cluster localCluster = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        assertThat(localCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
-        localCluster.setTotalShards(10);
-        localCluster.setSuccessfulShards(10);
-        localCluster.setSkippedShards(3);
-        localCluster.setFailedShards(0);
-        localCluster.setTook(11111L);
-
-        SearchResponse.Cluster cluster0 = clusters.getCluster("cluster_0");
-        assertThat(cluster0.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
-        cluster0.setTotalShards(8);
-        cluster0.setSuccessfulShards(8);
-        cluster0.setSkippedShards(1);
-        cluster0.setFailedShards(0);
-        cluster0.setTook(7777L);
-
-        SearchResponse.Cluster cluster1 = clusters.getCluster("cluster_1");
-        assertThat(cluster1.getStatus(), equalTo(SearchResponse.Cluster.Status.SKIPPED));
-        cluster1.setTotalShards(2);
-        cluster1.setSuccessfulShards(0);
-        cluster1.setSkippedShards(0);
-        cluster1.setFailedShards(2);
-        cluster1.addFailure(
-            new ShardSearchFailure(
-                new NullPointerException("NPE details"),
-                new SearchShardTarget("nodeId0", new ShardId("foo", UUID.randomUUID().toString(), 0), "cluster_1")
-            )
+        AtomicReference<SearchResponse.Cluster> clusterRef = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        SearchResponse.Cluster localCluster = clusterRef.get();
+        SearchResponse.Cluster updated = new SearchResponse.Cluster(
+            localCluster.getClusterAlias(),
+            localCluster.getIndexExpression(),
+            SearchResponse.Cluster.Status.SUCCESSFUL,
+            10,
+            10,
+            3,
+            0,
+            Collections.emptyList(),
+            new TimeValue(11111),
+            false
         );
-        cluster1.addFailure(
-            new ShardSearchFailure(
-                new CorruptIndexException("abc", "123"),
-                new SearchShardTarget("nodeId0", new ShardId("bar1", UUID.randomUUID().toString(), 0), "cluster_1")
-            )
-        );
+        boolean swapped = clusterRef.compareAndSet(localCluster, updated);
+        assertTrue("CAS swap failed for cluster " + updated, swapped);
 
-        SearchResponse.Cluster cluster2 = clusters.getCluster("cluster_2");
-        assertThat(cluster2.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
-        cluster2.setTotalShards(8);
-        cluster2.setSuccessfulShards(8);
-        cluster2.setSkippedShards(0);
-        cluster2.setFailedShards(0);
-        cluster2.markAsTimedOut();
-        cluster2.setTook(17322L);
+        clusterRef = clusters.getCluster("cluster_0");
+        SearchResponse.Cluster cluster0 = clusterRef.get();
+        updated = new SearchResponse.Cluster(
+            cluster0.getClusterAlias(),
+            cluster0.getIndexExpression(),
+            SearchResponse.Cluster.Status.SUCCESSFUL,
+            8,
+            8,
+            1,
+            0,
+            Collections.emptyList(),
+            new TimeValue(7777),
+            false
+        );
+        swapped = clusterRef.compareAndSet(cluster0, updated);
+        assertTrue("CAS swap failed for cluster " + updated, swapped);
+
+        clusterRef = clusters.getCluster("cluster_1");
+        SearchResponse.Cluster cluster1 = clusterRef.get();
+        ShardSearchFailure failure1 = new ShardSearchFailure(
+            new NullPointerException("NPE details"),
+            new SearchShardTarget("nodeId0", new ShardId("foo", UUID.randomUUID().toString(), 0), "cluster_1")
+        );
+        ShardSearchFailure failure2 = new ShardSearchFailure(
+            new CorruptIndexException("abc", "123"),
+            new SearchShardTarget("nodeId0", new ShardId("bar1", UUID.randomUUID().toString(), 0), "cluster_1")
+        );
+        updated = new SearchResponse.Cluster(
+            cluster1.getClusterAlias(),
+            cluster1.getIndexExpression(),
+            SearchResponse.Cluster.Status.SKIPPED,
+            2,
+            0,
+            0,
+            2,
+            List.of(failure1, failure2),
+            null,
+            false
+        );
+        swapped = clusterRef.compareAndSet(cluster1, updated);
+        assertTrue("CAS swap failed for cluster " + updated, swapped);
+
+        clusterRef = clusters.getCluster("cluster_2");
+        SearchResponse.Cluster cluster2 = clusterRef.get();
+        updated = new SearchResponse.Cluster(
+            cluster2.getClusterAlias(),
+            cluster2.getIndexExpression(),
+            SearchResponse.Cluster.Status.PARTIAL,
+            8,
+            8,
+            0,
+            0,
+            Collections.emptyList(),
+            new TimeValue(17322),
+            true
+        );
+        swapped = clusterRef.compareAndSet(cluster2, updated);
+        assertTrue("CAS swap failed for cluster " + updated, swapped);
 
         SearchResponse searchResponse = new SearchResponse(sections, null, 10, 9, 1, took, new ShardSearchFailure[0], clusters);
 
@@ -540,7 +573,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
                         "(local)" : {
                           "status" : "successful",
                           "indices" : "foo,bar*",
-                          "took" : 11111.0,
+                          "took" : 11111,
                           "timed_out" : false,
                           "_shards" : {
                             "total" : 10,
@@ -583,7 +616,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
                         "cluster_2" : {
                           "status" : "partial",
                           "indices" : "foo,bar*",
-                          "took" : 17322.0,
+                          "took" : 17322,
                           "timed_out" : true,
                           "_shards" : {
                             "total" : 8,
@@ -595,7 +628,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
                         "cluster_0" : {
                           "status" : "successful",
                           "indices" : "foo,bar*",
-                          "took" : 7777.0,
+                          "took" : 7777,
                           "timed_out" : false,
                           "_shards" : {
                             "total" : 8,
@@ -631,7 +664,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             9,
             1,
             took,
-            new ShardSearchFailure[0],
+            ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
 
@@ -715,7 +748,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         }
     }
 
-    static SearchResponse.Clusters createCCSClusterObject(int totalClusters, int remoteClusters, boolean ccsMinimizeRoundtrips) {
+    static SearchResponse.Clusters createCCSClusterObjects(int totalClusters, int remoteClusters, boolean ccsMinimizeRoundtrips) {
         OriginalIndices localIndices = null;
         if (totalClusters > remoteClusters) {
             localIndices = new OriginalIndices(new String[] { "foo", "bar*" }, IndicesOptions.lenientExpand());
@@ -729,7 +762,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         return new SearchResponse.Clusters(localIndices, remoteClusterIndices, ccsMinimizeRoundtrips);
     }
 
-    static SearchResponse.Clusters createCCSClusterObject(
+    static SearchResponse.Clusters createCCSClusterObjects(
         int totalClusters,
         int remoteClusters,
         boolean ccsMinimizeRoundtrips,
@@ -740,43 +773,117 @@ public class AsyncSearchResponseTests extends ESTestCase {
         assert successfulClusters + skippedClusters <= totalClusters : "successful + skipped > totalClusters";
         assert totalClusters == remoteClusters || totalClusters - remoteClusters == 1
             : "totalClusters and remoteClusters must be same or total = remote + 1";
-        SearchResponse.Clusters clusters = createCCSClusterObject(totalClusters, remoteClusters, ccsMinimizeRoundtrips);
+        assert successfulClusters + skippedClusters + partialClusters > 0 : "successful + skipped + partial must be > 0";
+
+        SearchResponse.Clusters clusters = createCCSClusterObjects(totalClusters, remoteClusters, ccsMinimizeRoundtrips);
 
         int successful = successfulClusters;
         int skipped = skippedClusters;
         int partial = partialClusters;
         if (totalClusters > remoteClusters) {
+            String localAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+            AtomicReference<SearchResponse.Cluster> localRef = clusters.getCluster(localAlias);
+            SearchResponse.Cluster orig = localRef.get();
+            SearchResponse.Cluster updated;
             if (successful > 0) {
-                SearchResponse.Cluster local = clusters.getCluster("");
-                local.setStatus(SearchResponse.Cluster.Status.SUCCESSFUL);
+                updated = new SearchResponse.Cluster(
+                    localAlias,
+                    localRef.get().getIndexExpression(),
+                    SearchResponse.Cluster.Status.SUCCESSFUL,
+                    5,
+                    5,
+                    0,
+                    0,
+                    Collections.emptyList(),
+                    new TimeValue(1000),
+                    false
+                );
                 successful--;
             } else if (skipped > 0) {
-                SearchResponse.Cluster local = clusters.getCluster("");
-                local.setStatus(SearchResponse.Cluster.Status.SKIPPED);
+                updated = new SearchResponse.Cluster(
+                    localAlias,
+                    localRef.get().getIndexExpression(),
+                    SearchResponse.Cluster.Status.SKIPPED,
+                    5,
+                    0,
+                    0,
+                    5,
+                    Collections.emptyList(),
+                    new TimeValue(1000),
+                    false
+                );
                 skipped--;
-            } else if (partial > 0) {
-                SearchResponse.Cluster local = clusters.getCluster("");
-                local.setStatus(SearchResponse.Cluster.Status.PARTIAL);
+            } else {
+                updated = new SearchResponse.Cluster(
+                    localAlias,
+                    localRef.get().getIndexExpression(),
+                    SearchResponse.Cluster.Status.PARTIAL,
+                    5,
+                    2,
+                    1,
+                    3,
+                    Collections.emptyList(),
+                    new TimeValue(1000),
+                    false
+                );
                 partial--;
             }
+            boolean swapped = localRef.compareAndSet(orig, updated);
+            assertTrue("CAS swap failed for cluster " + updated, swapped);
         }
 
         int numClusters = successful + skipped + partial;
 
         for (int i = 0; i < numClusters; i++) {
-            SearchResponse.Cluster cluster = clusters.getCluster("cluster_" + i);
+            String clusterAlias = "cluster_" + i;
+            AtomicReference<SearchResponse.Cluster> clusterRef = clusters.getCluster(clusterAlias);
+            SearchResponse.Cluster orig = clusterRef.get();
+            SearchResponse.Cluster updated;
             if (successful > 0) {
-                cluster.setStatus(SearchResponse.Cluster.Status.SUCCESSFUL);
+                updated = new SearchResponse.Cluster(
+                    clusterAlias,
+                    clusterRef.get().getIndexExpression(),
+                    SearchResponse.Cluster.Status.SUCCESSFUL,
+                    5,
+                    5,
+                    0,
+                    0,
+                    Collections.emptyList(),
+                    new TimeValue(1000),
+                    false
+                );
                 successful--;
             } else if (skipped > 0) {
-                cluster.setStatus(SearchResponse.Cluster.Status.SKIPPED);
+                updated = new SearchResponse.Cluster(
+                    clusterAlias,
+                    clusterRef.get().getIndexExpression(),
+                    SearchResponse.Cluster.Status.SKIPPED,
+                    5,
+                    0,
+                    0,
+                    5,
+                    Collections.emptyList(),
+                    new TimeValue(1000),
+                    false
+                );
                 skipped--;
-            } else if (partial > 0) {
-                cluster.setStatus(SearchResponse.Cluster.Status.PARTIAL);
-                partial--;
             } else {
-                throw new IllegalStateException("Test setup coding error - should not get here");
+                updated = new SearchResponse.Cluster(
+                    clusterAlias,
+                    clusterRef.get().getIndexExpression(),
+                    SearchResponse.Cluster.Status.PARTIAL,
+                    5,
+                    2,
+                    1,
+                    3,
+                    Collections.emptyList(),
+                    new TimeValue(1000),
+                    false
+                );
+                partial--;
             }
+            boolean swapped = clusterRef.compareAndSet(orig, updated);
+            assertTrue("CAS swap failed for cluster " + updated, swapped);
         }
         return clusters;
     }

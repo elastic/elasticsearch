@@ -1,5 +1,5 @@
 pr: 98140
-summary: Fixing apm trace context set multiple times with model download
+summary: 'Fix APM tracing being set for `CancellableTask` in `TransportLoadTrainedModelPackage`'
 area: Machine Learning
 type: bug
 issues:

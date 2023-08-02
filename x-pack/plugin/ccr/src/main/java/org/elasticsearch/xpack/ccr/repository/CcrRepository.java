@@ -21,7 +21,9 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -358,13 +360,15 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     ) {
         final ShardId shardId = store.shardId();
         final LinkedList<Closeable> toClose = new LinkedList<>();
-        final ActionListener<Void> restoreListener = ActionListener.runBefore(
-            listener.delegateResponse(
-                (l, e) -> l.onFailure(new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e))
-            ),
-            () -> IOUtils.close(toClose)
-        );
-        ActionListener.run(restoreListener, restoreListener1 -> {
+        ActionListener.run(listener, restoreShardListener -> {
+            final ActionListener<Void> restoreListener = ActionListener.runBefore(
+                restoreShardListener.delegateResponse(
+                    (l, e) -> l.onFailure(
+                        new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e)
+                    )
+                ),
+                () -> IOUtils.close(toClose)
+            );
             // TODO: Add timeouts to network calls / the restore process.
             createEmptyStore(store);
 
@@ -418,19 +422,27 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             });
             // TODO: There should be some local timeout. And if the remote cluster returns an unknown session
             // response, we should be able to retry by creating a new session.
-            ActionListener<RestoreSession> sessionListener = restoreListener1.delegateFailureAndWrap(
+            ActionListener<RestoreSession> sessionListener = restoreListener.delegateFailureAndWrap(
                 // Some tests depend on closing session before cancelling retention lease renewal.
                 (l1, restoreSession) -> restoreSession.restoreFiles(store, new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {
                         logger.trace("[{}] completed CCR restore", shardId);
-                        updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, shardId.getIndex());
-                        restoreSession.close(l1);
+                        SubscribableListener<Void> updateMappingsListener = new SubscribableListener<>();
+                        updateMappings(
+                            remoteClient,
+                            leaderIndex,
+                            restoreSession.mappingVersion,
+                            client,
+                            shardId.getIndex(),
+                            updateMappingsListener
+                        );
+                        updateMappingsListener.addListener(ActionListener.running(() -> restoreSession.close(l1)));
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        restoreSession.close(ActionListener.runAfter(ActionListener.noop(), () -> l1.onFailure(e)));
+                        restoreSession.close(ActionListener.running(() -> l1.onFailure(e)));
                     }
                 })
             );
@@ -549,21 +561,29 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         Index leaderIndex,
         long leaderMappingVersion,
         Client followerClient,
-        Index followerIndex
+        Index followerIndex,
+        ActionListener<Void> listener
     ) {
-        final PlainActionFuture<IndexMetadata> indexMetadataFuture = new PlainActionFuture<>();
         final long startTimeInNanos = System.nanoTime();
         final Supplier<TimeValue> timeout = () -> {
             final long elapsedInNanos = System.nanoTime() - startTimeInNanos;
             return TimeValue.timeValueNanos(ccrSettings.getRecoveryActionTimeout().nanos() - elapsedInNanos);
         };
-        CcrRequests.getIndexMetadata(leaderClient, leaderIndex, leaderMappingVersion, 0L, timeout, indexMetadataFuture);
-        final IndexMetadata leaderIndexMetadata = indexMetadataFuture.actionGet(ccrSettings.getRecoveryActionTimeout());
-        final MappingMetadata mappingMetadata = leaderIndexMetadata.mapping();
-        if (mappingMetadata != null) {
-            final PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetadata);
-            followerClient.admin().indices().putMapping(putMappingRequest).actionGet(ccrSettings.getRecoveryActionTimeout());
-        }
+        SubscribableListener<IndexMetadata> indexMetadataListener = new SubscribableListener<>();
+        CcrRequests.getIndexMetadata(leaderClient, leaderIndex, leaderMappingVersion, 0L, timeout, indexMetadataListener);
+        indexMetadataListener.addTimeout(ccrSettings.getRecoveryActionTimeout(), threadPool, ThreadPool.Names.GENERIC);
+        indexMetadataListener.addListener(listener.delegateFailureAndWrap((l, leaderIndexMetadata) -> {
+            final MappingMetadata mappingMetadata = leaderIndexMetadata.mapping();
+            if (mappingMetadata == null) {
+                l.onResponse(null);
+            } else {
+                final PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetadata);
+                SubscribableListener<AcknowledgedResponse> putMappingListener = new SubscribableListener<>();
+                followerClient.admin().indices().putMapping(putMappingRequest, putMappingListener);
+                putMappingListener.addListener(l.map(response -> null));
+                putMappingListener.addTimeout(ccrSettings.getRecoveryActionTimeout(), threadPool, ThreadPool.Names.GENERIC);
+            }
+        }));
     }
 
     void openSession(

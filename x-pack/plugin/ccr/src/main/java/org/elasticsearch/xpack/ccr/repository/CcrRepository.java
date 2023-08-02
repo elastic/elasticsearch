@@ -21,9 +21,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -428,16 +426,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     @Override
                     public void onResponse(Void unused) {
                         logger.trace("[{}] completed CCR restore", shardId);
-                        SubscribableListener<Void> updateMappingsListener = new SubscribableListener<>();
-                        updateMappings(
-                            remoteClient,
-                            leaderIndex,
-                            restoreSession.mappingVersion,
-                            client,
-                            shardId.getIndex(),
-                            updateMappingsListener
-                        );
-                        updateMappingsListener.addListener(ActionListener.running(() -> restoreSession.close(l1)));
+                        updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, shardId.getIndex());
+                        restoreSession.close(l1);
                     }
 
                     @Override
@@ -561,29 +551,21 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         Index leaderIndex,
         long leaderMappingVersion,
         Client followerClient,
-        Index followerIndex,
-        ActionListener<Void> listener
+        Index followerIndex
     ) {
+        final PlainActionFuture<IndexMetadata> indexMetadataFuture = new PlainActionFuture<>();
         final long startTimeInNanos = System.nanoTime();
         final Supplier<TimeValue> timeout = () -> {
             final long elapsedInNanos = System.nanoTime() - startTimeInNanos;
             return TimeValue.timeValueNanos(ccrSettings.getRecoveryActionTimeout().nanos() - elapsedInNanos);
         };
-        SubscribableListener<IndexMetadata> indexMetadataListener = new SubscribableListener<>();
-        CcrRequests.getIndexMetadata(leaderClient, leaderIndex, leaderMappingVersion, 0L, timeout, indexMetadataListener);
-        indexMetadataListener.addTimeout(ccrSettings.getRecoveryActionTimeout(), threadPool, ThreadPool.Names.GENERIC);
-        indexMetadataListener.addListener(listener.delegateFailureAndWrap((l, leaderIndexMetadata) -> {
-            final MappingMetadata mappingMetadata = leaderIndexMetadata.mapping();
-            if (mappingMetadata == null) {
-                l.onResponse(null);
-            } else {
-                final PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetadata);
-                SubscribableListener<AcknowledgedResponse> putMappingListener = new SubscribableListener<>();
-                followerClient.admin().indices().putMapping(putMappingRequest, putMappingListener);
-                putMappingListener.addListener(l.map(response -> null));
-                putMappingListener.addTimeout(ccrSettings.getRecoveryActionTimeout(), threadPool, ThreadPool.Names.GENERIC);
-            }
-        }));
+        CcrRequests.getIndexMetadata(leaderClient, leaderIndex, leaderMappingVersion, 0L, timeout, indexMetadataFuture);
+        final IndexMetadata leaderIndexMetadata = indexMetadataFuture.actionGet(ccrSettings.getRecoveryActionTimeout());
+        final MappingMetadata mappingMetadata = leaderIndexMetadata.mapping();
+        if (mappingMetadata != null) {
+            final PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetadata);
+            followerClient.admin().indices().putMapping(putMappingRequest).actionGet(ccrSettings.getRecoveryActionTimeout());
+        }
     }
 
     void openSession(

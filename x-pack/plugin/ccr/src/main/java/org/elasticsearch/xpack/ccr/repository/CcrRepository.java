@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -134,6 +133,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private final Client client;
     private final ThreadPool threadPool;
     private final Executor remoteClientResponseExecutor;
+    private final Executor chunkResponseExecutor;
 
     private final CounterMetric throttledTime = new CounterMetric();
 
@@ -148,6 +148,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         this.client = client;
         this.threadPool = threadPool;
         this.remoteClientResponseExecutor = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
+        this.chunkResponseExecutor = threadPool.generic();
         csDeduplicator = new SingleResultDeduplicator<>(
             threadPool.getThreadContext(),
             l -> getRemoteClusterClient().admin()
@@ -162,19 +163,13 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    protected void doStart() {
-
-    }
+    protected void doStart() {}
 
     @Override
-    protected void doStop() {
-
-    }
+    protected void doStop() {}
 
     @Override
-    protected void doClose() {
-
-    }
+    protected void doClose() {}
 
     @Override
     public RepositoryMetadata getMetadata() {
@@ -573,7 +568,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         ).actionGet(ccrSettings.getRecoveryActionTimeout());
         return new RestoreSession(
             repositoryName,
-            remoteClient,
+            client.getRemoteClusterClient(remoteClusterAlias, chunkResponseExecutor),
             sessionUUID,
             response.getNode(),
             indexShardId,
@@ -668,43 +663,16 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     remoteClient.execute(
                         GetCcrRestoreFileChunkAction.INTERNAL_INSTANCE,
                         new GetCcrRestoreFileChunkRequest(node, sessionUUID, request.md.name(), request.bytesRequested, leaderShardId),
-                        ListenerTimeouts.wrapWithTimeout(threadPool, new ActionListener<>() {
-                            @Override
-                            public void onResponse(
-                                GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse getCcrRestoreFileChunkResponse
-                            ) {
-                                getCcrRestoreFileChunkResponse.incRef();
-                                threadPool.generic().execute(new ActionRunnable<>(listener) {
-                                    @Override
-                                    protected void doRun() throws Exception {
-                                        writeFileChunk(request.md, getCcrRestoreFileChunkResponse);
-                                        listener.onResponse(null);
-                                    }
-
-                                    @Override
-                                    public void onAfter() {
-                                        getCcrRestoreFileChunkResponse.decRef();
-                                    }
-                                });
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                threadPool.generic().execute(() -> {
-                                    try {
-                                        listener.onFailure(e);
-                                    } catch (Exception ex) {
-                                        e.addSuppressed(ex);
-                                        logger.warn("failed to execute failure callback for chunk request", e);
-                                    }
-                                });
-                            }
-                        }, ccrSettings.getRecoveryActionTimeout(), ThreadPool.Names.GENERIC, GetCcrRestoreFileChunkAction.INTERNAL_NAME)
+                        ListenerTimeouts.wrapWithTimeout(threadPool, listener.map(getCcrRestoreFileChunkResponse -> {
+                            writeFileChunk(request.md, getCcrRestoreFileChunkResponse);
+                            return null;
+                        }), ccrSettings.getRecoveryActionTimeout(), ThreadPool.Names.GENERIC, GetCcrRestoreFileChunkAction.INTERNAL_NAME)
                     );
                 }
 
                 private void writeFileChunk(StoreFileMetadata md, GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse r)
                     throws Exception {
+                    assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
                     final int actualChunkSize = r.getChunk().length();
                     logger.trace(
                         "[{}] [{}] got response for file [{}], offset: {}, length: {}",

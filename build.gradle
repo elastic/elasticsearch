@@ -83,7 +83,7 @@ tasks.register("updateCIBwcVersions") {
       steps += "\n" + stepTemplate.text.replaceAll('\\$BWC_VERSION', it.toString())
     }
 
-    outputFile.text = "# This file is auto-generated. See ${pipelineTemplatePath}\n" + pipelineTemplate.text.replaceAll('\\$BWC_STEPS', steps)
+    outputFile.text = "# This file is auto-generated. See ${pipelineTemplatePath}\n" + pipelineTemplate.text.replaceAll(' *\\$BWC_STEPS', steps)
   }
 
   doLast {

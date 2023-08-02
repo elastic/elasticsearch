@@ -915,7 +915,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     private int numberOfFiles(Path dir) throws Exception {
-        awaitMasterFinishRepoOperations(); // wait for potential background blob deletes to complete on master
         final AtomicInteger count = new AtomicInteger();
         forEachFileRecursively(dir, ((path, basicFileAttributes) -> count.incrementAndGet()));
         return count.get();

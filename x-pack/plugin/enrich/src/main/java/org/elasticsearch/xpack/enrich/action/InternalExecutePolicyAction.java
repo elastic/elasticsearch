@@ -25,6 +25,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
@@ -126,7 +127,7 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
             var clusterState = clusterService.state();
             var targetNode = selectNodeForPolicyExecution(clusterState.nodes());
             if (clusterState.nodes().getLocalNode().equals(targetNode) == false) {
-                var handler = new ActionListenerResponseHandler<>(actionListener, Response::new);
+                var handler = new ActionListenerResponseHandler<>(actionListener, Response::new, TransportResponseHandler.TRANSPORT_WORKER);
                 transportService.sendRequest(targetNode, NAME, request, handler);
                 return;
             }

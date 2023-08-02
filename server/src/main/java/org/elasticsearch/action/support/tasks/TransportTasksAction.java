@@ -33,6 +33,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -104,7 +105,7 @@ public abstract class TransportTasksAction<
                     new NodeTaskRequest(request),
                     task,
                     transportRequestOptions,
-                    new ActionListenerResponseHandler<>(listener, nodeResponseReader)
+                    new ActionListenerResponseHandler<>(listener, nodeResponseReader, TransportResponseHandler.TRANSPORT_WORKER)
                 );
             }
 

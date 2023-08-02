@@ -30,6 +30,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Request;
@@ -197,7 +198,11 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                     nodeCheckpointsRequest,
                     task,
                     TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(groupedListener, GetCheckpointNodeAction.Response::new)
+                    new ActionListenerResponseHandler<>(
+                        groupedListener,
+                        GetCheckpointNodeAction.Response::new,
+                        TransportResponseHandler.TRANSPORT_WORKER
+                    )
                 );
             }
         }

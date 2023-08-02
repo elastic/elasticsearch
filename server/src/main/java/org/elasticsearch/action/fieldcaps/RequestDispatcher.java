@@ -28,7 +28,6 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -188,7 +187,7 @@ final class RequestDispatcher {
             nodeRequest,
             parentTask,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, FieldCapabilitiesNodeResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
+            new ActionListenerResponseHandler<>(listener, FieldCapabilitiesNodeResponse::new, executor)
         );
     }
 

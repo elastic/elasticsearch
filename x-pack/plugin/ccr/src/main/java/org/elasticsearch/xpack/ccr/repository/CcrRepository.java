@@ -575,7 +575,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         ActionListener<PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse> responseListener = listener.map(
             response -> new RestoreSession(
                 repositoryName,
-                remoteClient,
+                client.getRemoteClusterClient(remoteClusterAlias, chunkResponseExecutor),
                 sessionUUID,
                 response.getNode(),
                 indexShardId,

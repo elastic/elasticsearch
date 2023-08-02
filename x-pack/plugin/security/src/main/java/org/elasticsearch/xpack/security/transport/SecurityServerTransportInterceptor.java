@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
@@ -281,22 +282,25 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
              * Returns cluster credentials if the connection is remote, and cluster credentials are set up for the target cluster.
              */
             private Optional<RemoteClusterCredentials> getRemoteClusterCredentials(Transport.Connection connection) {
-                final Optional<String> optionalRemoteClusterAlias = remoteClusterAliasResolver.apply(connection);
-                if (optionalRemoteClusterAlias.isEmpty()) {
+                final Optional<RemoteConnectionManager.RemoteClusterInfoTuple> remoteClusterInfoTuple = RemoteConnectionManager
+                    .resolveRemoteClusterInfoTuple(connection);
+                if (remoteClusterInfoTuple.isEmpty()) {
                     logger.trace("Connection is not remote");
                     return Optional.empty();
                 }
 
-                final String remoteClusterAlias = optionalRemoteClusterAlias.get();
-                final Optional<RemoteClusterCredentials> remoteClusterCredentials = remoteClusterCredentialsResolver.resolve(
-                    remoteClusterAlias
-                );
-                if (remoteClusterCredentials.isEmpty()) {
+                final String remoteClusterAlias = remoteClusterInfoTuple.get().clusterAlias();
+                if (remoteClusterInfoTuple.get().credentials() == null) {
                     logger.trace("No cluster credentials are configured for remote cluster [{}]", remoteClusterAlias);
                     return Optional.empty();
                 }
 
-                return remoteClusterCredentials;
+                return Optional.of(
+                    new RemoteClusterCredentials(
+                        remoteClusterAlias,
+                        ApiKeyService.withApiKeyPrefix(remoteClusterInfoTuple.get().credentials().toString())
+                    )
+                );
             }
 
             private <T extends TransportResponse> void sendWithCrossClusterAccessHeaders(

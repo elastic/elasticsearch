@@ -34,6 +34,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class RemoteConnectionManagerTests extends ESTestCase {
 
@@ -121,10 +122,13 @@ public class RemoteConnectionManagerTests extends ESTestCase {
 
     public void testRewriteHandshakeAction() throws IOException {
         final Transport.Connection connection = mock(Transport.Connection.class);
+        final String clusterAlias = randomAlphaOfLengthBetween(3, 8);
+        final RemoteClusterCredentialsManager credentialsResolver = mock(RemoteClusterCredentialsManager.class);
+        when(credentialsResolver.hasCredentials(clusterAlias)).thenReturn(true);
         final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
             connection,
-            randomAlphaOfLengthBetween(3, 8),
-            RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
+            clusterAlias,
+            credentialsResolver
         );
         final long requestId = randomLong();
         final TransportRequest request = mock(TransportRequest.class);

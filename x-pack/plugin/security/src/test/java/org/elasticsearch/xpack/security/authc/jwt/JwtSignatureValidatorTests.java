@@ -12,6 +12,8 @@ import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.SignedJWT;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
@@ -47,6 +49,7 @@ public class JwtSignatureValidatorTests extends ESTestCase {
     private JwtSignatureValidator.PkcJwtSignatureValidator signatureValidator;
     private ActionListener<Void> primaryListener;
     private final SignedJWT signedJWT = mock(SignedJWT.class);
+    private static final Logger logger = LogManager.getLogger(JwtSignatureValidatorTests.class);
 
     @Before
     public void setup() throws Exception {
@@ -243,10 +246,18 @@ public class JwtSignatureValidatorTests extends ESTestCase {
         t1.join();
         t2.join();
 
-        assertThat(validateSignatureAttemptCounter.get(), is(4));
-        assertThat(finalSuccessCounter.get(), is(2));
-        assertThat(finalFailureCounter.get(), is(0));
-        assertThat(reloadAttemptCounter.get(), is(2));
+        try {
+            assertThat(validateSignatureAttemptCounter.get(), is(4));
+            assertThat(finalSuccessCounter.get(), is(2));
+            assertThat(finalFailureCounter.get(), is(0));
+            assertThat(reloadAttemptCounter.get(), is(2));
+        } catch (AssertionError ae) {
+            logger.info("validateSignatureAttemptCounter = [{}]", validateSignatureAttemptCounter.get());
+            logger.info("finalSuccessCounter = [{}]", finalSuccessCounter.get());
+            logger.info("finalFailureCounter = [{}]", finalFailureCounter.get());
+            logger.info("reloadAttemptCounter = [{}]", reloadAttemptCounter.get());
+            throw ae;
+        }
     }
 
     public void testJwtSignVerifyPassedForAllSupportedAlgorithms() {

@@ -190,7 +190,10 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
     }
 
     private boolean doneEmitting() {
-        return offset >= scoreDocs.length;
+        /*
+         * If there aren't any leaves then we never initialize scoreDocs.
+         */
+        return leaves.isEmpty() || offset >= scoreDocs.length;
     }
 
     @Override

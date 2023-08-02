@@ -45,14 +45,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
+public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.INTEGER);
     private Directory directory = newDirectory();
     private IndexReader reader;
@@ -63,11 +66,11 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneTopNSourceOperator.LuceneTopNSourceOperatorFactory simple(BigArrays bigArrays) {
+    protected LuceneSourceOperator.LuceneSourceOperatorFactory simple(BigArrays bigArrays) {
         return simple(bigArrays, DataPartitioning.SHARD, 10_000, 100);
     }
 
-    private LuceneTopNSourceOperator.LuceneTopNSourceOperatorFactory simple(
+    private LuceneSourceOperator.LuceneSourceOperatorFactory simple(
         BigArrays bigArrays,
         DataPartitioning dataPartitioning,
         int size,
@@ -116,28 +119,27 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
         int taskConcurrency = 0;
         int maxPageSize = between(10, Math.max(10, size));
         List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
-        return new LuceneTopNSourceOperator.LuceneTopNSourceOperatorFactory(
+        return new LuceneSourceOperator.LuceneSourceOperatorFactory(
             List.of(ctx),
             queryFunction,
             dataPartitioning,
             taskConcurrency,
             maxPageSize,
-            limit,
-            sorts
+            limit
         );
     }
 
     @Override
     protected String expectedToStringOfSimple() {
         assumeFalse("can't support variable maxPageSize", true); // TODO allow testing this
-        return "LuceneTopNSourceOperator[shardId=0, maxPageSize=**random**]";
+        return "LuceneSourceOperator[shardId=0, maxPageSize=**random**]";
     }
 
     @Override
     protected String expectedDescriptionOfSimple() {
         assumeFalse("can't support variable maxPageSize", true); // TODO allow testing this
         return """
-            LuceneTopNSourceOperator[dataPartitioning = SHARD, maxPageSize = **random**, limit = 100, sorts = [{"s":{"order":"asc"}}]]""";
+            LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = **random**, limit = 100, sorts = [{"s":{"order":"asc"}}]]""";
     }
 
     // TODO tests for the other data partitioning configurations
@@ -154,12 +156,7 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
 
     private void testSimple(int size, int limit) {
         DriverContext ctx = new DriverContext();
-        LuceneTopNSourceOperator.LuceneTopNSourceOperatorFactory factory = simple(
-            nonBreakingBigArrays(),
-            DataPartitioning.SHARD,
-            size,
-            limit
-        );
+        LuceneSourceOperator.LuceneSourceOperatorFactory factory = simple(nonBreakingBigArrays(), DataPartitioning.SHARD, size, limit);
         Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(
             reader,
             CoreValuesSourceType.NUMERIC,
@@ -173,19 +170,18 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
         );
         OperatorTestCase.assertDriverContext(ctx);
 
-        long expectedS = 0;
         for (Page page : results) {
-            if (limit - expectedS < factory.maxPageSize) {
-                assertThat(page.getPositionCount(), equalTo((int) (limit - expectedS)));
-            } else {
-                assertThat(page.getPositionCount(), equalTo(factory.maxPageSize));
-            }
+            assertThat(page.getPositionCount(), lessThanOrEqualTo(factory.maxPageSize));
+        }
+
+        for (Page page : results) {
             LongBlock sBlock = page.getBlock(1);
             for (int p = 0; p < page.getPositionCount(); p++) {
-                assertThat(sBlock.getLong(sBlock.getFirstValueIndex(p)), equalTo(expectedS++));
+                assertThat(sBlock.getLong(sBlock.getFirstValueIndex(p)), both(greaterThanOrEqualTo(0L)).and(lessThan((long) size)));
             }
         }
-        int pages = (int) Math.ceil((float) Math.min(size, limit) / factory.maxPageSize);
-        assertThat(results, hasSize(pages));
+        int maxPages = Math.min(size, limit);
+        int minPages = (int) Math.ceil(maxPages / factory.maxPageSize);
+        assertThat(results, hasSize(both(greaterThanOrEqualTo(minPages)).and(lessThanOrEqualTo(maxPages))));
     }
 }

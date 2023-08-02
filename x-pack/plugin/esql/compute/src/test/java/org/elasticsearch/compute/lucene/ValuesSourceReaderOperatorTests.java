@@ -189,6 +189,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         );
     }
 
+    public void testEmpty() {
+        loadSimpleAndAssert(CannedSourceOperator.collectPages(simpleInput(0)));
+    }
+
     public void testLoadAllInOnePageShuffled() {
         Page source = CannedSourceOperator.mergePages(CannedSourceOperator.collectPages(simpleInput(between(1_000, 100 * 1024))));
         List<Integer> shuffleList = new ArrayList<>();

@@ -11,6 +11,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 coming::[8.4.0]
 
+
 [discrete]
 [[breaking-changes-8.4]]
 === Breaking changes
@@ -19,6 +20,7 @@ The following changes in {es} 8.4 might affect your applications
 and prevent them from operating normally.
 Before upgrading to 8.4, review these changes and take the described steps
 to mitigate the impact.
+
 
 [discrete]
 [[breaking_84_api_changes]]
@@ -76,6 +78,7 @@ Breaking change details 3
 Breaking change impact description 3
 ====
 
+
 [discrete]
 [[deprecated-8.4]]
 === Deprecations
@@ -88,6 +91,7 @@ after upgrading to 8.4.
 
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
+
 
 [discrete]
 [[deprecations_84_cluster_and_node_setting]]

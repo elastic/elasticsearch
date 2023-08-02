@@ -67,6 +67,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98053")
     public void testAggsTimeout() {
         indexDocs();
         SearchResponse searchResponse = client().prepareSearch("test")

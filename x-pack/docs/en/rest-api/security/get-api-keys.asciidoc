@@ -15,10 +15,15 @@ Retrieves information for one or more API keys.
 [[security-api-get-api-key-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have at least the `manage_own_api_key` or the `read_security`
-cluster privileges.
-* If you have only the `manage_own_api_key` privilege, this API returns only
-the API keys that you own. If you have `read_security`, `manage_api_key` or greater
+* To use this API, you must have at least the `manage_own_api_key` or the 
+`read_security` cluster privileges.
+** If you only have the `manage_own_api_key` privilege, this API only returns
+the API keys that you own. 
++
+NOTE: Authenticating with an API key that has the `manage_own_api_key` privilege
+does not allow retrieving the authenticated user's own keys. Instead, 
+authenticate the user with basic credentials.
+** If you have `read_security`, `manage_api_key` or greater
 privileges (including `manage_security`), this API returns all API keys
 regardless of ownership.
 

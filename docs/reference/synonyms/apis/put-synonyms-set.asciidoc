@@ -44,7 +44,7 @@ The identifier associated to the synonym rule, that can be used to manage indivi
 In case a synonym rule id is not specified, an identifier will be created automatically by {es}.
 
 `synonyms`::
-(Requried, string)
+(Required, string)
 The synonym rule. This needs to be in <<_solr_synonyms>> format.
 Some examples are:
 * "i-pod, i pod => ipod",

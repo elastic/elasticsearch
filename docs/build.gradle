@@ -134,7 +134,7 @@ tasks.named("yamlRestTest").configure {
 // So we disable the test if the build is a snapshot where unreleased feature is enabled by default
 tasks.named("yamlRestTest").configure {
   if (BuildParams.isSnapshotBuild()) {
-    systemProperty 'tests.rest.blacklist', ['reference/rest-api/usage/*']
+    systemProperty 'tests.rest.blacklist', 'reference/rest-api/usage/*'
   }
 }
 

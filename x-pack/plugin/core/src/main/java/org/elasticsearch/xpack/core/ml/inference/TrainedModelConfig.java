@@ -100,7 +100,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField LOCATION = new ParseField("location");
     public static final ParseField MODEL_PACKAGE = new ParseField("model_package");
 
+    public static final ParseField PER_DEPLOYMENT_MEMORY_BYTES = new ParseField("per_deployment_memory_bytes");
+    public static final ParseField PER_ALLOCATION_MEMORY_BYTES = new ParseField("per_allocation_memory_bytes");
+
     public static final TransportVersion VERSION_3RD_PARTY_CONFIG_ADDED = TransportVersion.V_8_0_0;
+    // TODO: change to 8.10
+    public static final TransportVersion VERSION_ALLOCATION_MEMORY_ADDED = TransportVersion.V_8_8_0;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -163,6 +168,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             (p, c) -> ignoreUnknownFields ? ModelPackageConfig.fromXContentLenient(p) : ModelPackageConfig.fromXContentStrict(p),
             MODEL_PACKAGE
         );
+
+        parser.declareLong(TrainedModelConfig.Builder::setPerDeploymentMemoryBytes, PER_DEPLOYMENT_MEMORY_BYTES);
+        parser.declareLong(TrainedModelConfig.Builder::setPerAllocationMemoryBytes, PER_ALLOCATION_MEMORY_BYTES);
+
         return parser;
     }
 
@@ -190,6 +199,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     private final ModelPackageConfig modelPackageConfig;
     private Boolean fullDefinition;
 
+    private final long perDeploymentMemoryBytes;
+    private final long perAllocationModelBytes;
+
     TrainedModelConfig(
         String modelId,
         TrainedModelType modelType,
@@ -207,7 +219,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         Map<String, String> defaultFieldMap,
         InferenceConfig inferenceConfig,
         TrainedModelLocation location,
-        ModelPackageConfig modelPackageConfig
+        ModelPackageConfig modelPackageConfig,
+        long perDeploymentMemoryBytes,
+        long perAllocationModelBytes
     ) {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.modelType = modelType;
@@ -234,6 +248,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.inferenceConfig = inferenceConfig;
         this.location = location;
         this.modelPackageConfig = modelPackageConfig;
+        this.perDeploymentMemoryBytes = perDeploymentMemoryBytes;
+        this.perAllocationModelBytes = perAllocationModelBytes;
     }
 
     private static TrainedModelInput handleDefaultInput(TrainedModelInput input, TrainedModelType modelType) {
@@ -272,6 +288,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         } else {
             modelPackageConfig = null;
             fullDefinition = null;
+        }
+
+        if (in.getTransportVersion().onOrAfter(VERSION_ALLOCATION_MEMORY_ADDED)) {
+            perDeploymentMemoryBytes = in.readVLong();
+            perAllocationModelBytes = in.readVLong();
+        } else {
+            perDeploymentMemoryBytes = 0;
+            perAllocationModelBytes = 0;
         }
     }
 
@@ -403,6 +427,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.fullDefinition = fullDefinition;
     }
 
+    public long getPerDeploymentMemoryBytes() {
+        return perDeploymentMemoryBytes;
+    }
+
+    public long getPerAllocationModelBytes() {
+        return perAllocationModelBytes;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
@@ -432,6 +464,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             out.writeOptionalWriteable(modelPackageConfig);
             out.writeOptionalBoolean(fullDefinition);
+        }
+
+        if (out.getTransportVersion().onOrAfter(VERSION_ALLOCATION_MEMORY_ADDED)) {
+            out.writeVLong(perDeploymentMemoryBytes);
+            out.writeVLong(perAllocationModelBytes);
         }
     }
 
@@ -495,6 +532,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (params.paramAsBoolean(DEFINITION_STATUS, false) && fullDefinition != null) {
             builder.field("fully_defined", fullDefinition);
         }
+        if (perDeploymentMemoryBytes > 0) {
+            builder.field(PER_DEPLOYMENT_MEMORY_BYTES.getPreferredName(), perDeploymentMemoryBytes);
+        }
+        if (perAllocationModelBytes > 0) {
+            builder.field(PER_ALLOCATION_MEMORY_BYTES.getPreferredName(), perAllocationModelBytes);
+        }
         builder.endObject();
         return builder;
     }
@@ -525,7 +568,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             && Objects.equals(defaultFieldMap, that.defaultFieldMap)
             && Objects.equals(inferenceConfig, that.inferenceConfig)
             && Objects.equals(metadata, that.metadata)
-            && Objects.equals(location, that.location);
+            && Objects.equals(location, that.location)
+            && Objects.equals(perDeploymentMemoryBytes, that.perDeploymentMemoryBytes)
+            && Objects.equals(perAllocationModelBytes, that.perAllocationModelBytes);
     }
 
     @Override
@@ -547,7 +592,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             licenseLevel,
             inferenceConfig,
             defaultFieldMap,
-            location
+            location,
+            perDeploymentMemoryBytes,
+            perAllocationModelBytes
         );
     }
 
@@ -570,6 +617,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private InferenceConfig inferenceConfig;
         private TrainedModelLocation location;
         private ModelPackageConfig modelPackageConfig;
+        private Long perDeploymentMemoryBytes;
+        private Long perAllocationMemoryBytes;
 
         public Builder() {}
 
@@ -591,6 +640,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             this.inferenceConfig = config.inferenceConfig;
             this.location = config.location;
             this.modelPackageConfig = config.modelPackageConfig;
+            this.perDeploymentMemoryBytes = config.perDeploymentMemoryBytes;
+            this.perAllocationMemoryBytes = config.perAllocationModelBytes;
         }
 
         public Builder setModelId(String modelId) {
@@ -779,6 +830,16 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         public Builder setInferenceConfig(InferenceConfig inferenceConfig) {
             this.inferenceConfig = inferenceConfig;
+            return this;
+        }
+
+        public Builder setPerDeploymentMemoryBytes(long perDeploymentMemoryBytes) {
+            this.perDeploymentMemoryBytes = perDeploymentMemoryBytes;
+            return this;
+        }
+
+        public Builder setPerAllocationMemoryBytes(long perAllocationMemoryBytes) {
+            this.perAllocationMemoryBytes = perAllocationMemoryBytes;
             return this;
         }
 
@@ -1002,7 +1063,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 defaultFieldMap,
                 inferenceConfig,
                 location,
-                modelPackageConfig
+                modelPackageConfig,
+                perDeploymentMemoryBytes == null ? 0 : perDeploymentMemoryBytes,
+                perAllocationMemoryBytes == null ? 0 : perAllocationMemoryBytes
             );
         }
     }

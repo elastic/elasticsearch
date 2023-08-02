@@ -139,7 +139,7 @@ PUT _synonyms/my-synonyms-set/test-1
 ----
 // TESTRESPONSE[s/1wYFZzq8Sxeu_Jvt9mlbkg/$body.reload_analyzers_details.reload_details.0.reloaded_node_ids.0/]
 
-If the synonyms set is used in analyzers, <<synonyms-set-analyzer-reloading,analyzer reloading>> is performed automatically.
+All analyzers using this synonyms set will be <<synonyms-set-analyzer-reloading,reloaded automatically>> to reflect the new rule.
 
 If any of the synonym rules included is invalid, the API will return an error.
 

@@ -40,7 +40,7 @@ Use the following APIs to manage synonyms sets:
 
 Synonyms sets are composed of synonym rules.
 Each synonym rule defines a group of words that act as synonyms.
-You can manage synonym rules for a specific synonyms set instead of updating the complete synonyms set.
+You can update individual synonym rules for a specific synonyms set instead of updating the complete synonyms set.
 
 Use the following APIs to manage individual synonym rules in a synonyms set:
 

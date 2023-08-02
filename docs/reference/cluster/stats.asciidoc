@@ -844,7 +844,7 @@ Number of indices using the built-in analyzer in selected nodes.
 
 `synonyms`::
 (object)
-Contains statistics about inline synonyms defined as `synonyms` in <<analysis-synonym-tokenfilter,synonym>> and <<analysis-synonym-graph-tokenfilter,synonym graph>> token filters configuration.
+Contains statistics about synonyms defined in <<analysis-synonym-tokenfilter,synonym>> and <<analysis-synonym-graph-tokenfilter,synonym graph>> token filters configuration.
 
 +
 .Properties of `synonyms` objects
@@ -880,8 +880,7 @@ Contains statistics about synonym files defined as `synonyms_path` in <<analysis
 =======
 `count`::
 (integer)
-Occurrences of different synonyms path in selected nodes.
-Synonyms path that point to the same file will not be counted separately.
+Occurrences of unique synonym paths in selected nodes.
 
 `index_count`::
 (integer)
@@ -898,8 +897,7 @@ Contains statistics about synonyms sets configured as `synonyms_set` in <<analys
 =======
 `count`::
 (integer)
-Occurrences of different synonyms sets in selected nodes.
-Synonyms sets that point to the same set will not be counted separately.
+Occurrences of unique synonyms sets in selected nodes.
 
 `index_count`::
 (integer)

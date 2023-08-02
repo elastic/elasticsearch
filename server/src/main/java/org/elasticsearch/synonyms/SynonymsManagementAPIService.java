@@ -232,11 +232,7 @@ public class SynonymsManagementAPIService {
         return new SynonymRule((String) docSourceAsMap.get(SYNONYM_RULE_ID_FIELD), (String) docSourceAsMap.get(SYNONYMS_FIELD));
     }
 
-    public void putSynonymsSet(
-        String synonymSetId,
-        SynonymRule[] synonymsSet,
-        ActionListener<SynonymsReloadResult<UpdateSynonymsResultStatus>> listener
-    ) {
+    public void putSynonymsSet(String synonymSetId, SynonymRule[] synonymsSet, ActionListener<SynonymsReloadResult> listener) {
         deleteSynonymsSetObjects(synonymSetId, listener.delegateFailure((deleteByQueryResponseListener, bulkDeleteResponse) -> {
             boolean created = bulkDeleteResponse.getDeleted() == 0;
             final List<BulkItemResponse.Failure> bulkDeleteFailures = bulkDeleteResponse.getBulkFailures();
@@ -280,11 +276,7 @@ public class SynonymsManagementAPIService {
         }));
     }
 
-    public void putSynonymRule(
-        String synonymsSetId,
-        SynonymRule synonymRule,
-        ActionListener<SynonymsReloadResult<UpdateSynonymsResultStatus>> listener
-    ) {
+    public void putSynonymRule(String synonymsSetId, SynonymRule synonymRule, ActionListener<SynonymsReloadResult> listener) {
         checkSynonymSetExists(synonymsSetId, listener.delegateFailure((l1, obj) -> {
             try {
                 IndexRequest indexRequest = createSynonymRuleIndexRequest(synonymsSetId, synonymRule).setRefreshPolicy(
@@ -319,11 +311,7 @@ public class SynonymsManagementAPIService {
         );
     }
 
-    public void deleteSynonymRule(
-        String synonymSetId,
-        String synonymRuleId,
-        ActionListener<SynonymsReloadResult<AcknowledgedResponse>> listener
-    ) {
+    public void deleteSynonymRule(String synonymSetId, String synonymRuleId, ActionListener<SynonymsReloadResult> listener) {
         client.prepareDelete(SYNONYMS_ALIAS_NAME, internalSynonymRuleId(synonymSetId, synonymRuleId))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute(listener.delegateFailure((deleteListener, deleteResponse) -> {
@@ -342,7 +330,7 @@ public class SynonymsManagementAPIService {
                     return;
                 }
 
-                reloadAnalyzers(synonymSetId, false, listener, AcknowledgedResponse.of(true));
+                reloadAnalyzers(synonymSetId, false, listener, UpdateSynonymsResultStatus.DELETED);
             }));
     }
 
@@ -443,15 +431,15 @@ public class SynonymsManagementAPIService {
     private <T> void reloadAnalyzers(
         String synonymSetId,
         boolean preview,
-        ActionListener<SynonymsReloadResult<T>> listener,
-        T synonymsOperationResult
+        ActionListener<SynonymsReloadResult> listener,
+        UpdateSynonymsResultStatus synonymsOperationResult
     ) {
         // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
         ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, preview, "*");
         client.execute(
             ReloadAnalyzerAction.INSTANCE,
             reloadAnalyzersRequest,
-            listener.safeMap(reloadResponse -> new SynonymsReloadResult<>(synonymsOperationResult, reloadResponse))
+            listener.safeMap(reloadResponse -> new SynonymsReloadResult(synonymsOperationResult, reloadResponse))
         );
     }
 
@@ -472,10 +460,14 @@ public class SynonymsManagementAPIService {
 
     public enum UpdateSynonymsResultStatus {
         CREATED,
-        UPDATED
+        UPDATED,
+        DELETED
     }
 
-    public record SynonymsReloadResult<T>(T synonymsOperationResult, ReloadAnalyzersResponse reloadAnalyzersResponse) {}
+    public record SynonymsReloadResult(
+        UpdateSynonymsResultStatus synonymsOperationResult,
+        ReloadAnalyzersResponse reloadAnalyzersResponse
+    ) {}
 
     // Listeners that checks failures for IndexNotFoundException, and transforms them in ResourceNotFoundException,
     // invoking onFailure on the delegate listener

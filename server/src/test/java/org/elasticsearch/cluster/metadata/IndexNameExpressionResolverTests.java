@@ -3137,27 +3137,20 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 options,
                 SystemIndexAccessLevel.NONE
             );
-            IndexNotFoundException iae = expectThrows(
-                IndexNotFoundException.class,
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(context, "cluster:index", "local")
             );
-            assertThat(iae.getMessage(), containsString("no such index [local]"));
+            assertEquals(
+                "Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:index]",
+                iae.getMessage()
+            );
             // but datemath with colon doesn't trip cross-cluster check
             IndexNotFoundException e = expectThrows(
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(context, "<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>")
             );
             assertThat(e.getMessage(), containsString("no such index [datemath-2001-01-01-14]"));
-        }
-        {
-            IndicesOptions options = IndicesOptions.fromOptions(true, true, randomBoolean(), randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state,
-                options,
-                SystemIndexAccessLevel.NONE
-            );
-            String[] indexNames = indexNameExpressionResolver.concreteIndexNames(context, "cluster:index", "local");
-            assertEquals(0, indexNames.length);
         }
     }
 

@@ -7,7 +7,7 @@ beta::[]
 <titleabbrev>Create or update synonym rule</titleabbrev>
 ++++
 
-Creates or updates a synonym rule in a synonyms set.
+Creates or updates a synonym rule for a synonym set.
 
 [[put-synonym-rule-request]]
 ==== {api-request-title}

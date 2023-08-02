@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -63,6 +64,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     public static final Logger LOGGER = LogManager.getLogger(TransportFieldCapabilitiesAction.class);
 
     private final ThreadPool threadPool;
+    private final Executor searchCoordinationExecutor;
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -79,8 +81,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         IndicesService indicesService,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(FieldCapabilitiesAction.NAME, transportService, actionFilters, FieldCapabilitiesRequest::new);
+        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
+        super(FieldCapabilitiesAction.NAME, transportService, actionFilters, FieldCapabilitiesRequest::new, ThreadPool.Names.SAME);
         this.threadPool = threadPool;
+        this.searchCoordinationExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -96,6 +100,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
+    }
+
+    private void doExecuteForked(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
@@ -180,7 +189,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 localIndices,
                 nowInMillis,
                 concreteIndices,
-                threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+                searchCoordinationExecutor,
                 handleIndexResponse,
                 handleIndexFailure,
                 refs.acquire()::close
@@ -193,7 +202,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 String clusterAlias = remoteIndices.getKey();
                 OriginalIndices originalIndices = remoteIndices.getValue();
                 Client remoteClusterClient = transportService.getRemoteClusterService()
-                    .getRemoteClusterClient(threadPool, clusterAlias, threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION));
+                    .getRemoteClusterClient(threadPool, clusterAlias, searchCoordinationExecutor);
                 FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(request, originalIndices, nowInMillis);
                 ActionListener<FieldCapabilitiesResponse> remoteListener = ActionListener.wrap(response -> {
                     for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
@@ -235,10 +244,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
         if (indexResponses.size() > 0) {
             if (request.isMergeResults()) {
-                // fork off to the management pool for merging the responses as the operation can run for longer than is acceptable
-                // on a transport thread in case of large numbers of indices and/or fields
-                threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
-                    .submit(ActionRunnable.supply(listener, () -> merge(indexResponses, task, request, new ArrayList<>(failures))));
+                ActionListener.completeWith(listener, () -> merge(indexResponses, task, request, new ArrayList<>(failures)));
             } else {
                 listener.onResponse(new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), new ArrayList<>(failures)));
             }
@@ -283,6 +289,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         FieldCapabilitiesRequest request,
         List<FieldCapabilitiesFailure> failures
     ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         task.ensureNotCancelled();
         final FieldCapabilitiesIndexResponse[] indexResponses = indexResponsesMap.values()
             .stream()

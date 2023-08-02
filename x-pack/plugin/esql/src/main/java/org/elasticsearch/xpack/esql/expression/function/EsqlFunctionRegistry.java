@@ -33,6 +33,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.AutoBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
@@ -96,6 +100,10 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),
+                def(Acos.class, Acos::new, "acos"),
+                def(Asin.class, Asin::new, "asin"),
+                def(Atan.class, Atan::new, "atan"),
+                def(Atan2.class, Atan2::new, "atan2"),
                 def(AutoBucket.class, AutoBucket::new, "auto_bucket"),
                 def(Cos.class, Cos::new, "cos"),
                 def(Cosh.class, Cosh::new, "cosh"),

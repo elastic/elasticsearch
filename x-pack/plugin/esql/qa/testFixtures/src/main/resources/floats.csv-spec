@@ -257,6 +257,28 @@ a:double | cosh:double
 // end::cosh-result[]
 ;
 
+acos
+// tag::acos[]
+ROW a=.9
+| EVAL acos=ACOS(a)
+// end::acos[]
+;
+
+// tag::acos-result[]
+a:double | acos:double
+      .9 | 0.45102681179626236
+// end::acos-result[]
+;
+
+acosNan
+ROW a=12.0
+| EVAL acos=ACOS(a)
+;
+
+a:double | acos:double
+      12 | NaN
+;
+
 sin
 // tag::sin[]
 ROW a=1.8 
@@ -283,6 +305,28 @@ a:double | sinh:double
 // end::sinh-result[]
 ;
 
+asin
+// tag::asin[]
+ROW a=.9
+| EVAL asin=ASIN(a)
+// end::asin[]
+;
+
+// tag::asin-result[]
+a:double | asin:double
+      .9 | 1.1197695149986342
+// end::asin-result[]
+;
+
+asinNan
+ROW a=12.0
+| EVAL asin=ASIN(a)
+;
+
+a:double | asin:double
+      12 | NaN
+;
+
 tan
 // tag::tan[]
 ROW a=1.8 
@@ -307,4 +351,30 @@ ROW a=1.8
 a:double | tanh:double
      1.8 | 0.9468060128462683
 // end::tanh-result[]
+;
+
+atan
+// tag::atan[]
+ROW a=12.9
+| EVAL atan=ATAN(a)
+// end::atan[]
+;
+
+// tag::atan-result[]
+a:double | atan:double
+    12.9 | 1.4934316673669235
+// end::atan-result[]
+;
+
+atan2
+// tag::atan2[]
+ROW y=12.9, x=.6
+| EVAL atan2=ATAN2(y, x)
+// end::atan2[]
+;
+
+// tag::atan2-result[]
+y:double | x:double | atan2:double
+    12.9 |      0.6 | 1.5243181954438936
+// end::atan2-result[]
 ;

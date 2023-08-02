@@ -388,6 +388,13 @@ a:integer | cos:double
         2 | -0.4161468365471424
 ;
 
+acos
+ROW a=1 | EVAL acos=ACOS(a);
+
+a:integer | acos:double
+        1 | 0.0
+;
+
 cosh
 ROW a=2 | EVAL cosh=COSH(a);
 
@@ -409,6 +416,14 @@ a:integer | sinh:double
         2 | 3.626860407847019
 ;
 
+asin
+ROW a=1 | EVAL asin=ASIN(a);
+
+a:integer | asin:double
+        1 | 1.5707963267948966
+;
+
+
 tan
 ROW a=2 | EVAL tan=TAN(a);
 
@@ -421,4 +436,18 @@ ROW a=2 | EVAL tanh=TANH(a);
 
 a:integer | tanh:double
         2 | 0.9640275800758169
+;
+
+atan
+ROW a=2 | EVAL atan=ATAN(a);
+
+a:integer | atan:double
+        2 | 1.1071487177940904
+;
+
+atan2
+ROW y=2, x=12 | EVAL atan2=ATAN2(y, x);
+
+y:integer | x:integer | atan2:double
+        2 |        12 | 0.16514867741462683
 ;

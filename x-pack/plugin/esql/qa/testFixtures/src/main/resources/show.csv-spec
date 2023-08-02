@@ -10,6 +10,10 @@ show functions;
 
   name:keyword           |           synopsis:keyword
 abs                      |abs(arg1)
+acos                     |acos(arg1)
+asin                     |asin(arg1)
+atan                     |atan(arg1)
+atan2                    |atan2(arg1, arg2)
 auto_bucket              |auto_bucket(arg1, arg2, arg3, arg4)
 avg                      |avg(arg1)
 case                     |case(arg1...)

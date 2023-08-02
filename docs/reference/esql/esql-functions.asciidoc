@@ -9,6 +9,10 @@
 these functions:
 
 * <<esql-abs>>
+* <<esql-acos>>
+* <<esql-asin>>
+* <<esql-atan>>
+* <<esql-atan2>>
 * <<esql-auto_bucket>>
 * <<esql-case>>
 * <<esql-cidr_match>>
@@ -59,6 +63,10 @@ these functions:
 * <<esql-trim>>
 
 include::functions/abs.asciidoc[]
+include::functions/acos.asciidoc[]
+include::functions/asin.asciidoc[]
+include::functions/atan.asciidoc[]
+include::functions/atan2.asciidoc[]
 include::functions/auto_bucket.asciidoc[]
 include::functions/case.asciidoc[]
 include::functions/cidr_match.asciidoc[]

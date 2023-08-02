@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.lucene.stats;
 
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -25,6 +24,9 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -86,10 +88,11 @@ public class ShardSizeStatsReader {
                 var interactiveSize = 0L;
                 var nonInteractiveSize = 0L;
 
+                final MappedFieldType fieldType = indexShard.mapperService().fieldType(DataStream.TIMESTAMP_FIELD_NAME);
                 final long currentTimeMillis = currentTimeMillsSupplier.getAsLong();
                 for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
                     var segmentSize = Lucene.segmentReader(ctx.reader()).getSegmentInfo().sizeInBytes();
-                    if (isInteractive(ctx.reader(), currentTimeMillis, interactiveDataAge)) {
+                    if (isInteractive(ctx.reader(), fieldType, currentTimeMillis, interactiveDataAge)) {
                         interactiveSize += segmentSize;
                     } else {
                         nonInteractiveSize += segmentSize;
@@ -106,17 +109,27 @@ public class ShardSizeStatsReader {
         }
     }
 
-    private static boolean isInteractive(LeafReader segmentReader, long currentTimeMillis, TimeValue interactiveDataAge)
-        throws IOException {
+    private static boolean isInteractive(
+        LeafReader segmentReader,
+        MappedFieldType fieldType,
+        long currentTimeMillis,
+        TimeValue interactiveDataAge
+    ) throws IOException {
         PointValues values = segmentReader.getPointValues(DataStream.TIMESTAMP_FIELD_NAME);
         if (values == null || values.getMaxPackedValue() == null) {
-            // no timestamp field, entire segment is considered interactive
+            // no timestamp value, entire segment is considered interactive
             return true;
         }
-        // TODO check mappings for the granularity of the timestamp field
-        // it could be a nonotime
-        var maxTimestamp = LongPoint.decodeDimension(values.getMaxPackedValue(), 0);
-        return currentTimeMillis - maxTimestamp <= interactiveDataAge.millis();
+        if (fieldType instanceof DateFieldMapper.DateFieldType dateFieldType) {
+            var maxTimestampMillis = dateFieldType.resolution().parsePointAsMillis(values.getMaxPackedValue());
+            return currentTimeMillis - maxTimestampMillis <= interactiveDataAge.millis();
+        } else if (fieldType instanceof NumberFieldMapper.NumberFieldType numberFieldType) {
+            var maxTimestampMillis = numberFieldType.parsePoint(values.getMaxPackedValue()).longValue();
+            return currentTimeMillis - maxTimestampMillis <= interactiveDataAge.millis();
+        } else {
+            // @timestamp field is not representing a date nor number, entire segment is considered interactive
+            return true;
+        }
     }
 
     private static boolean isSizeAvailable(IndexShardState state) {

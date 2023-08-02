@@ -115,6 +115,9 @@ All CRUD operations on <<search-application-apis, search applications>>.
 `manage_search_query_rules`::
 All CRUD operations on <<query-rules-apis, query rules>>.
 
+`manage_search_synonyms`::
+All synonyms management operations on <<synonyms-apis>>.
+
 `manage_security`::
 All security-related operations such as CRUD operations on users and roles and
 cache clearing.

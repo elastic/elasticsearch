@@ -183,7 +183,7 @@ teardown:
               type: "string"
 
 ---
-"Update Search Application with null template, results in default template being applied":
+"Update Search Application with null template":
   - do:
       search_application.put:
         name: test-updated-search-application
@@ -216,14 +216,7 @@ teardown:
       search_application.get:
         name: test-updated-search-application
 
-  - match:
-      template:
-        script:
-          source: "{\n  \"query\": {\n    \"query_string\": {\n        \"query\": \"{{query_string}}\",\n        \"default_field\": \"{{default_field}}\"\n        }\n    }\n}\n"
-          lang: "mustache"
-          params:
-            query_string: "*"
-            default_field: "*"
+  - match: { template: null }
 
 ---
 "Update Search Application - Dictionary is not a valid JSON Schema":

@@ -82,9 +82,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
         this.analyticsCollectionName = analyticsCollectionName;
         this.updatedAtMillis = updatedAtMillis;
-        this.searchApplicationTemplate = searchApplicationTemplate != null
-            ? searchApplicationTemplate
-            : SearchApplicationTemplate.DEFAULT_TEMPLATE;
+        this.searchApplicationTemplate = searchApplicationTemplate;
     }
 
     public SearchApplication(StreamInput in) throws IOException {
@@ -229,6 +227,10 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
     public @Nullable SearchApplicationTemplate searchApplicationTemplate() {
         return searchApplicationTemplate;
+    }
+
+    public SearchApplicationTemplate searchApplicationTemplateOrDefault() {
+        return searchApplicationTemplate != null ? searchApplicationTemplate : SearchApplicationTemplate.DEFAULT_TEMPLATE;
     }
 
     @Override

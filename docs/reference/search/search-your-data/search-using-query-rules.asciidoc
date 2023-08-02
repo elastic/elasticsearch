@@ -179,7 +179,7 @@ GET /my-index-000001/_search
     "rule_query": {
       "organic": {
         "query_string": {
-          "query": "pugs"
+          "query": "puggles"
         }
       },
       "match_criteria": {

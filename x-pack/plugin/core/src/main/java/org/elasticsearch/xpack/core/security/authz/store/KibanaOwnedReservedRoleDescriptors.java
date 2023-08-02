@@ -173,6 +173,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".fleet-fileds*").privileges("all").allowRestrictedIndices(true).build(),
                 // Fleet telemetry queries Agent Logs indices in kibana task runner
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-elastic_agent*").privileges("read").build(),
                 // Legacy "Alerts as data" used in Security Solution.
@@ -215,6 +216,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         ".logs-endpoint.action.responses-*",
                         ".logs-endpoint.diagnostic.collection-*",
                         ".logs-endpoint.actions-*",
+                        ".logs-endpoint.heartbeat-*",
                         ".logs-osquery_manager.actions-*",
                         ".logs-osquery_manager.action.responses-*",
                         "profiling-*"
@@ -335,7 +337,9 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 // SLO observability solution internal indices
                 // Kibana system user uses them to read / write slo data.
-                RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").privileges("all").build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").privileges("all").build(),
+                // Endpoint heartbeat. Kibana reads from these to determine metering/billing for endpoints.
+                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.heartbeat-*").privileges("read").build() },
             null,
             new ConfigurableClusterPrivilege[] {
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("kibana-*")),

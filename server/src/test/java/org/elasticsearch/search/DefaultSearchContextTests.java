@@ -144,6 +144,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 timeout,
                 randomIntBetween(1, Integer.MAX_VALUE),
                 null,
+                false,
                 false
             );
             contextWithoutScroll.from(300);
@@ -182,6 +183,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 timeout,
                 randomIntBetween(1, Integer.MAX_VALUE),
                 null,
+                false,
                 false
             );
             context1.from(300);
@@ -255,6 +257,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 timeout,
                 randomIntBetween(1, Integer.MAX_VALUE),
                 null,
+                false,
                 false
             );
 
@@ -290,6 +293,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 timeout,
                 randomIntBetween(1, Integer.MAX_VALUE),
                 null,
+                false,
                 false
             );
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
@@ -315,6 +319,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 timeout,
                 randomIntBetween(1, Integer.MAX_VALUE),
                 null,
+                false,
                 false
             );
             context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess();
@@ -381,6 +386,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 timeout,
                 randomIntBetween(1, Integer.MAX_VALUE),
                 null,
+                false,
                 false
             );
 

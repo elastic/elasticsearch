@@ -70,7 +70,8 @@ final class ElasticServiceAccounts {
                         "metrics-*",
                         "traces-*",
                         ".logs-endpoint.diagnostic.collection-*",
-                        ".logs-endpoint.action.responses-*"
+                        ".logs-endpoint.action.responses-*",
+                        ".logs-endpoint.heartbeat-*"
                     )
                     .privileges("write", "create_index", "auto_configure")
                     .build(),
@@ -123,6 +124,11 @@ final class ElasticServiceAccounts {
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-servers*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-fileds*")
                     .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
                     .allowRestrictedIndices(true)
                     .build(),

@@ -18,6 +18,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.utils.MlConfigVersionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -134,7 +135,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
             update.setModelSnapshotMinVersion(MlConfigVersion.CURRENT);
         }
         if (useInternalParser && randomBoolean()) {
-            update.setJobVersion(MlConfigVersion.fromVersion(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)));
+            update.setJobVersion(MlConfigVersionUtils.randomCompatibleVersion(random()));
         }
         if (useInternalParser) {
             update.setClearFinishTime(randomBoolean());

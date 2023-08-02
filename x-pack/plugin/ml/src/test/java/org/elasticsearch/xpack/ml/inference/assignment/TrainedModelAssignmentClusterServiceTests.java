@@ -1478,7 +1478,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildNode(String name, boolean isML, long nativeMemory, int allocatedProcessors) {
-        return buildNode(name, isML, nativeMemory, allocatedProcessors, VersionInformation.CURRENT);
+        return buildNode(name, isML, nativeMemory, allocatedProcessors, VersionInformation.CURRENT, MlConfigVersion.CURRENT);
     }
 
     private static DiscoveryNode buildNode(
@@ -1486,7 +1486,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         boolean isML,
         long nativeMemory,
         int allocatedProcessors,
-        VersionInformation version
+        VersionInformation versionInfo,
+        MlConfigVersion mlConfigVersion
     ) {
         return DiscoveryNodeUtils.builder(name)
             .name(name)
@@ -1495,11 +1496,11 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     entry(MachineLearning.MACHINE_MEMORY_NODE_ATTR, String.valueOf(nativeMemory)),
                     entry(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, String.valueOf(10)),
                     entry(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, String.valueOf(allocatedProcessors)),
-                    entry(MachineLearning.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.fromVersion(version.nodeVersion()).toString())
+                    entry(MachineLearning.ML_CONFIG_VERSION_NODE_ATTR, mlConfigVersion.toString())
                 )
             )
             .roles(isML ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
-            .version(version)
+            .version(versionInfo)
             .build();
     }
 
@@ -1508,7 +1509,14 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildOldNode(String name, boolean isML, long nativeMemory, int allocatedProcessors) {
-        return buildNode(name, isML, nativeMemory, allocatedProcessors, VersionInformation.inferVersions(Version.V_7_15_0));
+        return buildNode(
+            name,
+            isML,
+            nativeMemory,
+            allocatedProcessors,
+            VersionInformation.inferVersions(Version.V_7_15_0),
+            MlConfigVersion.V_7_15_0
+        );
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams newParams(String modelId, long modelSize) {

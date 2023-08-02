@@ -36,6 +36,8 @@ import java.util.regex.Pattern;
  * The version number associated with various ML features. This class is needed in addition to TransportVersion because
  * transport version cannot be persisted in stored documents or cluster state metadata.
  * Hence, this class is designed to be persisted in human-readable format, and indicate the age of that state or config.
+ * In addition, we want the written form of MlConfigVersion version numbers to be parseable by the {@link Version} class so that
+ * in mixed version clusters during upgrades the old nodes won't throw exceptions when parsing these new versions.
  * <p>
  * Prior to 8.10.0, the release {@link Version} was used everywhere. This class separates the ML config format version
  * from the running node version.
@@ -159,24 +161,22 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
     public static final MlConfigVersion MINIMUM_DETACHED_ML_CONFIG_VERSION = V_10;
 
     /**
-     * Reference to the most recent legacy Ml config version.
-     * This is the highest id associated with Ml config versions
-     * that use the legacy, semantic style, representation of the version.
-     */
-    private static final MlConfigVersion CUTOVER_VERSION = V_8_10_0;
-
-    /**
      * Reference to the earliest compatible ML config version to this version of the codebase.
-     * This is hard-coded as the first version when ML went GA.
+     * This is hard-coded as the first version that included the ML plugin.
      */
     public static final MlConfigVersion FIRST_ML_VERSION = V_5_4_0;
 
     static {
         // see comment on IDS field
-        // now we're registered all the ML config versions, we can clear the map
+        // now we've registered all the ML config versions, we can clear the map
         IDS = null;
     }
 
+    /**
+     * Obtain a selection of (nearly) all registered versions.
+     * This method should only ever be used internally - to initialize VERSION_IDS,
+     * and in unit tests. It should never be called directly in production code.
+     */
     public static NavigableMap<Integer, MlConfigVersion> getAllVersionIds(Class<?> cls) {
         Map<Integer, String> versionIdFields = new HashMap<>();
         NavigableMap<Integer, MlConfigVersion> builder = new TreeMap<>();
@@ -263,12 +263,15 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
     }
 
     public static MlConfigVersion fromVersion(Version version) {
+        if (version.onOrAfter(Version.V_8_10_0)) {
+            throw new IllegalArgumentException("Cannot convert " + version + ". Incompatible version");
+        }
         return fromId(version.id);
     }
 
     public static Version toVersion(MlConfigVersion mlConfigVersion) {
-        if (mlConfigVersion.id < FIRST_ML_VERSION.id) {
-            throw new IllegalArgumentException("Cannot convert " + mlConfigVersion.id + ". Incompatible version");
+        if (mlConfigVersion.id < FIRST_ML_VERSION.id || mlConfigVersion.onOrAfter(V_10)) {
+            throw new IllegalArgumentException("Cannot convert " + mlConfigVersion + ". Incompatible version");
         }
         return Version.fromId(mlConfigVersion.id);
     }
@@ -299,14 +302,20 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
     public static MlConfigVersion getMlConfigVersionForNode(DiscoveryNode node) {
         String mlConfigVerStr = node.getAttributes().get(ML_CONFIG_VERSION_NODE_ATTR);
         if (mlConfigVerStr == null) {
-            return fromVersion(node.getVersion());
+            return CURRENT;
         }
         return fromString(mlConfigVerStr);
     }
 
+    // Parse an MlConfigVersion from a string.
+    // Note that version "8.10.0" is silently converted to "10.0.0".
+    // This is to support upgrade scenarios in pre-prod QA environments.
     public static MlConfigVersion fromString(String str) {
         if (str == null) {
             return CURRENT;
+        }
+        if (str.equals("8.10.0")) {
+            return V_10;
         }
         Matcher matcher = Pattern.compile("^(\\d+)\\.0\\.0$").matcher(str);
         int versionNum;

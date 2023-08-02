@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.XPackBuild;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRequest, XPackInfoResponse> {
 
@@ -75,15 +76,16 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
         FeatureSetsInfo featureSetsInfo = null;
         if (request.getCategories().contains(XPackInfoRequest.Category.FEATURES)) {
             var featureSets = new HashSet<FeatureSet>();
+            Set<String> avaiableActionNames = new HashSet<>(client.getActionNames());
             for (var infoAction : infoActions) {
                 // local actions are executed directly, not on a separate thread, so no thread safe collection is necessary
-                try {
+                if (avaiableActionNames.contains(infoAction.name())) {
                     client.executeLocally(
                         infoAction,
                         request,
                         listener.delegateFailureAndWrap((l, response) -> featureSets.add(response.getInfo()))
                     );
-                } catch (IllegalStateException e) {
+                } else {
                     // This can happen if a plugin has been removed from the build so the transport action does not exist
                     featureSets.add(new FeatureSet(infoAction.name(), false, false));
                 }

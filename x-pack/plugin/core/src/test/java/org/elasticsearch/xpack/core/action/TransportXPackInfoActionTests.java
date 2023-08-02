@@ -49,6 +49,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         NodeClient client = mock(NodeClient.class);
         Map<XPackInfoFeatureAction, FeatureSet> featureSets = new HashMap<>();
         int featureSetCount = randomIntBetween(0, 5);
+        List<String> existingActionNames = new ArrayList<>();
         for (XPackInfoFeatureAction infoAction : randomSubsetOf(featureSetCount, XPackInfoFeatureAction.ALL)) {
             FeatureSet featureSet = new FeatureSet(randomAlphaOfLength(5), randomBoolean(), randomBoolean());
             featureSets.put(infoAction, featureSet);
@@ -57,7 +58,9 @@ public class TransportXPackInfoActionTests extends ESTestCase {
                 listener.onResponse(new XPackInfoFeatureResponse(featureSet));
                 return null;
             });
+            existingActionNames.add(infoAction.name());
         }
+        when(client.getActionNames()).thenReturn(existingActionNames);
         /*
          * Now we add a feature that is not present in the system at all (for example, its plugin has been removed from the build). We want
          * to make sure that we correctly report that the feature is not available.
@@ -67,9 +70,6 @@ public class TransportXPackInfoActionTests extends ESTestCase {
             () -> randomFrom(XPackInfoFeatureAction.ALL)
         );
         featureSets.put(missingFeature, new FeatureSet(missingFeature.name(), false, false));
-        when(client.executeLocally(eq(missingFeature), any(ActionRequest.class), any(ActionListener.class))).thenAnswer(answer -> {
-            throw new IllegalStateException("failed to find action to execute");
-        });
 
         TransportXPackInfoAction action = new TransportXPackInfoAction(
             mock(TransportService.class),

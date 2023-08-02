@@ -57,29 +57,7 @@ final class RemoteClusterConnection implements Closeable {
      * @param settings the nodes settings object
      * @param clusterAlias the configured alias of the cluster to connect to
      * @param transportService the local nodes transport service
-     * @param credentialsProtected Whether the remote cluster is protected by a credentials, i.e. it has a credentials configured
-     *                             via secure setting. This means the remote cluster uses the new configurable access RCS model
-     *                             (as opposed to the basic model).
-     */
-    RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService, boolean credentialsProtected) {
-        this.transportService = transportService;
-        this.clusterAlias = clusterAlias;
-        ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, settings, credentialsProtected);
-        this.remoteConnectionManager = new RemoteConnectionManager(clusterAlias, createConnectionManager(profile, transportService));
-        this.connectionStrategy = RemoteConnectionStrategy.buildStrategy(clusterAlias, transportService, remoteConnectionManager, settings);
-        // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
-        this.remoteConnectionManager.addListener(transportService);
-        this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(clusterAlias)
-            .get(settings);
-        this.threadPool = transportService.threadPool;
-        initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
-    }
-
-    /**
-     * Creates a new {@link RemoteClusterConnection}
-     * @param settings the nodes settings object
-     * @param clusterAlias the configured alias of the cluster to connect to
-     * @param transportService the local nodes transport service
+     * @param credentialsManager object to lookup remote cluster credentials
      */
     RemoteClusterConnection(
         Settings settings,

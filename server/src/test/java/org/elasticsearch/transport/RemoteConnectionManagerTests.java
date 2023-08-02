@@ -50,6 +50,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         transport = mock(Transport.class);
         remoteConnectionManager = new RemoteConnectionManager(
             "remote-cluster",
+            RemoteClusterCredentialsManager.EMPTY,
             new ClusterConnectionManager(Settings.EMPTY, transport, new ThreadContext(Settings.EMPTY))
         );
 

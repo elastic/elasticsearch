@@ -37,10 +37,6 @@ public class RemoteConnectionManager implements ConnectionManager {
     private final AtomicLong counter = new AtomicLong();
     private volatile List<DiscoveryNode> connectedNodes = Collections.emptyList();
 
-    RemoteConnectionManager(String clusterAlias, ConnectionManager delegate) {
-        this(clusterAlias, RemoteClusterCredentialsManager.EMPTY, delegate);
-    }
-
     RemoteConnectionManager(String clusterAlias, RemoteClusterCredentialsManager credentialsManager, ConnectionManager delegate) {
         this.clusterAlias = clusterAlias;
         this.credentialsManager = credentialsManager;

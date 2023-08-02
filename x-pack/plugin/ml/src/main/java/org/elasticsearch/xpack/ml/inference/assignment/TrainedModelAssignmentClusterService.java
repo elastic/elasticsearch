@@ -39,7 +39,9 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdate;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -224,18 +226,39 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         Set<String> assignableNodes = getAssignableNodes(currentState).stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(currentState);
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
+
         for (TrainedModelAssignment assignment : metadata.allAssignments().values()) {
-            Set<String> routedNodeIdsToRemove = Sets.difference(assignment.getNodeRoutingTable().keySet(), assignableNodes);
-            if (routedNodeIdsToRemove.isEmpty() == false) {
+            Set<String> unassignableNodes = Sets.difference(assignment.getNodeRoutingTable().keySet(), assignableNodes);
+
+            if (unassignableNodes.isEmpty() == false) {
                 logger.debug(
                     () -> format(
                         "[%s] removing routing entries to nodes %s because they have been removed or are shutting down",
                         assignment.getDeploymentId(),
-                        routedNodeIdsToRemove
+                        unassignableNodes
                     )
                 );
+
+                Map<Boolean, List<String>> partitions = unassignableNodes.stream()
+                    .collect(Collectors.partitioningBy(id -> currentState.metadata().nodeShutdowns().contains(id)));
+                List<String> shuttingDownIds = partitions.get(true);
+                List<String> routedNodeIdsToRemove = partitions.get(false);
+
                 TrainedModelAssignment.Builder assignmentBuilder = TrainedModelAssignment.Builder.fromAssignment(assignment);
                 routedNodeIdsToRemove.forEach(assignmentBuilder::removeRoutingEntry);
+
+                for (String id : shuttingDownIds) {
+                    var routeUpdate = RoutingInfoUpdate.updateStateAndReason(
+                        new RoutingStateAndReason(RoutingState.STOPPING, "node is shutting down")
+                    );
+
+                    // TODO ideally we'd get the routing table from the builder? that way we handle the chance that it's out of sync after
+                    // the removal from above
+                    var newRoutingInfo = routeUpdate.apply(assignment.getNodeRoutingTable().get(id));
+
+                    assignmentBuilder.updateExistingRoutingEntry(id, newRoutingInfo);
+                }
+
                 builder.updateAssignment(assignment.getDeploymentId(), assignmentBuilder.calculateAndSetAssignmentState());
             }
         }

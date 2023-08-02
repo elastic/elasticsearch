@@ -187,6 +187,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         List<Integer> cumulativeAllocations = new ArrayList<>(nodeRoutingTable.size());
         int allocationSum = 0;
         for (Map.Entry<String, RoutingInfo> routingEntry : nodeRoutingTable.entrySet()) {
+            // TODO started and not shutting down
             if (RoutingState.STARTED.equals(routingEntry.getValue().getState())) {
                 nodeIds.add(routingEntry.getKey());
                 allocationSum += routingEntry.getValue().getCurrentAllocations();

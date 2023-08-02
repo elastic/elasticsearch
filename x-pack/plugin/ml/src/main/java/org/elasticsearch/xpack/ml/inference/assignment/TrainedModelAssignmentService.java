@@ -53,6 +53,15 @@ public class TrainedModelAssignmentService {
         this.threadPool = Objects.requireNonNull(threadPool);
     }
 
+    public void updateTaskInfoState(
+        // SafeToShutdown.Request request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        // TODO do we need to check for the presence of a master node?
+
+        // client.execute(UpdateSafeToShutdownFlag.INSTANCE, request, some listener);
+    }
+
     public void updateModelAssignmentState(
         UpdateTrainedModelAssignmentRoutingInfoAction.Request request,
         ActionListener<AcknowledgedResponse> listener

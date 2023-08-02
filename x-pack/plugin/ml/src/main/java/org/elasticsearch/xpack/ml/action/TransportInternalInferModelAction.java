@@ -242,6 +242,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         // Get a list of nodes to send the requests to and the number of
         // documents for each node.
+        // TODO might need to do a check in this function to look for is node shutting down
         var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(request.numberOfDocuments());
         if (nodes.isEmpty()) {
             logger.trace(() -> format("[%s] model deployment not allocated to any node", assignment.getDeploymentId()));

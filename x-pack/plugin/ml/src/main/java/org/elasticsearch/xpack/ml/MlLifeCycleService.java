@@ -13,8 +13,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.process.MlController;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
@@ -104,11 +107,27 @@ public class MlLifeCycleService {
         }
 
         PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+
+        TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(state);
+
+        boolean nodeHasDrainingQueues = metadata.allAssignments().values().stream().anyMatch(assignment -> {
+            if (assignment.isRoutedToNode(nodeId)) {
+                RoutingInfo routingInfo = assignment.getNodeRoutingTable().get(nodeId);
+
+                return routingInfo.getState() == RoutingState.STOPPING;
+            }
+
+            return false;
+        });
+
         // TODO: currently only considering anomaly detection jobs - could extend in the future
         // Ignore failed jobs - the persistent task still exists to remember the failure (because no
         // persistent task means closed), but these don't need to be relocated to another node.
         return MlTasks.nonFailedJobTasksOnNode(tasks, nodeId).isEmpty()
-            && MlTasks.nonFailedSnapshotUpgradeTasksOnNode(tasks, nodeId).isEmpty();
+            && MlTasks.nonFailedSnapshotUpgradeTasksOnNode(tasks, nodeId).isEmpty()
+            && nodeHasDrainingQueues == false;
+        // TODO: && hasCompletedQueuedTasks(nodeId)
+        // TODO check if any routing info has state in stopping, if so then we're not safe to shutdown
     }
 
     /**

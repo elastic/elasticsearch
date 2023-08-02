@@ -96,6 +96,11 @@ public class DeploymentManager {
         this.maxProcesses = maxProcesses;
     }
 
+    // TODO
+    public void waitForQueueToDrain() {
+
+    }
+
     public Optional<ModelStats> getStats(TrainedModelDeploymentTask task) {
         return Optional.ofNullable(processContextByAllocation.get(task.getId())).map(processContext -> {
             var stats = processContext.getResultProcessor().getResultStats();

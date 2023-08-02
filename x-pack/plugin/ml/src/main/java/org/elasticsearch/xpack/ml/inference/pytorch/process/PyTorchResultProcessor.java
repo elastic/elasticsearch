@@ -81,6 +81,7 @@ public class PyTorchResultProcessor {
         this.currentPeriodEndTimeMs = startTime + REPORTING_PERIOD_MS;
     }
 
+    // TODO likely going to need to drain something in here too
     public void registerRequest(String requestId, ActionListener<PyTorchResult> listener) {
         pendingResults.computeIfAbsent(requestId, k -> new PendingResult(listener));
     }

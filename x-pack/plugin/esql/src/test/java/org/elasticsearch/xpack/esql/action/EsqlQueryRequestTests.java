@@ -122,7 +122,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
         TaskInfo taskInfo = task.taskInfo(localNode, true);
         String json = taskInfo.toString();
         String expected = Streams.readFully(getClass().getClassLoader().getResourceAsStream("query_task.json")).utf8ToString();
-        expected = expected.replaceAll("\s*<\\d+>", "")
+        expected = expected.replaceAll("\r\n", "\n")
+            .replaceAll("\s*<\\d+>", "")
             .replaceAll("FROM test \\| STATS MAX\\(d\\) by a, b", query)
             .replaceAll("5326", Integer.toString(id))
             .replaceAll("2j8UKw1bRO283PMwDugNNg", localNode)

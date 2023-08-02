@@ -31,7 +31,7 @@ public class Layout {
     private final Map<NameId, Integer> layout;
     private final int numberOfChannels;
 
-    private Layout(Map<NameId, Integer> layout, int numberOfChannels) {
+    Layout(Map<NameId, Integer> layout, int numberOfChannels) {
         this.layout = layout;
         this.numberOfChannels = numberOfChannels;
     }
@@ -56,6 +56,10 @@ public class Layout {
      */
     public int numberOfChannels() {
         return numberOfChannels;
+    }
+
+    Map<NameId, Integer> internalLayout() {
+        return layout;
     }
 
     /**
@@ -123,7 +127,7 @@ public class Layout {
             for (Set<NameId> ids : this.channels) {
                 int channel = numberOfChannels++;
                 for (NameId id : ids) {
-                    layout.put(id, channel);
+                    layout.putIfAbsent(id, channel);
                 }
             }
             return new Layout(Collections.unmodifiableMap(layout), numberOfChannels);

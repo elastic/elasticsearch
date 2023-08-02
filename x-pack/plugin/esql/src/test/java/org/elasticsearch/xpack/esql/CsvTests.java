@@ -75,9 +75,7 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.util.DateUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -350,6 +348,11 @@ public class CsvTests extends ESTestCase {
         PhysicalPlan coordinatorPlan = coordinatorAndDataNodePlan.v1();
         PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();
 
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("Coordinator plan\n" + coordinatorPlan);
+            LOGGER.trace("DataNode plan\n" + dataNodePlan);
+        }
+
         List<String> columnNames = Expressions.names(coordinatorPlan.output());
         List<String> dataTypes = new ArrayList<>(columnNames.size());
         List<Type> columnTypes = coordinatorPlan.output()
@@ -384,6 +387,7 @@ public class CsvTests extends ESTestCase {
     // Clone of PlannerUtils
     //
 
+    // PlannerUtils#breakPlanBetweenCoordinatorAndDataNode
     private static Tuple<PhysicalPlan, PhysicalPlan> CSVbreakPlanBetweenCoordinatorAndDataNode(
         PhysicalPlan plan,
         LocalPhysicalPlanOptimizer optimizer
@@ -394,20 +398,8 @@ public class CsvTests extends ESTestCase {
         PhysicalPlan coordinatorPlan = plan.transformUp(ExchangeExec.class, e -> {
             // remember the datanode subplan and wire it to a sink
             var subplan = e.child();
-            dataNodePlan.set(new ExchangeSinkExec(e.source(), subplan));
-
-            // ugly hack to get the layout
-            var dummyConfig = new EsqlConfiguration(
-                DateUtils.UTC,
-                Locale.US,
-                StringUtils.EMPTY,
-                StringUtils.EMPTY,
-                QueryPragmas.EMPTY,
-                1000
-            );
-            var planContainingTheLayout = EstimatesRowSize.estimateRowSize(0, CSVlocalPlan(List.of(), dummyConfig, subplan, optimizer));
-            // replace the subnode with an exchange source
-            return new ExchangeSourceExec(e.source(), e.output(), planContainingTheLayout);
+            dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), subplan));
+            return new ExchangeSourceExec(e.source(), e.output(), e.isInBetweenAggs());
         });
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }

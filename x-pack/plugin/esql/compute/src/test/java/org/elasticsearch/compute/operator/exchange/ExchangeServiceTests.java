@@ -50,6 +50,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -262,7 +263,7 @@ public class ExchangeServiceTests extends ESTestCase {
         List<Driver> drivers = new ArrayList<>(numSinks + numSources);
         for (int i = 0; i < numSinks; i++) {
             String description = "sink-" + i;
-            ExchangeSinkOperator sinkOperator = new ExchangeSinkOperator(exchangeSink.get());
+            ExchangeSinkOperator sinkOperator = new ExchangeSinkOperator(exchangeSink.get(), Function.identity());
             DriverContext dc = new DriverContext();
             Driver d = new Driver("test-session:1", dc, () -> description, seqNoGenerator.get(dc), List.of(), sinkOperator, () -> {});
             drivers.add(d);

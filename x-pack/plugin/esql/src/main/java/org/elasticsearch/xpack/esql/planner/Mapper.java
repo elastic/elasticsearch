@@ -184,10 +184,17 @@ public class Mapper {
         // TODO: might be easier long term to end up with just one node and split if necessary instead of doing that always at this stage
         else {
             child = addExchangeForFragment(aggregate, child);
+            // exchange was added - use the intermediates for the output
+            if (child instanceof ExchangeExec exchange) {
+                var output = AbstractPhysicalOperationProviders.intermediateAttributes(aggregate.aggregates(), aggregate.groupings());
+                child = new ExchangeExec(child.source(), output, true, exchange.child());
+            }
             // if no exchange was added, create the partial aggregate
-            if (child instanceof ExchangeExec == false) {
+            else {
                 child = aggExec(aggregate, child, PARTIAL);
             }
+
+            // regardless, always add the final agg
             child = aggExec(aggregate, child, FINAL);
         }
 

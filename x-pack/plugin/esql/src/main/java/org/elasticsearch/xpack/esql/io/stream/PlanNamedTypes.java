@@ -452,28 +452,31 @@ public final class PlanNamedTypes {
     }
 
     static ExchangeExec readExchangeExec(PlanStreamInput in) throws IOException {
-        return new ExchangeExec(Source.EMPTY, in.readPhysicalPlanNode());
+        return new ExchangeExec(Source.EMPTY, readAttributes(in), in.readBoolean(), in.readPhysicalPlanNode());
     }
 
     static void writeExchangeExec(PlanStreamOutput out, ExchangeExec exchangeExec) throws IOException {
+        writeAttributes(out, exchangeExec.output());
+        out.writeBoolean(exchangeExec.isInBetweenAggs());
         out.writePhysicalPlanNode(exchangeExec.child());
     }
 
     static ExchangeSinkExec readExchangeSinkExec(PlanStreamInput in) throws IOException {
-        return new ExchangeSinkExec(Source.EMPTY, in.readPhysicalPlanNode());
+        return new ExchangeSinkExec(Source.EMPTY, readAttributes(in), in.readPhysicalPlanNode());
     }
 
     static void writeExchangeSinkExec(PlanStreamOutput out, ExchangeSinkExec exchangeSinkExec) throws IOException {
+        writeAttributes(out, exchangeSinkExec.output());
         out.writePhysicalPlanNode(exchangeSinkExec.child());
     }
 
     static ExchangeSourceExec readExchangeSourceExec(PlanStreamInput in) throws IOException {
-        return new ExchangeSourceExec(Source.EMPTY, readAttributes(in), in.readPhysicalPlanNode());
+        return new ExchangeSourceExec(Source.EMPTY, readAttributes(in), in.readBoolean());
     }
 
     static void writeExchangeSourceExec(PlanStreamOutput out, ExchangeSourceExec exchangeSourceExec) throws IOException {
         writeAttributes(out, exchangeSourceExec.output());
-        out.writePhysicalPlanNode(exchangeSourceExec.nodeLayout());
+        out.writeBoolean(exchangeSourceExec.isIntermediateAgg());
     }
 
     static FieldExtractExec readFieldExtractExec(PlanStreamInput in) throws IOException {

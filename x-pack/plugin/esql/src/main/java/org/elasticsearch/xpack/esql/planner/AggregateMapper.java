@@ -195,7 +195,7 @@ public class AggregateMapper {
     static DataType toDataType(ElementType elementType) {
         return switch (elementType) {
             case BOOLEAN -> DataTypes.BOOLEAN;
-            case BYTES_REF -> DataTypes.BINARY;
+            case BYTES_REF -> DataTypes.KEYWORD;
             case INT -> DataTypes.INTEGER;
             case LONG -> DataTypes.LONG;
             case DOUBLE -> DataTypes.DOUBLE;

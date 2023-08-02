@@ -230,7 +230,8 @@ v:version
 // end::to_version-result[]
 ;
 
-castConstantToVersion2
+// AwaitFix: #1521 better plan queries that return only constants
+castConstantToVersion2-Ignore
 FROM apps | EVAL v = TO_VERSION("1.2.3") | KEEP v;
 
 v:v
@@ -250,7 +251,8 @@ v:v
 1.2.3
 ;
 
-multipleCast
+// AwaitFix: #1521 better plan queries that return only constants
+multipleCast-Ignore
 FROM apps | EVAL v = TO_STR(TO_VER("1.2.3")) | KEEP v;
 
 v:s

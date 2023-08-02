@@ -42,12 +42,9 @@ public class PlannerUtils {
         PhysicalPlan coordinatorPlan = plan.transformUp(ExchangeExec.class, e -> {
             // remember the datanode subplan and wire it to a sink
             var subplan = e.child();
-            dataNodePlan.set(new ExchangeSinkExec(e.source(), subplan));
+            dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), subplan));
 
-            // ugly hack to get the layout
-            var planContainingTheLayout = EstimatesRowSize.estimateRowSize(0, localPlan(List.of(), config, subplan));
-            // replace the subnode with an exchange source
-            return new ExchangeSourceExec(e.source(), e.output(), planContainingTheLayout);
+            return new ExchangeSourceExec(e.source(), e.output(), e.isInBetweenAggs());
         });
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }

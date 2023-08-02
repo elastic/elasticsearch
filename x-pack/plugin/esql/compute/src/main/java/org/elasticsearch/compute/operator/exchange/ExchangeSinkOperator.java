@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -28,12 +29,20 @@ import java.util.function.Supplier;
 public class ExchangeSinkOperator extends SinkOperator {
 
     private final ExchangeSink sink;
+    private final Function<Page, Page> transformer;
     private int pagesAccepted;
 
-    public record ExchangeSinkOperatorFactory(Supplier<ExchangeSink> exchangeSinks) implements SinkOperatorFactory {
+    public record ExchangeSinkOperatorFactory(Supplier<ExchangeSink> exchangeSinks, Function<Page, Page> transformer)
+        implements
+            SinkOperatorFactory {
+
+        public ExchangeSinkOperatorFactory(Supplier<ExchangeSink> exchangeSinks) {
+            this(exchangeSinks, Function.identity());
+        }
+
         @Override
         public SinkOperator get(DriverContext driverContext) {
-            return new ExchangeSinkOperator(exchangeSinks.get());
+            return new ExchangeSinkOperator(exchangeSinks.get(), transformer);
         }
 
         @Override
@@ -42,8 +51,9 @@ public class ExchangeSinkOperator extends SinkOperator {
         }
     }
 
-    public ExchangeSinkOperator(ExchangeSink sink) {
+    public ExchangeSinkOperator(ExchangeSink sink, Function<Page, Page> transformer) {
         this.sink = sink;
+        this.transformer = transformer;
     }
 
     @Override
@@ -69,7 +79,8 @@ public class ExchangeSinkOperator extends SinkOperator {
     @Override
     public void addInput(Page page) {
         pagesAccepted++;
-        sink.addPage(page);
+        var newPage = transformer.apply(page);
+        sink.addPage(newPage);
     }
 
     @Override

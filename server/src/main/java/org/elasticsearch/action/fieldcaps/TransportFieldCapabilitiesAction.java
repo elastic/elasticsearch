@@ -101,10 +101,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, listener)));
+        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
     }
 
-    protected void doExecuteForked(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
+    private void doExecuteForked(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }

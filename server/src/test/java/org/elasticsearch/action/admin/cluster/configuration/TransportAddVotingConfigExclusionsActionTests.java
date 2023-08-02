@@ -46,6 +46,7 @@ import org.junit.BeforeClass;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -517,6 +518,16 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
     ) {
         return new TransportResponseHandler<>() {
             @Override
+            public ActionResponse.Empty read(StreamInput in) {
+                return ActionResponse.Empty.INSTANCE;
+            }
+
+            @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
+            @Override
             public void handleResponse(ActionResponse.Empty response) {
                 onResponse.accept(response);
             }
@@ -524,11 +535,6 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
             @Override
             public void handleException(TransportException exp) {
                 onException.accept(exp);
-            }
-
-            @Override
-            public ActionResponse.Empty read(StreamInput in) {
-                return ActionResponse.Empty.INSTANCE;
             }
         };
     }

@@ -8,40 +8,72 @@
 
 preview::[]
 
-_Query rules_ are rules that are defined inside {es} that allow customization of search results for queries that match specified criteria metadata.
-This allows for more control over promoted results, ensuring that specified documents always match defined criteria and are returned at the top of the result list.
+_Query rules_ allow customization of search results for queries that match specified criteria metadata.
+This allows for more control over results, for example ensuring that promoted documents that match defined criteria are returned at the top of the result list.
 Metadata is defined in the query rule, and is matched against the query criteria.
-Metadata is a string key, and can be anything from a user-entered query string, personalized metadata about users (e.g. country, language, etc). or anything else defined in the rules.
+Query rules use metadata to match a query.
+Metadata is provided as part of the `rule_query` as an object.
+It can be anything from a user-entered query string, personalized metadata about users (e.g. country, language, etc).
+
+Query rules define a metadata key that will be used to match the metadata provided in the `rule_query` with the criteria specified in the rule.
+
+When a query rule match the `rule_query` metadata according to its defined criteria, the query rule action is applied to the underlying `organic_query`
 
 Rules are defined using the <<query-rules-apis,Query rules API>> and searched using the <<query-dsl-rule-query,rule query>>.
 
 When defining a rule, consider the following:
 
-* The type of rule we want to apply:
+* The type of rule we want to apply. For the moment there is a single rule type:
 +
 --
 * `pinned` will re-write the query into a <<query-dsl-pinned-query, pinned query>>, pinning specified results matching the query rule at the top of the returned result set.
 --
 * The criteria for which this rule will match. Criteria is defined as `type`, `metadata`, and `values`. The allowed types are:
-+
---
-* `exact` will match when the rule metadata matches the specified value exactly.
-* `fuzzy` will match when the rule metadata matches the specified value within an allowed {wikipedia}/Levenshtein_distance[Levenshtein edit distance].
-* `prefix` will match when the rule metadata starts with the specified value.
-* `suffix` will match when the rule metadata ends with the specified value.
-* `contains` will match when the rule metadata contains the specified value.
-* `lt` will match when the rule metadata is less than the specified value.
-* `lte` will match when the rule metadata is less than or equal to the specified value.
-* `gt` will match when the rule metadata is greater than the specified value.
-* `gte` will match when the rule metadata is greater than or equal to the specified value.
-* `always` will always match for all rule queries.
---
+
+[cols="2*", options="header"]
+|===
+|Type
+|Match Requirements
+
+|`exact`
+|Rule metadata matches the specified value exactly.
+
+|`fuzzy`
+|Rule metadata matches the specified value within an allowed {wikipedia}/Levenshtein_distance[Levenshtein edit distance].
+
+|`prefix`
+|Rule metadata starts with the specified value.
+
+|`suffix`
+|Rule metadata ends with the specified value.
+
+|`contains`
+|Rule metadata contains the specified value.
+
+|`lt`
+|Rule metadata is less than the specified value.
+
+|`lte`
+|Rule metadata is less than or equal to the specified value.
+
+|`gt`
+|Rule metadata is greater than the specified value.
+
+|`gte`
+|Rule metadata is greater than or equal to the specified value.
+
+|`always`
+|Always matches for all rule queries.
+|===
+
 * The actions to take when the rule matches a query:
 +
 --
 * `ids` will pin the specified <<mapping-id-field,`_id`>>s.
 * `docs` will pin the specified documents in the specified indices.
 --
+
+Use `ids` when searching over a single index, and `docs` when searching over multiple indices. See <<query-dsl-pinned-query,pinned query>> for details.
 
 [discrete]
 [[add-query-rules]]
@@ -51,8 +83,8 @@ You can add query rules using the <<put-query-ruleset>> call. This adds a rulese
 
 The following command will create a query ruleset called `my-ruleset` with two pinned document rules:
 
-* The first rule will generate a <<query-dsl-pinned-query>> pinning the <<mapping-id-field,`_id`>>s `id1` and `id2` when the `user.query` matches the value `pugs`.
-* The second rule will generate a <<query-dsl-pinned-query>> pinning the <<mapping-id-field, `_id`>> of `id3` specifically from the `my-index-000001` index and `id4` from the `my-index-000002` index when the `user.query` matches the value `beagles`.
+* The first rule will generate a <<query-dsl-pinned-query>> pinning the <<mapping-id-field,`_id`>>s `id1` and `id2` when the `user.query` metadata value matches `pugs`.
+* The second rule will generate a <<query-dsl-pinned-query>> pinning the <<mapping-id-field, `_id`>> of `id3` specifically from the `my-index-000001` index and `id4` from the `my-index-000002` index when the `user.query` metadata value matches `beagles`.
 
 [source,console]
 ----

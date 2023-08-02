@@ -138,7 +138,7 @@ public class JwtSignatureValidatorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testWorkflowWithFailureThenSuccess() throws Exception {
-        // failures will trigger a reload of the keyset
+        // failures will trigger a reload 
         Mockito.doAnswer(invocation -> {
             // count the reload events
             reloadAttemptCounter.getAndIncrement();
@@ -189,10 +189,7 @@ public class JwtSignatureValidatorTests extends ESTestCase {
     // thread 1 so the fix for the bug checks for changes to the shared volatile state instead of the state returned by thread 2
     @SuppressWarnings("unchecked")
     public void testConcurrentWorkflowWithFailureThenSuccess() throws Exception {
-
         final CyclicBarrier reloadBarrier = new CyclicBarrier(2);
-
-        // failure - with reload then success
         Mockito.doAnswer(invocation -> {
             safeAwait(reloadBarrier); // block here to ensure both threads have failed once
 

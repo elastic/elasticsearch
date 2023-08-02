@@ -284,7 +284,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
                 missing = in.readBoolean();
             } else {
-                missing = false;
+                missing = index.isEmpty();
             }
         }
 

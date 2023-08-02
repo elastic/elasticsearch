@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
@@ -228,10 +229,10 @@ public class InternalUsersTests extends ESTestCase {
         assertThat(role.application(), is(ApplicationPermission.NONE));
         assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
 
-        final String allowedSystemDataStream = ".fleet-actions-results";
+        final List<String> allowedSystemDataStreams = Arrays.asList(".fleet-actions-results", ".fleet-fileds*");
         for (var group : role.indices().groups()) {
             if (group.allowRestrictedIndices()) {
-                assertThat(group.indices(), arrayContaining(allowedSystemDataStream));
+                assertThat(group.indices(), arrayContaining(allowedSystemDataStreams.toArray(new String[0])));
             }
         }
 
@@ -251,13 +252,15 @@ public class InternalUsersTests extends ESTestCase {
             true
         );
 
-        checkIndexAccess(role, randomFrom(sampleIndexActions), allowedSystemDataStream, true);
-        checkIndexAccess(
-            role,
-            randomFrom(sampleIndexActions),
-            DataStream.BACKING_INDEX_PREFIX + allowedSystemDataStream + randomAlphaOfLengthBetween(4, 8),
-            true
-        );
+        allowedSystemDataStreams.forEach(allowedSystemDataStream -> {
+            checkIndexAccess(role, randomFrom(sampleIndexActions), allowedSystemDataStream, true);
+            checkIndexAccess(
+                role,
+                randomFrom(sampleIndexActions),
+                DataStream.BACKING_INDEX_PREFIX + allowedSystemDataStream + randomAlphaOfLengthBetween(4, 8),
+                true
+            );
+        });
 
         checkIndexAccess(role, randomFrom(sampleIndexActions), randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES), false);
     }

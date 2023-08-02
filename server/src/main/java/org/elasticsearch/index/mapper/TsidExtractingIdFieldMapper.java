@@ -44,7 +44,6 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     public static final TypeParser PARSER = new FixedTypeParser(MappingParserContext::idFieldMapper);
     // NOTE: we use a prefix when hashing the tsid field so to be able later on (for instance for debugging purposes)
     // to query documents whose tsid has been hashed. Using a prefix allows us to query using the prefix.
-    public static final String TSID_HASH_PREFIX = "hash-";
 
     static final class IdFieldType extends TermBasedFieldType {
         IdFieldType() {
@@ -172,10 +171,11 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         return id;
     }
 
-    public static BytesRef hashTsid(final BytesRef tsid) {
+    public static void hashTsid(final BytesRef tsid, byte[] buffer) {
         final Hash128 hash = new Hash128();
         MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
-        return new BytesRef(TSID_HASH_PREFIX + hash);
+        ByteUtils.writeLongLE(hash.h1, buffer, 0);
+        ByteUtils.writeLongLE(hash.h2, buffer, 8);
     }
 
     @Override

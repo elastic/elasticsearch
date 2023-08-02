@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.time.ZoneId;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -61,8 +62,9 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
      * comfortable given that dimensions are typically going to be less than a
      * hundred bytes each, but we're being paranoid here.
      */
-    private static final int DIMENSION_VALUE_LIMIT = 1024;
     public static final int TSID_HASH_SENTINEL = 0xBAADCAFE;
+    private static final Base64.Encoder TSID_BASE64_ENCODER = Base64.getUrlEncoder().withoutPadding();
+    public static final String TSID_HASH_PREFIX = "hash-";
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
@@ -162,7 +164,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         try {
             int sizeOrTsidHashSentinel = in.readVInt();
             if (sizeOrTsidHashSentinel == TSID_HASH_SENTINEL) {
-                return Collections.singletonMap(TimeSeriesIdFieldMapper.NAME, in.readBytesRef().utf8ToString());
+                return Collections.singletonMap(TimeSeriesIdFieldMapper.NAME, in.readBytesRef());
             }
             Map<String, Object> result = new LinkedHashMap<>(sizeOrTsidHashSentinel);
 
@@ -221,8 +223,10 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                 if (timeSeriesId.length() > LIMIT) {
                     // NOTE: we hash the _tsid only if necessary, which is if the field does not fit Lucene UTF-8 doc values
                     try (BytesStreamOutput hashOut = new BytesStreamOutput()) {
+                        final byte[] buffer = new byte[16];
                         hashOut.writeVInt(TSID_HASH_SENTINEL);
-                        hashOut.writeBytesRef(TsidExtractingIdFieldMapper.hashTsid(timeSeriesId.toBytesRef()));
+                        TsidExtractingIdFieldMapper.hashTsid(timeSeriesId.toBytesRef(), buffer);
+                        hashOut.writeBytesRef(new BytesRef(TSID_HASH_PREFIX + TSID_BASE64_ENCODER.encodeToString(buffer)));
                         return hashOut.bytes();
                     }
                 }

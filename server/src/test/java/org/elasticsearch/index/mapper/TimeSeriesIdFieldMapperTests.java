@@ -479,7 +479,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         });
         assertMap(
             TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
-            matchesMap().entry("_tsid", "hash-0x3777619b3ef94123dd58ef302f9d439d")
+            matchesMap().entry("_tsid", new BytesRef("hash-I0H5PpthdzedQ50vMO9Y3Q"))
         );
     }
 

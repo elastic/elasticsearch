@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.Version
-
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -433,7 +431,7 @@ tasks.named("internalClusterTest").configure {
    * to keep direct memory usage under control.
    */
   systemProperty 'es.transport.buffer.size', '256k'
-  requiresFeature 'es.dlm_feature_flag_enabled', Version.fromString("8.9.0")
+  systemProperty 'es.dlm_feature_flag_enabled', 'true'
 }
 
 addQaCheckDependencies(project)

@@ -50,7 +50,7 @@ public class PostSecretRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        if (this.source == null || !this.source.contains("\"value\":")) {
+        if (this.source == null || this.source.contains("\"value\":") == false) {
             ActionRequestValidationException exception = new ActionRequestValidationException();
             exception.addValidationError("value is missing");
             return exception;

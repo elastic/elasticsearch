@@ -73,11 +73,13 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
 
         // call the reset API
         ResetFeatureStateResponse apiResponse = client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).get();
-        Collection<ResetFeatureStateResponse.ResetFeatureStateStatus> successStatuses = Arrays.asList(
-            ResetFeatureStateResponse.ResetFeatureStateStatus.success("SystemIndexTestPlugin"),
-            ResetFeatureStateResponse.ResetFeatureStateStatus.success("SecondSystemIndexTestPlugin"),
-            ResetFeatureStateResponse.ResetFeatureStateStatus.success("EvilSystemIndexTestPlugin"),
-            ResetFeatureStateResponse.ResetFeatureStateStatus.success("tasks")
+        Collection<ResetFeatureStateResponse.ResetFeatureStateStatus> successStatuses = new ArrayList<>(
+            Arrays.asList(
+                ResetFeatureStateResponse.ResetFeatureStateStatus.success("SystemIndexTestPlugin"),
+                ResetFeatureStateResponse.ResetFeatureStateStatus.success("SecondSystemIndexTestPlugin"),
+                ResetFeatureStateResponse.ResetFeatureStateStatus.success("EvilSystemIndexTestPlugin"),
+                ResetFeatureStateResponse.ResetFeatureStateStatus.success("tasks")
+            )
         );
         if (SynonymsAPI.isEnabled()) {
             successStatuses.add(ResetFeatureStateResponse.ResetFeatureStateStatus.success("synonyms"));

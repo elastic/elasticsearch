@@ -10,19 +10,17 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -50,21 +48,37 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassification
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigTests;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.getTaskInfoListOfOne;
+import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.mockClientWithTasksResponse;
+import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.mockListTasksClient;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TransportPutTrainedModelActionTests extends ESTestCase {
+    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private ThreadPool threadPool;
+
+    @Before
+    public void setUpThreadPool() {
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @After
+    public void tearDownThreadPool() {
+        terminate(threadPool);
+    }
 
     public void testParseInferenceConfigFromModelPackage() throws IOException {
 
@@ -128,8 +142,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
     }
 
     public void testCheckForExistingTaskCallsOnFailureForAnError() {
-        var client = mock(Client.class);
-        setupClusterClient(client);
+        var client = mockListTasksClient(threadPool);
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -140,39 +153,43 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
 
         var responseListener = new PlainActionFuture<PutTrainedModelAction.Response>();
 
-        TransportPutTrainedModelAction.checkForExistingTask(client, "modelId", true, responseListener, new PlainActionFuture<Void>());
+        TransportPutTrainedModelAction.checkForExistingTask(
+            client,
+            "modelId",
+            true,
+            responseListener,
+            new PlainActionFuture<Void>(),
+            TIMEOUT
+        );
 
-        var exception = expectThrows(ElasticsearchException.class, responseListener::actionGet);
+        var exception = expectThrows(ElasticsearchException.class, () -> responseListener.actionGet(TIMEOUT));
         assertThat(exception.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(exception.getMessage(), is("Unable to retrieve task information for model id [modelId]"));
     }
 
     public void testCheckForExistingTaskCallsStoreModelListenerWhenNoTasksExist() {
-        var client = mock(Client.class);
-        prepareTasksResponse(client, Collections.emptyList());
+        var client = mockClientWithTasksResponse(Collections.emptyList(), threadPool);
 
         var storeListener = new PlainActionFuture<Void>();
 
-        TransportPutTrainedModelAction.checkForExistingTask(client, "modelId", true, new PlainActionFuture<>(), storeListener);
+        TransportPutTrainedModelAction.checkForExistingTask(client, "modelId", true, new PlainActionFuture<>(), storeListener, TIMEOUT);
 
-        assertThat(storeListener.actionGet(), nullValue());
+        assertThat(storeListener.actionGet(TIMEOUT), nullValue());
     }
 
     public void testCheckForExistingTaskThrowsNoModelFoundError() {
-        var client = mock(Client.class);
-        prepareTasksResponse(client, List.of(getTaskInfo()));
+        var client = mockClientWithTasksResponse(getTaskInfoListOfOne(), threadPool);
         prepareGetTrainedModelResponse(client, Collections.emptyList());
 
         var respListener = new PlainActionFuture<PutTrainedModelAction.Response>();
-        TransportPutTrainedModelAction.checkForExistingTask(client, "modelId", true, respListener, new PlainActionFuture<>());
+        TransportPutTrainedModelAction.checkForExistingTask(client, "modelId", true, respListener, new PlainActionFuture<>(), TIMEOUT);
 
-        var exception = expectThrows(ElasticsearchException.class, respListener::actionGet);
+        var exception = expectThrows(ElasticsearchException.class, () -> respListener.actionGet(TIMEOUT));
         assertThat(exception.getMessage(), is("No model information found for a concurrent create model execution for model id [modelId]"));
     }
 
     public void testCheckForExistingTaskReturnsTask() {
-        var client = mock(Client.class);
-        prepareTasksResponse(client, List.of(getTaskInfo()));
+        var client = mockClientWithTasksResponse(getTaskInfoListOfOne(), threadPool);
 
         TrainedModelConfig trainedModel = TrainedModelConfigTests.createTestInstance("modelId")
             .setTags(Collections.singletonList("prepackaged"))
@@ -182,34 +199,10 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         prepareGetTrainedModelResponse(client, List.of(trainedModel));
 
         var respListener = new PlainActionFuture<PutTrainedModelAction.Response>();
-        TransportPutTrainedModelAction.checkForExistingTask(client, "modelId", true, respListener, new PlainActionFuture<>());
+        TransportPutTrainedModelAction.checkForExistingTask(client, "modelId", true, respListener, new PlainActionFuture<>(), TIMEOUT);
 
-        var returnedModel = respListener.actionGet();
+        var returnedModel = respListener.actionGet(TIMEOUT);
         assertThat(returnedModel.getResponse().getModelId(), is(trainedModel.getModelId()));
-    }
-
-    private static void prepareTasksResponse(Client client, List<TaskInfo> taskInfo) {
-        setupClusterClient(client);
-
-        var listTasksResponse = mock(ListTasksResponse.class);
-        when(listTasksResponse.getTasks()).thenReturn(taskInfo);
-
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<ListTasksResponse> actionListener = (ActionListener<ListTasksResponse>) invocationOnMock.getArguments()[2];
-            actionListener.onResponse(listTasksResponse);
-
-            return Void.TYPE;
-        }).when(client).execute(same(ListTasksAction.INSTANCE), any(), any());
-    }
-
-    private static void setupClusterClient(Client client) {
-        var cluster = mock(ClusterAdminClient.class);
-        var admin = mock(AdminClient.class);
-
-        when(client.admin()).thenReturn(admin);
-        when(admin.cluster()).thenReturn(cluster);
-        when(cluster.prepareListTasks()).thenReturn(new ListTasksRequestBuilder(client, ListTasksAction.INSTANCE));
     }
 
     private static void prepareGetTrainedModelResponse(Client client, List<TrainedModelConfig> trainedModels) {
@@ -225,22 +218,6 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
 
             return Void.TYPE;
         }).when(client).execute(same(GetTrainedModelsAction.INSTANCE), any(), any());
-    }
-
-    private static TaskInfo getTaskInfo() {
-        return new TaskInfo(
-            new TaskId("test", 123),
-            "test",
-            "test",
-            "test",
-            null,
-            0,
-            0,
-            true,
-            false,
-            new TaskId("test", 456),
-            Collections.emptyMap()
-        );
     }
 
     @Override

@@ -138,3 +138,20 @@ FROM ul_logs
 2017-11-10T20:33:06.000Z |  5480608687137202404 | 5.0E18
 2017-11-10T20:34:43.000Z | 17764691215469285192 | 1.75E19
 ;
+
+toDegrees
+FROM ul_logs | WHERE bytes_in == bytes_out | EVAL deg = TO_DEGREES(bytes_in) | KEEP bytes_in, deg
+;
+
+         bytes_in:ul | deg:double
+16002960716282089759 | 9.169021087566165E20
+;
+
+
+toRadians
+FROM ul_logs | WHERE bytes_in == bytes_out | EVAL rad = TO_RADIANS(bytes_in) | KEEP bytes_in, rad
+;
+
+         bytes_in:ul | rad:double
+16002960716282089759 | 2.79304354566432608E17
+;

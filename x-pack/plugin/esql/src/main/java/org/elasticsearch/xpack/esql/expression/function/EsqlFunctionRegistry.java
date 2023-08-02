@@ -19,10 +19,12 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
@@ -143,10 +145,12 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
             new FunctionDefinition[] {
                 def(ToBoolean.class, ToBoolean::new, "to_boolean", "to_bool"),
                 def(ToDatetime.class, ToDatetime::new, "to_datetime", "to_dt"),
+                def(ToDegrees.class, ToDegrees::new, "to_degrees"),
                 def(ToDouble.class, ToDouble::new, "to_double", "to_dbl"),
                 def(ToIP.class, ToIP::new, "to_ip"),
                 def(ToInteger.class, ToInteger::new, "to_integer", "to_int"),
                 def(ToLong.class, ToLong::new, "to_long"),
+                def(ToRadians.class, ToRadians::new, "to_radians"),
                 def(ToString.class, ToString::new, "to_string", "to_str"),
                 def(ToUnsignedLong.class, ToUnsignedLong::new, "to_unsigned_long", "to_ulong", "to_ul"),
                 def(ToVersion.class, ToVersion::new, "to_version", "to_ver"), },

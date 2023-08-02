@@ -208,7 +208,6 @@ row a = [1.1, 2.1, 2.1] | eval da = mv_dedupe(a);
 [1.1, 2.1, 2.1] | [1.1, 2.1]
 ;
 
-
 autoBucket
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
@@ -377,4 +376,30 @@ ROW y=12.9, x=.6
 y:double | x:double | atan2:double
     12.9 |      0.6 | 1.5243181954438936
 // end::atan2-result[]
+;
+
+toDegrees
+// tag::to_degrees[]
+ROW rad = [1.57, 3.14, 4.71]
+| EVAL deg = TO_DEGREES(rad)
+// end::to_degrees[]
+;
+
+// tag::to_degrees-result[]
+        rad:double | deg:double
+[1.57, 3.14, 4.71] | [89.95437383553924, 179.9087476710785, 269.86312150661774]
+// end::to_degrees-result[]
+;
+
+toRadians
+// tag::to_radians[]
+ROW deg = [90.0, 180.0, 270.0]
+| EVAL rad = TO_RADIANS(deg)
+// end::to_radians[]
+;
+
+// tag::to_radians-result[]
+          deg:double | rad:double
+[90.0, 180.0, 270.0] | [1.5707963267948966, 3.141592653589793, 4.71238898038469]
+// end::to_radians-result[]
 ;

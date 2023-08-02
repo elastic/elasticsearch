@@ -53,10 +53,12 @@ these functions:
 * <<esql-tau>>
 * <<esql-to_boolean>>
 * <<esql-to_datetime>>
+* <<esql-to_degrees>>
 * <<esql-to_double>>
 * <<esql-to_integer>>
 * <<esql-to_ip>>
 * <<esql-to_long>>
+* <<esql-to_radians>>
 * <<esql-to_string>>
 * <<esql-to_unsigned_long>>
 * <<esql-to_version>>
@@ -107,10 +109,12 @@ include::functions/tanh.asciidoc[]
 include::functions/tau.asciidoc[]
 include::functions/to_boolean.asciidoc[]
 include::functions/to_datetime.asciidoc[]
+include::functions/to_degrees.asciidoc[]
 include::functions/to_double.asciidoc[]
 include::functions/to_integer.asciidoc[]
 include::functions/to_ip.asciidoc[]
 include::functions/to_long.asciidoc[]
+include::functions/to_radians.asciidoc[]
 include::functions/to_string.asciidoc[]
 include::functions/to_unsigned_long.asciidoc[]
 include::functions/to_version.asciidoc[]

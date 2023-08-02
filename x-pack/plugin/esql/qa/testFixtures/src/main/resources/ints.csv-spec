@@ -451,3 +451,21 @@ ROW y=2, x=12 | EVAL atan2=ATAN2(y, x);
 y:integer | x:integer | atan2:double
         2 |        12 | 0.16514867741462683
 ;
+
+toDegrees
+ROW rad = [1, 2, 3, 4]
+| EVAL deg = TO_DEGREES(rad)
+;
+
+   rad:integer | deg:double
+  [1, 2, 3, 4] | [57.29577951308232, 114.59155902616465, 171.88733853924697, 229.1831180523293]
+;
+
+toRadians
+ROW deg = [90, 180, 270]
+| EVAL rad = TO_RADIANS(deg)
+;
+
+   deg:integer | rad:double
+[90, 180, 270] | [1.5707963267948966, 3.141592653589793, 4.71238898038469]
+;

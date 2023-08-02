@@ -61,7 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -194,17 +193,10 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
 
         // Ignore PutMultipartObject for comparison since failed multipart upload requests (null response) are not counted for sdk stats
-        Map<String, Long> sdkRequestCounts = repositoryStats.requestCounts.entrySet()
-            .stream()
-            .filter(entry -> false == "PutMultipartObject".equals(entry.getKey()))
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
-
+        Map<String, Long> sdkRequestCounts = repositoryStats.requestCounts;
         assertThat(sdkRequestCounts.get("AbortMultipartObject"), greaterThan(0L));
 
-        final Map<String, Long> mockCalls = getMockRequestCounts().entrySet()
-            .stream()
-            .filter(entry -> false == "PutMultipartObject".equals(entry.getKey()))
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+        final Map<String, Long> mockCalls = getMockRequestCounts();
 
         String assertionErrorMsg = String.format("SDK sent [%s] calls and handler measured [%s] calls", sdkRequestCounts, mockCalls);
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
@@ -326,14 +318,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         @Override
         public void handle(final HttpExchange exchange) throws IOException {
-            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI();
-            if (shouldFailCompleteMultipartUploadRequest.get() && Regex.simpleMatch("POST /*/*?uploadId=*", request)) {
-                try (exchange) {
-                    drainInputStream(exchange.getRequestBody());
-                    exchange.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
-                    return;
-                }
-            }
             validateAuthHeader(exchange);
             super.handle(exchange);
         }
@@ -377,10 +361,26 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
      * HTTP handler that tracks the number of requests performed against S3.
      */
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
-    private static class S3StatsCollectorHttpHandler extends HttpStatsCollectorHandler {
+    private class S3StatsCollectorHttpHandler extends HttpStatsCollectorHandler {
 
         S3StatsCollectorHttpHandler(final HttpHandler delegate) {
             super(delegate);
+        }
+
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI();
+            if (shouldFailCompleteMultipartUploadRequest.get() && Regex.simpleMatch("POST /*/*?uploadId=*", request)) {
+                try (exchange) {
+                    drainInputStream(exchange.getRequestBody());
+                    exchange.sendResponseHeaders(
+                        randomFrom(RestStatus.BAD_REQUEST.getStatus(), RestStatus.TOO_MANY_REQUESTS.getStatus()),
+                        -1
+                    );
+                    return;
+                }
+            }
+            super.handle(exchange);
         }
 
         @Override

@@ -34,7 +34,7 @@ public class RestPostSecretsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final String content = request.content().utf8ToString();
+        final String content = request.requiredContent().utf8ToString();
         return restChannel -> client.execute(
             PostSecretAction.INSTANCE,
             new PostSecretRequest(content, request.getXContentType()),

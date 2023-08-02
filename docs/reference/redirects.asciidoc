@@ -1901,3 +1901,18 @@ Refer to <<data-streams-get-lifecycle,Get data stream lifecycle API>>.
 === Update the lifecycle of a data stream
 
 Refer to <<data-streams-delete-lifecycle,Update data stream lifecycle API>>.
+
+[role="exclude",id="get-synonyms"]
+=== Get synonyms set API
+
+See <<get-synonyms-set>>
+
+[role="exclude",id="delete-synonyms"]
+=== Delete synonyms sets API
+
+See <<delete-synonyms-set>>
+
+[role="exclude",id="put-synonyms"]
+=== Create or delete synonyms sets API
+
+See <<put-synonyms-set>>

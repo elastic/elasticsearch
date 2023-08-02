@@ -32,6 +32,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -150,7 +151,11 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             targetNode,
             OPEN_EXCHANGE_ACTION_NAME,
             new OpenExchangeRequest(sessionId, exchangeBuffer),
-            new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> TransportResponse.Empty.INSTANCE)
+            new ActionListenerResponseHandler<>(
+                listener.map(unused -> null),
+                in -> TransportResponse.Empty.INSTANCE,
+                TransportResponseHandler.TRANSPORT_WORKER
+            )
         );
     }
 
@@ -263,7 +268,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 new ExchangeRequest(exchangeId, allSourcesFinished),
                 parentTask,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(listener, ExchangeResponse::new)
+                new ActionListenerResponseHandler<>(listener, ExchangeResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
             );
         }
     }

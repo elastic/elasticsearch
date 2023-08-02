@@ -55,6 +55,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -203,7 +204,11 @@ public class ComputeService {
                             new DataNodeRequest(sessionId, configuration, targetNode.shardIds, targetNode.aliasFilters, dataNodePlan),
                             rootTask,
                             TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(targetNodeListener, DataNodeResponse::new)
+                            new ActionListenerResponseHandler<>(
+                                targetNodeListener,
+                                DataNodeResponse::new,
+                                TransportResponseHandler.TRANSPORT_WORKER
+                            )
                         );
                     }, targetNodeListener::onFailure)
                 );
@@ -371,7 +376,11 @@ public class ComputeService {
                 searchShardsRequest,
                 parentTask,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(preservingContextListener, SearchShardsResponse::new)
+                new ActionListenerResponseHandler<>(
+                    preservingContextListener,
+                    SearchShardsResponse::new,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                )
             );
         }
     }

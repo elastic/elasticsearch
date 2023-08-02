@@ -55,6 +55,11 @@ public class DriverTaskRunner {
                     TransportRequestOptions.EMPTY,
                     new TransportResponseHandler.Empty() {
                         @Override
+                        public Executor executor(ThreadPool threadPool) {
+                            return TRANSPORT_WORKER;
+                        }
+
+                        @Override
                         public void handleResponse(TransportResponse.Empty unused) {
                             driverListener.onResponse(null);
                         }

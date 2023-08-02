@@ -586,7 +586,7 @@ public class ActionModule extends AbstractModule {
     public void copyRequestHeadersToThreadContext(HttpPreRequest request, ThreadContext threadContext) {
         // the request's thread-context must always be populated (by calling this method) before undergoing any request related processing
         // we use this opportunity to first record the request processing start time
-        threadContext.putTransient(Task.TRACE_START_TIME, Instant.ofEpochMilli(threadPool.absoluteTimeInMillis()));
+        threadContext.putTransient(Task.TRACE_START_TIME, Instant.ofEpochMilli(System.currentTimeMillis()));
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getHeaders().get(name);

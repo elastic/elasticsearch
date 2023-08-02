@@ -190,26 +190,18 @@ public class RemoteConnectionManager implements ConnectionManager {
         return Optional.empty();
     }
 
-    public record RemoteClusterInfoTuple(String clusterAlias, SecureString credentials) implements Releasable {
+    public record RemoteClusterInfoTuple(String clusterAlias, SecureString credentials) {
         @Override
         public String toString() {
-            return "RemoteClusterCredentials{clusterAlias='" + clusterAlias + "', credentials='::es_redacted::'}";
-        }
-
-        @Override
-        public void close() {
-            if (credentials != null) {
-                credentials.close();
-            }
+            return "RemoteClusterInfoTuple{clusterAlias='" + clusterAlias + "', credentials='::es_redacted::'}";
         }
     }
 
     /**
-     * This method returns a remote cluster alias for the given transport connection if it targets a node in the remote cluster.
-     * This method will return an optional empty in case the connection targets the local node or the node in the local cluster.
+     * This method returns information (alias and credentials) for remote cluster for the given transport connection.
+     * Either or both of alias and credentials can be null depending on the connection.
      *
      * @param connection the transport connection for which to resolve a remote cluster alias
-     * @return a cluster alias if the connection target a node in the remote cluster, otherwise an empty result
      */
     public static RemoteClusterInfoTuple resolveRemoteClusterInfoTuple(Transport.Connection connection) {
         Transport.Connection unwrapped = TransportService.unwrapConnection(connection);

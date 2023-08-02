@@ -35,11 +35,45 @@ Requires the `manage_search_query_rules` privilege.
 
 The following example lists all configured query rulesets:
 
+////
+
+[source,console]
+--------------------------------------------------
+PUT _query_rules/ruleset-1
+{
+    "rules": [
+        {
+            "rule_id": "rule-1",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "exact",
+                    "metadata": "query_string",
+                    "values": [ "marvel" ]
+                }
+            ],
+            "actions": {
+                "ids": ["id1"]
+            }
+        }
+    ]
+}
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _query_rules/my-ruleset
+--------------------------------------------------
+// TEARDOWN
+
+////
+
 [source,console]
 ----
 GET _query_rules/
 ----
-// TEST[skip:TBD]
+
 
 The following example lists the first three query rulesets:
 
@@ -47,7 +81,7 @@ The following example lists the first three query rulesets:
 ----
 GET _query_rules/?from=0&size=3
 ----
-// TEST[skip:TBD]
+// TEST[continued]
 
 A sample response:
 

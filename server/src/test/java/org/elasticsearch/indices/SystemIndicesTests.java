@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -18,6 +19,8 @@ import java.util.Map;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -252,5 +255,39 @@ public class SystemIndicesTests extends ESTestCase {
                 containsString(firstFeature)
             )
         );
+    }
+
+    public void testMappingsVersions() {
+        SystemIndexDescriptor unmanaged = SystemIndexDescriptorUtils.createUnmanaged(".unmanaged-*", "unmanaged");
+        SystemIndexDescriptor managed = SystemIndexDescriptor.builder()
+            .setIndexPattern(".managed-*")
+            .setPrimaryIndex(".managed-primary")
+            .setVersionMetaKey("version")
+            .setOrigin("system")
+            .setSettings(Settings.EMPTY)
+            .setMappings("""
+                  {
+                    "_meta": {
+                      "version": "8.0.0",
+                      "system_index_mappings_version": 3
+                    },
+                    "properties": {
+                      "name": { "type": "text" }
+                    }
+                  }
+                """)
+            .build();
+
+        SystemIndices systemIndices = new SystemIndices(
+            List.of(
+                new SystemIndices.Feature("unmanaged", "unmanaged", List.of(unmanaged)),
+                new SystemIndices.Feature("managed", "managed", List.of(managed))
+            )
+        );
+
+        Map<String, SystemIndexDescriptor.MappingVersion> mappingsVersions = systemIndices.getMappingsVersions();
+        assertThat(mappingsVersions.keySet(), containsInAnyOrder(".tasks*", ".managed-*", ".synonyms-*"));
+        assertThat(mappingsVersions.keySet(), not(contains("unmanaged")));
+        assertThat(mappingsVersions.get(".managed-*"), equalTo(new SystemIndexDescriptor.MappingVersion(3, 3387579)));
     }
 }

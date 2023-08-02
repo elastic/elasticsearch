@@ -23,9 +23,11 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.synonyms.SynonymsAPI;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -48,7 +50,6 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
     }
 
     /** Check that the reset method cleans up a feature */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97780")
     public void testResetSystemIndices() throws Exception {
         String systemIndex1 = ".test-system-idx-1";
         String systemIndex2 = ".second-test-system-idx-1";
@@ -72,16 +73,16 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
 
         // call the reset API
         ResetFeatureStateResponse apiResponse = client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).get();
-        assertThat(
-            apiResponse.getFeatureStateResetStatuses(),
-            containsInAnyOrder(
-                ResetFeatureStateResponse.ResetFeatureStateStatus.success("SystemIndexTestPlugin"),
-                ResetFeatureStateResponse.ResetFeatureStateStatus.success("SecondSystemIndexTestPlugin"),
-                ResetFeatureStateResponse.ResetFeatureStateStatus.success("EvilSystemIndexTestPlugin"),
-                ResetFeatureStateResponse.ResetFeatureStateStatus.success("tasks"),
-                ResetFeatureStateResponse.ResetFeatureStateStatus.success("synonyms")
-            )
+        Collection<ResetFeatureStateResponse.ResetFeatureStateStatus> successStatuses = Arrays.asList(
+            ResetFeatureStateResponse.ResetFeatureStateStatus.success("SystemIndexTestPlugin"),
+            ResetFeatureStateResponse.ResetFeatureStateStatus.success("SecondSystemIndexTestPlugin"),
+            ResetFeatureStateResponse.ResetFeatureStateStatus.success("EvilSystemIndexTestPlugin"),
+            ResetFeatureStateResponse.ResetFeatureStateStatus.success("tasks")
         );
+        if (SynonymsAPI.isEnabled()) {
+            successStatuses.add(ResetFeatureStateResponse.ResetFeatureStateStatus.success("synonyms"));
+        }
+        assertThat(apiResponse.getFeatureStateResetStatuses(), containsInAnyOrder(successStatuses.toArray()));
 
         // verify that both indices are gone
         Exception e1 = expectThrows(IndexNotFoundException.class, () -> indicesAdmin().prepareGetIndex().addIndices(systemIndex1).get());

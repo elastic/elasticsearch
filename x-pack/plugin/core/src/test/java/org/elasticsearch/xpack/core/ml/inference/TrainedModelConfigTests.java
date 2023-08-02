@@ -456,6 +456,10 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             builder.setModelType(null);
             builder.setLocation(null);
         }
+        if(version.before(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
+            builder.setPerDeploymentMemoryBytes(0);
+            builder.setPerAllocationMemoryBytes(0);
+        }
         if (instance.getInferenceConfig() instanceof NlpConfig nlpConfig) {
             builder.setInferenceConfig(InferenceConfigItemTestCase.mutateForVersion(nlpConfig, version));
         }

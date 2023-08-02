@@ -20,18 +20,20 @@ package co.elastic.elasticsearch.stateless.lucene;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
-import org.apache.lucene.store.BaseDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.ImmutableDirectoryException;
 import org.elasticsearch.index.store.Store;
 
@@ -46,24 +48,30 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongFunction;
 import java.util.stream.Stream;
 
-public class SearchDirectory extends BaseDirectory {
+public class SearchDirectory extends ByteSizeDirectory {
 
     private final ShardId shardId;
 
     private final SharedBlobCacheService<FileCacheKey> cacheService;
 
     private final SetOnce<LongFunction<BlobContainer>> blobContainer = new SetOnce<>();
-
     private final AtomicReference<String> corruptionMarker = new AtomicReference<>();
+    private final LockFactory lockFactory = new SingleInstanceLockFactory();
 
     private final AtomicReference<Thread> updatingCommitThread = Assertions.ENABLED ? new AtomicReference<>() : null;// only used in asserts
     private final AtomicReference<StatelessCompoundCommit> currentCommit = new AtomicReference<>(null);
     private volatile Map<String, BlobLocation> currentMetadata = Map.of();
+    private volatile long currentDataSetSizeInBytes = 0L;
 
     public SearchDirectory(SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
-        super(new SingleInstanceLockFactory());
+        super(EmptyDirectory.INSTANCE);
         this.cacheService = cacheService;
         this.shardId = shardId;
+    }
+
+    @Override
+    public Lock obtainLock(String name) throws IOException {
+        return lockFactory.obtainLock(this, name);
     }
 
     public void setBlobContainer(LongFunction<BlobContainer> blobContainer) {
@@ -73,7 +81,7 @@ public class SearchDirectory extends BaseDirectory {
     public boolean containsFile(String name) {
         if (currentMetadata.isEmpty()) {
             try {
-                for (String s : EmptyDirectory.INSTANCE.listAll()) {
+                for (String s : super.listAll()) {
                     if (name.equals(s)) {
                         return true;
                     }
@@ -100,8 +108,13 @@ public class SearchDirectory extends BaseDirectory {
         try {
             // TODO: we only accumulate files as we see new commits, we need to start cleaning this map once we add deletes
             final Map<String, BlobLocation> updated = new HashMap<>(currentMetadata);
-            updated.putAll(newCommit.commitFiles());
+            long commitSize = 0L;
+            for (var entry : newCommit.commitFiles().entrySet()) {
+                updated.put(entry.getKey(), entry.getValue());
+                commitSize += entry.getValue().fileLength();
+            }
             currentMetadata = Map.copyOf(updated);
+            currentDataSetSizeInBytes = commitSize;
             // TODO: Commits may not arrive in order. However, the maximum commit we have received is the commit of this directory since the
             // TODO: files always accumulate
             currentCommit.getAndAccumulate(newCommit, (current, contender) -> {
@@ -147,7 +160,7 @@ public class SearchDirectory extends BaseDirectory {
         final var current = currentMetadata;
         final String[] list;
         if (current.isEmpty()) {
-            list = EmptyDirectory.INSTANCE.listAll();
+            list = super.listAll();
         } else {
             list = current.keySet().stream().sorted(String::compareTo).toArray(String[]::new);
         }
@@ -166,7 +179,7 @@ public class SearchDirectory extends BaseDirectory {
     public long fileLength(String name) throws IOException {
         final var current = currentMetadata;
         if (current.isEmpty()) {
-            return EmptyDirectory.INSTANCE.fileLength(name);
+            return super.fileLength(name);
         }
         BlobLocation location = current.get(name);
         if (location == null) {
@@ -212,7 +225,7 @@ public class SearchDirectory extends BaseDirectory {
     public IndexInput openInput(String name, IOContext context) throws IOException {
         final var current = currentMetadata;
         if (current.isEmpty()) {
-            return EmptyDirectory.INSTANCE.openInput(name, context);
+            return super.openInput(name, context);
         }
         final BlobLocation location = current.get(name);
         if (location == null) {
@@ -231,7 +244,7 @@ public class SearchDirectory extends BaseDirectory {
 
     @Override
     public void close() throws IOException {
-
+        // do not close EmptyDirectory
     }
 
     @Override
@@ -245,6 +258,18 @@ public class SearchDirectory extends BaseDirectory {
 
     public ShardId getShardId() {
         return shardId;
+    }
+
+    @Override
+    public long estimateSizeInBytes() {
+        // size is 0 bytes since search directory has no files on disk
+        return 0L;
+    }
+
+    @Override
+    public long estimateDataSetSizeInBytes() {
+        // data set size is equal to the size of the last commit fetched from the object store
+        return currentDataSetSizeInBytes;
     }
 
     private static UnsupportedOperationException unsupportedException() {

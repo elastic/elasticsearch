@@ -52,7 +52,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Files;
@@ -552,7 +551,6 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         return response.isAcknowledged();
     };
 
-    @TestLogging(reason = "dd", value = "co.elastic.elasticsearch.stateless.lucene.IndexDirectory:TRACE")
     public void testSegmentsFilesDeletedAfterUpload() throws Exception {
         startMasterOnlyNode();
         startIndexNode();

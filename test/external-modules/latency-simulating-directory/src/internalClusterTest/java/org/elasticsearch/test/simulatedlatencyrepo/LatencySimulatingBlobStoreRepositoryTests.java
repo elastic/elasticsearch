@@ -16,9 +16,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
@@ -26,6 +28,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
@@ -72,8 +75,15 @@ public class LatencySimulatingBlobStoreRepositoryTests extends ESSingleNodeTestC
     }
 
     @Override
+    protected Settings nodeSettings() {
+        Settings.Builder builder = Settings.builder();
+        builder.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        return builder.build();
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(TestPlugin.class, SearchableSnapshots.class);
+        return List.of(TestPlugin.class, LocalStateSearchableSnapshots.class);
     }
 
     public void testRetrieveSnapshots() throws Exception {
@@ -132,6 +142,6 @@ public class LatencySimulatingBlobStoreRepositoryTests extends ESSingleNodeTestC
         var searchResponse = client.prepareSearch("test-idx").setQuery(QueryBuilders.termQuery("text", "sometext")).get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
-        assertThat(COUNTS.intValue(), greaterThan(0));
+        assertThat(COUNTS.intValue(), greaterThan(COUNTS.intValue()));
     }
 }

@@ -9,8 +9,6 @@
 package org.elasticsearch.test.simulatedlatencyrepo;
 
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
@@ -20,11 +18,9 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.Map;
 
-public class SimulatedLatencyRespositoryPlugin extends Plugin implements RepositoryPlugin {
+public class LatencySimulatingRepositoryPlugin extends Plugin implements RepositoryPlugin {
 
     public static final String TYPE = "latency-simulating";
 
@@ -51,9 +47,13 @@ public class SimulatedLatencyRespositoryPlugin extends Plugin implements Reposit
     }
 
     private static Runnable buildSimulator(Settings settings) {
+        long sleepyTime = settings.getAsLong("latency", 0L);
+        if (sleepyTime == 0L) {
+            return () -> {};
+        }
         return () -> {
             try {
-                Thread.sleep(250);
+                Thread.sleep(sleepyTime);
             } catch (InterruptedException e) {
                 // ignore
             }

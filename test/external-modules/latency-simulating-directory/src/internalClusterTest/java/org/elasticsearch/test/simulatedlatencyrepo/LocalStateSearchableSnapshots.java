@@ -9,7 +9,9 @@ package org.elasticsearch.test.simulatedlatencyrepo;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
@@ -27,7 +29,10 @@ public class LocalStateSearchableSnapshots extends LocalStateCompositeXPackPlugi
 
             @Override
             protected XPackLicenseState getLicenseState() {
-                return LocalStateSearchableSnapshots.this.getLicenseState();
+                return new XPackLicenseState(
+                    () -> getEpochMillisSupplier().getAsLong(),
+                    new XPackLicenseStatus(License.OperationMode.TRIAL, true, null)
+                );
             }
 
         };

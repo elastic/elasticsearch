@@ -16,7 +16,7 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 
 dependencies {
   internalClusterTestImplementation project(path: ":x-pack:plugin:core")
-  internalClusterTestImplementation(testArtifact(project(path: ":x-pack:plugin:core")))
+  internalClusterTestImplementation(testArtifact(project(":x-pack:plugin:core")))
   internalClusterTestImplementation project(path: ":x-pack:plugin:searchable-snapshots")
   internalClusterTestImplementation project(path: ":x-pack:plugin:blob-cache")
 }

@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.utils.MlConfigVersionUtils;
 
 import java.io.IOException;
+import java.util.Set;
 
 public class StartDataFrameAnalyticsActionTaskParamsTests extends AbstractXContentSerializingTestCase<
     StartDataFrameAnalyticsAction.TaskParams> {
@@ -26,7 +28,9 @@ public class StartDataFrameAnalyticsActionTaskParamsTests extends AbstractXConte
     protected StartDataFrameAnalyticsAction.TaskParams createTestInstance() {
         return new StartDataFrameAnalyticsAction.TaskParams(
             randomAlphaOfLength(10),
-            MlConfigVersionUtils.randomVersion(random()),
+            // Remove V_8_10_0 from the possible versions as it is treated specially within MConfigVersion
+            // and will cause tests that round-trip XContent to fail
+            MlConfigVersionUtils.randomVersion(Set.of(MlConfigVersion.V_8_10_0)),
             randomBoolean()
         );
     }

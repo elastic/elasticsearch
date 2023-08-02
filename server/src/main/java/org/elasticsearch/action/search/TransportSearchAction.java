@@ -538,10 +538,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
                 @Override
                 public void onFailure(Exception e) {
-                    AtomicReference<SearchResponse.Cluster> clusterRef = clusters.getCluster(clusterAlias);
                     ShardSearchFailure failure = new ShardSearchFailure(e);
                     logCCSError(failure, clusterAlias, skipUnavailable);
-                    ccsClusterInfoUpdate(failure, clusterRef, skipUnavailable);
+                    ccsClusterInfoUpdate(failure, clusters.getCluster(clusterAlias), skipUnavailable);
                     if (skipUnavailable) {
                         listener.onResponse(SearchResponse.empty(timeProvider::buildTookInMillis, clusters));
                     } else {
@@ -748,7 +747,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
-                // TODO: in CCS fail fast ticket we may need to fail the query if the cluster is marked as FAILED
+                // TODO: in CCS fail fast ticket we may need to fail the query if the cluster gets marked as FAILED
                 ccsClusterInfoUpdate(searchResponse, cluster, skipUnavailable);
                 searchResponseMerger.add(searchResponse);
             }
@@ -780,9 +779,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchResponse.Cluster orig = clusterRef.get();
             String clusterAlias = orig.getClusterAlias();
             List<ShardSearchFailure> failures;
-            List<ShardSearchFailure> origFailures = orig.getFailures();
-            if (origFailures != null) {
-                failures = new ArrayList<>(origFailures);
+            if (orig.getFailures() != null) {
+                failures = new ArrayList<>(orig.getFailures());
             } else {
                 failures = new ArrayList<>(1);
             }
@@ -831,11 +829,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         boolean swapped;
         do {
             SearchResponse.Cluster orig = clusterRef.get();
-            String clusterAlias = orig.getClusterAlias();
-            String indexExpression = orig.getIndexExpression();
             SearchResponse.Cluster updated = new SearchResponse.Cluster(
-                clusterAlias,
-                indexExpression,
+                orig.getClusterAlias(),
+                orig.getIndexExpression(),
                 status,
                 searchResponse.getTotalShards(),
                 searchResponse.getSuccessfulShards(),

@@ -472,7 +472,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     /**
      * Holds info about the clusters that the search was executed on: how many in total, how many of them were successful
-     * and how many of them were skipped.
+     * and how many of them were skipped and further details in a Map of Cluster objects
+     * (when doing a cross-cluster search).
      */
     public static class Clusters implements ToXContentFragment, Writeable {
 
@@ -488,6 +489,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         private final int skipped;    // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
 
         // key to map is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
+        // the Map itself is immutable after construction - all Clusters will be accounted for at the start of the search
+        // updates to the Cluster occur by CAS swapping in new Cluster objects into the AtomicReference in the map.
         private final Map<String, AtomicReference<Cluster>> clusterInfo;
 
         // this field is not Writeable, as it is only needed on the initial "querying cluster" coordinator of a CCS search
@@ -699,16 +702,17 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     /**
      * Represents the search metadata about a particular cluster involved in a cross-cluster search.
-     * The Cluster object can represent both the local cluster and a remote cluster.
+     * The Cluster object can represent either the local cluster or a remote cluster.
      * For the local cluster, clusterAlias should be specified as RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.
      * Its XContent is put into the "details" section the "_clusters" entry in the SearchResponse.
-     * This is not an immutable class, since it needs to be updated as the search progresses
-     * (especially important for async CCS searches).
+     * This is an immutable class, so updates made during the search progress (especially important for async
+     * CCS searches) must be done by replacing the Cluster object with a new one.
+     * See the Clusters clusterInfo Map for details.
      */
     public static class Cluster implements ToXContentFragment, Writeable {
         private final String clusterAlias;
         private final String indexExpression; // original index expression from the user for this cluster
-        private final Status status;  // can be updated in different threads
+        private final Status status;
         private final Integer totalShards;
         private final Integer successfulShards;
         private final Integer skippedShards;
@@ -734,11 +738,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         /**
-         * If the user provided "*,remote1:blogs*,remote2:web_traffic" as the multi-target syntax, then three
-         * Cluster objects would be created:
-         * 1. Cluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "*")
-         * 2. Cluster("remote1", "blogs*")
-         * 3. Cluster("remote2", "web_traffic")
+         * Create a Cluster object representing the initial RUNNING state of a Cluster.
          *
          * @param clusterAlias clusterAlias as defined in the remote cluster settings or RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
          *                     for the local cluster
@@ -748,6 +748,16 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this(clusterAlias, indexExpression, Status.RUNNING, null, null, null, null, null, null, false);
         }
 
+        /**
+         * Create a Cluster with a new Status and one or more ShardSearchFailures. This constructor
+         * should only be used for fatal failures where shard counters (total, successful, skipped, failed)
+         * are not known (unset).
+         * @param clusterAlias clusterAlias as defined in the remote cluster settings or RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
+         *                     for the local cluster
+         * @param indexExpression the original (not resolved/concrete) indices expression provided for this cluster.
+         * @param status current status of the search on this Cluster
+         * @param failures list of failures that occurred during the search on this Cluster
+         */
         public Cluster(String clusterAlias, String indexExpression, Status status, List<ShardSearchFailure> failures) {
             this(clusterAlias, indexExpression, status, null, null, null, null, failures, null, false);
         }
@@ -764,6 +774,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             TimeValue took,
             boolean timedOut
         ) {
+            assert clusterAlias != null : "clusterAlias cannot be null";
+            assert indexExpression != null : "indexExpression of Cluster cannot be null";
+            assert status != null : "status of Cluster cannot be null";
             this.clusterAlias = clusterAlias;
             this.indexExpression = indexExpression;
             this.status = status;

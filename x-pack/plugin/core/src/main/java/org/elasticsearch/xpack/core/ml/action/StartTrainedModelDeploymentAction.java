@@ -379,7 +379,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         }
 
         public static final Version VERSION_INTRODUCED = Version.V_8_0_0;
-        public static final Version VERSION_PER_ALLOCATION_MEMORY = TransportVersion.V_8_8_0;
+        public static final Version VERSION_PER_ALLOCATION_MEMORY = Version.V_8_8_0;
         private static final ParseField MODEL_BYTES = new ParseField("model_bytes");
         public static final ParseField NUMBER_OF_ALLOCATIONS = new ParseField("number_of_allocations");
         public static final ParseField THREADS_PER_ALLOCATION = new ParseField("threads_per_allocation");
@@ -460,8 +460,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             Integer legacyModelThreads,
             Integer legacyInferenceThreads,
             Priority priority,
-            long perDeploymentMemoryBytes,
-            long perAllocationMemoryBytes
+            Long perDeploymentMemoryBytes,
+            Long perAllocationMemoryBytes
         ) {
             this(
                 modelId,
@@ -556,7 +556,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                     numberOfAllocations
                 ) + (cacheSize.getBytes() - modelBytes);
             }
-            return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(modelId, modelBytes);
+            return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(modelId, modelBytes, perDeploymentMemoryBytes,
+                perAllocationMemoryBytes, numberOfAllocations);
         }
 
         public Version getMinimalSupportedVersion() {
@@ -579,8 +580,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
                 out.writeString(deploymentId);
             }
-            if (out.getTransportVersion().onOrAfter(VERSION_PER_ALLOCATION_MEMORY)) {
-                out.writeLong(perAllocationModelBytes);
+            // TODO: make the version a constant and v8.10
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+                out.writeLong(perDeploymentMemoryBytes);
+                out.writeLong(perAllocationMemoryBytes);
             }
         }
 
@@ -597,7 +600,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 builder.field(CACHE_SIZE.getPreferredName(), cacheSize.getStringRep());
             }
             builder.field(PRIORITY.getPreferredName(), priority);
-            builder.field(PER_ALLOCATION_MEMORY_BYTES.getPreferredName(), perAllocationModelBytes);
+            builder.field(PER_DEPLOYMENT_MEMORY_BYTES.getPreferredName(), perDeploymentMemoryBytes);
+            builder.field(PER_ALLOCATION_MEMORY_BYTES.getPreferredName(), perAllocationMemoryBytes);
             builder.endObject();
             return builder;
         }
@@ -613,7 +617,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 queueCapacity,
                 cacheSize,
                 priority,
-                perAllocationModelBytes
+                perDeploymentMemoryBytes,
+                perAllocationMemoryBytes
             );
         }
 
@@ -631,7 +636,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 && Objects.equals(cacheSize, other.cacheSize)
                 && queueCapacity == other.queueCapacity
                 && priority == other.priority
-                && perAllocationModelBytes == other.perAllocationModelBytes;
+                && perDeploymentMemoryBytes == other.perDeploymentMemoryBytes
+                && perAllocationMemoryBytes == other.perAllocationMemoryBytes;
         }
 
         @Override

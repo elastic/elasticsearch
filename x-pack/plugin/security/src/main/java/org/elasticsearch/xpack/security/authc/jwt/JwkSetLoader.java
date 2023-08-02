@@ -19,6 +19,7 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
@@ -28,6 +29,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,7 +52,10 @@ public class JwkSetLoader implements Releasable {
     private final URI jwkSetPathUri;
     @Nullable
     private final CloseableHttpAsyncClient httpClient;
-    private volatile ContentAndJwksAlgs contentAndJwksAlgs = null;
+    private volatile ContentAndJwksAlgs contentAndJwksAlgs = new ContentAndJwksAlgs(
+        new byte[32],
+        new JwksAlgs(Collections.emptyList(), Collections.emptyList())
+    );
 
     public JwkSetLoader(final RealmConfig realmConfig, List<String> allowedJwksAlgsPkc, final SSLService sslService) {
         this.realmConfig = realmConfig;
@@ -70,11 +75,15 @@ public class JwkSetLoader implements Releasable {
             final PlainActionFuture<JwksAlgs> future = new PlainActionFuture<>();
             reload(future);
             // ASSUME: Blocking read operations are OK during startup
-            final Boolean isUpdated = future.actionGet() != null;
-            assert isUpdated : "initial reload should have updated the JWK set";
-        } catch (Throwable t) {
+            future.actionGet(TimeValue.timeValueMinutes(1));
+        } catch (Exception e) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Could not load JWT realm's JWK sets within 1 minute during startup.", e);
+            } else {
+                logger.warn("Could not load JWT realm's JWK sets within 1 minute during startup.");
+            }
             close();
-            throw t;
+            throw e;
         }
     }
 
@@ -139,11 +148,13 @@ public class JwkSetLoader implements Releasable {
 
     private JwksAlgs handleReloadedContentAndJwksAlgs(byte[] bytes) {
         final ContentAndJwksAlgs newContentAndJwksAlgs = parseContent(bytes);
-        if ((contentAndJwksAlgs != null && Arrays.equals(contentAndJwksAlgs.sha256, newContentAndJwksAlgs.sha256)) == false) {
+        assert newContentAndJwksAlgs != null;
+        assert contentAndJwksAlgs != null;
+        if ((Arrays.equals(contentAndJwksAlgs.sha256, newContentAndJwksAlgs.sha256)) == false) {
             logger.debug(
                 "Reloaded JWK set from sha256=[{}] to sha256=[{}]",
-                contentAndJwksAlgs == null ? "null" : MessageDigests.toHexString(contentAndJwksAlgs.sha256),
-                newContentAndJwksAlgs == null ? "null" : MessageDigests.toHexString(newContentAndJwksAlgs.sha256)
+                MessageDigests.toHexString(contentAndJwksAlgs.sha256),
+                MessageDigests.toHexString(newContentAndJwksAlgs.sha256)
             );
             contentAndJwksAlgs = newContentAndJwksAlgs;
         }

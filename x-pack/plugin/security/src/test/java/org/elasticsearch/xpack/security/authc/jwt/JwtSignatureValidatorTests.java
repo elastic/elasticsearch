@@ -192,7 +192,7 @@ public class JwtSignatureValidatorTests extends ESTestCase {
         final CyclicBarrier reloadBarrier = new CyclicBarrier(2);
         Mockito.doAnswer(invocation -> {
             safeAwait(reloadBarrier); // block here to ensure both threads have failed once
-
+            reloadAttemptCounter.getAndIncrement();
             // grab the listener that is passed to reload method and call the onResponse method to simulate a successful reload
             ActionListener<JwkSetLoader.JwksAlgs> listener = invocation.getArgument(0);
             listener.onResponse(new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList()));

@@ -267,6 +267,7 @@ public interface JwtSignatureValidator extends Releasable {
         public void validate(String tokenPrincipal, SignedJWT signedJWT, ActionListener<Void> listener) {
             // TODO: assert algorithm?
             final JwkSetLoader.ContentAndJwksAlgs contentAndJwksAlgs = jwkSetLoader.getContentAndJwksAlgs();
+            assert contentAndJwksAlgs != null;
             final JwkSetLoader.JwksAlgs jwksAlgs = contentAndJwksAlgs.jwksAlgs();
             final byte[] initialJwksVersion = contentAndJwksAlgs.sha256();
             try {
@@ -285,13 +286,10 @@ public interface JwtSignatureValidator extends Releasable {
                 );
 
                 jwkSetLoader.reload(ActionListener.wrap(reloadResult -> {
-
-                    if (initialJwksVersion != null && Arrays.equals(jwkSetLoader.getContentAndJwksAlgs().sha256(), initialJwksVersion)) {
+                    if (Arrays.equals(jwkSetLoader.getContentAndJwksAlgs().sha256(), initialJwksVersion)) {
                         logger.debug(
                             "No change in reloaded JWK set with sha256=[{}] will not retry signature verification",
-                            jwkSetLoader.getContentAndJwksAlgs() == null
-                                ? "null"
-                                : MessageDigests.toHexString(jwkSetLoader.getContentAndJwksAlgs().sha256())
+                            MessageDigests.toHexString(jwkSetLoader.getContentAndJwksAlgs().sha256())
                         );
                         listener.onFailure(primaryException);
                         return;

@@ -14,7 +14,6 @@ import com.nimbusds.jwt.SignedJWT;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -112,8 +111,8 @@ public class JwtSignatureValidatorTests extends ESTestCase {
             // count the reload events
             reloadAttemptCounter.getAndIncrement();
             // grab the listener that is passed to reload method and call the onResponse method to simulate a successful reload
-            ActionListener<Tuple<Boolean, JwkSetLoader.JwksAlgs>> listener = invocation.getArgument(0);
-            listener.onResponse(new Tuple<>(Boolean.FALSE, new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList())));
+            ActionListener<JwkSetLoader.JwksAlgs> listener = invocation.getArgument(0);
+            listener.onResponse(new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList()));
             return null;
         }).when(jwkSetLoader).reload(any(ActionListener.class));
 
@@ -144,8 +143,8 @@ public class JwtSignatureValidatorTests extends ESTestCase {
             // count the reload events
             reloadAttemptCounter.getAndIncrement();
             // grab the listener that is passed to reload method and call the onResponse method to simulate a successful reload
-            ActionListener<Tuple<Boolean, JwkSetLoader.JwksAlgs>> listener = invocation.getArgument(0);
-            listener.onResponse(new Tuple<>(Boolean.TRUE, new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList())));
+            ActionListener<JwkSetLoader.JwksAlgs> listener = invocation.getArgument(0);
+            listener.onResponse(new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList()));
             return null;
         }).when(jwkSetLoader).reload(any(ActionListener.class));
 
@@ -198,15 +197,13 @@ public class JwtSignatureValidatorTests extends ESTestCase {
             safeAwait(reloadBarrier); // block here to ensure both threads have failed once
 
             // grab the listener that is passed to reload method and call the onResponse method to simulate a successful reload
-            ActionListener<Tuple<Boolean, JwkSetLoader.JwksAlgs>> listener = invocation.getArgument(0);
+            ActionListener<JwkSetLoader.JwksAlgs> listener = invocation.getArgument(0);
             if (reloadAttemptCounter.getAndIncrement() == 0) {
                 // first reload returns it was indeed reloaded
-                listener.onResponse(new Tuple<>(Boolean.TRUE, new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList())));
+                listener.onResponse(new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList()));
             } else {
                 // subsequent reloads returns it was not reloaded
-                listener.onResponse(
-                    new Tuple<>(Boolean.FALSE, new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList()))
-                );
+                listener.onResponse( new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList()));
             }
             return null;
         }).when(jwkSetLoader).reload(any(ActionListener.class));

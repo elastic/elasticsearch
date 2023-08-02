@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -49,9 +48,7 @@ public class JwkSetLoaderTests extends ESTestCase {
         final JwkSetLoader jwkSetLoader = spy(new JwkSetLoader(realmConfig, List.of(), null));
 
         final int nThreads = randomIntBetween(2, 8);
-        final var futures = IntStream.range(0, nThreads)
-            .mapToObj(i -> new PlainActionFuture<Tuple<Boolean, JwkSetLoader.JwksAlgs>>())
-            .toList();
+        final var futures = IntStream.range(0, nThreads).mapToObj(i -> new PlainActionFuture<JwkSetLoader.JwksAlgs>()).toList();
 
         // Start the first thread for reloading
         // Ensure it is inside the actual loading method and make it wait there to simulate slow processing
@@ -82,8 +79,8 @@ public class JwkSetLoaderTests extends ESTestCase {
         readyLatch.countDown();
 
         // All concurrent reloading calls will get the same result from the first thread and skip the actual loading work
-        final Tuple<Boolean, JwkSetLoader.JwksAlgs> tuple = futures.get(0).actionGet();
-        futures.subList(1, nThreads).forEach(future -> assertThat(future.actionGet(), sameInstance(tuple)));
+        final JwkSetLoader.JwksAlgs algs = futures.get(0).actionGet();
+        futures.subList(1, nThreads).forEach(future -> assertThat(future.actionGet(), sameInstance(algs)));
         verify(jwkSetLoader, never()).loadInternal(anyActionListener());
     }
 

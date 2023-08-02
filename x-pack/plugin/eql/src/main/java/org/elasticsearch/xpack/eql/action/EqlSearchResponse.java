@@ -305,6 +305,8 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
                 }
             }
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
+                // for BWC, 8.9.1+ does not have "missing" attribute, but it considers events with an empty index "" as missing events
+                // see https://github.com/elastic/elasticsearch/pull/98130
                 out.writeBoolean(missing);
             }
         }

@@ -12,12 +12,36 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class PostSecretRequest extends ActionRequest {
+
+    public static final ParseField VALUE_FIELD = new ParseField("value");
+
+    public static final ConstructingObjectParser<PostSecretRequest, Void> PARSER = new ConstructingObjectParser<>(
+        "post_secret_request",
+        args -> new PostSecretRequest((String) args[0], null)
+    );
+
+    static {
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> p.text(),
+            VALUE_FIELD,
+            ObjectParser.ValueType.STRING
+        );
+    }
+
+    public static PostSecretRequest fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
 
     private final String source;
     private final XContentType xContentType;
@@ -50,7 +74,7 @@ public class PostSecretRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        if (this.source == null || this.source.contains("\"value\":") == false) {
+        if (this.source == null) {
             ActionRequestValidationException exception = new ActionRequestValidationException();
             exception.addValidationError("value is missing");
             return exception;

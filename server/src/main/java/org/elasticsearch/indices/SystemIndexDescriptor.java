@@ -138,7 +138,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     private final String mappingsNodeVersionMetaKey;
 
     /** The version meta key for the integer system index mapping version */
-    public static final String VERSION_META_KEY = "system_index_mappings_version";
+    public static final String VERSION_META_KEY = "managed_index_mappings_version";
 
     /** For internally-managed indices, specifies the origin to use when creating or updating the index */
     private final String origin;
@@ -152,7 +152,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     private final Version mappingsNodeVersion;
 
     /** Mapping version from the descriptor */
-    private final MappingVersion mappingsVersion;
+    private final MappingsVersion mappingsVersion;
 
     /** Whether there are dynamic fields in this descriptor's mappings */
     private final boolean hasDynamicMappings;
@@ -535,7 +535,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return mappingsNodeVersion;
     }
 
-    public MappingVersion getMappingsVersion() {
+    public MappingsVersion getMappingsVersion() {
         if (isAutomaticallyManaged() == false) {
             throw new IllegalStateException(this + " is not managed so there are no mappings or version");
         }
@@ -654,7 +654,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * The hash is a hash of the system index descriptor's mappings so that we can warn
      * in case of inconsistencies across nodes.
      */
-    public record MappingVersion(int version, int hash) {};
+    public record MappingsVersion(int version, int hash) {};
 
     /**
      * Provides a fluent API for building a {@link SystemIndexDescriptor}. Validation still happens in that class.
@@ -863,7 +863,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     @SuppressWarnings("unchecked") // we do a lot of casting of maps
-    private static MappingVersion extractVersionFromMappings(String mappings) {
+    private static MappingsVersion extractVersionFromMappings(String mappings) {
         final Map<String, Object> mappingsMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), mappings, true);
         final Map<String, Object> doc = (Map<String, Object>) mappingsMap.get("_doc");
         final Map<String, Object> meta;
@@ -882,7 +882,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         if (value == null) {
             throw new IllegalArgumentException("mappings do not have a version in _meta." + VERSION_META_KEY);
         }
-        return new MappingVersion(value, Objects.hash(properties));
+        return new MappingsVersion(value, Objects.hash(properties));
     }
 
     // TODO[wrb]: remove method

@@ -139,7 +139,7 @@ public final class AnomalyDetectorsIndex {
             RESOURCE_PATH + "results_index_mappings.json",
             Version.CURRENT.toString(),
             RESULTS_MAPPINGS_VERSION_VARIABLE,
-            Map.of("xpack.ml.system.index.version", Integer.toString(RESULTS_INDEX_MAPPINGS_VERSION))
+            Map.of("xpack.ml.managed.index.version", Integer.toString(RESULTS_INDEX_MAPPINGS_VERSION))
         );
     }
 }

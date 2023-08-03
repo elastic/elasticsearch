@@ -362,7 +362,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             resource,
             Version.CURRENT.toString(),
             MAPPING_VERSION_VARIABLE,
-            Map.of("fleet.system.index.version", Integer.toString(mappingsVersion))
+            Map.of("fleet.managed.index.version", Integer.toString(mappingsVersion))
         );
     }
 

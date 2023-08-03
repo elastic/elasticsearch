@@ -19,6 +19,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -31,6 +32,7 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -162,6 +164,11 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
     private static void sendRequest(TransportService source, TransportService target, CountDownLatch latch) {
         source.sendRequest(target.getLocalNode(), ClusterHealthAction.NAME, new ClusterHealthRequest(), new TransportResponseHandler<>() {
             private AtomicBoolean responded = new AtomicBoolean();
+
+            @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
 
             @Override
             public void handleResponse(TransportResponse response) {

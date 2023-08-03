@@ -663,6 +663,10 @@ public class MockRepository extends FsRepository {
                 if (failOnIndexLatest && BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
                     throw new IOException("Random IOException");
                 }
+                if (shouldFail(blobName, randomControlIOExceptionRate)) {
+                    logger.info("throwing random IOException for atomic write of file [{}] at path [{}]", blobName, path());
+                    throw new IOException("Random IOException");
+                }
                 if (blobName.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX)) {
                     if (blockAndFailOnWriteIndexFile) {
                         blockExecutionAndFail(blobName);

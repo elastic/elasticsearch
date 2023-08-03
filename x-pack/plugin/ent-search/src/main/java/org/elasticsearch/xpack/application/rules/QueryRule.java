@@ -14,6 +14,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -32,6 +34,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.ALWAYS;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.DOCS_FIELD;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.IDS_FIELD;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item.INDEX_FIELD;
@@ -52,6 +55,8 @@ public class QueryRule implements Writeable, ToXContentObject {
     private final QueryRuleType type;
     private final List<QueryRuleCriteria> criteria;
     private final Map<String, Object> actions;
+
+    private final Logger logger = LogManager.getLogger(QueryRule.class);
 
     public enum QueryRuleType {
         PINNED;
@@ -283,26 +288,36 @@ public class QueryRule implements Writeable, ToXContentObject {
 
         List<String> matchingPinnedIds = new ArrayList<>();
         List<PinnedQueryBuilder.Item> matchingPinnedDocs = new ArrayList<>();
+        Boolean isRuleMatch = null;
 
+        // All specified criteria in a rule must match for the rule to be applied
         for (QueryRuleCriteria criterion : criteria) {
             for (String match : matchCriteria.keySet()) {
-                final String matchValue = matchCriteria.get(match).toString();
-                if (criterion.criteriaMetadata().equals(match) && criterion.isMatch(matchValue)) {
-                    if (actions.containsKey(IDS_FIELD.getPreferredName())) {
-                        matchingPinnedIds.addAll((List<String>) actions.get(IDS_FIELD.getPreferredName()));
-                    } else if (actions.containsKey(DOCS_FIELD.getPreferredName())) {
-                        List<Map<String, String>> docsToPin = (List<Map<String, String>>) actions.get(DOCS_FIELD.getPreferredName());
-                        List<PinnedQueryBuilder.Item> items = docsToPin.stream()
-                            .map(
-                                map -> new PinnedQueryBuilder.Item(
-                                    map.get(INDEX_FIELD.getPreferredName()),
-                                    map.get(PinnedQueryBuilder.Item.ID_FIELD.getPreferredName())
-                                )
-                            )
-                            .toList();
-                        matchingPinnedDocs.addAll(items);
-                    }
+                final Object matchValue = matchCriteria.get(match);
+                final QueryRuleCriteriaType criteriaType = criterion.criteriaType();
+                final String criteriaMetadata = criterion.criteriaMetadata();
+
+                if (criteriaType == ALWAYS || (criteriaMetadata != null && criteriaMetadata.equals(match))) {
+                    boolean singleCriterionMatches = criterion.isMatch(matchValue, criteriaType);
+                    isRuleMatch = (isRuleMatch == null) ? singleCriterionMatches : isRuleMatch && singleCriterionMatches;
                 }
+            }
+        }
+
+        if (isRuleMatch != null && isRuleMatch) {
+            if (actions.containsKey(IDS_FIELD.getPreferredName())) {
+                matchingPinnedIds.addAll((List<String>) actions.get(IDS_FIELD.getPreferredName()));
+            } else if (actions.containsKey(DOCS_FIELD.getPreferredName())) {
+                List<Map<String, String>> docsToPin = (List<Map<String, String>>) actions.get(DOCS_FIELD.getPreferredName());
+                List<PinnedQueryBuilder.Item> items = docsToPin.stream()
+                    .map(
+                        map -> new PinnedQueryBuilder.Item(
+                            map.get(INDEX_FIELD.getPreferredName()),
+                            map.get(PinnedQueryBuilder.Item.ID_FIELD.getPreferredName())
+                        )
+                    )
+                    .toList();
+                matchingPinnedDocs.addAll(items);
             }
         }
 

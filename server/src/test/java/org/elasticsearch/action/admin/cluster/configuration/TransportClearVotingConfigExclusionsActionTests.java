@@ -37,6 +37,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -57,6 +58,7 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
     private static VotingConfigExclusion otherNode1Exclusion, otherNode2Exclusion;
 
     private TransportService transportService;
+    private TransportAddVotingConfigExclusionsActionTests.FakeReconfigurator reconfigurator;
 
     @BeforeClass
     public static void createThreadPoolAndClusterService() {
@@ -86,13 +88,15 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
             null,
             emptySet()
         );
+        reconfigurator = new TransportAddVotingConfigExclusionsActionTests.FakeReconfigurator();
 
         new TransportClearVotingConfigExclusionsAction(
             transportService,
             clusterService,
             threadPool,
             new ActionFilters(emptySet()),
-            TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext())
+            TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+            reconfigurator
         ); // registers action
 
         transportService.start();
@@ -185,6 +189,28 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
     }
 
+    public void testCannotClearVotingConfigurationWhenItIsDisabled() {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        final SetOnce<TransportException> exceptionHolder = new SetOnce<>();
+
+        reconfigurator.disableUserVotingConfigModifications();
+
+        transportService.sendRequest(
+            localNode,
+            ClearVotingConfigExclusionsAction.NAME,
+            new ClearVotingConfigExclusionsRequest(),
+            expectError(e -> {
+                exceptionHolder.set(e);
+                countDownLatch.countDown();
+            })
+        );
+
+        safeAwait(countDownLatch);
+        final Throwable rootCause = exceptionHolder.get().getRootCause();
+        assertThat(rootCause, instanceOf(IllegalStateException.class));
+        assertThat(rootCause.getMessage(), startsWith("Unable to modify the voting configuration"));
+    }
+
     private TransportResponseHandler<ActionResponse.Empty> expectSuccess(Consumer<ActionResponse.Empty> onResponse) {
         return responseHandler(onResponse, e -> { throw new AssertionError("unexpected", e); });
     }
@@ -197,7 +223,17 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         Consumer<ActionResponse.Empty> onResponse,
         Consumer<TransportException> onException
     ) {
-        return new TransportResponseHandler<ActionResponse.Empty>() {
+        return new TransportResponseHandler<>() {
+            @Override
+            public ActionResponse.Empty read(StreamInput in) {
+                return ActionResponse.Empty.INSTANCE;
+            }
+
+            @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
             @Override
             public void handleResponse(ActionResponse.Empty response) {
                 onResponse.accept(response);
@@ -206,11 +242,6 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
             @Override
             public void handleException(TransportException exp) {
                 onException.accept(exp);
-            }
-
-            @Override
-            public ActionResponse.Empty read(StreamInput in) {
-                return ActionResponse.Empty.INSTANCE;
             }
         };
     }

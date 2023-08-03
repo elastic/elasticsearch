@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -254,6 +255,11 @@ public class DisruptableMockTransportTests extends ESTestCase {
             }
 
             @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
+            @Override
             public void handleResponse(T response) {
                 throw new AssertionError("should not be called");
             }
@@ -270,6 +276,11 @@ public class DisruptableMockTransportTests extends ESTestCase {
             @Override
             public TestResponse read(StreamInput in) throws IOException {
                 return new TestResponse(in);
+            }
+
+            @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
             @Override
@@ -291,6 +302,11 @@ public class DisruptableMockTransportTests extends ESTestCase {
             @Override
             public T read(StreamInput in) {
                 throw new AssertionError("should not be called");
+            }
+
+            @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
             @Override

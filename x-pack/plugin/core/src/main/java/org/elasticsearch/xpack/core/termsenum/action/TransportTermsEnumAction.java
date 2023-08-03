@@ -79,6 +79,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -579,6 +580,11 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                                 @Override
                                 public NodeTermsEnumResponse read(StreamInput in) throws IOException {
                                     return readShardResponse(in);
+                                }
+
+                                @Override
+                                public Executor executor(ThreadPool threadPool) {
+                                    return TransportResponseHandler.TRANSPORT_WORKER;
                                 }
 
                                 @Override

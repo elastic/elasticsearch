@@ -158,7 +158,6 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
             for (int i = 0; i < NUM_INDICES; i++) {
                 SearchApplicationListItem app = apps.get(i);
                 assertThat(app.name(), equalTo("my_search_app_" + i));
-                assertThat(app.indices(), equalTo(new String[] { "index_" + i }));
             }
         }
 
@@ -173,7 +172,6 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
                 int index = i + 5;
                 SearchApplicationListItem app = apps.get(i);
                 assertThat(app.name(), equalTo("my_search_app_" + index));
-                assertThat(app.indices(), equalTo(new String[] { "index_" + index }));
             }
         }
     }
@@ -193,22 +191,13 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         {
-            for (String queryString : new String[] {
-                "*my_search_app_4*",
-                "name:my_search_app_4",
-                "my_search_app_4",
-                "*_4",
-                "indices:index_4",
-                "index_4",
-                "*_4" }) {
-
+            for (String queryString : new String[] { "*my_search_app_4*", "name:my_search_app_4", "my_search_app_4", "*_4", "*_4" }) {
                 SearchApplicationIndexService.SearchApplicationResult searchResponse = awaitListSearchApplication(queryString, 0, 10);
                 final List<SearchApplicationListItem> apps = searchResponse.items();
                 assertNotNull(apps);
                 assertThat(apps.size(), equalTo(1));
                 assertThat(searchResponse.totalResults(), equalTo(1L));
                 assertThat(apps.get(0).name(), equalTo("my_search_app_4"));
-                assertThat(apps.get(0).indices(), equalTo(new String[] { "index_4" }));
             }
         }
     }
@@ -246,7 +235,6 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
             for (int i = 0; i < 4; i++) {
                 SearchApplicationListItem app = apps.get(i);
                 assertThat(app.name(), equalTo("my_search_app_" + i));
-                assertThat(app.indices(), equalTo(new String[] { "index_" + i }));
             }
         }
     }

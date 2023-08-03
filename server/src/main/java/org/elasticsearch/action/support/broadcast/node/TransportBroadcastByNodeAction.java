@@ -37,20 +37,24 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.core.Strings.format;
@@ -76,6 +80,7 @@ public abstract class TransportBroadcastByNodeAction<
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final Executor executor;
 
     final String transportNodeBroadcastAction;
 
@@ -101,11 +106,14 @@ public abstract class TransportBroadcastByNodeAction<
         String executor,
         boolean canTripCircuitBreaker
     ) {
-        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
+        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
+        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request, ThreadPool.Names.SAME);
 
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.executor = transportService.getThreadPool().executor(executor);
+        assert this.executor != EsExecutors.DIRECT_EXECUTOR_SERVICE : "O(#shards) work must always fork to an appropriate executor";
 
         transportNodeBroadcastAction = actionName + "[n]";
 
@@ -219,6 +227,12 @@ public abstract class TransportBroadcastByNodeAction<
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        executor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, listener)));
+    }
+
+    private void doExecuteForked(Task task, Request request, ActionListener<Response> listener) {
+        assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         final var clusterState = clusterService.state();
 
         final var globalBlockException = checkGlobalBlock(clusterState, request);
@@ -299,12 +313,13 @@ public abstract class TransportBroadcastByNodeAction<
                     transportNodeBroadcastAction,
                     nodeRequest,
                     transportRequestOptions,
-                    new ActionListenerResponseHandler<>(listener, nodeResponseReader)
+                    new ActionListenerResponseHandler<>(listener, nodeResponseReader, executor)
                 );
             }
 
             @Override
             protected void onItemResponse(Map.Entry<String, List<ShardRouting>> entry, NodeResponse nodeResponse) {
+                assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
                 final var node = nodes.get(entry.getKey());
                 synchronized (this) {
                     shardResponses.addAll(nodeResponse.getResults());
@@ -331,6 +346,7 @@ public abstract class TransportBroadcastByNodeAction<
 
             @Override
             protected void onItemFailure(Map.Entry<String, List<ShardRouting>> entry, Exception e) {
+                assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
                 final var node = nodes.get(entry.getKey());
                 final var shards = entry.getValue();
                 logger.debug(() -> format("failed to execute [%s] on node [%s]", actionName, node), e);
@@ -347,6 +363,7 @@ public abstract class TransportBroadcastByNodeAction<
 
             @Override
             protected Response onCompletion() {
+                assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
                 // ref releases all happen-before here so no need to be synchronized
                 return responseFactory.newResponse(
                     totalShards.get(),
@@ -387,6 +404,7 @@ public abstract class TransportBroadcastByNodeAction<
         String nodeId,
         ActionListener<NodeResponse> listener
     ) {
+        assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         logger.trace("[{}] executing operation on [{}] shards", actionName, shards.size());
 
         new CancellableFanOut<ShardRouting, ShardOperationResult, NodeResponse>() {
@@ -402,6 +420,7 @@ public abstract class TransportBroadcastByNodeAction<
 
             @Override
             protected void onItemResponse(ShardRouting shardRouting, ShardOperationResult shardOperationResult) {
+                assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
                 synchronized (results) {
                     results.add(shardOperationResult);
                 }
@@ -409,6 +428,7 @@ public abstract class TransportBroadcastByNodeAction<
 
             @Override
             protected void onItemFailure(ShardRouting shardRouting, Exception e) {
+                assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
                 logger.log(
                     TransportActions.isShardNotAvailableException(e) ? Level.TRACE : Level.DEBUG,
                     () -> format("[%s] failed to execute operation for shard [%s]", actionName, shardRouting.shortSummary()),

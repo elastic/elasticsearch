@@ -19,6 +19,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,6 +38,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * A parser for documents
@@ -44,11 +46,17 @@ import java.util.function.Consumer;
 public final class DocumentParser {
 
     private final XContentParserConfiguration parserConfiguration;
+    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
     private final MappingParserContext mappingParserContext;
 
-    DocumentParser(XContentParserConfiguration parserConfiguration, MappingParserContext mappingParserContext) {
+    DocumentParser(
+        XContentParserConfiguration parserConfiguration,
+        MappingParserContext mappingParserContext,
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
+    ) {
         this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
+        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
     }
 
     /**
@@ -65,7 +73,16 @@ public final class DocumentParser {
         }
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
-        try (XContentParser parser = XContentHelper.createParser(parserConfiguration, source.source(), xContentType)) {
+
+        // only observe a document if it was not already reported (done in IngestService)
+        DocumentParsingObserver documentParsingObserver = source.toBeReported()
+            ? documentParsingObserverSupplier.get()
+            : DocumentParsingObserver.EMPTY_INSTANCE;
+        try (
+            XContentParser parser = documentParsingObserver.wrapParser(
+                XContentHelper.createParser(parserConfiguration, source.source(), xContentType)
+            )
+        ) {
             context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
@@ -79,6 +96,13 @@ public final class DocumentParser {
         }
         assert context.path.pathAsText("").isEmpty() : "found leftover path elements: " + context.path.pathAsText("");
 
+        Mapping dynamicUpdate = createDynamicUpdate(context);
+
+        // if a mappingUpdate is required, the parsing will be triggered again
+        if (dynamicUpdate == null) {
+            documentParsingObserver.setIndexName(mappingParserContext.getIndexSettings().getIndex().getName());
+            documentParsingObserver.close();
+        }
         return new ParsedDocument(
             context.version(),
             context.seqID(),
@@ -87,7 +111,7 @@ public final class DocumentParser {
             context.reorderParentAndGetDocs(),
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
-            createDynamicUpdate(context)
+            dynamicUpdate
         ) {
             @Override
             public String documentDescription() {
@@ -284,7 +308,6 @@ public final class DocumentParser {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         assert token == XContentParser.Token.FIELD_NAME || token == XContentParser.Token.END_OBJECT;
-
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == null) {
                 throwEOF(context.parent(), context);

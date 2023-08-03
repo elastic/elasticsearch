@@ -145,7 +145,12 @@ public class EnsembleInferenceModel implements InferenceModel {
         if (preparedForInference == false) {
             throw ExceptionsHelper.serverError("model is not prepared for inference");
         }
-        LOGGER.debug(() -> "Inference called with feature names [" + Strings.arrayToCommaDelimitedString(featureNames) + "]");
+        LOGGER.debug(
+            () -> "Inference called with feature names ["
+                + Strings.arrayToCommaDelimitedString(featureNames)
+                + "] values "
+                + Arrays.toString(features)
+        );
         double[][] inferenceResults = new double[this.models.size()][];
         double[][] featureInfluence = new double[features.length][];
         int i = 0;

@@ -164,10 +164,6 @@ public class SearchApplicationIndexService {
                     builder.field("type", "keyword");
                     builder.endObject();
 
-                    builder.startObject(SearchApplication.INDICES_FIELD.getPreferredName());
-                    builder.field("type", "keyword");
-                    builder.endObject();
-
                     builder.startObject(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName());
                     builder.field("type", "keyword");
                     builder.endObject();
@@ -320,7 +316,6 @@ public class SearchApplicationIndexService {
             try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
                 source.startObject()
                     .field(SearchApplication.NAME_FIELD.getPreferredName(), app.name())
-                    .field(SearchApplication.INDICES_FIELD.getPreferredName(), app.indices())
                     .field(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), app.analyticsCollectionName())
                     .field(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName(), app.updatedAtMillis())
                     .directFieldAsBase64(
@@ -421,7 +416,6 @@ public class SearchApplicationIndexService {
                 .size(size)
                 .query(new QueryStringQueryBuilder(queryString))
                 .docValueField(SearchApplication.NAME_FIELD.getPreferredName())
-                .docValueField(SearchApplication.INDICES_FIELD.getPreferredName())
                 .docValueField(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName())
                 .docValueField(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName())
                 .storedFields(Collections.singletonList("_none_"))
@@ -459,7 +453,6 @@ public class SearchApplicationIndexService {
         final String resourceName = documentFields.get(SearchApplication.NAME_FIELD.getPreferredName()).getValue();
         return new SearchApplicationListItem(
             resourceName,
-            documentFields.get(SearchApplication.INDICES_FIELD.getPreferredName()).getValues().toArray(String[]::new),
             documentFields.get(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue(),
             documentFields.get(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName()).getValue()
         );

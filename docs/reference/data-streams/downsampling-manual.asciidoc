@@ -445,13 +445,9 @@ POST _data_stream/_modify
 ----
 // TEST[skip:We don't know the index name at test time]
 
-You can now delete the old backing index:
-
-[source,console]
-----
-DELETE .ds-my-data-stream-2023.07.26-000001
-----
-// TEST[skip:We don't know the index name at test time]
+You can now delete the old backing index. But be aware this will delete the
+original data. Don't delete the index if you may need the original data in the
+future.
 
 [discrete]
 [[downsampling-manual-view-results]]

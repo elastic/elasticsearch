@@ -241,6 +241,7 @@ POST /sales/_search?size=0
 --------------------------------------------------
 // TEST[setup:sales]
 <1> Documents without a value in the `tag` field will fall into the same bucket as documents that have the value `N/A`.
+
 ==== Execution Hint
 
 There are different mechanisms by which cardinality aggregations can be executed:

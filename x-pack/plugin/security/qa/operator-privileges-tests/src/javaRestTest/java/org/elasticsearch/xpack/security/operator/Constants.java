@@ -247,6 +247,8 @@ public class Constants {
         "cluster:admin/xpack/security/service_account/credential/get[n]",
         "cluster:admin/xpack/security/service_account/token/create",
         "cluster:admin/xpack/security/service_account/token/delete",
+        "cluster:admin/xpack/security/settings/get",
+        "cluster:admin/xpack/security/settings/update",
         "cluster:admin/xpack/security/token/create",
         "cluster:admin/xpack/security/token/invalidate",
         "cluster:admin/xpack/security/token/refresh",

@@ -40,13 +40,13 @@ The synonym rules definitions for the synonyms set.
 
 `id`::
 (Optional, string)
-// TODO link to synonym rules APIs
-The identifier associated to the synonym rule, that can be used to manage individual synonym rules via Synonym Rules APIs.
+The identifier associated to the synonym rule, that can be used to manage individual synonym rules via <<synonym-rules-apis,synonym rules APIs>>.
 In case a synonym rule id is not specified, an identifier will be created automatically by {es}.
 
 `synonyms`::
-(Requried, string)
-The synonym rule. This needs to be in <<_solr_synonyms>> format. Some examples are:
+(Required, string)
+The synonym rule. This needs to be in <<_solr_synonyms>> format.
+Some examples are:
 * "i-pod, i pod => ipod",
 * "universe, cosmos"
 
@@ -114,7 +114,7 @@ PUT _synonyms/my-synonyms-set
 // TESTRESPONSE[s/"stack_trace": \.\.\./"stack_trace": $body.$_path/]
 
 
-[discrete]
+[[synonyms-set-analyzer-reloading]]
 ==== Analyzer reloading
 When an existing synonyms set is updated, the <<search-analyzer, search analyzers>> that use the synonyms set are reloaded automatically for all indices.
 This would be equivalent to invoking <<indices-reload-analyzers>> for all indices that use the synonyms set.

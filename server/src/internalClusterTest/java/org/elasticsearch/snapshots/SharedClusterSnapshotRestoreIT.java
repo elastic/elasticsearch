@@ -348,6 +348,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setSettings(
                     Settings.builder()
                         .put("location", randomRepoPath())
+                        // io exception writing index.latest won't fail anything which makes assertions below complicated, so we disable
+                        // index.latest
+                        .put(BlobStoreRepository.SUPPORT_URL_REPO.getKey(), false)
                         .put("random", randomAlphaOfLength(10))
                         .put("random_control_io_exception_rate", 0.2)
                 )

@@ -142,7 +142,6 @@ Example response:
   "migration_status" : "NO_MIGRATION_NEEDED"
 }
 --------------------------------------------------
-// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/97780]
 
 When you submit a POST request to the `_migration/system_features` endpoint to
 start the migration process, the response indicates what features will be

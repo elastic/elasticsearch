@@ -74,7 +74,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-windows"
         command: |
-          .\.buildkite\scripts\run-script.ps1 bash .buildkite/scripts/packaging-tests.sh
+          .\.buildkite\scripts\run-script.ps1 bash .buildkite/scripts/windows-run-gradle.sh
         timeout_in_minutes: 360
         matrix:
           setup:

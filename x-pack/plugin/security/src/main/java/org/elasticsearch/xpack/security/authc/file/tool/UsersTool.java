@@ -46,6 +46,12 @@ import java.util.stream.Collectors;
 
 class UsersTool extends MultiCommand {
 
+    // Initialize the reserved roles store for the list of reserved roles so that they can be accessed by commands
+    // By not include a filtering, it includes everything the reserved roles store has to offer.
+    static {
+        new ReservedRolesStore();
+    }
+
     UsersTool() {
         super("Manages elasticsearch file users");
         subcommands.put("useradd", newAddUserCommand());

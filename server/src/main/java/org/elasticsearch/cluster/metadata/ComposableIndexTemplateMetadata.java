@@ -60,7 +60,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     }
 
     public ComposableIndexTemplateMetadata(StreamInput in) throws IOException {
-        this.indexTemplates = in.readMap(StreamInput::readString, ComposableIndexTemplate::new);
+        this.indexTemplates = in.readMap(ComposableIndexTemplate::new);
     }
 
     public static ComposableIndexTemplateMetadata fromXContent(XContentParser parser) throws IOException {

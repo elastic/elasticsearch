@@ -15,7 +15,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TcpTransport;
@@ -53,6 +53,8 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.settings.GetSecuritySettingsAction;
+import org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
@@ -284,7 +286,8 @@ public class PrivilegeTests extends ESTestCase {
             GetServiceAccountCredentialsAction.NAME,
             GetUsersAction.NAME,
             HasPrivilegesAction.NAME,
-            GetUserPrivilegesAction.NAME
+            GetUserPrivilegesAction.NAME,
+            GetSecuritySettingsAction.NAME
         );
         verifyClusterActionAllowed(
             ClusterPrivilegeResolver.READ_SECURITY,
@@ -319,7 +322,8 @@ public class PrivilegeTests extends ESTestCase {
             DelegatePkiAuthenticationAction.NAME,
             ActivateProfileAction.NAME,
             SetProfileEnabledAction.NAME,
-            UpdateProfileDataAction.NAME
+            UpdateProfileDataAction.NAME,
+            UpdateSecuritySettingsAction.NAME
         );
     }
 
@@ -466,31 +470,31 @@ public class PrivilegeTests extends ESTestCase {
         }
     }
 
-    public void testDlmPrivileges() {
-        assumeTrue("feature flag required", DataLifecycle.isEnabled());
+    public void testDataStreamLifecyclePrivileges() {
+        assumeTrue("feature flag required", DataStreamLifecycle.isFeatureEnabled());
         {
-            Predicate<String> predicate = IndexPrivilege.MANAGE_DLM.predicate();
+            Predicate<String> predicate = IndexPrivilege.MANAGE_DATA_STREAM_LIFECYCLE.predicate();
             // check indices actions
-            assertThat(predicate.test("indices:admin/dlm/explain"), is(true));
-            assertThat(predicate.test("indices:admin/dlm/get"), is(true));
-            assertThat(predicate.test("indices:admin/dlm/delete"), is(true));
-            assertThat(predicate.test("indices:admin/dlm/put"), is(true));
-            assertThat(predicate.test("indices:admin/dlm/brand_new_api"), is(true));
-            assertThat(predicate.test("indices:admin/dlm/brand_new_api"), is(true));
-            // check non-dlm action
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/explain"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/get"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/delete"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/put"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/brand_new_api"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/brand_new_api"), is(true));
+            // check non data stream lifecycle action
             assertThat(predicate.test("indices:admin/whatever"), is(false));
         }
 
         {
             Predicate<String> predicate = IndexPrivilege.VIEW_METADATA.predicate();
             // check indices actions
-            assertThat(predicate.test("indices:admin/dlm/explain"), is(true));
-            assertThat(predicate.test("indices:admin/dlm/get"), is(true));
-            assertThat(predicate.test("indices:admin/dlm/delete"), is(false));
-            assertThat(predicate.test("indices:admin/dlm/put"), is(false));
-            assertThat(predicate.test("indices:admin/dlm/brand_new_api"), is(false));
-            assertThat(predicate.test("indices:admin/dlm/brand_new_api"), is(false));
-            // check non-dlm action
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/explain"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/get"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/delete"), is(false));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/put"), is(false));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/brand_new_api"), is(false));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/brand_new_api"), is(false));
+            // check non data stream lifecycle action
             assertThat(predicate.test("indices:admin/whatever"), is(false));
         }
     }

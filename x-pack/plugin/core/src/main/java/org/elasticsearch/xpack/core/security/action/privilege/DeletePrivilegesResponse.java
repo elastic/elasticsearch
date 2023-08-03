@@ -14,7 +14,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Set;
 
 /**
@@ -23,11 +22,11 @@ import java.util.Set;
  */
 public final class DeletePrivilegesResponse extends ActionResponse implements ToXContentObject {
 
-    private Set<String> found;
+    private final Set<String> found;
 
     public DeletePrivilegesResponse(StreamInput in) throws IOException {
         super(in);
-        this.found = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
+        this.found = in.readImmutableSet(StreamInput::readString);
     }
 
     public DeletePrivilegesResponse(Collection<String> found) {

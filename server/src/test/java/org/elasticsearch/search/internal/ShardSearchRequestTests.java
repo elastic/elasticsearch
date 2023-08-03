@@ -40,6 +40,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -234,6 +235,9 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             if (request.source() != null && request.source().rankBuilder() != null) {
                 version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_8_0, TransportVersion.current());
             }
+            if (request.source() != null && request.source().subSearches().size() >= 2) {
+                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_500_013, TransportVersion.current());
+            }
             request = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
             channelVersion = TransportVersion.min(channelVersion, version);
             assertThat(request.getChannelVersion(), equalTo(channelVersion));
@@ -258,6 +262,9 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         SearchRequest request = createSearchRequest();
         if (request.source() != null) {
             request.source().rankBuilder(null);
+            if (request.source().subSearches().size() >= 2) {
+                request.source().subSearches(new ArrayList<>());
+            }
         }
         request.setForceSyntheticSource(true);
         ShardSearchRequest shardRequest = createShardSearchReqest(request);

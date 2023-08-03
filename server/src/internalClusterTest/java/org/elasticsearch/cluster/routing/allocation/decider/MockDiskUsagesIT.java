@@ -443,7 +443,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             assertThat("node2 has 2 shards", shardCountByNodeId.get(nodeIds.get(2)), equalTo(2));
         }
 
-        final long shardsOnGoodPath = Arrays.stream(client().admin().indices().prepareStats("test").get().getShards())
+        final long shardsOnGoodPath = Arrays.stream(indicesAdmin().prepareStats("test").get().getShards())
             .filter(
                 shardStats -> shardStats.getShardRouting().currentNodeId().equals(nodeWithTwoPaths)
                     && shardStats.getDataPath().startsWith(pathOverWatermark.toString()) == false
@@ -468,20 +468,20 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         logger.info("--> waiting for shards to relocate off path [{}]", pathOverWatermark);
 
         assertBusy(() -> {
-            for (final ShardStats shardStats : client().admin().indices().prepareStats("test").get().getShards()) {
+            for (final ShardStats shardStats : indicesAdmin().prepareStats("test").get().getShards()) {
                 assertThat(shardStats.getDataPath(), not(startsWith(pathOverWatermark.toString())));
             }
         });
 
         ensureGreen("test");
 
-        for (final ShardStats shardStats : client().admin().indices().prepareStats("test").get().getShards()) {
+        for (final ShardStats shardStats : indicesAdmin().prepareStats("test").get().getShards()) {
             assertThat(shardStats.getDataPath(), not(startsWith(pathOverWatermark.toString())));
         }
 
         assertThat(
             "should not have moved any shards off of the path that wasn't too full",
-            Arrays.stream(client().admin().indices().prepareStats("test").get().getShards())
+            Arrays.stream(indicesAdmin().prepareStats("test").get().getShards())
                 .filter(
                     shardStats -> shardStats.getShardRouting().currentNodeId().equals(nodeWithTwoPaths)
                         && shardStats.getDataPath().startsWith(pathOverWatermark.toString()) == false

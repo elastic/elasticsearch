@@ -1,0 +1,5 @@
+pr: 96878
+summary: Min score for time series
+area: TSDB
+type: bug
+issues: []

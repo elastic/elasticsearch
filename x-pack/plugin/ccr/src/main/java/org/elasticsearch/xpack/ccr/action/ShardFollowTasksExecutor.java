@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
@@ -556,7 +557,17 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     private Client remoteClient(ShardFollowTask params) {
         // TODO: do we need minNodeVersion here since it is for remote cluster
-        return wrapClient(client.getRemoteClusterClient(params.getRemoteCluster()), params.getHeaders(), clusterService.state());
+        return wrapClient(
+            client.getRemoteClusterClient(
+                params.getRemoteCluster(),
+                // this client is only used for lightweight single-index metadata responses and for the shard-changes actions themselves
+                // which are about as easy to parse as shard bulks, and which handle their own forking, so we can handle responses on the
+                // transport thread
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            ),
+            params.getHeaders(),
+            clusterService.state()
+        );
     }
 
     interface FollowerStatsInfoHandler {

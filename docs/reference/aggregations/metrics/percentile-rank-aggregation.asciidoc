@@ -10,9 +10,10 @@ extracted from specific numeric or <<histogram,histogram fields>> in the documen
 
 [NOTE]
 ==================================================
-Please see <<search-aggregations-metrics-percentile-aggregation-approximation>>
-and <<search-aggregations-metrics-percentile-aggregation-compression>> for advice
-regarding approximation and memory use of the percentile ranks aggregation
+Please see <<search-aggregations-metrics-percentile-aggregation-approximation>>,
+<<search-aggregations-metrics-percentile-aggregation-compression>> and
+<<search-aggregations-metrics-percentile-aggregation-execution-hint>> for advice
+regarding approximation, performance and memory use of the percentile ranks aggregation
 ==================================================
 
 Percentile rank show the percentage of observed values which are below certain

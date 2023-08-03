@@ -34,7 +34,7 @@ public class GetShardSnapshotResponse extends ActionResponse {
     GetShardSnapshotResponse(StreamInput in) throws IOException {
         super(in);
         this.latestShardSnapshot = in.readOptionalWriteable(ShardSnapshotInfo::new);
-        this.repositoryFailures = in.readMap(StreamInput::readString, RepositoryException::new);
+        this.repositoryFailures = in.readMap(RepositoryException::new);
     }
 
     @Override

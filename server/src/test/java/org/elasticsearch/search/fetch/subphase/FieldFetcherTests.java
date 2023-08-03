@@ -11,11 +11,12 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
@@ -52,6 +54,7 @@ import java.util.function.BiFunction;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xcontent.ObjectPath.eval;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
@@ -265,7 +268,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             SeqNoFieldMapper.NAME,
             SourceFieldMapper.NAME,
             FieldNamesFieldMapper.NAME,
-            NestedPathFieldMapper.name(IndexVersion.CURRENT)
+            NestedPathFieldMapper.name(IndexVersion.current())
         )) {
             expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
         }
@@ -806,6 +809,227 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertEquals("value4b", eval("inner_nested.0.f4.0", obj1));
     }
 
+    public void testDoublyNestedWithMultifields() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties" : {
+              "user" : {
+                "type" : "nested",
+                "properties" : {
+                  "first" : { "type" : "keyword" },
+                  "last" : { "type" : "text", "fields" : { "keyword" : { "type" : "keyword" } } },
+                  "address" : {
+                    "type" : "nested",
+                    "properties" : {
+                      "city" : { "type" : "keyword" },
+                      "zip" : { "type" : "keyword" }
+                    }
+                  }
+                }
+              }
+            }}}
+            """);
+
+        String source = """
+            { "user" : [ { "first" : "John",
+                           "last" : "Smith",
+                           "address" : [ { "city" : "Berlin", "zip" : "1111" }, { "city" : "Ottawa", "zip" : "1111" } ] } ] }
+            """;
+
+        var results = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
+        DocumentField user = results.get("user");
+        Map<?, ?> fields = (Map<?, ?>) user.getValues().get(0);
+        assertThat(fields.keySet(), hasSize(4));
+    }
+
+    public void testNestedUnmappedFields() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties" : {
+              "id" : { "type" : "keyword" },
+              "user_account" : {
+                "type" : "nested",
+                "properties" : {
+                  "details" : {
+                    "type" : "object",
+                    "enabled" : false
+                  }
+                }
+              },
+              "user" : {
+                "type" : "nested",
+                "properties" : {
+                  "first" : { "type" : "keyword" },
+                  "address" : {
+                    "type" : "object",
+                    "enabled" : false
+                  }
+                }
+              }
+            }}}
+            """);
+        String source = """
+            { "id" : "1", "user" : { "first" : "John", "address" : { "city" : "Toronto" } }, "user_account" : { "details" : { "id" : 2 } } }
+            """;
+
+        var results = fetchFields(mapperService, source, fieldAndFormatList("*", null, true));
+        assertNotNull(results.get("user_account"));
+        assertEquals("2", eval(new String[] { "details.id", "0" }, results.get("user_account").getValues().get(0)).toString());
+
+        results = fetchFields(mapperService, source, fieldAndFormatList("user.address.*", null, true));
+        assertNotNull(results.get("user"));
+        assertNull(eval("first", results.get("user").getValues().get(0)));
+        assertEquals("Toronto", eval(new String[] { "address.city", "0" }, results.get("user").getValues().get(0)));
+    }
+
+    public void testNestedGrouping() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties": {
+                                 "age": {
+                                   "type": "integer"
+                                 },
+                                 "loan": {
+                                   "type": "keyword"
+                                 },
+                                 "marital": {
+                                   "type": "keyword"
+                                 },
+                                 "ml": {
+                                   "properties": {
+                                     "feature_importance": {
+                                       "type": "nested",
+                                       "dynamic": "false",
+                                       "properties": {
+                                         "classes": {
+                                           "type": "nested",
+                                           "dynamic": "false",
+                                           "properties": {
+                                             "class_name": {
+                                               "type": "keyword"
+                                             },
+                                             "importance": {
+                                               "type": "double"
+                                             }
+                                           }
+                                         },
+                                         "feature_name": {
+                                           "type": "keyword"
+                                         }
+                                       }
+                                     },
+                                     "is_training": {
+                                       "type": "boolean"
+                                     },
+                                     "prediction_probability": {
+                                       "type": "double"
+                                     },
+                                     "prediction_score": {
+                                       "type": "double"
+                                     },
+                                     "top_classes": {
+                                       "type": "nested",
+                                       "properties": {
+                                         "class_name": {
+                                           "type": "keyword"
+                                         },
+                                         "class_probability": {
+                                           "type": "double"
+                                         },
+                                         "class_score": {
+                                           "type": "double"
+                                         }
+                                       }
+                                     },
+                                     "y_prediction": {
+                                       "type": "keyword"
+                                     }
+                                   }
+                                 }
+            }}}
+            """);
+
+        String source = """
+            {
+                       "loan": "no",
+                       "ml__incremental_id": 26513,
+                       "ml": {
+                         "y_prediction": "no",
+                         "top_classes": [
+                           {
+                             "class_name": "no",
+                             "class_probability": 0.978734716971892,
+                             "class_score": 0.17187636491006547
+                           },
+                           {
+                             "class_name": "yes",
+                             "class_probability": 0.02126528302810799,
+                             "class_score": 0.02126528302810799
+                           }
+                         ],
+                         "prediction_probability": 0.978734716971892,
+                         "prediction_score": 0.17187636491006547,
+                         "feature_importance": [
+                           {
+                             "feature_name": "duration",
+                             "classes": [
+                               {
+                                 "class_name": "no",
+                                 "importance": 0.4360196873080361
+                               },
+                               {
+                                 "class_name": "yes",
+                                 "importance": -0.4360196873080361
+                               }
+                             ]
+                           },
+                           {
+                             "feature_name": "housing",
+                             "classes": [
+                               {
+                                 "class_name": "no",
+                                 "importance": 0.2993353230710585
+                               },
+                               {
+                                 "class_name": "yes",
+                                 "importance": -0.2993353230710585
+                               }
+                             ]
+                           }
+                         ],
+                         "is_training": false
+                       }
+                     }
+            """;
+
+        var results = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
+        SearchHit searchHit = new SearchHit(0);
+        searchHit.addDocumentFields(results, Map.of());
+        assertThat(Strings.toString(searchHit), containsString("\"ml.top_classes\":"));
+    }
+
+    public void testNestedIOOB() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties" : {
+              "nested_field" : {
+                "type" : "nested",
+                "properties" : {
+                  "file" : { "type" : "keyword" }
+                }
+              }
+            }}}
+            """);
+        String source = """
+            { "nested_field" : { "file" : "somefile.txt" } }
+            """;
+        var results = fetchFields(
+            mapperService,
+            source,
+            List.of(new FieldAndFormat("file", null, true), new FieldAndFormat("*", null, true))
+        );
+        assertThat(results.keySet(), hasSize(1));
+
+        results = fetchFields(mapperService, source, fieldAndFormatList("nested_field.file", null, true));
+        assertThat(results.keySet(), hasSize(1));
+    }
+
     @SuppressWarnings("unchecked")
     public void testFlattenedField() throws IOException {
         XContentBuilder mapping = mapping(b -> b.startObject("flat").field("type", "flattened").endObject());
@@ -1208,6 +1432,12 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         return fieldFetcher.fetch(s, -1);
     }
 
+    private static Map<String, DocumentField> fetchFields(MapperService mapperService, String source, List<FieldAndFormat> fields)
+        throws IOException {
+        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
+        return fieldFetcher.fetch(Source.fromBytes(new BytesArray(source), XContentType.JSON), -1);
+    }
+
     public MapperService createMapperService() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -1258,13 +1488,14 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         MapperService mapperService,
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup
     ) {
-        Settings settings = indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build();
+        Settings settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("test").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         return new SearchExecutionContext(
             0,
             0,
             indexSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
             null,
             indexFieldDataLookup,
             mapperService,

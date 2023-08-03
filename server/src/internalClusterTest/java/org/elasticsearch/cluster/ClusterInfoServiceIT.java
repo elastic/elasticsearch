@@ -143,7 +143,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             )
         );
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose(indexName));
+            assertAcked(indicesAdmin().prepareClose(indexName));
         }
         ensureGreen(indexName);
         InternalTestCluster internalTestCluster = internalCluster();

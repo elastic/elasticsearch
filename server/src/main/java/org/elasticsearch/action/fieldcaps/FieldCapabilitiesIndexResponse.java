@@ -47,7 +47,7 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
 
     FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
         this.indexName = in.readString();
-        this.responseMap = in.readMap(StreamInput::readString, IndexFieldCapabilities::new);
+        this.responseMap = in.readMap(IndexFieldCapabilities::new);
         this.canMatch = in.readBoolean();
         this.originVersion = in.getTransportVersion();
         if (in.getTransportVersion().onOrAfter(MAPPING_HASH_VERSION)) {
@@ -71,7 +71,7 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         implements
             Writeable {
         GroupByMappingHash(StreamInput in) throws IOException {
-            this(in.readStringList(), in.readString(), in.readMap(StreamInput::readString, IndexFieldCapabilities::new));
+            this(in.readStringList(), in.readString(), in.readMap(IndexFieldCapabilities::new));
         }
 
         @Override

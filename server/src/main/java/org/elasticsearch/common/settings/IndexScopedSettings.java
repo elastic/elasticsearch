@@ -37,7 +37,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.ShardLimitValidator;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
@@ -182,8 +181,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                     );
                 }
             }
-        }, Property.IndexScope), // this allows similarity settings to be passed
-        Setting.groupSetting("index.analysis.", Property.IndexScope), // this allows analysis settings to be passed
+        }, Property.IndexScope, Property.ServerlessPublic), // this allows similarity settings to be passed
+        Setting.groupSetting("index.analysis.", Property.IndexScope, Property.ServerlessPublic), // this allows analysis settings to be
+                                                                                                 // passed
 
         // TSDB index settings
         IndexSettings.MODE,
@@ -204,7 +204,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
 
     public IndexScopedSettings(Settings settings, Set<Setting<?>> settingsSet) {
-        super(settings, settingsSet, Collections.emptySet(), Property.IndexScope);
+        super(settings, settingsSet, Property.IndexScope);
     }
 
     private IndexScopedSettings(Settings settings, IndexScopedSettings other, IndexMetadata metadata) {

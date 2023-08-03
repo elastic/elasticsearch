@@ -227,7 +227,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             }
         }
 
-        client().admin().indices().prepareRefresh(index).get();
+        indicesAdmin().prepareRefresh(index).get();
 
         return routingToDocumentIds;
     }

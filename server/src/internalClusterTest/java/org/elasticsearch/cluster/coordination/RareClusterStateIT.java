@@ -75,7 +75,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         ensureGreen(index);
 
         // close to have some unassigned started shards shards..
-        client().admin().indices().prepareClose(index).get();
+        indicesAdmin().prepareClose(index).get();
 
         final String masterName = internalCluster().getMasterName();
         final ClusterService clusterService = internalCluster().clusterService(masterName);
@@ -180,7 +180,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
     public void testDeleteCreateInOneBulk() throws Exception {
         internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("2").get().isTimedOut());
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen("test");
 
@@ -192,7 +192,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         refresh();
         disruption.startDisrupting();
         logger.info("--> delete index");
-        executeAndCancelCommittedPublication(client().admin().indices().prepareDelete("test").setTimeout("0s")).get(10, TimeUnit.SECONDS);
+        executeAndCancelCommittedPublication(indicesAdmin().prepareDelete("test").setTimeout("0s")).get(10, TimeUnit.SECONDS);
         logger.info("--> and recreate it");
         executeAndCancelCommittedPublication(
             prepareCreate("test").setSettings(
@@ -224,7 +224,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // operation yet
 
         final List<String> nodeNames = internalCluster().startNodes(2);
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
         final String master = internalCluster().getMasterName();
         assertThat(nodeNames, hasItem(master));
@@ -242,7 +242,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         ensureGreen();
 
         // Check routing tables
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         assertEquals(master, state.nodes().getMasterNode().getName());
         List<ShardRouting> shards = state.routingTable().allShards("index");
         assertThat(shards, hasSize(1));
@@ -262,12 +262,12 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // Add a new mapping...
         ActionFuture<AcknowledgedResponse> putMappingResponse = executeAndCancelCommittedPublication(
-            client().admin().indices().preparePutMapping("index").setSource("field", "type=long")
+            indicesAdmin().preparePutMapping("index").setSource("field", "type=long")
         );
 
         // ...and wait for mappings to be available on master
         assertBusy(() -> {
-            MappingMetadata typeMappings = client().admin().indices().prepareGetMappings("index").get().getMappings().get("index");
+            MappingMetadata typeMappings = indicesAdmin().prepareGetMappings("index").get().getMappings().get("index");
             assertNotNull(typeMappings);
             Object properties;
             try {
@@ -306,7 +306,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // are needed for a document are not available on the replica at the
         // time of indexing it
         final List<String> nodeNames = internalCluster().startNodes(2);
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
         final String master = internalCluster().getMasterName();
         assertThat(nodeNames, hasItem(master));
@@ -326,7 +326,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         ensureGreen();
 
         // Check routing tables
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         assertEquals(master, state.nodes().getMasterNode().getName());
         List<ShardRouting> shards = state.routingTable().allShards("index");
         assertThat(shards, hasSize(2));
@@ -344,7 +344,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         internalCluster().setDisruptionScheme(disruption);
         disruption.startDisrupting();
         final ActionFuture<AcknowledgedResponse> putMappingResponse = executeAndCancelCommittedPublication(
-            client().admin().indices().preparePutMapping("index").setSource("field", "type=long")
+            indicesAdmin().preparePutMapping("index").setSource("field", "type=long")
         );
 
         final Index index = resolveIndex("index");

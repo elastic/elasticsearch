@@ -35,7 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
@@ -119,14 +118,13 @@ public class SearchApplication implements Writeable, ToXContentObject {
                 }
             }
             @SuppressWarnings("unchecked")
-            final String[] indices = ((List<String>) params[1]).toArray(String[]::new);
+            final String[] indices = (params[1] != null) ? ((List<String>) params[1]).toArray(String[]::new) : new String[0];
             final String analyticsCollectionName = (String) params[2];
             final Long maybeUpdatedAtMillis = (Long) params[3];
             long updatedAtMillis = (maybeUpdatedAtMillis != null ? maybeUpdatedAtMillis : System.currentTimeMillis());
             final SearchApplicationTemplate template = (SearchApplicationTemplate) params[4];
 
-            SearchApplication newApp = new SearchApplication(resourceName, indices, analyticsCollectionName, updatedAtMillis, template);
-            return newApp;
+            return new SearchApplication(resourceName, indices, analyticsCollectionName, updatedAtMillis, template);
         }
     );
 
@@ -140,7 +138,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareStringOrNull(optionalConstructorArg(), NAME_FIELD);
-        PARSER.declareStringArray(constructorArg(), INDICES_FIELD);
+        PARSER.declareStringArray(optionalConstructorArg(), INDICES_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), ANALYTICS_COLLECTION_NAME_FIELD);
         PARSER.declareLong(optionalConstructorArg(), UPDATED_AT_MILLIS_FIELD);
         PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> SearchApplicationTemplate.parse(p), null, TEMPLATE_FIELD);
@@ -184,7 +182,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(NAME_FIELD.getPreferredName(), name);
-        builder.field(INDICES_FIELD.getPreferredName(), indices);
         if (analyticsCollectionName != null) {
             builder.field(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), analyticsCollectionName);
         }
@@ -240,7 +237,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
         SearchApplication app = (SearchApplication) o;
         return name.equals(app.name)
-            && Arrays.equals(indices, app.indices)
             && Objects.equals(analyticsCollectionName, app.analyticsCollectionName)
             && updatedAtMillis == app.updatedAtMillis()
             && Objects.equals(searchApplicationTemplate, app.searchApplicationTemplate);
@@ -248,9 +244,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, analyticsCollectionName, updatedAtMillis, searchApplicationTemplate);
-        result = 31 * result + Arrays.hashCode(indices);
-        return result;
+        return Objects.hash(name, analyticsCollectionName, updatedAtMillis, searchApplicationTemplate);
     }
 
     @Override

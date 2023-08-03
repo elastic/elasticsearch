@@ -1,0 +1,6 @@
+pr: 96982
+summary: "Downsampling: copy the `_tier_preference` setting"
+area: Downsampling
+type: bug
+issues:
+ - 96733

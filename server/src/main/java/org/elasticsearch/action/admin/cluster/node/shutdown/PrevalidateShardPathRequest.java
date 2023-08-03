@@ -29,7 +29,7 @@ public class PrevalidateShardPathRequest extends BaseNodesRequest<PrevalidateSha
 
     public PrevalidateShardPathRequest(StreamInput in) throws IOException {
         super(in);
-        this.shardIds = Set.copyOf(Objects.requireNonNull(in.readSet(ShardId::new)));
+        this.shardIds = in.readImmutableSet(ShardId::new);
     }
 
     @Override

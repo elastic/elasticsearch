@@ -31,9 +31,7 @@ public class Ec2DiscoveryUpdateSettingsTests extends AbstractAwsTestCase {
         // We try to update a setting now
         final String expectedValue = UUIDs.randomBase64UUID(random());
         final String settingName = "cluster.routing.allocation.exclude.any_attribute";
-        final ClusterUpdateSettingsResponse response = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
+        final ClusterUpdateSettingsResponse response = clusterAdmin().prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(settingName, expectedValue))
             .get();
 

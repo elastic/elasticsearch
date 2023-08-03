@@ -68,7 +68,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new DataStreamsPlugin());
+        return List.of(new DataStreamsPlugin(Settings.EMPTY));
     }
 
     public void testPostParse() throws IOException {
@@ -170,7 +170,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         Settings indexSettings = Settings.builder().put(FieldMapper.IGNORE_MALFORMED_SETTING.getKey(), true).build();
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> createMapperService(IndexVersion.CURRENT, indexSettings, () -> true, timestampMapping(true, b -> {
+            () -> createMapperService(IndexVersion.current(), indexSettings, () -> true, timestampMapping(true, b -> {
                 b.startObject("@timestamp");
                 b.field("type", "date");
                 b.endObject();
@@ -181,7 +181,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             equalTo("data stream timestamp field [@timestamp] has disallowed [ignore_malformed] attribute specified")
         );
 
-        MapperService mapperService = createMapperService(IndexVersion.CURRENT, indexSettings, () -> true, timestampMapping(true, b -> {
+        MapperService mapperService = createMapperService(IndexVersion.current(), indexSettings, () -> true, timestampMapping(true, b -> {
             b.startObject("@timestamp");
             b.field("type", "date");
             b.field("ignore_malformed", false);

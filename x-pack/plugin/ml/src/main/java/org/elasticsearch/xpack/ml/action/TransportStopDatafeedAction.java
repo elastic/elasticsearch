@@ -33,6 +33,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
@@ -179,7 +180,11 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                     nodes.getMasterNode(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, StopDatafeedAction.Response::new)
+                    new ActionListenerResponseHandler<>(
+                        listener,
+                        StopDatafeedAction.Response::new,
+                        TransportResponseHandler.TRANSPORT_WORKER
+                    )
                 );
             }
         } else {
@@ -507,7 +512,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                 }
             }
             return true;
-        }, request.getTimeout(), listener.delegateFailure((l, result) -> l.onResponse(response)));
+        }, request.getTimeout(), listener.safeMap(result -> response));
     }
 
     @Override

@@ -240,7 +240,7 @@ public class AuthenticationTestHelper {
             UsernamesField.ASYNC_SEARCH_ROLE,
             UsernamesField.XPACK_SECURITY_ROLE,
             UsernamesField.SECURITY_PROFILE_ROLE,
-            UsernamesField.DLM_ROLE
+            UsernamesField.DATA_STREAM_LIFECYCLE_ROLE
         );
     }
 

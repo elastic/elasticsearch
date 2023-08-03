@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -86,7 +87,7 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
 
         final String shutdownNode;
         final String candidateNode;
-        NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
+        NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
         final String node1Id = nodes.getNodes()
             .stream()
             .map(NodeInfo::getNode)
@@ -120,7 +121,7 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         // Tell the persistent task executor it can start allocating the task
         startTask.set(true);
         // Issue a new cluster state update to force task assignment
-        client().admin().cluster().prepareReroute().get();
+        clusterAdmin().prepareReroute().get();
         // Wait until the task has been assigned to a node
         assertBusy(() -> assertNotNull("expected to have candidate nodes chosen for task", candidates.get()));
         // Check that the node that is not shut down is the only candidate
@@ -146,7 +147,8 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            AllocationService allocationService
+            AllocationService allocationService,
+            IndicesService indicesService
         ) {
             taskExecutor = new TaskExecutor(client, clusterService, threadPool);
             return Collections.singletonList(taskExecutor);

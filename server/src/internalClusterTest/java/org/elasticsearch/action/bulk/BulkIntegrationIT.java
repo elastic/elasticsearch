@@ -60,7 +60,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         bulkBuilder.get();
         assertBusy(() -> {
-            GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
+            GetMappingsResponse mappingsResponse = indicesAdmin().prepareGetMappings().get();
             assertTrue(mappingsResponse.getMappings().containsKey("logstash-2014.03.30"));
         });
     }
@@ -179,7 +179,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         }
         ensureGreen(index);
         assertBusy(() -> assertThat(docID.get(), greaterThanOrEqualTo(1)));
-        assertAcked(client().admin().indices().prepareDelete(index));
+        assertAcked(indicesAdmin().prepareDelete(index));
         stopped.set(true);
         for (Thread thread : threads) {
             thread.join(ReplicationRequest.DEFAULT_TIMEOUT.millis() / 2);

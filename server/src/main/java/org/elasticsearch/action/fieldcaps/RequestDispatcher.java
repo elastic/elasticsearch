@@ -187,7 +187,7 @@ final class RequestDispatcher {
             nodeRequest,
             parentTask,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, FieldCapabilitiesNodeResponse::new)
+            new ActionListenerResponseHandler<>(listener, FieldCapabilitiesNodeResponse::new, executor)
         );
     }
 

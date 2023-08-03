@@ -77,7 +77,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").setMapping("tag", "type=keyword").get());
+        assertAcked(indicesAdmin().prepareCreate("idx").setMapping("tag", "type=keyword").get());
         createIndex("idx_unmapped");
 
         numDocs = randomIntBetween(6, 20);
@@ -465,7 +465,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
             .endObject()
           .endObject();
         // end::noformat
-        assertAcked(client().admin().indices().prepareCreate("foo_2").setMapping(builder).get());
+        assertAcked(indicesAdmin().prepareCreate("foo_2").setMapping(builder).get());
         // tag::noformat
         XContentBuilder docBuilder = jsonBuilder().startObject()
             .startObject("license")
@@ -477,7 +477,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
         // end::noformat
         client().prepareIndex("foo_2").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
-        client().admin().indices().prepareRefresh();
+        indicesAdmin().prepareRefresh();
 
         TermsAggregationBuilder groupByLicenseAgg = terms("group_by_license_partnumber").field("license.partnumber.keyword");
 

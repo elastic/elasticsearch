@@ -19,7 +19,6 @@ import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
@@ -55,7 +54,7 @@ public class FlushIT extends ESIntegTestCase {
             final CountDownLatch latch = new CountDownLatch(10);
             final CopyOnWriteArrayList<Throwable> errors = new CopyOnWriteArrayList<>();
             for (int j = 0; j < 10; j++) {
-                client().admin().indices().prepareFlush("test").execute(new ActionListener<FlushResponse>() {
+                indicesAdmin().prepareFlush("test").execute(new ActionListener<FlushResponse>() {
                     @Override
                     public void onResponse(FlushResponse flushResponse) {
                         try {
@@ -93,16 +92,13 @@ public class FlushIT extends ESIntegTestCase {
         assertThat(
             expectThrows(
                 ValidationException.class,
-                () -> client().admin().indices().flush(new FlushRequest().force(true).waitIfOngoing(false)).actionGet()
+                () -> indicesAdmin().flush(new FlushRequest().force(true).waitIfOngoing(false)).actionGet()
             ).getMessage(),
             containsString("wait_if_ongoing must be true for a force flush")
         );
+        assertThat(indicesAdmin().flush(new FlushRequest().force(true).waitIfOngoing(true)).actionGet().getShardFailures(), emptyArray());
         assertThat(
-            client().admin().indices().flush(new FlushRequest().force(true).waitIfOngoing(true)).actionGet().getShardFailures(),
-            emptyArray()
-        );
-        assertThat(
-            client().admin().indices().flush(new FlushRequest().force(false).waitIfOngoing(randomBoolean())).actionGet().getShardFailures(),
+            indicesAdmin().flush(new FlushRequest().force(false).waitIfOngoing(randomBoolean())).actionGet().getShardFailures(),
             emptyArray()
         );
     }
@@ -131,11 +127,11 @@ public class FlushIT extends ESIntegTestCase {
             client().prepareIndex(indexName).setSource("f", "v").get();
         }
         if (randomBoolean()) {
-            internalCluster().restartNode(randomFrom(dataNodes), new InternalTestCluster.RestartCallback());
+            internalCluster().restartNode(randomFrom(dataNodes));
             ensureGreen(indexName);
         }
         assertBusy(() -> {
-            for (ShardStats shardStats : client().admin().indices().prepareStats(indexName).get().getShards()) {
+            for (ShardStats shardStats : indicesAdmin().prepareStats(indexName).get().getShards()) {
                 assertThat(shardStats.getStats().getTranslog().getUncommittedOperations(), equalTo(0));
             }
         }, 30, TimeUnit.SECONDS);

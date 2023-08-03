@@ -103,7 +103,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
     }
 
     private static NodeInfo createNodeInfo() {
-        Build build = Build.CURRENT;
+        Build build = Build.current();
         DiscoveryNode node = DiscoveryNodeUtils.builder("test_node")
             .roles(emptySet())
             .version(VersionUtils.randomVersion(random()))

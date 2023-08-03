@@ -252,7 +252,7 @@ public class LocallyMountedSecrets implements SecureSettings {
          */
         public static LocalFileSecrets readFrom(StreamInput in) throws IOException {
             assert in.getTransportVersion() == TransportVersion.current();
-            return new LocalFileSecrets(in.readMap(StreamInput::readString, StreamInput::readByteArray), ReservedStateVersion.readFrom(in));
+            return new LocalFileSecrets(in.readMap(StreamInput::readByteArray), ReservedStateVersion.readFrom(in));
         }
 
         /**

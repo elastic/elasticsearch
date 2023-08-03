@@ -36,6 +36,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -150,7 +151,7 @@ public class ClusterStateTests extends ESTestCase {
                           "master_node": "nodeId1",
                           "blocks": {
                             "global": {
-                              "1": {
+                              "3": {
                                 "description": "description",
                                 "retryable": true,
                                 "disable_state_persistence": true,
@@ -200,7 +201,9 @@ public class ClusterStateTests extends ESTestCase {
                                 "transform",
                                 "voting_only"
                               ],
-                              "version": "%s"
+                              "version": "%s",
+                              "min_index_version":%s,
+                              "max_index_version":%s
                             }
                           },
                           "transport_versions" : [
@@ -359,9 +362,11 @@ public class ClusterStateTests extends ESTestCase {
                         }""",
                     ephemeralId,
                     Version.CURRENT,
+                    IndexVersion.MINIMUM_COMPATIBLE,
+                    IndexVersion.current(),
                     TransportVersion.current(),
-                    Version.CURRENT.id,
-                    Version.CURRENT.id,
+                    IndexVersion.current(),
+                    IndexVersion.current(),
                     allocationId,
                     allocationId
                 )
@@ -401,7 +406,7 @@ public class ClusterStateTests extends ESTestCase {
                       "master_node" : "nodeId1",
                       "blocks" : {
                         "global" : {
-                          "1" : {
+                          "3" : {
                             "description" : "description",
                             "retryable" : true,
                             "disable_state_persistence" : true,
@@ -451,7 +456,9 @@ public class ClusterStateTests extends ESTestCase {
                             "transform",
                             "voting_only"
                           ],
-                          "version" : "%s"
+                          "version" : "%s",
+                          "min_index_version" : %s,
+                          "max_index_version" : %s
                         }
                       },
                       "transport_versions" : [
@@ -606,9 +613,11 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
+                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersion.current(),
                 TransportVersion.current(),
-                Version.CURRENT.id,
-                Version.CURRENT.id,
+                IndexVersion.current(),
+                IndexVersion.current(),
                 allocationId,
                 allocationId
             ),
@@ -648,7 +657,7 @@ public class ClusterStateTests extends ESTestCase {
                       "master_node" : "nodeId1",
                       "blocks" : {
                         "global" : {
-                          "1" : {
+                          "3" : {
                             "description" : "description",
                             "retryable" : true,
                             "disable_state_persistence" : true,
@@ -698,7 +707,9 @@ public class ClusterStateTests extends ESTestCase {
                             "transform",
                             "voting_only"
                           ],
-                          "version" : "%s"
+                          "version" : "%s",
+                          "min_index_version" : %s,
+                          "max_index_version" : %s
                         }
                       },
                       "transport_versions" : [
@@ -859,9 +870,11 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
+                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersion.current(),
                 TransportVersion.current(),
-                Version.CURRENT.id,
-                Version.CURRENT.id,
+                IndexVersion.current(),
+                IndexVersion.current(),
                 allocationId,
                 allocationId
             ),
@@ -1018,7 +1031,7 @@ public class ClusterStateTests extends ESTestCase {
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(
-                        new ClusterBlock(1, "description", true, true, true, RestStatus.ACCEPTED, EnumSet.allOf((ClusterBlockLevel.class)))
+                        new ClusterBlock(3, "description", true, true, true, RestStatus.ACCEPTED, EnumSet.allOf((ClusterBlockLevel.class)))
                     )
                     .addBlocks(indexMetadata)
                     .addIndexBlock(
@@ -1112,6 +1125,8 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     public void testGetMinTransportVersion() throws IOException {
+        assertEquals(TransportVersion.MINIMUM_COMPATIBLE, ClusterState.EMPTY_STATE.getMinTransportVersion());
+
         var builder = ClusterState.builder(buildClusterState());
         int numNodes = randomIntBetween(2, 20);
         TransportVersion minVersion = TransportVersion.current();
@@ -1124,5 +1139,13 @@ public class ClusterStateTests extends ESTestCase {
 
         var newState = builder.build();
         assertThat(newState.getMinTransportVersion(), equalTo(minVersion));
+
+        assertEquals(
+            TransportVersion.MINIMUM_COMPATIBLE,
+            ClusterState.builder(newState)
+                .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
+                .build()
+                .getMinTransportVersion()
+        );
     }
 }

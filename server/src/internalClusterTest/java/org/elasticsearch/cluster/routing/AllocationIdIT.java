@@ -111,7 +111,7 @@ public class AllocationIdIT extends ESIntegTestCase {
 
         // allocation fails due to corruption marker
         assertBusy(() -> {
-            final ClusterState state = client().admin().cluster().prepareState().get().getState();
+            final ClusterState state = clusterAdmin().prepareState().get().getState();
             final ShardRouting shardRouting = state.routingTable().index(indexName).shard(shardId.id()).primaryShard();
             assertThat(shardRouting.state(), equalTo(ShardRoutingState.UNASSIGNED));
             assertThat(shardRouting.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
@@ -128,7 +128,7 @@ public class AllocationIdIT extends ESIntegTestCase {
         checkNoValidShardCopy(indexName, shardId);
 
         // no any valid shard is there; have to invoke AllocateStalePrimary again
-        client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true)).get();
+        clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true)).get();
 
         ensureYellow(indexName);
 

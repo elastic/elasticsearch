@@ -40,6 +40,10 @@ public abstract class StreamingGeometrySimplifier<T extends Geometry> {
     protected int length;
     protected int objCount = 0;
     protected String description;
+    protected PointConstructor pointConstructor = new PointConstructor() {
+    };
+    protected PointResetter pointResetter = new PointResetter() {
+    };
 
     protected final PriorityQueue<PointError> queue = new PriorityQueue<>();
 
@@ -63,16 +67,24 @@ public abstract class StreamingGeometrySimplifier<T extends Geometry> {
 
     /**
      * Consume a single point on the stream of points to be simplified.
+     * The internal PointError objects will be re-used from a pool of at most <code>maxPoints + 1</code> objects.
      */
     public void consume(double x, double y) {
-        PointError pointError = makePointErrorFor(length, x, y);
+        consume(makePointErrorFor(length, x, y));
+    }
+
+    /**
+     * Consume a single point on the stream of points to be simplified.
+     * No memory management of the points passed in is done, so only use this call if you manage these objects from calling code.
+     */
+    public void consume(PointError pointError) {
         if (length > 1) {
             // we need at least three points to calculate the error of the middle point
             points[length - 1].error = calculator.calculateError(points[length - 2], points[length - 1], pointError);
             queue.add(points[length - 1]);
         }
         if (length == maxPoints) {
-            // Remove point with lowest error
+            // Remove point with the lowest error
             PointError toRemove = queue.remove();
             removeAndAdd(toRemove.index, pointError);
             notifyMonitorPointRemoved(toRemove);
@@ -88,20 +100,42 @@ public abstract class StreamingGeometrySimplifier<T extends Geometry> {
      */
     public abstract T produce();
 
+    /**
+     * Override this method to use alternative objects within the algorithm.
+     * This is useful is calling code wants to make use of the algorithms maximum objects creation logic,
+     * while also using alternative objects.
+     */
+    public interface PointConstructor {
+        default PointError newPoint(int index, double x, double y) {
+            return new PointError(index, x, y);
+        }
+    }
+
+    /**
+     * Override this method to use alternative objects within the algorithm.
+     * This is useful is calling code wants to make use of the algorithms maximum objects creation logic,
+     * while also using alternative objects.
+     */
+    public interface PointResetter {
+        default PointError resetPoint(PointError point, int index, double x, double y) {
+            return point.reset(index, x, y);
+        }
+    }
+
     private PointError makePointErrorFor(int index, double x, double y) {
         if (index == maxPoints) {
             if (lastRemoved == null) {
                 this.objCount++;
-                return new PointError(index, x, y);
+                return pointConstructor.newPoint(index, x, y);
             } else {
-                return lastRemoved.reset(index, x, y);
+                return pointResetter.resetPoint(lastRemoved, index, x, y);
             }
         } else {
             if (points[index] == null) {
                 this.objCount++;
-                return new PointError(index, x, y);
+                return pointConstructor.newPoint(index, x, y);
             } else {
-                return points[index].reset(index, x, y);
+                return points[index] = pointResetter.resetPoint(points[index], index, x, y);
             }
         }
     }
@@ -152,7 +186,7 @@ public abstract class StreamingGeometrySimplifier<T extends Geometry> {
         private double y;
         double error = 0;
 
-        PointError(int index, double x, double y) {
+        protected PointError(int index, double x, double y) {
             this.index = index;
             this.x = x;
             this.y = y;

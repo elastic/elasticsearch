@@ -1,0 +1,6 @@
+pr: 96953
+summary: Fix time-series geo_line to include reduce phase in MergedGeoLines
+area: Geo
+type: bug
+issues:
+  - 96983

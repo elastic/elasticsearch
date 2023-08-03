@@ -327,4 +327,215 @@
   - close_to: { aggregations.date_histogram.buckets.0.10.value: { value: 25.83, error: 0.01 } }
   - close_to: { aggregations.date_histogram.buckets.0.8.value: { value: 25.83, error: 0.01 } }
   # Rate aggregation on counters uses the actual bucket time interval instead of the parent date histogram calendar interval
-  - close_to: { aggregations.date_histogram.buckets.0.9.value: { value: 0.06, error: 0.01 } }
+  - close_to: { aggregations.date_histogram.buckets.0.9.value: { value: 61.11, error: 0.01 } }
+
+---
+"rate aggregation on counter field with unit":
+  - skip:
+      version: " - 8.6.99"
+      reason: "counter field support added in 8.7"
+      features: close_to
+
+  - do:
+      indices.create:
+        index: test-rate
+        body:
+          settings:
+            number_of_shards: 3
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              counter:
+                type : long
+                time_series_metric: counter
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-rate
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T12:00:00.000Z", "host": "one", "counter": 100000 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T13:00:00.000Z", "host": "one", "counter": 210000 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T14:00:00.000Z", "host": "one", "counter": 270000 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T15:00:00.000Z", "host": "one", "counter": 395000 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T16:00:00.000Z", "host": "one", "counter": 444000 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T17:00:00.000Z", "host": "one", "counter": 499000 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:00:00.000Z", "host": "one", "counter": 587000 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:00:00.000Z", "host": "one", "counter": 712000 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T20:00:00.000Z", "host": "one", "counter": 801000 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T21:00:00.000Z", "host": "one", "counter": 888000 }'
+
+  - do:
+      search:
+        index: test-rate
+        body:
+          size: 0
+          aggs:
+            ts:
+              time_series:
+                keyed: false
+              aggs:
+                rate-without-unit:
+                  rate:
+                    field: counter
+                rate-second:
+                  rate:
+                    field: counter
+                    unit: second
+                rate-minute:
+                  rate:
+                    field: counter
+                    unit: minute
+                rate-hour:
+                  rate:
+                    field: counter
+                    unit: hour
+                rate-day:
+                  rate:
+                    field: counter
+                    unit: day
+                rate-week:
+                  rate:
+                    field: counter
+                    unit: week
+                rate-month:
+                  rate:
+                    field: counter
+                    unit: month
+                rate-quarter:
+                  rate:
+                    field: counter
+                    unit: quarter
+                rate-year:
+                  rate:
+                    field: counter
+                    unit: year
+
+  - match: { hits.total.value: 10 }
+  - length: { aggregations.ts.buckets: 1 }
+  - close_to: { aggregations.ts.buckets.0.rate-without-unit.value: { value: 24.32, error: 0.01 }}
+  - close_to: { aggregations.ts.buckets.0.rate-second.value: { value: 24.32, error: 0.01 }}
+  - close_to: { aggregations.ts.buckets.0.rate-minute.value: { value: 1459.25, error: 0.01 }}
+  - close_to: { aggregations.ts.buckets.0.rate-hour.value: { value: 87555.55, error: 0.01 }}
+  - close_to: { aggregations.ts.buckets.0.rate-day.value: { value: 2101333.33, error: 0.01 }}
+  - close_to: { aggregations.ts.buckets.0.rate-week.value: { value: 14709333.33, error: 0.01 }}
+  - close_to: { aggregations.ts.buckets.0.rate-month.value: { value: 63958020.00, error: 0.01 }}
+  - close_to: { aggregations.ts.buckets.0.rate-quarter.value: { value: 191874060.00, error: 0.01 }}
+  - close_to: { aggregations.ts.buckets.0.rate-year.value: { value: 767496240.00, error: 0.01 }}
+
+---
+"rate aggregation on counter field partial bucket":
+  - skip:
+      version: " - 8.6.99"
+      reason: "counter field support added in 8.7"
+      features: close_to
+
+  - do:
+      indices.create:
+        index: test-rate
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              bytes_counter:
+                type: long
+                time_series_metric: counter
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-rate
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:01:04.000Z", "host": "one", "bytes_counter": 1000 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:01:14.000Z", "host": "one", "bytes_counter": 1100 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:01:24.000Z", "host": "one", "bytes_counter": 1200 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:01:34.000Z", "host": "one", "bytes_counter": 1250 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:01:44.000Z", "host": "one", "bytes_counter": 1310 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:01:54.000Z", "host": "one", "bytes_counter": 1350 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:01:01.000Z", "host": "two", "bytes_counter": 1000 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:01:11.000Z", "host": "two", "bytes_counter": 1100 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:01:21.000Z", "host": "two", "bytes_counter": 1200 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:01:31.000Z", "host": "two", "bytes_counter": 1250 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:01:41.000Z", "host": "two", "bytes_counter": 1310 }'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:01:51.000Z", "host": "two", "bytes_counter": 1350 }'
+
+  - do:
+      search:
+        index: test-rate
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                range:
+                  "@timestamp":
+                    gte: "2021-04-28T18:01:03.000Z"
+                    lte: "2021-04-28T18:18:00.000Z"
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                calendar_interval: 1h
+                time_zone: Europe/Ljubljana
+                min_doc_count: 1
+              aggs:
+                counter_rate:
+                  time_series:
+                    keyed: false
+                  aggs:
+                    bytes_counter_rate:
+                      rate:
+                        field: bytes_counter
+                        unit: second
+
+  - match: { hits.total.value: 11 }
+  - length: { aggregations.date_histogram.buckets: 1 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T20:00:00.000+02:00" }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 11 }
+  # NOTE: (1350 - 1000) / (54 - 4) = 350 / 50 = 7.0
+  - close_to: { aggregations.date_histogram.buckets.0.counter_rate.buckets.0.bytes_counter_rate.value: { value: 7.00, error: 0.01 } }
+  # NOTE: (1350 - 1100) / (51 - 11) = 250 / 40 = 6.25 (we filter out the first sample due to the bool range filter)
+  - close_to: { aggregations.date_histogram.buckets.0.counter_rate.buckets.1.bytes_counter_rate.value: { value: 6.25, error: 0.01 } }

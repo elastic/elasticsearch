@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.termsenum.action;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.search.SearchRequest;
@@ -23,6 +24,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
+
+import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 
 /**
  * A request to gather terms for a given field matching a string prefix
@@ -110,6 +113,17 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
+        if (string != null) {
+            // length calculation using BytesRef length like in KeywordFieldMapper to check against MAX_TERM_LENGTH
+            if (new BytesRef(string).length > MAX_TERM_LENGTH) {
+                validationException = ValidateActions.addValidationError(
+                    "prefix string larger than "
+                        + MAX_TERM_LENGTH
+                        + " characters, which is the maximum allowed term length for keyword fields.",
+                    validationException
+                );
+            }
+        }
         if (field == null) {
             validationException = ValidateActions.addValidationError("field cannot be null", validationException);
         }
@@ -125,11 +139,6 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
 
     @Override
     public boolean allowsRemoteIndices() {
-        return true;
-    }
-
-    @Override
-    public boolean includeDataStreams() {
         return true;
     }
 

@@ -29,7 +29,7 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
 
     public RepositoriesStats(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_011)) {
-            repositoryThrottlingStats = in.readMap(StreamInput::readString, ThrottlingStats::new);
+            repositoryThrottlingStats = in.readMap(ThrottlingStats::new);
         } else {
             repositoryThrottlingStats = new HashMap<>();
         }

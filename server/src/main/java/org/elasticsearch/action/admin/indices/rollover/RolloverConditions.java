@@ -29,7 +29,7 @@ import java.util.Objects;
 
 /**
  * Contains the conditions that determine if an index can be rolled over or not. It is used by the {@link RolloverRequest},
- * the Index Lifecycle Management and the Data Lifecycle Management.
+ * the Index Lifecycle Management and the Data Stream Lifecycle.
  */
 public class RolloverConditions implements Writeable, ToXContentObject {
     public static final ObjectParser<RolloverConditions.Builder, Void> PARSER = new ObjectParser<>("rollover_conditions");

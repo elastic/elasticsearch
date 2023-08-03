@@ -69,6 +69,7 @@ import static org.hamcrest.Matchers.hasToString;
 
 public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96896")
     public void testFromXContent() throws IOException {
         SearchSourceBuilder testSearchSourceBuilder = createSearchSourceBuilder();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));

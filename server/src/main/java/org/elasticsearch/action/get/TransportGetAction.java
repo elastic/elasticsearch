@@ -123,7 +123,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         if (request.realtime()) { // we are not tied to a refresh cycle here anyway
             asyncGet(request, shardId, listener);
         } else {
-            indexShard.awaitShardSearchActive(b -> {
+            indexShard.ensureShardSearchActive(b -> {
                 try {
                     asyncGet(request, shardId, listener);
                 } catch (Exception ex) {
@@ -180,7 +180,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     private void handleGetOnUnpromotableShard(GetRequest request, IndexShard indexShard, ActionListener<GetResponse> listener)
         throws IOException {
         ShardId shardId = indexShard.shardId();
-        DiscoveryNode node = getCurrentNodeOfPrimary(shardId);
+        var node = getCurrentNodeOfPrimary(clusterService.state(), shardId);
         if (request.refresh()) {
             logger.trace("send refresh action for shard {} to node {}", shardId, node.getId());
             var refreshRequest = new BasicReplicationRequest(shardId);
@@ -218,7 +218,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                             );
                         }
                     }
-                }), TransportGetFromTranslogAction.Response::new, getExecutor(request, shardId))
+                }), TransportGetFromTranslogAction.Response::new, threadPool.executor(getExecutor(request, shardId)))
             );
         } else {
             // A non-real-time get with no explicit refresh requested.
@@ -226,8 +226,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         }
     }
 
-    private DiscoveryNode getCurrentNodeOfPrimary(ShardId shardId) {
-        var clusterState = clusterService.state();
+    static DiscoveryNode getCurrentNodeOfPrimary(ClusterState clusterState, ShardId shardId) {
         var shardRoutingTable = clusterState.routingTable().shardRoutingTable(shardId);
         if (shardRoutingTable.primaryShard() == null || shardRoutingTable.primaryShard().active() == false) {
             throw new NoShardAvailableActionException(shardId, "primary shard is not active");

@@ -24,13 +24,14 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -95,7 +96,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -172,30 +172,14 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     public void testIndexSortedOnField() {
-        Settings settings = indexSettings(Version.CURRENT, 1, 1).put("index.sort.field", "sort_field").build();
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put("index.sort.field", "sort_field").build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
 
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
-        SearchExecutionContext context = new SearchExecutionContext(
-            0,
-            0,
+        SearchExecutionContext context = SearchExecutionContextHelper.createSimple(
             indexSettings,
-            null,
-            null,
-            null,
-            MappingLookup.EMPTY,
-            null,
-            null,
             XContentParserConfiguration.EMPTY,
-            new NamedWriteableRegistry(Collections.emptyList()),
-            null,
-            null,
-            () -> 0L,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
+            new NamedWriteableRegistry(Collections.emptyList())
         );
 
         assertTrue(context.indexSortedOnField("sort_field"));
@@ -436,7 +420,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         Map<String, Object> runtimeMappings
     ) {
         IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder("index");
-        indexMetadataBuilder.settings(indexSettings(Version.CURRENT, 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, indexUuid));
+        indexMetadataBuilder.settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, indexUuid));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         MapperService mapperService = createMapperService(indexSettings, mappingLookup);
@@ -445,6 +429,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             0,
             0,
             indexSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
             null,
             (mappedFieldType, fdc) -> mappedFieldType.fielddataBuilder(fdc).build(null, null),
             mapperService,

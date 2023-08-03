@@ -22,12 +22,12 @@ public class QueriesTests extends ESTestCase {
 
     public void testNonNestedQuery() {
         // This is a custom query that extends AutomatonQuery and want to make sure the equals method works
-        assertEquals(Queries.newNonNestedFilter(IndexVersion.CURRENT), Queries.newNonNestedFilter(IndexVersion.CURRENT));
+        assertEquals(Queries.newNonNestedFilter(IndexVersion.current()), Queries.newNonNestedFilter(IndexVersion.current()));
         assertEquals(
-            Queries.newNonNestedFilter(IndexVersion.CURRENT).hashCode(),
-            Queries.newNonNestedFilter(IndexVersion.CURRENT).hashCode()
+            Queries.newNonNestedFilter(IndexVersion.current()).hashCode(),
+            Queries.newNonNestedFilter(IndexVersion.current()).hashCode()
         );
-        assertEquals(Queries.newNonNestedFilter(IndexVersion.CURRENT), new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME));
+        assertEquals(Queries.newNonNestedFilter(IndexVersion.current()), new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME));
     }
 
     public void testIsNegativeQuery() {

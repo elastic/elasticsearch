@@ -11,8 +11,11 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.util.Locale;
+
+import static org.elasticsearch.search.aggregations.support.CoreValuesSourceType.GEOPOINT;
 
 /**
  * Holds {@link ValuesSourceType} implementations for time series fields
@@ -51,6 +54,32 @@ public enum TimeSeriesValuesSourceType implements ValuesSourceType {
             AggregationContext context
         ) {
             throw new IllegalArgumentException("Cannot replace missing values for time-series counters");
+        }
+    },
+    POSITION {
+        @Override
+        public ValuesSource getEmpty() {
+            return ValuesSource.GeoPoint.EMPTY;
+        }
+
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            throw new AggregationExecutionException("value source of type [" + this.value() + "] is not supported by scripts");
+        }
+
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            return GEOPOINT.getField(fieldContext, script);
+        }
+
+        @Override
+        public ValuesSource replaceMissing(
+            ValuesSource valuesSource,
+            Object rawMissing,
+            DocValueFormat docValueFormat,
+            AggregationContext context
+        ) {
+            return GEOPOINT.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
         }
     };
 

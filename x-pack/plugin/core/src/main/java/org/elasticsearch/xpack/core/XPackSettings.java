@@ -43,13 +43,6 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_U
  */
 public class XPackSettings {
 
-    private static final boolean IS_DARWIN_AARCH64;
-    static {
-        final String name = System.getProperty("os.name");
-        final String arch = System.getProperty("os.arch");
-        IS_DARWIN_AARCH64 = "aarch64".equals(arch) && name.startsWith("Mac OS X");
-    }
-
     private XPackSettings() {
         throw new IllegalStateException("Utility class should not be instantiated");
     }
@@ -104,13 +97,6 @@ public class XPackSettings {
     public static final Setting<Boolean> ENTERPRISE_SEARCH_ENABLED = Setting.boolSetting(
         "xpack.ent_search.enabled",
         true,
-        Setting.Property.NodeScope
-    );
-
-    /** Setting for enabling or disabling query rules. Defaults to false. */
-    public static final Setting<Boolean> ENTERPRISE_SEARCH_QUERY_RULES_ENABLED = Setting.boolSetting(
-        "xpack.ent_search.query_rules.enabled",
-        false,
         Setting.Property.NodeScope
     );
 

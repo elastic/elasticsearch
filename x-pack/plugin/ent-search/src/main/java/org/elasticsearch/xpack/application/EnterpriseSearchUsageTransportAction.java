@@ -213,7 +213,8 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
     private void addQueryRulesetUsage(ListQueryRulesetsAction.Response response, Map<String, Object> queryRulesUsage) {
         // Aggregate query rules stats
         List<QueryRulesetListItem> results = response.queryPage().results();
-        IntSummaryStatistics stats = results.stream().mapToInt(QueryRulesetListItem::numRules).summaryStatistics();
+        IntSummaryStatistics stats = results.stream().mapToInt(QueryRulesetListItem::ruleTotalCount).summaryStatistics();
+
         Map<String, Object> rules = new HashMap<>();
         rules.put(EnterpriseSearchFeatureSetUsage.COUNT, stats.getSum());
         rules.put(EnterpriseSearchFeatureSetUsage.MIN, results.isEmpty() ? 0 : stats.getMin());
@@ -221,7 +222,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
 
         // Query ruleset stats
         queryRulesUsage.put(EnterpriseSearchFeatureSetUsage.COUNT, response.queryPage().count());
-        queryRulesUsage.put("rules", rules);
+        // TODO more stats
 
     }
 }

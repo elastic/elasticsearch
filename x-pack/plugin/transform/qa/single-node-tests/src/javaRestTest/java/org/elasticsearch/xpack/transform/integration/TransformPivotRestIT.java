@@ -1001,10 +1001,9 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(104, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
         assertOnePivotValue(transformIndex + "/_search?q=by_hr:1484499600000", 4.0833333333);
 
-
-
     }
-    // test that docs in same date bucket with a later date  than the updated doc are not ignored by the transform.
+
+    // test that docs in same date bucket with a later date than the updated doc are not ignored by the transform.
     @SuppressWarnings("unchecked")
     public void testContinuousDateHistogramPivot() throws Exception {
         String indexName = "continuous_reviews_date_histogram";

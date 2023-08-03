@@ -26,7 +26,6 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -131,7 +130,12 @@ public class DateHistogramFieldCollectorTests extends ESTestCase {
         assertNull(queryBuilder);
     }
 
-    private static void assertQuery(QueryBuilder queryBuilder, Double expectedLowerBound, Double expectedUpperBound, String expectedFieldName) {
+    private static void assertQuery(
+        QueryBuilder queryBuilder,
+        Double expectedLowerBound,
+        Double expectedUpperBound,
+        String expectedFieldName
+    ) {
         assertQuery(queryBuilder, expectedLowerBound, expectedFieldName);
 
         // the upper bound is rounded up to the nearest time unit
@@ -159,10 +163,16 @@ public class DateHistogramFieldCollectorTests extends ESTestCase {
     }
 
     private static SearchResponse buildSearchResponse(SingleValue minTimestamp, SingleValue maxTimestamp) {
-        SearchResponseSections sections = new SearchResponseSections(null, new Aggregations(Arrays.asList(minTimestamp, maxTimestamp)),
-            null, false, null, null, 1);
-        return new SearchResponse(sections, null, 1, 1, 0, 0,
-            ShardSearchFailure.EMPTY_ARRAY, null);
+        SearchResponseSections sections = new SearchResponseSections(
+            null,
+            new Aggregations(Arrays.asList(minTimestamp, maxTimestamp)),
+            null,
+            false,
+            null,
+            null,
+            1
+        );
+        return new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
     }
-    
+
 }

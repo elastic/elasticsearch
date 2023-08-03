@@ -149,7 +149,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected List<LifecyclePolicy> getLifecyclePolicies() {
         if (stackTemplateEnabled) {
-            return super.getLifecyclePolicies();
+            return lifecyclePolicies;
         } else {
             return Collections.emptyList();
         }

@@ -140,6 +140,7 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
         return COMPOSABLE_INDEX_TEMPLATES;
     }
 
+    // overriden to be visible in tests
     @Override
     protected List<LifecyclePolicy> getLifecyclePolicies() {
         return super.getLifecyclePolicies();

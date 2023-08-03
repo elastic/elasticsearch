@@ -84,7 +84,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     protected final ConcurrentMap<String, AtomicBoolean> templateCreationsInProgress = new ConcurrentHashMap<>();
     protected final ConcurrentMap<String, AtomicBoolean> policyCreationsInProgress = new ConcurrentHashMap<>();
     protected final ConcurrentMap<String, AtomicBoolean> pipelineCreationsInProgress = new ConcurrentHashMap<>();
-    private final List<LifecyclePolicy> lifecyclePolicies;
+    protected final List<LifecyclePolicy> lifecyclePolicies;
 
     public IndexTemplateRegistry(
         Settings nodeSettings,

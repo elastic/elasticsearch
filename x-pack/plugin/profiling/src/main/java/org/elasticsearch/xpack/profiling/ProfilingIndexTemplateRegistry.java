@@ -101,7 +101,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<LifecyclePolicy> getLifecyclePolicies() {
-        return templatesEnabled ? super.getLifecyclePolicies() : Collections.emptyList();
+        return templatesEnabled ? lifecyclePolicies : Collections.emptyList();
     }
 
     private static final Map<String, ComponentTemplate> COMPONENT_TEMPLATE_CONFIGS;

@@ -318,7 +318,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected List<LifecyclePolicy> getLifecyclePolicies() {
         if (monitoringTemplatesEnabled) {
-            return super.getLifecyclePolicies();
+            return lifecyclePolicies;
         } else {
             return Collections.emptyList();
         }

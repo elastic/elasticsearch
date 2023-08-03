@@ -86,7 +86,7 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected List<LifecyclePolicy> getLifecyclePolicies() {
         if (ilmHistoryEnabled) {
-            return super.getLifecyclePolicies();
+            return lifecyclePolicies;
         } else {
             return List.of();
         }

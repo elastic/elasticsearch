@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -65,6 +67,9 @@ import java.util.concurrent.ThreadPoolExecutor;
  * Context-aware extension of {@link IndexSearcher}.
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
+
+    private static final Logger logger = LogManager.getLogger(ContextIndexSearcher.class);
+
     /**
      * The interval at which we check for search cancellation when we cannot use
      * a {@link CancellableBulkScorer}. See {@link #intersectScorerAndBitSet}.
@@ -83,6 +88,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private final LeafSlice[] leafSlices;
     // don't create slices with less than this number of docs
     private final int minimumDocsPerSlice;
+
+    private volatile boolean timeExceeded = false;
 
     /** constructor for non-concurrent search */
     public ContextIndexSearcher(
@@ -136,15 +143,24 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         boolean wrapWithExitableDirectoryReader,
         ThreadPoolExecutor executor
     ) throws IOException {
-        // concurrency is handle in this class so don't pass the executor to the parent class
-        super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader);
+        // we need to pass the executor up so it can potentially be used as a sliceExecutor by knn search
+        super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
         this.queueSizeBasedExecutor = executor != null ? new QueueSizeBasedExecutor(executor) : null;
         this.minimumDocsPerSlice = minimumDocsPerSlice;
-        this.leafSlices = executor == null ? null : slices(leafContexts);
+        if (executor != null) {
+            this.leafSlices = computeSlices(
+                getLeafContexts(),
+                queueSizeBasedExecutor.threadPoolExecutor.getMaximumPoolSize(),
+                minimumDocsPerSlice
+            );
+            assert (this.leafSlices.length <= executor.getMaximumPoolSize());
+        } else {
+            this.leafSlices = null;
+        }
     }
 
     // package private for testing
@@ -226,9 +242,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
     }
 
+    /**
+     * Overwrite superclass to force one slice per segment for knn search.
+     * This is only needed temporarily by knn query rewrite, for the main
+     * search collection we forked the search method and inject our own slicing logic
+     * until this is available in Lucene itself
+     */
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-        return computeSlices(leaves, queueSizeBasedExecutor.threadPoolExecutor.getMaximumPoolSize(), minimumDocsPerSlice);
+        return IndexSearcher.slices(leaves, Math.max(1, leaves.size()), 1);
     }
 
     /**
@@ -298,9 +320,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) throws IOException {
         final C firstCollector = collectorManager.newCollector();
-        // Take advantage of the few extra rewrite rules of ConstantScoreQuery when score are not needed.
-        query = firstCollector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
-        final Weight weight = createWeight(query, firstCollector.scoreMode(), 1);
+        final Weight weight;
+        try {
+            // Take advantage of the few extra rewrite rules of ConstantScoreQuery when score are not needed.
+            query = firstCollector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
+            weight = createWeight(query, firstCollector.scoreMode(), 1);
+        } catch (@SuppressWarnings("unused") TimeExceededException e) {
+            timeExceeded = true;
+            return collectorManager.reduce(Collections.singletonList(firstCollector));
+        }
         return search(weight, collectorManager, firstCollector);
     }
 
@@ -334,6 +362,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
                 listTasks.add(task);
             }
+            logger.trace("Collecting using " + listTasks.size() + " tasks.");
 
             queueSizeBasedExecutor.invokeAll(listTasks);
             RuntimeException exception = null;
@@ -341,8 +370,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             for (Future<C> future : listTasks) {
                 try {
                     collectedCollectors.add(future.get());
-                    // TODO: when there is an exception and we don't want partial results, it would be great
-                    // to cancel the queries / threads
+                    // TODO: when there is an exception, it would be great to cancel the queries / threads
                 } catch (InterruptedException e) {
                     if (exception == null) {
                         exception = new ThreadInterruptedException(e);
@@ -371,8 +399,31 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         collector.setWeight(weight);
-        for (LeafReaderContext ctx : leaves) { // search each subreader
-            searchLeaf(ctx, weight, collector);
+        try {
+            for (LeafReaderContext ctx : leaves) { // search each subreader
+                searchLeaf(ctx, weight, collector);
+            }
+        } catch (@SuppressWarnings("unused") TimeExceededException e) {
+            timeExceeded = true;
+        }
+
+    }
+
+    /**  If the search has timed out following Elasticsearch custom implementation */
+    public boolean timeExceeded() {
+        return timeExceeded;
+    }
+
+    public void throwTimeExceededException() {
+        throw new TimeExceededException();
+    }
+
+    private static class TimeExceededException extends RuntimeException {
+
+        @Override
+        public Throwable fillInStackTrace() {
+            // never re-thrown so we can save the expensive stacktrace
+            return this;
         }
     }
 

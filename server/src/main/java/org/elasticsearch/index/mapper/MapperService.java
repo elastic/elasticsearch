@@ -27,6 +27,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -93,7 +94,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         1000L,
         0,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.depth.limit",
@@ -123,6 +125,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final IndexVersion indexVersionCreated;
     private final MapperRegistry mapperRegistry;
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
+    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
+
     private volatile DocumentMapper mapper;
 
     public MapperService(
@@ -134,7 +138,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
-        ScriptCompiler scriptCompiler
+        ScriptCompiler scriptCompiler,
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
         this(
             () -> clusterService.state().getMinTransportVersion(),
@@ -145,7 +150,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry,
             searchExecutionContextSupplier,
             idFieldMapper,
-            scriptCompiler
+            scriptCompiler,
+            documentParsingObserverSupplier
         );
     }
 
@@ -158,7 +164,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
-        ScriptCompiler scriptCompiler
+        ScriptCompiler scriptCompiler,
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
@@ -176,7 +183,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexSettings,
             idFieldMapper
         );
-        this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
+        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
+        this.documentParser = new DocumentParser(
+            parserConfiguration,
+            this.mappingParserContextSupplier.get(),
+            documentParsingObserverSupplier
+        );
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );

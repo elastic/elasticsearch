@@ -691,7 +691,7 @@ each of the filters. Events are returned in the order of the filters they match:
   }
 }
 ----
-// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/97646]
+// TESTRESPONSE[skip:Response is illustrative only]
 
 <1> The events in the first sample have a value of `doom` for `host`.
 <2> This event matches the first filter.
@@ -845,7 +845,7 @@ for `os` or `op_sys`, as well as for `host`. For example:
   }
 }
 ----
-// TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+// TESTRESPONSE[skip:Response is illustrative only]
 
 <1> The events in this sample have a value of `doom` for `host` and a value of
 `redhat` for `os` or `op_sys`.

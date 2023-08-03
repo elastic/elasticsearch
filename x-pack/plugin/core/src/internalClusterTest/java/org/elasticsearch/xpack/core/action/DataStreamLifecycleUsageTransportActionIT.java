@@ -68,7 +68,6 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97924")
     @SuppressWarnings("unchecked")
     public void testAction() throws Exception {
         assertUsageResults(0, 0, 0, 0.0, true);

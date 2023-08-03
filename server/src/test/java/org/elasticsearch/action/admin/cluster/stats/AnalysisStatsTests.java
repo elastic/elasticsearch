@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -366,7 +365,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
               }
             }
             """;
-        Settings settings = indexSettings(Version.CURRENT, 4, 1).loadFromSource(settingsSourceIndex1, XContentType.JSON).build();
+        Settings settings = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsSourceIndex1, XContentType.JSON).build();
         IndexMetadata indexMetadata1 = new IndexMetadata.Builder("foo").settings(settings).build();
 
         final String settingsSourceIndex2 = """
@@ -396,7 +395,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
               }
             }
             """;
-        Settings settings2 = indexSettings(Version.CURRENT, 4, 1).loadFromSource(settingsSourceIndex2, XContentType.JSON).build();
+        Settings settings2 = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsSourceIndex2, XContentType.JSON).build();
         IndexMetadata indexMetadata2 = new IndexMetadata.Builder("bar").settings(settings2).build();
 
         final String settingsSourceIndex3 = """
@@ -421,7 +420,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
               }
             }
             """;
-        Settings settings3 = indexSettings(Version.CURRENT, 4, 1).loadFromSource(settingsSourceIndex3, XContentType.JSON).build();
+        Settings settings3 = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsSourceIndex3, XContentType.JSON).build();
         IndexMetadata indexMetadata3 = new IndexMetadata.Builder("baz").settings(settings3).build();
 
         Metadata metadata = new Metadata.Builder().build()

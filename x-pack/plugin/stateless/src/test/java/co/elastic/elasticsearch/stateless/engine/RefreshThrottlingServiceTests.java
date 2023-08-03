@@ -106,6 +106,10 @@ public class RefreshThrottlingServiceTests extends ESTestCase {
             refreshThrottlingService.getRegularIndicesCreditManager().getMultiplier(),
             equalTo(nodeActions.get(0).masterMultiplier())
         );
+        assertThat(
+            refreshThrottlingService.getSystemIndicesCreditManager().getMultiplier(),
+            equalTo(nodeActions.get(0).masterMultiplier())
+        );
 
         Consumer<NodeAction> changeNode = (nodeAction -> {
             if (nodeAction.remove()) {
@@ -155,6 +159,7 @@ public class RefreshThrottlingServiceTests extends ESTestCase {
             }
             deterministicTaskQueue.runAllTasks();
             assertThat(refreshThrottlingService.getRegularIndicesCreditManager().getMultiplier(), equalTo(nodeAction.masterMultiplier()));
+            assertThat(refreshThrottlingService.getSystemIndicesCreditManager().getMultiplier(), equalTo(nodeAction.masterMultiplier()));
         });
 
         for (int i = 1; i < nodeActions.size(); i++) {

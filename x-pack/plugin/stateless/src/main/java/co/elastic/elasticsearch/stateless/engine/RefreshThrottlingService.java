@@ -53,17 +53,13 @@ public class RefreshThrottlingService extends AbstractLifecycleComponent {
     }
 
     public RefreshThrottler.Factory createRefreshThrottlerFactory(IndexSettings indexSettings) {
-        // TODO: once fast_refresh configuration is usable, return Noop only for those indices whose fast_refresh=true. For other
-        // indices, return either the system or the regular node throttler depending on whether the index is a system index.
-        if (clusterService.localNode().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE)
-            && indexSettings.getIndexMetadata().isSystem() == false
-            && indexSettings.isFastRefresh() == false) {
+        if (clusterService.localNode().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) && indexSettings.isFastRefresh() == false) {
             long maxCredit = (BUDGET_INTERVAL.seconds() / THROTTLING_INTERVAL.seconds());
             return refresh -> new RefreshBurstableThrottler(
                 refresh,
                 maxCredit,
                 maxCredit,
-                regularIndicesCreditManager,
+                indexSettings.getIndexMetadata().isSystem() ? systemIndicesCreditManager : regularIndicesCreditManager,
                 clusterService.threadPool()
             );
         }
@@ -127,4 +123,10 @@ public class RefreshThrottlingService extends AbstractLifecycleComponent {
     RefreshNodeCreditManager getRegularIndicesCreditManager() {
         return regularIndicesCreditManager;
     }
+
+    // package private for testing
+    RefreshNodeCreditManager getSystemIndicesCreditManager() {
+        return systemIndicesCreditManager;
+    }
+
 }

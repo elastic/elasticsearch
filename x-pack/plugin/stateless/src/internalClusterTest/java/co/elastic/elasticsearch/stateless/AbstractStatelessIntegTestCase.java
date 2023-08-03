@@ -69,7 +69,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -92,7 +91,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     public static final String SYSTEM_INDEX_NAME = ".sys-idx";
 
     protected void createSystemIndex(Settings indexSettings) {
-        assertAcked(prepareCreate(SYSTEM_INDEX_NAME).setSettings(indexSettings));
+        createIndex(SYSTEM_INDEX_NAME, indexSettings);
     }
 
     public static class SystemIndexTestPlugin extends Plugin implements SystemIndexPlugin {

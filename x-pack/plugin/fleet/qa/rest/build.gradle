@@ -14,7 +14,8 @@ restResources {
 
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: 'fleet_unprivileged_secrets', password: 'password', role: 'unprivileged_secrets'
 }

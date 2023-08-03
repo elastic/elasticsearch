@@ -793,7 +793,7 @@ public class MachineLearning extends Plugin
         String mlConfigVersionAttrName = "node.attr." + ML_CONFIG_VERSION_NODE_ATTR;
 
         if (enabled == false) {
-            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName);
+            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName, mlConfigVersionAttrName);
             return Settings.EMPTY;
         }
 

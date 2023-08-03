@@ -54,16 +54,16 @@ import java.util.regex.Pattern;
  * resulting in the same ML config version being used across multiple commits, causing problems when you try to upgrade between those two
  * merged commits.
  * <h2>Version compatibility</h2>
- * The earliest compatible version is hardcoded in the {@link #FIRST_ML_VERSION} field. This cannot be dynamically calculated
+ * The earliest version is hardcoded in the {@link #FIRST_ML_VERSION} field. This cannot be dynamically calculated
  * from the major/minor versions of {@link Version}, because {@code MlConfigVersion} does not have separate major/minor version numbers.
- * So the minimum compatible version is simply hard-coded as the earliest ML config version referenced in the code (currently 6.0.0).
- * {@link #FIRST_ML_VERSION} should be updated appropriately whenever a major release happens.
+ * So the minimum version is simply hard-coded as the earliest version where ML existed (5.4.0).
  * <h2>Adding a new version</h2>
- * A new ML config version should be added <em>every time</em> a change is made to the serialization protocol of one or more classes.
+ * A new ML config version should be added <em>every time</em> a change is made to the serialization format of one or more ML config
+ * or state classes.
  * Each ML config version should only be used in a single merged commit (apart from BwC versions copied from {@link Version}).
  * <p>
- * To add a new ML config version, add a new constant at the bottom of the list that is one greater than the current highest version,
- * ensure it has a unique id, and update the {@link #CURRENT} constant to point to the new version.
+ * To add a new ML config version, add a new constant at the bottom of the list that is one million greater than the current highest
+ * version, ensure it has a unique id, and update the {@link #CURRENT} constant to point to the new version.
  * <h2>Reverting a ML config version</h2>
  * If you revert a commit with a ML config version change, you <em>must</em> ensure there is a <em>new</em> ML config version
  * representing the reverted change. <em>Do not</em> let the ML config version go backwards, it must <em>always</em> be incremented.
@@ -139,6 +139,8 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
     public static final MlConfigVersion V_8_8_0 = registerMlConfigVersion(8_08_00_99, "8E50EED5-54E3-45B1-A3B2-83A44ADBBF09");
     public static final MlConfigVersion V_8_8_1 = registerMlConfigVersion(8_08_01_99, "99A928F3-FD13-4325-9770-317EB624C85C");
     public static final MlConfigVersion V_8_9_0 = registerMlConfigVersion(8_09_00_99, "C50F56AB-4DB8-48A5-9467-4F5B07365C5C");
+
+    // This constant should never be tested externally - it's considered the same as V_10 externally
     public static final MlConfigVersion V_8_10_0 = registerMlConfigVersion(8_10_00_99, "9315A548-D81B-4FE7-8C0D-0DA81EA00F9E");
 
     /*
@@ -146,7 +148,7 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
      * Detached ML config versions added below here.
      */
 
-    public static final MlConfigVersion V_10 = registerMlConfigVersion(10_00_00_10, "4B940FD9-BEDD-4589-8E08-02D9B480B22D");
+    public static final MlConfigVersion V_10 = registerMlConfigVersion(10_00_00_99, "4B940FD9-BEDD-4589-8E08-02D9B480B22D");
 
     /**
      * Reference to the most recent Ml config version.
@@ -181,7 +183,7 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
         Map<Integer, String> versionIdFields = new HashMap<>();
         NavigableMap<Integer, MlConfigVersion> builder = new TreeMap<>();
 
-        Set<String> ignore = Set.of("ZERO", "CURRENT", "FIRST_ML_VERSION");
+        Set<String> ignore = Set.of("V_8_10_0", "ZERO", "CURRENT", "FIRST_ML_VERSION");
 
         for (Field declaredField : cls.getFields()) {
             if (declaredField.getType().equals(MlConfigVersion.class)) {
@@ -226,6 +228,7 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
     }
 
     public static MlConfigVersion readVersion(StreamInput in) throws IOException {
+        // For version 8.10.0 and earlier this must be binary compatible with Version.writeVersion()
         return fromId(in.readVInt());
     }
 
@@ -243,6 +246,7 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
     }
 
     public static void writeVersion(MlConfigVersion version, StreamOutput out) throws IOException {
+        // For version 8.10.0 and earlier this must be binary compatible with Version.readVersion()
         out.writeVInt(version.id);
     }
 
@@ -263,14 +267,17 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
     }
 
     public static MlConfigVersion fromVersion(Version version) {
-        if (version.onOrAfter(Version.V_8_10_0)) {
+        if (version.equals(Version.V_8_10_0)) {
+            return V_10;
+        }
+        if (version.after(Version.V_8_10_0)) {
             throw new IllegalArgumentException("Cannot convert " + version + ". Incompatible version");
         }
         return fromId(version.id);
     }
 
     public static Version toVersion(MlConfigVersion mlConfigVersion) {
-        if (mlConfigVersion.id < FIRST_ML_VERSION.id || mlConfigVersion.onOrAfter(V_10)) {
+        if (mlConfigVersion.before(FIRST_ML_VERSION) || mlConfigVersion.onOrAfter(V_8_10_0)) {
             throw new IllegalArgumentException("Cannot convert " + mlConfigVersion + ". Incompatible version");
         }
         return Version.fromId(mlConfigVersion.id);
@@ -288,12 +295,16 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
         MlConfigVersion minMlConfigVersion = MlConfigVersion.CURRENT;
         MlConfigVersion maxMlConfigVersion = MlConfigVersion.FIRST_ML_VERSION;
         for (DiscoveryNode node : nodes) {
-            MlConfigVersion mlConfigVersion = getMlConfigVersionForNode(node);
-            if (mlConfigVersion.before(minMlConfigVersion)) {
-                minMlConfigVersion = mlConfigVersion;
-            }
-            if (mlConfigVersion.after(maxMlConfigVersion)) {
-                maxMlConfigVersion = mlConfigVersion;
+            try {
+                MlConfigVersion mlConfigVersion = getMlConfigVersionForNode(node);
+                if (mlConfigVersion.before(minMlConfigVersion)) {
+                    minMlConfigVersion = mlConfigVersion;
+                }
+                if (mlConfigVersion.after(maxMlConfigVersion)) {
+                    maxMlConfigVersion = mlConfigVersion;
+                }
+            } catch (IllegalArgumentException e) {
+                // This means we encountered a node that is after 8.10.0 but has the ML plugin disabled - ignore it
             }
         }
         return new Tuple<>(minMlConfigVersion, maxMlConfigVersion);
@@ -322,7 +333,7 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
         if (matcher.matches() == false || (versionNum = Integer.parseInt(matcher.group(1))) < 10) {
             return fromVersion(Version.fromString(str));
         }
-        return fromId(10000000 + versionNum);
+        return fromId(1000000 * versionNum + 99);
     }
 
     @Override

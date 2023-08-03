@@ -242,10 +242,12 @@ public class MlConfigVersionTests extends ESTestCase {
         MlConfigVersion mlConfigVersion_V_7_7_0 = MlConfigVersion.fromVersion(version_V_7_7_0);
         assertEquals(version_V_7_7_0.id, mlConfigVersion_V_7_7_0.id());
 
-        // There's no mapping between Version and MlConfigVersion values from Version.V_8_10_0 onwards.
-        Version version_V_10 = Version.V_8_10_0;
-        Exception e = expectThrows(IllegalArgumentException.class, () -> MlConfigVersion.fromVersion(version_V_10));
-        assertEquals("Cannot convert " + version_V_10 + ". Incompatible version", e.getMessage());
+        // Version 8.10.0 is treated as if it is MlConfigVersion V_10.
+        assertEquals(MlConfigVersion.V_10.id(), MlConfigVersion.fromVersion(Version.V_8_10_0).id());
+
+        // There's no mapping between Version and MlConfigVersion values after Version.V_8_10_0.
+        Exception e = expectThrows(IllegalArgumentException.class, () -> MlConfigVersion.fromVersion(Version.fromId(8_11_00_99)));
+        assertEquals("Cannot convert " + Version.fromId(8_11_00_99) + ". Incompatible version", e.getMessage());
     }
 
     public void testToVersion() {

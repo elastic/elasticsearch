@@ -496,6 +496,14 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         );
 
         trainedModelConfig.setLocation(trainedModelConfig.getModelType().getDefaultLocation(trainedModelConfig.getModelId()));
+
+        if (resolvedModelPackageConfig.getPerDeploymentMemoryBytes() > 0) {
+            trainedModelConfig.setPerDeploymentMemoryBytes(resolvedModelPackageConfig.getPerDeploymentMemoryBytes());
+        }
+
+        if (resolvedModelPackageConfig.getPerAllocationMemoryBytes() > 0) {
+            trainedModelConfig.setPerAllocationMemoryBytes(resolvedModelPackageConfig.getPerAllocationMemoryBytes());
+        }
     }
 
     static InferenceConfig parseInferenceConfigFromModelPackage(

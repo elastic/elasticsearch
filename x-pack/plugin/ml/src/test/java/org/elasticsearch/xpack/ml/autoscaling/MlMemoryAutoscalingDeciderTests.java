@@ -1063,7 +1063,9 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             3,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
@@ -1075,7 +1077,9 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             1,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build()
                 ),
@@ -1094,7 +1098,9 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             3,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
@@ -1106,7 +1112,9 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             1,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build()
                 ),
@@ -1125,7 +1133,9 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             3,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
@@ -1137,7 +1147,9 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             1,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build()
                 ),

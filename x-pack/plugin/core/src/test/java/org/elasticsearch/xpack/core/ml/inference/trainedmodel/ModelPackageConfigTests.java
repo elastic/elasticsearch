@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 
 import java.io.IOException;
@@ -43,12 +44,14 @@ public class ModelPackageConfigTests extends AbstractBWCSerializationTestCase<Mo
             randomBoolean() ? Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null,
             randomFrom(TrainedModelType.values()).toString(),
             randomBoolean() ? Arrays.asList(generateRandomStringArray(randomIntBetween(0, 5), 15, false)) : null,
-            randomBoolean() ? randomAlphaOfLength(10) : null
+            randomBoolean() ? randomAlphaOfLength(10) : null,
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
     }
 
     public static ModelPackageConfig mutateModelPackageConfig(ModelPackageConfig instance) {
-        switch (between(0, 11)) {
+        switch (between(0, 13)) {
             case 0:
                 return new ModelPackageConfig.Builder(instance).setPackedModelId(randomAlphaOfLength(15)).build();
             case 1:
@@ -83,6 +86,10 @@ public class ModelPackageConfigTests extends AbstractBWCSerializationTestCase<Mo
                 ).build();
             case 11:
                 return new ModelPackageConfig.Builder(instance).setVocabularyFile(randomAlphaOfLength(15)).build();
+            case 12:
+                return new ModelPackageConfig.Builder(instance).setPerDeploymentMemoryBytes(randomNonNegativeLong()).build();
+            case 13:
+                return new ModelPackageConfig.Builder(instance).setPerAllocationMemoryBytes(randomNonNegativeLong()).build();
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
@@ -110,7 +117,12 @@ public class ModelPackageConfigTests extends AbstractBWCSerializationTestCase<Mo
 
     @Override
     protected ModelPackageConfig mutateInstanceForVersion(ModelPackageConfig instance, TransportVersion version) {
-        return instance;
+        ModelPackageConfig.Builder builder = new ModelPackageConfig.Builder(instance);
+        if (version.before(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
+            builder.setPerDeploymentMemoryBytes(0);
+            builder.setPerAllocationMemoryBytes(0);
+        }
+        return builder.build();
     }
 
     private static Map<String, Object> randomInferenceConfigAsMap() {

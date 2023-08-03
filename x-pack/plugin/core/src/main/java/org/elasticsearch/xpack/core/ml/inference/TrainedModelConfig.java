@@ -532,12 +532,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (params.paramAsBoolean(DEFINITION_STATUS, false) && fullDefinition != null) {
             builder.field("fully_defined", fullDefinition);
         }
-        // if (perDeploymentMemoryBytes > 0) {
+        if (perDeploymentMemoryBytes > 0) {
             builder.field(PER_DEPLOYMENT_MEMORY_BYTES.getPreferredName(), perDeploymentMemoryBytes);
-        // }
-        // if (perAllocationMemoryBytes > 0) {
+        }
+        if (perAllocationMemoryBytes > 0) {
             builder.field(PER_ALLOCATION_MEMORY_BYTES.getPreferredName(), perAllocationMemoryBytes);
-        // }
+        }
         builder.endObject();
         return builder;
     }

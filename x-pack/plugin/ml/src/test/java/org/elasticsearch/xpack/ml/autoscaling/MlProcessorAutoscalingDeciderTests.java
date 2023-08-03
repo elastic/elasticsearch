@@ -76,7 +76,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         3,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                             )
@@ -91,7 +93,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         1,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 )
                                     .addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
@@ -145,7 +149,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         8,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 )
                             )
@@ -160,7 +166,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         4,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 )
                                     .addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
@@ -214,7 +222,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         1,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.LOW
+                                        Priority.LOW,
+                                        0L,
+                                        0L
                                     )
                                 )
                             )
@@ -229,7 +239,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         4,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 )
                                     .addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
@@ -283,7 +295,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         2,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                             )
@@ -298,7 +312,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         1,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )
@@ -353,7 +369,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         2,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                             )
@@ -368,7 +386,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         1,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )
@@ -421,7 +441,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         2,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                             )
@@ -436,7 +458,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         1,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )
@@ -493,7 +517,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         1,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.LOW
+                                        Priority.LOW,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )
@@ -508,7 +534,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         1,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.LOW
+                                        Priority.LOW,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )

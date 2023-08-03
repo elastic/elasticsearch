@@ -1,5 +1,5 @@
 pr: 98167
-summary: Adapt Question Answering processing for non-batched evaluation
+summary: Fix failure processing Question Answering model output where the input has been spanned over multiple sequences   
 area: Machine Learning
 type: bug
 issues:

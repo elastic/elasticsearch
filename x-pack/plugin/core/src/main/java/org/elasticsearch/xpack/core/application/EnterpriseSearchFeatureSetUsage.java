@@ -28,8 +28,13 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
     public static final String ANALYTICS_COLLECTIONS = "analytics_collections";
     public static final String QUERY_RULESETS = "query_rulesets";
     public static final String COUNT = "count";
-    public static final String MIN = "min";
-    public static final String MAX = "max";
+    public static final String TOTAL_COUNT = "total_count";
+    public static final String TOTAL_RULE_COUNT = "total_rule_count";
+    public static final String MIN_RULE_COUNT = "min_rule_count";
+    public static final String MAX_RULE_COUNT = "max_rule_count";
+    public static final String RULE_TYPE_COUNT_PREFIX = "rule_";
+    public static final String RULE_TYPE_COUNT_SUFFIX = "_total_count";
+
     private final Map<String, Object> searchApplicationsUsage;
     private final Map<String, Object> analyticsCollectionsUsage;
     private final Map<String, Object> queryRulesUsage;

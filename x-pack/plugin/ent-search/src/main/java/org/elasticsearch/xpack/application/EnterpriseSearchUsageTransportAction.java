@@ -29,6 +29,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.analytics.action.GetAnalyticsCollectionAction;
+import org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 import org.elasticsearch.xpack.application.rules.QueryRulesetListItem;
 import org.elasticsearch.xpack.application.rules.action.ListQueryRulesetsAction;
@@ -45,9 +46,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.IntSummaryStatistics;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage.RULE_TYPE_COUNT_PREFIX;
+import static org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage.RULE_TYPE_COUNT_SUFFIX;
 
 public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTransportAction {
     private static final Logger logger = LogManager.getLogger(EnterpriseSearchUsageTransportAction.class);
@@ -211,18 +215,23 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
     }
 
     private void addQueryRulesetUsage(ListQueryRulesetsAction.Response response, Map<String, Object> queryRulesUsage) {
-        // Aggregate query rules stats
         List<QueryRulesetListItem> results = response.queryPage().results();
-        IntSummaryStatistics stats = results.stream().mapToInt(QueryRulesetListItem::ruleTotalCount).summaryStatistics();
+        IntSummaryStatistics ruleStats = results.stream().mapToInt(QueryRulesetListItem::ruleTotalCount).summaryStatistics();
 
-        Map<String, Object> rules = new HashMap<>();
-        rules.put(EnterpriseSearchFeatureSetUsage.COUNT, stats.getSum());
-        rules.put(EnterpriseSearchFeatureSetUsage.MIN, results.isEmpty() ? 0 : stats.getMin());
-        rules.put(EnterpriseSearchFeatureSetUsage.MAX, results.isEmpty() ? 0 : stats.getMax());
+        Map<QueryRuleCriteriaType, Integer> criteriaTypeCountMap = new HashMap<>();
+        results.stream()
+            .flatMap(result -> result.criteriaTypeToCountMap().entrySet().stream())
+            .forEach(entry -> criteriaTypeCountMap.merge(entry.getKey(), entry.getValue(), Integer::sum));
 
-        // Query ruleset stats
-        queryRulesUsage.put(EnterpriseSearchFeatureSetUsage.COUNT, response.queryPage().count());
-        // TODO more stats
-
+        queryRulesUsage.put(EnterpriseSearchFeatureSetUsage.TOTAL_COUNT, response.queryPage().count());
+        queryRulesUsage.put(EnterpriseSearchFeatureSetUsage.TOTAL_RULE_COUNT, ruleStats.getSum());
+        queryRulesUsage.put(EnterpriseSearchFeatureSetUsage.MIN_RULE_COUNT, results.isEmpty() ? 0 : ruleStats.getMin());
+        queryRulesUsage.put(EnterpriseSearchFeatureSetUsage.MAX_RULE_COUNT, results.isEmpty() ? 0 : ruleStats.getMax());
+        criteriaTypeCountMap.forEach(
+            (criteriaType, count) -> queryRulesUsage.put(
+                RULE_TYPE_COUNT_PREFIX + criteriaType.name().toLowerCase(Locale.ROOT) + RULE_TYPE_COUNT_SUFFIX,
+                count
+            )
+        );
     }
 }

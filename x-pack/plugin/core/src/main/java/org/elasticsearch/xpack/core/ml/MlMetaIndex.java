@@ -34,7 +34,7 @@ public final class MlMetaIndex {
             "/ml/meta_index_mappings.json",
             Version.CURRENT.toString(),
             MAPPINGS_VERSION_VARIABLE,
-            Map.of("xpack.ml.system.index.version", Integer.toString(META_INDEX_MAPPINGS_VERSION))
+            Map.of("xpack.ml.managed.index.version", Integer.toString(META_INDEX_MAPPINGS_VERSION))
         );
     }
 

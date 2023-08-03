@@ -214,7 +214,7 @@ public class AnnotationIndex {
             "/ml/annotations_index_mappings.json",
             Version.CURRENT.toString(),
             MAPPINGS_VERSION_VARIABLE,
-            Map.of("xpack.ml.system.index.version", Integer.toString(ANNOTATION_INDEX_MAPPINGS_VERSION))
+            Map.of("xpack.ml.managed.index.version", Integer.toString(ANNOTATION_INDEX_MAPPINGS_VERSION))
         );
     }
 }

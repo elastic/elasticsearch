@@ -10,6 +10,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -18,12 +20,13 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFea
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class LearnToRankConfig extends RegressionConfig {
+public class LearnToRankConfig extends RegressionConfig implements Rewriteable<LearnToRankConfig> {
 
     public static final ParseField NAME = new ParseField("learn_to_rank");
     static final TransportVersion MIN_SUPPORTED_TRANSPORT_VERSION = TransportVersion.current();
@@ -169,6 +172,24 @@ public class LearnToRankConfig extends RegressionConfig {
     @Override
     public TransportVersion getMinimalSupportedTransportVersion() {
         return MIN_SUPPORTED_TRANSPORT_VERSION;
+    }
+
+    @Override
+    public LearnToRankConfig rewrite(QueryRewriteContext ctx) throws IOException {
+        if (this.featureExtractorBuilders.isEmpty()) {
+            return this;
+        }
+        boolean rewritten = false;
+        List<LearnToRankFeatureExtractorBuilder> rewrittenExtractors = new ArrayList<>(this.featureExtractorBuilders.size());
+        for (LearnToRankFeatureExtractorBuilder extractorBuilder : this.featureExtractorBuilders) {
+            LearnToRankFeatureExtractorBuilder rewrittenExtractor = Rewriteable.rewrite(extractorBuilder, ctx);
+            rewrittenExtractors.add(rewrittenExtractor);
+            rewritten |= (rewrittenExtractor != extractorBuilder);
+        }
+        if (rewritten) {
+            return new LearnToRankConfig(getNumTopFeatureImportanceValues(), rewrittenExtractors);
+        }
+        return this;
     }
 
     public static class Builder {

@@ -42,7 +42,7 @@ public class MlStatsIndex {
             "/ml/stats_index_mappings.json",
             Version.CURRENT.toString(),
             MAPPINGS_VERSION_VARIABLE,
-            Map.of("xpack.ml.system.index.version", Integer.toString(STATS_INDEX_MAPPINGS_VERSION))
+            Map.of("xpack.ml.managed.index.version", Integer.toString(STATS_INDEX_MAPPINGS_VERSION))
         );
     }
 

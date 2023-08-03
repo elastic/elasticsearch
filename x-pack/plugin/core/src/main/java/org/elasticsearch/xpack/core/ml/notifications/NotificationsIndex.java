@@ -26,7 +26,7 @@ public final class NotificationsIndex {
             RESOURCE_PATH + "notifications_index_mappings.json",
             Version.CURRENT.toString(),
             MAPPINGS_VERSION_VARIABLE,
-            Map.of("xpack.ml.system.index.version", Integer.toString(NOTIFICATIONS_INDEX_MAPPINGS_VERSION))
+            Map.of("xpack.ml.managed.index.version", Integer.toString(NOTIFICATIONS_INDEX_MAPPINGS_VERSION))
         );
     }
 }

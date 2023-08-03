@@ -1,0 +1,5 @@
+pr: 94299
+summary: HDFS plugin: allow webhdfs scheme 
+area: Snapshot/Restore
+type: enhancement
+issues: []

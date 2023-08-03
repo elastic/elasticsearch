@@ -95,6 +95,12 @@ tasks.register("updateCIBwcVersions") {
       ".buildkite/pipelines/periodic.bwc.template.yml",
       BuildParams.bwcVersions.allIndexCompatible
     )
+    wirteBuildkiteSteps(
+      ".buildkite/pipelines/periodic-packaging.yml",
+      ".buildkite/pipelines/periodic-packaging.template.yml",
+      ".buildkite/pipelines/periodic-packaging.bwc.template.yml",
+      BuildParams.bwcVersions.allIndexCompatible
+    )
   }
 }
 

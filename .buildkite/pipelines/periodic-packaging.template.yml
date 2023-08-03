@@ -1,0 +1,33 @@
+steps:
+  - group: packaging-tests-unix
+    steps:
+      - label: "{{matrix.image}} / packaging-tests-unix"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructivePackagingTest
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - family/elasticsearch-centos-7
+              - family/elasticsearch-debian-10
+              - family/elasticsearch-debian-11
+              - family/elasticsearch-opensuse-leap-15
+              - family/elasticsearch-oraclelinux-7
+              - family/elasticsearch-oraclelinux-8
+              - family/elasticsearch-sles-12
+              - family/elasticsearch-sles-15
+              - family/elasticsearch-ubuntu-1804
+              - family/elasticsearch-ubuntu-2004
+              - family/elasticsearch-ubuntu-2204
+              - family/elasticsearch-rocky-8
+              - family/elasticsearch-rhel-7
+              - family/elasticsearch-rhel-8
+              - family/elasticsearch-rhel-9
+              - family/elasticsearch-almalinux-8
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          diskSizeGb: 350
+          machineType: custom-16-32768
+        env: {}
+  - group: packaging-tests-upgrade
+    steps: $BWC_STEPS

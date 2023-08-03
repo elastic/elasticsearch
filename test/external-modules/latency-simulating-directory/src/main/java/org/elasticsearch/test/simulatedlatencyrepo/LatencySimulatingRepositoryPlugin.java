@@ -20,6 +20,10 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Map;
 
+/**
+ * Repository wrapping an FsRepository and adding a configurable latency to each
+ * blob store read.
+ */
 public class LatencySimulatingRepositoryPlugin extends Plugin implements RepositoryPlugin {
 
     public static final String TYPE = "latency-simulating";

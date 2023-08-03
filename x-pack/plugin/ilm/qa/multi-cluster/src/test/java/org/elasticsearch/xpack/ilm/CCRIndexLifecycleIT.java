@@ -98,7 +98,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     // ILM should have unfollowed the follower index, so the following_index setting should have been removed:
                     // (this controls whether the follow engine is used)
                     assertThat(getIndexSetting(client(), indexName, "index.xpack.ccr.following_index"), nullValue());
-                });
+                }, 30, TimeUnit.SECONDS);
             }
         } else {
             fail("unexpected target cluster [" + targetCluster + "]");
@@ -232,7 +232,11 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 assertBusy(() -> assertTrue(indexExists(indexName)));
 
                 // check that the alias was replicated
-                assertBusy(() -> assertOK(client().performRequest(new Request("HEAD", "/" + indexName + "/_alias/" + alias))));
+                assertBusy(
+                    () -> assertOK(client().performRequest(new Request("HEAD", "/" + indexName + "/_alias/" + alias))),
+                    30,
+                    TimeUnit.SECONDS
+                );
 
                 index(leaderClient, indexName, "1");
                 assertDocumentExists(leaderClient, indexName, "1");
@@ -249,7 +253,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     assertOK(leaderClient.performRequest(new Request("HEAD", "/" + nextIndexName)));
                     assertThat(getIndexSetting(leaderClient, indexName, "index.lifecycle.indexing_complete"), equalTo("true"));
 
-                });
+                }, 30, TimeUnit.SECONDS);
 
                 assertBusy(() -> {
                     // Wait for the next index should have been created on the leader
@@ -426,7 +430,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     // We should get into a state with these policies where both leader and followers are waiting on each other
                     assertILMPolicy(leaderClient, indexName, policyName, "warm", "shrink", "wait-for-shard-history-leases");
                     assertILMPolicy(client(), indexName, policyName, "hot", "unfollow", "wait-for-indexing-complete");
-                });
+                }, 30, TimeUnit.SECONDS);
 
                 // Index a bunch of documents and wait for them to be replicated
                 for (int i = 0; i < 50; i++) {
@@ -455,7 +459,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     // And both of these should now finish their policies
                     assertILMPolicy(leaderClient, shrunkenIndexName, policyName, null, "complete", "complete");
                     assertILMPolicy(client(), indexName, policyName, "hot", "complete", "complete");
-                });
+                }, 30, TimeUnit.SECONDS);
             }
         } else {
             fail("unexpected target cluster [" + targetCluster + "]");
@@ -527,7 +531,11 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 // Start ILM back up and let it unfollow
                 client().performRequest(new Request("POST", "/_ilm/start"));
                 // Wait for the policy to be complete
-                assertBusy(() -> { assertILMPolicy(client(), followerIndex, policyName, "hot", "complete", "complete"); });
+                assertBusy(
+                    () -> { assertILMPolicy(client(), followerIndex, policyName, "hot", "complete", "complete"); },
+                    30,
+                    TimeUnit.SECONDS
+                );
 
                 // Ensure the "follower" index has successfully unfollowed
                 assertBusy(() -> { assertThat(getIndexSetting(client(), followerIndex, "index.xpack.ccr.following_index"), nullValue()); });

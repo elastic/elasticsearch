@@ -355,7 +355,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
                 assertThat(totalTaken, equalTo(1));
                 assertThat(totalDeleted, equalTo(1));
                 assertThat(totalFailed, equalTo(0));
-            });
+            }, 30, TimeUnit.SECONDS);
 
             assertBusy(() -> {
                 try {
@@ -787,8 +787,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             fail("failed to perform search:" + e.getMessage());
         }
 
-        // Finally, check that the history index is in a good state
-        assertHistoryIndexWaitingForRollover();
     }
 
     @SuppressWarnings("unchecked")

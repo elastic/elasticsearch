@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-module org.elasticsearch.ilm {
+module org.elasticsearch.slm {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
@@ -12,10 +12,10 @@ module org.elasticsearch.ilm {
     requires org.apache.lucene.core;
     requires org.apache.logging.log4j;
 
-    exports org.elasticsearch.xpack.ilm.action to org.elasticsearch.server;
-    exports org.elasticsearch.xpack.ilm;
+    exports org.elasticsearch.xpack.slm.action to org.elasticsearch.server;
+    exports org.elasticsearch.xpack.slm to org.elasticsearch.server;
 
     provides org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider
         with
-            org.elasticsearch.xpack.ilm.ReservedLifecycleStateHandlerProvider;
+            org.elasticsearch.xpack.slm.ReservedLifecycleStateHandlerProvider;
 }

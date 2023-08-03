@@ -23,7 +23,7 @@ teardown:
 ---
 "Delete search application fails for unprivileged user":
   - skip:
-      features: headers
+      features: [headers, warnings]
 
   - do:
       catch: unauthorized
@@ -32,6 +32,8 @@ teardown:
         name: test-search-application-to-delete
 
   - do:
+      warnings:
+        - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
       search_application.get:
         name: test-search-application-to-delete
 

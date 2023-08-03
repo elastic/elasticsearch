@@ -18,7 +18,9 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.application.search.SearchApplication;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
+import org.elasticsearch.xpack.application.search.SearchApplicationTemplate;
 
 public class TransportGetSearchApplicationAction extends HandledTransportAction<
     GetSearchApplicationAction.Request,
@@ -51,6 +53,16 @@ public class TransportGetSearchApplicationAction extends HandledTransportAction<
                 (l, searchApplication) -> systemIndexService.checkAliasConsistency(searchApplication, l.safeMap(inconsistentIndices -> {
                     for (String key : inconsistentIndices.keySet()) {
                         HeaderWarning.addWarning(key + " " + inconsistentIndices.get(key));
+                    }
+                    if (searchApplication.hasStoredTemplate() == false) {
+                        HeaderWarning.addWarning(SearchApplication.NO_TEMPLATE_STORED_WARNING);
+                        return new GetSearchApplicationAction.Response(
+                            searchApplication.name(),
+                            searchApplication.indices(),
+                            searchApplication.analyticsCollectionName(),
+                            searchApplication.updatedAtMillis(),
+                            SearchApplicationTemplate.DEFAULT_TEMPLATE
+                        );
                     }
                     return new GetSearchApplicationAction.Response(searchApplication);
                 }))

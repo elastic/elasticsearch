@@ -49,6 +49,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class SearchApplication implements Writeable, ToXContentObject {
 
+    public static final String NO_TEMPLATE_STORED_WARNING = "Using default search application template which is subject to change. "
+        + "We recommend storing a template to avoid breaking changes.";
+
     private final String name;
     private final String[] indices;
     private final long updatedAtMillis;
@@ -229,8 +232,12 @@ public class SearchApplication implements Writeable, ToXContentObject {
         return searchApplicationTemplate;
     }
 
+    public boolean hasStoredTemplate() {
+        return searchApplicationTemplate != null;
+    }
+
     public SearchApplicationTemplate searchApplicationTemplateOrDefault() {
-        return searchApplicationTemplate != null ? searchApplicationTemplate : SearchApplicationTemplate.DEFAULT_TEMPLATE;
+        return hasStoredTemplate() ? searchApplicationTemplate : SearchApplicationTemplate.DEFAULT_TEMPLATE;
     }
 
     @Override

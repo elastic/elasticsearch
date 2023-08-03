@@ -184,6 +184,9 @@ teardown:
 
 ---
 "Update Search Application with null template":
+  - skip:
+      features: warnings
+
   - do:
       search_application.put:
         name: test-updated-search-application
@@ -213,10 +216,19 @@ teardown:
   - match: { test-index4.aliases.test-updated-search-application: { } }
 
   - do:
+      warnings:
+        - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
       search_application.get:
         name: test-updated-search-application
 
-  - match: { template: null }
+  - match:
+      template:
+        script:
+          source: "{\n  \"query\": {\n    \"query_string\": {\n        \"query\": \"{{query_string}}\",\n        \"default_field\": \"{{default_field}}\"\n        }\n    }\n}\n"
+          lang: "mustache"
+          params:
+            query_string: "*"
+            default_field: "*"
 
 ---
 "Update Search Application - Dictionary is not a valid JSON Schema":

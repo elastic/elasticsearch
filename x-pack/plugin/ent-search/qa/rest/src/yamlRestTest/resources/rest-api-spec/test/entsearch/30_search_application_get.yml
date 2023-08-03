@@ -84,14 +84,30 @@ teardown:
   - gte: { updated_at_millis: 0 }
 
 ---
-"Get Search Application with no template specified returns null template":
+"Get Search Application with no template specified returns default template with warning header":
+  - skip:
+      features: warnings
+
   - do:
+      warnings:
+        - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
       search_application.get:
         name: test-search-application-2
 
   - match: { name: "test-search-application-2" }
   - match: { analytics_collection_name: "test-analytics" }
-  - match: { template: null }
+  - match: {
+    template: {
+      script: {
+        source: "{\n  \"query\": {\n    \"query_string\": {\n        \"query\": \"{{query_string}}\",\n        \"default_field\": \"{{default_field}}\"\n        }\n    }\n}\n",
+        params: {
+          query_string: "*",
+          default_field: "*"
+        },
+        lang: "mustache"
+      }
+    }
+  }
   - gte: { updated_at_millis: 0 }
 
 ---

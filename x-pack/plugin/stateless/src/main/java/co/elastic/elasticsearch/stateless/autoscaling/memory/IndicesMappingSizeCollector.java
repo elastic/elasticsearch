@@ -43,6 +43,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
+
 public class IndicesMappingSizeCollector implements ClusterStateListener, IndexEventListener {
 
     private static final int SENDING_PRIMARY_SHARD_ID = 0;
@@ -131,7 +133,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
 
             @Override
             public void onFailure(final Exception e) {
-                logger.error("Error while pushing indices mapping size metrics to master node", e);
+                logger.log(getExceptionLogLevel(e), () -> "Unable to publish indices mapping size", e);
             }
         });
     }

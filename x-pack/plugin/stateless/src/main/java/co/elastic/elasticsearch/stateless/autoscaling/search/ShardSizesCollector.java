@@ -44,6 +44,8 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
+
 /**
  * This service is responsible for collecting shard size changes on the search nodes
  * and periodically sending updates to the elected master
@@ -298,7 +300,7 @@ public class ShardSizesCollector implements ClusterStateListener {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.warn("Failed to publish nodes shard sizes", e);
+                    logger.log(getExceptionLogLevel(e), () -> "Unable to publish nodes shard sizes", e);
                     pendingPublication.retry(shards);
                 }
             });

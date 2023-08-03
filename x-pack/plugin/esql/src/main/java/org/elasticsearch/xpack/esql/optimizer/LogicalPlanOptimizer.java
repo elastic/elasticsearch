@@ -95,6 +95,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new FoldNull(),
             new SplitInWithFoldableValue(),
             new ConstantFolding(),
+            new PropagateEvalFoldables(),
             // boolean
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
@@ -299,6 +300,40 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         private static Expression trimAliases(Expression e) {
             return e.transformDown(Alias.class, Alias::child);
+        }
+    }
+
+    //
+    // Replace any reference attribute with its source, if it does not affect the result.
+    // This avoids ulterior look-ups between attributes and its source across nodes.
+    //
+    static class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            AttributeMap.Builder<Expression> builder = AttributeMap.builder();
+            // collect aliases
+            plan.forEachExpressionUp(Alias.class, a -> {
+                var c = a.child();
+                if (c.foldable()) {
+                    builder.put(a.toAttribute(), c);
+                }
+            });
+            final AttributeMap<Expression> collectRefs = builder.build();
+            if (collectRefs.isEmpty()) {
+                return plan;
+            }
+            java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.resolve(r, r);
+
+            plan = plan.transformUp(p -> {
+                // Apply the replacement inside Filter and Eval (which shouldn't make a difference)
+                if (p instanceof Filter || p instanceof Eval) {
+                    p = p.transformExpressionsOnly(ReferenceAttribute.class, replaceReference);
+                }
+                return p;
+            });
+
+            return plan;
         }
     }
 

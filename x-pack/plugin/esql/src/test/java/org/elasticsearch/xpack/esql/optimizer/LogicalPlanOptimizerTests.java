@@ -1091,6 +1091,49 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(limit.child(), EsRelation.class);
     }
 
+    public void testFoldInEval() {
+        var plan = optimizedPlan("""
+            from test
+            | eval a = 1, b = a + 1, c = b + a
+            | where c > 10
+            """);
+
+        as(plan, LocalRelation.class);
+    }
+
+    public void testFoldFromRow() {
+        var plan = optimizedPlan("""
+              row a = 1, b = 2, c = 3
+            | where c > 10
+            """);
+
+        as(plan, LocalRelation.class);
+    }
+
+    public void testFoldFromRowInEval() {
+        var plan = optimizedPlan("""
+              row a = 1, b = 2, c = 3
+            | eval x = c
+            | where x > 10
+            """);
+
+        as(plan, LocalRelation.class);
+    }
+
+    public void testInvalidFoldDueToReplacement() {
+        var plan = optimizedPlan("""
+              from test
+            | eval x = 1
+            | eval x = emp_no
+            | where x > 10
+            | keep x
+            """);
+
+        var project = as(plan, EsqlProject.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+    }
+
     public void testEnrich() {
         LogicalPlan plan = optimizedPlan("""
             from test

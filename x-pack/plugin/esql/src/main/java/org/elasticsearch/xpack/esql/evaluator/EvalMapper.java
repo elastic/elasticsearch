@@ -7,16 +7,12 @@
 
 package org.elasticsearch.xpack.esql.evaluator;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -27,7 +23,6 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Comp
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InMapper;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RegexMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -180,47 +175,38 @@ public final class EvalMapper {
                     return block.apply(page.getPositionCount());
                 }
             }
-            IntFunction<Block> block = block(lit);
-            return () -> new LiteralsEvaluator(block);
+            // wrap the closure to provide a nice toString (used by tests)
+            var blockClosure = new IntFunction<Block>() {
+                @Override
+                public Block apply(int value) {
+                    return block(lit).apply(value);
+                }
+
+                @Override
+                public String toString() {
+                    return lit.toString();
+                }
+            };
+            return () -> new LiteralsEvaluator(blockClosure);
         }
 
         private IntFunction<Block> block(Literal lit) {
-            if (lit.value() == null) {
+            var value = lit.value();
+            if (value == null) {
                 return Block::constantNullBlock;
             }
-            return switch (LocalExecutionPlanner.toElementType(lit.dataType())) {
-                case BOOLEAN -> {
-                    boolean v = (boolean) lit.value();
-                    yield positions -> BooleanBlock.newConstantBlockWith(v, positions);
-                }
-                case BYTES_REF -> {
-                    BytesRef v = (BytesRef) lit.value();
-                    yield positions -> BytesRefBlock.newConstantBlockWith(v, positions);
-                }
-                case DOUBLE -> new IntFunction<>() { // TODO toString in the rest of these and tests for this
-                    private final double v = (double) lit.value();
 
-                    @Override
-                    public Block apply(int positions) {
-                        return DoubleBlock.newConstantBlockWith(v, positions);
-                    }
-
-                    @Override
-                    public String toString() {
-                        return Double.toString(v);
-                    }
+            if (value instanceof List<?> multiValue) {
+                if (multiValue.isEmpty()) {
+                    return Block::constantNullBlock;
+                }
+                return positions -> {
+                    var wrapper = BlockUtils.wrapperFor(BlockUtils.fromJava(multiValue.get(0).getClass()), positions);
+                    wrapper.accept(multiValue);
+                    return wrapper.builder().build();
                 };
-                case INT -> {
-                    int v = (int) lit.value();
-                    yield positions -> IntBlock.newConstantBlockWith(v, positions);
-                }
-                case LONG -> {
-                    long v = (long) lit.value();
-                    yield positions -> LongBlock.newConstantBlockWith(v, positions);
-                }
-                case NULL -> Block::constantNullBlock;
-                case DOC, UNKNOWN -> throw new UnsupportedOperationException("can't eval to doc or unknown");
-            };
+            }
+            return positions -> BlockUtils.constantBlock(value, positions);
         }
     }
 

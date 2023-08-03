@@ -287,7 +287,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluatorSimpleToString() {
-        assertThat(evaluator(buildFieldExpression(testCase)).get().toString(), equalTo(testCase.evaluatorToString));
+        var supplier = evaluator(buildFieldExpression(testCase));
+        var ev = supplier.get();
+        assertThat(ev.toString(), equalTo(testCase.evaluatorToString));
     }
 
     public final void testSimpleConstantFolding() {

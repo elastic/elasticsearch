@@ -760,74 +760,57 @@ public final class TokenService {
     }
 
     /**
-     * Invalidates all access tokens and all refresh tokens of a given {@code realmName} and/or of a given
-     * {@code username} so that they may no longer be used
+     * Invalidates all access and refresh tokens for a given {@code realmName} and/or of a given
+     * {@code username} so that they may no longer be usable.
      *
      * @param realmName the realm of which the tokens should be invalidated
      * @param username the username for which the tokens should be invalidated
+     * @param filter    An optional {@code Predicate} to further test and filter the tokens to invalidate.
+     *                  The predicate tests the token doc source.
      * @param listener  the listener to notify upon completion
      */
-    public void invalidateActiveTokensForRealmAndUser(
+    public void invalidateActiveTokens(
         @Nullable String realmName,
         @Nullable String username,
+        @Nullable Predicate<Map<String, Object>> filter,
         ActionListener<TokensInvalidationResult> listener
     ) {
         ensureEnabled();
+        maybeStartTokenRemover();
         if (Strings.isNullOrEmpty(realmName) && Strings.isNullOrEmpty(username)) {
             logger.trace("No realm name or username provided");
             listener.onFailure(new IllegalArgumentException("realm name or username must be provided"));
         } else {
-            if (Strings.isNullOrEmpty(realmName)) {
-                findActiveTokensForUser(username, ActionListener.wrap(tokenTuples -> {
-                    if (tokenTuples.isEmpty()) {
-                        logger.warn("No tokens to invalidate for realm [{}] and username [{}]", realmName, username);
-                        listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.OK));
-                    } else {
-                        invalidateAllTokens(tokenTuples, listener);
-                    }
-                }, listener::onFailure));
-            } else {
-                Predicate<Map<String, Object>> filter = null;
-                if (Strings.hasText(username)) {
-                    filter = isOfUser(username);
-                }
-                findActiveTokensForRealm(realmName, filter, ActionListener.wrap(tokenTuples -> {
-                    if (tokenTuples.isEmpty()) {
-                        logger.warn("No tokens to invalidate for realm [{}] and username [{}]", realmName, username);
-                        listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.OK));
-                    } else {
-                        invalidateAllTokens(tokenTuples, listener);
-                    }
-                }, listener::onFailure));
+            if (Strings.hasText(username)) {
+                filter = filter == null ? isOfUser(username) : filter.and(isOfUser(username));
             }
+            searchActiveTokens(realmName, filter, ActionListener.wrap(tokenTuples -> {
+                if (tokenTuples.isEmpty()) {
+                    logger.warn("No tokens to invalidate for realm [{}] and username [{}]", realmName, username);
+                    listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.OK));
+                } else {
+                    invalidateTokens(tokenTuples, listener);
+                }
+            }, listener::onFailure));
         }
     }
 
     /**
-     * Invalidates a collection of access_token and refresh_token that were retrieved by
-     * {@link TokenService#invalidateActiveTokensForRealmAndUser}
-     *
-     * @param tokenTuples The user token tuples for which access and refresh tokens (if exist) should be invalidated
-     * @param listener  the listener to notify upon completion
+     * Invalidates a collection of access and refresh token pairs. It invalidates tokens in "bulk", first all the refresh
+     * tokens, then all the access tokens.
      */
-    public void invalidateAllTokens(Collection<Tuple<UserToken, String>> tokenTuples, ActionListener<TokensInvalidationResult> listener) {
-        ensureEnabled();
-        maybeStartTokenRemover();
-
+    private void invalidateTokens(Collection<Tuple<UserToken, String>> tokenTuples, ActionListener<TokensInvalidationResult> listener) {
         // Invalidate the refresh tokens first so that they cannot be used to get new
         // access tokens while we invalidate the access tokens we currently know about
-        final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
-
         final List<UserToken> userTokens = new ArrayList<>();
         final List<UserToken> tokensWithRefresh = new ArrayList<>();
-
         tokenTuples.forEach(t -> {
             userTokens.add(t.v1());
             if (t.v2() != null) {
                 tokensWithRefresh.add(t.v1());
             }
         });
-
+        final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
         if (false == tokensWithRefresh.isEmpty()) {
             indexInvalidation(
                 tokensWithRefresh,
@@ -1243,7 +1226,7 @@ public final class TokenService {
             assert tokenDoc.primaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
             final UpdateRequestBuilder updateRequest = client.prepareUpdate(refreshedTokenIndex.aliasName(), tokenDoc.id())
                 .setDoc("refresh_token", updateMap)
-                .setFetchSource(true)
+                .setFetchSource(logger.isDebugEnabled())
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
                 .setIfSeqNo(tokenDoc.seqNo())
                 .setIfPrimaryTerm(tokenDoc.primaryTerm());
@@ -1647,51 +1630,47 @@ public final class TokenService {
     }
 
     /**
-     * Find stored refresh and access tokens that have not been invalidated or expired, and were issued against
-     * the specified realm.
+     * Search for refresh and access tokens that have not been invalidated or expired, and, optionally, that were issued against
+     * the specified realm and pass the predicate test on the token doc source (also optional).
+     * Note that searches on the tokens index is discouraged, so please avoid using this method, if possible.
      *
      * @param realmName The name of the realm for which to get the tokens
      * @param filter    an optional Predicate to test the source of the found documents against
      * @param listener  The listener to notify upon completion
      */
-    public void findActiveTokensForRealm(
-        String realmName,
+    private void searchActiveTokens(
+        @Nullable String realmName,
         @Nullable Predicate<Map<String, Object>> filter,
         ActionListener<Collection<Tuple<UserToken, String>>> listener
     ) {
-        ensureEnabled();
-        if (Strings.isNullOrEmpty(realmName)) {
-            listener.onFailure(new IllegalArgumentException("realm name is required"));
-            return;
-        }
         sourceIndicesWithTokensAndRun(ActionListener.wrap(indicesWithTokens -> {
             if (indicesWithTokens.isEmpty()) {
                 listener.onResponse(Collections.emptyList());
             } else {
                 final Instant now = clock.instant();
-                final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-                    .filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
-                    .filter(QueryBuilders.termQuery("access_token.realm", realmName))
-                    .filter(
-                        QueryBuilders.boolQuery()
-                            .should(
-                                QueryBuilders.boolQuery()
-                                    .must(QueryBuilders.termQuery("access_token.invalidated", false))
-                                    .must(QueryBuilders.rangeQuery("access_token.user_token.expiration_time").gte(now.toEpochMilli()))
-                            )
-                            .should(
-                                QueryBuilders.boolQuery()
-                                    .must(QueryBuilders.termQuery("refresh_token.invalidated", false))
-                                    .must(
-                                        QueryBuilders.rangeQuery("creation_time")
-                                            .gte(
-                                                now.toEpochMilli() - TimeValue.timeValueHours(
-                                                    ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS
-                                                ).millis()
-                                            )
-                                    )
-                            )
-                    );
+                final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE));
+                if (Strings.isNullOrEmpty(realmName) == false) {
+                    boolQuery.filter(QueryBuilders.termQuery("access_token.realm", realmName));
+                }
+                boolQuery.filter(
+                    QueryBuilders.boolQuery()
+                        .should(
+                            QueryBuilders.boolQuery()
+                                .must(QueryBuilders.termQuery("access_token.invalidated", false))
+                                .must(QueryBuilders.rangeQuery("access_token.user_token.expiration_time").gte(now.toEpochMilli()))
+                        )
+                        .should(
+                            QueryBuilders.boolQuery()
+                                .must(QueryBuilders.termQuery("refresh_token.invalidated", false))
+                                .must(
+                                    QueryBuilders.rangeQuery("creation_time")
+                                        .gte(
+                                            now.toEpochMilli() - TimeValue.timeValueHours(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS)
+                                                .millis()
+                                        )
+                                )
+                        )
+                );
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
                     final SearchRequest request = client.prepareSearch(indicesWithTokens.toArray(new String[0]))
@@ -1706,66 +1685,6 @@ public final class TokenService {
                         request,
                         new ContextPreservingActionListener<>(supplier, listener),
                         (SearchHit hit) -> filterAndParseHit(hit, filter)
-                    );
-                }
-            }
-        }, listener::onFailure));
-    }
-
-    /**
-     * Find stored refresh and access tokens that have not been invalidated or expired, and were issued for
-     * the specified user.
-     *
-     * @param username The user for which to get the tokens
-     * @param listener The listener to notify upon completion
-     */
-    public void findActiveTokensForUser(String username, ActionListener<Collection<Tuple<UserToken, String>>> listener) {
-        ensureEnabled();
-        if (Strings.isNullOrEmpty(username)) {
-            listener.onFailure(new IllegalArgumentException("username is required"));
-            return;
-        }
-        sourceIndicesWithTokensAndRun(ActionListener.wrap(indicesWithTokens -> {
-            if (indicesWithTokens.isEmpty()) {
-                listener.onResponse(Collections.emptyList());
-            } else {
-                final Instant now = clock.instant();
-                final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-                    .filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
-                    .filter(
-                        QueryBuilders.boolQuery()
-                            .should(
-                                QueryBuilders.boolQuery()
-                                    .must(QueryBuilders.termQuery("access_token.invalidated", false))
-                                    .must(QueryBuilders.rangeQuery("access_token.user_token.expiration_time").gte(now.toEpochMilli()))
-                            )
-                            .should(
-                                QueryBuilders.boolQuery()
-                                    .must(QueryBuilders.termQuery("refresh_token.invalidated", false))
-                                    .must(
-                                        QueryBuilders.rangeQuery("creation_time")
-                                            .gte(
-                                                now.toEpochMilli() - TimeValue.timeValueHours(
-                                                    ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS
-                                                ).millis()
-                                            )
-                                    )
-                            )
-                    );
-                final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
-                try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
-                    final SearchRequest request = client.prepareSearch(indicesWithTokens.toArray(new String[0]))
-                        .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
-                        .setQuery(boolQuery)
-                        .setVersion(false)
-                        .setSize(1000)
-                        .setFetchSource(true)
-                        .request();
-                    ScrollHelper.fetchAllByEntity(
-                        client,
-                        request,
-                        new ContextPreservingActionListener<>(supplier, listener),
-                        (SearchHit hit) -> filterAndParseHit(hit, isOfUser(username))
                     );
                 }
             }

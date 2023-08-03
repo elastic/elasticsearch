@@ -300,14 +300,13 @@ public interface JwtSignatureValidator extends Releasable {
                     // Enhancement idea: When some JWKs are retained (ex: rotation), only invalidate for removed JWKs.
                     reloadNotifier.reloaded();
 
-                    final JwkSetLoader.JwksAlgs reloadedJwksAlgs = reloadResult;
-                    if (reloadedJwksAlgs.isEmpty()) {
+                    if (reloadResult.isEmpty()) {
                         logger.debug("Reloaded empty PKC JWKs, signature verification will fail for JWT [{}]", tokenPrincipal);
                         // fall through and let try/catch below handle empty JWKs failure log and response
                     }
 
                     try {
-                        validateSignature(signedJWT, reloadedJwksAlgs.jwks());
+                        validateSignature(signedJWT, reloadResult.jwks());
                         listener.onResponse(null);
                     } catch (Exception secondaryException) {
                         logger.debug(

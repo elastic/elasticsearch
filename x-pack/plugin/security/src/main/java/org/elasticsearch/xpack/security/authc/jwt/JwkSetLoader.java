@@ -77,13 +77,8 @@ public class JwkSetLoader implements Releasable {
             // ASSUME: Blocking read operations are OK during startup
             future.actionGet(TimeValue.timeValueMinutes(1));
         } catch (Exception e) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Could not load JWT realm's JWK sets within 1 minute during startup.", e);
-            } else {
-                logger.warn("Could not load JWT realm's JWK sets within 1 minute during startup.");
-            }
+            logger.debug("Could not load JWT realm's JWK sets within [1] minute during startup. Will lazy retry if necessary.", e);
             close();
-            throw e;
         }
     }
 
@@ -187,7 +182,7 @@ public class JwkSetLoader implements Releasable {
             try {
                 httpClient.close();
             } catch (IOException e) {
-                logger.warn(() -> "Exception closing HTTPS client for realm [" + realmConfig.name() + "]", e);
+                logger.debug(() -> "Exception closing HTTPS client for realm [" + realmConfig.name() + "]", e);
             }
         }
     }

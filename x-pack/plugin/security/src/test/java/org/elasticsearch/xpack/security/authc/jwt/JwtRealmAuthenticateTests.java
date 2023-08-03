@@ -18,8 +18,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -292,27 +292,32 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
     }
 
     /**
-     * Verify that a JWT realm successfully connects to HTTPS server, and can handle an HTTP 404 Not Found response correctly.
+     * Verify that a JWT realm successfully connects to HTTPS server, and can handle Not Found response correctly.
      * @throws Exception Unexpected test failure
      */
     public void testPkcJwkSetUrlNotFound() throws Exception {
         final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
         final boolean createHttpsServer = true; // force issuer to create HTTPS server for its PKC JWKSet
         final JwtIssuer jwtIssuer = createJwtIssuer(0, 12, 1, 1, 1, createHttpsServer);
+        JwtRealm jwtRealm = null;
         assertThat(jwtIssuer.httpsServer, notNullValue());
         try {
             final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = createJwtRealmSettingsBuilder(jwtIssuer, 0, 0);
             final String configKey = RealmSettings.getFullSettingKey(jwtRealmSettingsBuilder.name(), JwtRealmSettings.PKC_JWKSET_PATH);
-            final String configValue = jwtIssuer.httpsServer.url.replace("/valid/", "/invalid"); // right host, wrong path
+            String configValue;
+            if (randomBoolean()) {
+                configValue = jwtIssuer.httpsServer.url.replace("/valid/", "/invalid"); // right host, wrong path
+            } else {
+                configValue = jwtIssuer.httpsServer.url;
+            }
             jwtRealmSettingsBuilder.settingsBuilder().put(configKey, configValue);
-            final Exception exception = expectThrows(
-                SettingsException.class,
-                () -> createJwtRealm(allRealms, jwtIssuer, jwtRealmSettingsBuilder)
-            );
-            assertThat(exception.getMessage(), equalTo("Can't get contents for setting [" + configKey + "] value [" + configValue + "]."));
-            assertThat(exception.getCause().getMessage(), equalTo("Get [" + configValue + "] failed, status [404], reason [Not Found]."));
+            jwtRealm = createJwtRealm(allRealms, jwtIssuer, jwtRealmSettingsBuilder);
+            assertNotNull(jwtRealm);
+            jwtRealm.initialize(allRealms, new XPackLicenseState(System::currentTimeMillis));
+            jwtRealm.ensureInitialized();
         } finally {
             jwtIssuer.close();
+            jwtRealm.close();
         }
     }
 

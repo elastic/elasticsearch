@@ -202,7 +202,7 @@ public class QuestionAnsweringProcessorTests extends ESTestCase {
             var windowTokens = tokenizationResult.getTokens().get(i);
             // size of output
             int outputSize = windowTokens.tokenIds().length;
-            // generate low value -ve logits that will not mark
+            // generate low value -ve scores that will not mark
             // the expected result with a high degree of probability
             double[] starts = DoubleStream.generate(() -> -randomDoubleBetween(0.001, 1.0, true)).limit(outputSize).toArray();
             double[] ends = DoubleStream.generate(() -> -randomDoubleBetween(0.001, 1.0, true)).limit(outputSize).toArray();
@@ -226,6 +226,7 @@ public class QuestionAnsweringProcessorTests extends ESTestCase {
             pyTorchResult
         );
 
+        // The expected answer is the full text of the span containing the answer
         int expectedStart = tokenizationResult.getTokens().get(spanContainingTheAnswer).tokens().get(1).get(0).startOffset();
         int lastTokenPosition = tokenizationResult.getTokens().get(spanContainingTheAnswer).tokens().get(1).size() - 1;
         int expectedEnd = tokenizationResult.getTokens().get(spanContainingTheAnswer).tokens().get(1).get(lastTokenPosition).endOffset();

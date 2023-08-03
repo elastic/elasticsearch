@@ -44,8 +44,8 @@ import java.util.regex.Pattern;
  * <p>
  * Each ML config version constant has an id number, which for versions prior to 8.10.0 is the same as the release version
  * for backwards compatibility. In 8.10.0 this is changed to an incrementing number, disconnected from the release version,
- * starting at 10000010.
- * <p>
+ * starting at 10000099. This format is chosen for best compatibility with old node versions.
+ * * <p>
  * Each version constant has a unique id string. This is not actually used in the binary protocol, but is there to ensure
  * each protocol version is only added to the source file once. This string needs to be unique (normally a UUID,
  * but can be any other unique nonempty string).
@@ -242,7 +242,7 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
     }
 
     public static MlConfigVersion fromNode(DiscoveryNode node) {
-        return fromString(node.getAttributes().get(ML_CONFIG_VERSION_NODE_ATTR));
+        return getMlConfigVersionForNode(node);
     }
 
     public static void writeVersion(MlConfigVersion version, StreamOutput out) throws IOException {
@@ -313,7 +313,7 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
     public static MlConfigVersion getMlConfigVersionForNode(DiscoveryNode node) {
         String mlConfigVerStr = node.getAttributes().get(ML_CONFIG_VERSION_NODE_ATTR);
         if (mlConfigVerStr == null) {
-            return CURRENT;
+            return fromVersion(node.getVersion());
         }
         return fromString(mlConfigVerStr);
     }

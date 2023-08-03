@@ -161,7 +161,7 @@ public class MlConfigVersionTests extends ESTestCase {
             VersionInformation.inferVersions(Version.fromString("8.7.0"))
         );
         MlConfigVersion mlConfigVersion = MlConfigVersion.getMlConfigVersionForNode(node);
-        assertEquals(MlConfigVersion.CURRENT, mlConfigVersion);
+        assertEquals(MlConfigVersion.V_8_7_0, mlConfigVersion);
 
         DiscoveryNode node1 = new DiscoveryNode(
             "_node_name5",

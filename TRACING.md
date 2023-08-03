@@ -20,7 +20,7 @@ impossible.
 ## How is tracing configured?
 
 You must supply configuration and credentials for the APM server (see below).
-In your `elasticsearch.yml` add the following configuration. Note that the
+In your `elasticsearch.yml` add the following configuration:
 
 ```
 tracing.apm.enabled: true

@@ -1,6 +1,6 @@
 unprivileged_secrets:
   indices:
     - names: [
-      ".fleet-*",
+      ".fleet-secrets*",
     ]
-      privileges: [ "manage", "write", "read" ]
+      privileges: [ "write", "read" ]

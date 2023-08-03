@@ -195,6 +195,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         // Ignore PutMultipartObject for comparison since failed multipart upload requests (null response) are not counted for sdk stats
         Map<String, Long> sdkRequestCounts = repositoryStats.requestCounts;
         assertThat(sdkRequestCounts.get("AbortMultipartObject"), greaterThan(0L));
+        assertThat(sdkRequestCounts.get("DeleteObjects"), greaterThan(0L));
 
         final Map<String, Long> mockCalls = getMockRequestCounts();
 
@@ -395,7 +396,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 trackRequest("PutObject");
             } else if (Regex.simpleMatch("POST /*/?delete", request)) {
                 trackRequest("DeleteObjects");
-            } else if (Regex.simpleMatch("DELETE /*/*?*uploadId=*", request)) {
+            } else if (Regex.simpleMatch("DELETE /*/*?uploadId=*", request)) {
                 trackRequest("AbortMultipartObject");
             }
         }

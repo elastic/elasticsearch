@@ -192,7 +192,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             }
         }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
 
-        // Ignore PutMultipartObject for comparison since failed multipart upload requests (null response) are not counted for sdk stats
         Map<String, Long> sdkRequestCounts = repositoryStats.requestCounts;
         assertThat(sdkRequestCounts.get("AbortMultipartObject"), greaterThan(0L));
         assertThat(sdkRequestCounts.get("DeleteObjects"), greaterThan(0L));

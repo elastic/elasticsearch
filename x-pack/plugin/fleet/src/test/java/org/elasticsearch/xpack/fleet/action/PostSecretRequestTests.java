@@ -33,21 +33,13 @@ public class PostSecretRequestTests extends AbstractWireSerializingTestCase<Post
     }
 
     public void testValidateRequest() {
-        PostSecretRequest req = new PostSecretRequest("{\"value\": \"secret\"}", XContentType.fromFormat("application/json"));
+        PostSecretRequest req = new PostSecretRequest("secret", XContentType.fromFormat("application/json"));
         ActionRequestValidationException e = req.validate();
         assertNull(e);
     }
 
     public void testValidateRequestWithoutValue() {
-        PostSecretRequest req = new PostSecretRequest("{\"something\": \"else\"}", XContentType.fromFormat("application/json"));
-        ActionRequestValidationException e = req.validate();
-        assertNotNull(e);
-        assertThat(e.validationErrors().size(), equalTo(1));
-        assertThat(e.validationErrors().get(0), containsString("value is missing"));
-    }
-
-    public void testValidateRequestWithEmptyContent() {
-        PostSecretRequest req = new PostSecretRequest("{}", XContentType.fromFormat("application/json"));
+        PostSecretRequest req = new PostSecretRequest(null, XContentType.fromFormat("application/json"));
         ActionRequestValidationException e = req.validate();
         assertNotNull(e);
         assertThat(e.validationErrors().size(), equalTo(1));

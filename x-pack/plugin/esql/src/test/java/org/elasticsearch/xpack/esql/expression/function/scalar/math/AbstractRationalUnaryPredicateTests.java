@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -23,25 +22,8 @@ public abstract class AbstractRationalUnaryPredicateTests extends AbstractScalar
     protected abstract Matcher<Object> resultMatcher(double d);
 
     @Override
-    protected TestCase getSimpleTestCase() {
-        List<TypedData> typedData = List.of(new TypedData(switch (between(0, 2)) {
-            case 0 -> Double.NaN;
-            case 1 -> randomBoolean() ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
-            case 2 -> randomDouble();
-            default -> throw new IllegalArgumentException();
-        }, DataTypes.DOUBLE, "v"));
-        return new TestCase(Source.EMPTY, typedData, resultMatcher((Double) typedData.get(0).data()));
-    }
-
-    @Override
     protected DataType expectedType(List<DataType> argTypes) {
         return DataTypes.BOOLEAN;
-    }
-
-    @Override
-    protected final Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
-        double d = (Double) data.get(0);
-        return resultMatcher(d);
     }
 
     @Override
@@ -53,38 +35,4 @@ public abstract class AbstractRationalUnaryPredicateTests extends AbstractScalar
     protected Expression build(Source source, List<Expression> args) {
         return build(source, args.get(0));
     }
-
-    private void testCase(double d) {
-        BooleanBlock block = (BooleanBlock) evaluator(buildFieldExpression(getSimpleTestCase())).get().eval(row(List.of(d)));
-        assertThat(block.getBoolean(0), resultMatcher(d));
-    }
-
-    public final void testNaN() {
-        testCase(Double.NaN);
-    }
-
-    public final void testPositiveInfinity() {
-        testCase(Double.POSITIVE_INFINITY);
-    }
-
-    public final void testNegativeInfinity() {
-        testCase(Double.NEGATIVE_INFINITY);
-    }
-
-    public final void testPositiveSmallDouble() {
-        testCase(randomDouble());
-    }
-
-    public final void testNegativeSmallDouble() {
-        testCase(-randomDouble());
-    }
-
-    public final void testPositiveBigDouble() {
-        testCase(1 / randomDouble());
-    }
-
-    public final void testNegativeBigDouble() {
-        testCase(-1 / randomDouble());
-    }
-
 }

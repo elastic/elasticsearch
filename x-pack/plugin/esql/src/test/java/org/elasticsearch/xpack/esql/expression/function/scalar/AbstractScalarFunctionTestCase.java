@@ -67,28 +67,28 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     /**
      * All string types (keyword, text, match_only_text, etc). For passing to {@link #required} or {@link #optional}.
      */
-    protected final DataType[] strings() {
+    protected static DataType[] strings() {
         return EsqlDataTypes.types().stream().filter(DataTypes::isString).toArray(DataType[]::new);
     }
 
     /**
      * All integer types (long, int, short, byte). For passing to {@link #required} or {@link #optional}.
      */
-    protected final DataType[] integers() {
+    protected static DataType[] integers() {
         return EsqlDataTypes.types().stream().filter(DataType::isInteger).toArray(DataType[]::new);
     }
 
     /**
      * All rational types (double, float, whatever). For passing to {@link #required} or {@link #optional}.
      */
-    protected final DataType[] rationals() {
+    protected static DataType[] rationals() {
         return EsqlDataTypes.types().stream().filter(DataType::isRational).toArray(DataType[]::new);
     }
 
     /**
      * All numeric types (integers and rationals.) For passing to {@link #required} or {@link #optional}.
      */
-    protected final DataType[] numerics() {
+    protected static DataType[] numerics() {
         return EsqlDataTypes.types().stream().filter(DataType::isNumeric).toArray(DataType[]::new);
     }
 
@@ -103,13 +103,10 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
     protected record ArgumentSpec(boolean optional, Set<DataType> validTypes) {}
 
-    @Override
-    protected final DataType expressionForSimpleDataType() {
-        return expectedType(buildFieldExpression(getSimpleTestCase()).children().stream().map(e -> e.dataType()).toList());
-    }
-
     public final void testSimpleResolveTypeValid() {
-        assertResolveTypeValid(buildFieldExpression(getSimpleTestCase()), expressionForSimpleDataType());
+        // TODO: The expected output type should probably be on the TestCase
+        Expression expression = buildFieldExpression(testCase);
+        assertResolveTypeValid(expression, expectedType(expression.children().stream().map(e -> e.dataType()).toList()));
     }
 
     public final void testResolveType() {

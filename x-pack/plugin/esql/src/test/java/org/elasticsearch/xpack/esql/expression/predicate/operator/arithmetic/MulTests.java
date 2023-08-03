@@ -7,19 +7,73 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
+import java.util.List;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MulTests extends AbstractArithmeticTestCase {
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "MulIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]";
+    public MulTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Int * Int", () -> {
+            // Ensure we don't have an overflow
+            int rhs = randomIntBetween(-255, 255);
+            int lhs = randomIntBetween(-255, 255);
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(lhs, DataTypes.INTEGER, "lhs"), new TypedData(rhs, DataTypes.INTEGER, "rhs")),
+                "MulIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                equalTo(lhs * rhs)
+            );
+        }), new TestCaseSupplier("Long * Long", () -> {
+            // Ensure we don't have an overflow
+            long rhs = randomLongBetween(-1024, 1024);
+            long lhs = randomLongBetween(-1024, 1024);
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(lhs, DataTypes.LONG, "lhs"), new TypedData(rhs, DataTypes.LONG, "rhs")),
+                "MulLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                equalTo(lhs * rhs)
+            );
+        }), new TestCaseSupplier("Double * Double", () -> {
+            double rhs = randomDouble();
+            double lhs = randomDouble();
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(lhs, DataTypes.DOUBLE, "lhs"), new TypedData(rhs, DataTypes.DOUBLE, "rhs")),
+                "MulDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                equalTo(lhs * rhs)
+            );
+        })/*, new TestCaseSupplier("ULong * ULong", () -> {
+            // Ensure we don't have an overflow
+            long rhs = randomLongBetween(0, 1024);
+            long lhs = randomLongBetween(0, 1024);
+            BigInteger lhsBI = unsignedLongAsBigInteger(lhs);
+            BigInteger rhsBI = unsignedLongAsBigInteger(rhs);
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(lhs, DataTypes.UNSIGNED_LONG, "lhs"), new TypedData(rhs, DataTypes.UNSIGNED_LONG, "rhs")),
+                "MulUnsignedLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                equalTo(asLongUnsigned(lhsBI.multiply(rhsBI).longValue()))
+            );
+          })
+          */
+        ));
     }
 
     @Override

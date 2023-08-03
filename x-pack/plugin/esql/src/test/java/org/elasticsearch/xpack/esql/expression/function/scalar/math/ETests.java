@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
@@ -14,26 +17,27 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ETests extends AbstractScalarFunctionTestCase {
-    @Override
-    protected TestCase getSimpleTestCase() {
-        return new TestCase(Source.EMPTY, List.of(new TypedData(1, DataTypes.INTEGER, "foo")), equalTo(Math.E));
+    public ETests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
     }
 
-    @Override
-    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
-        return equalTo(Math.E);
-    }
-
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "LiteralsEvaluator[block=2.718281828459045]";
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("E Test", () -> {
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(1, DataTypes.INTEGER, "foo")),
+                "LiteralsEvaluator[block=2.718281828459045]",
+                equalTo(Math.E)
+            );
+        })));
     }
 
     @Override

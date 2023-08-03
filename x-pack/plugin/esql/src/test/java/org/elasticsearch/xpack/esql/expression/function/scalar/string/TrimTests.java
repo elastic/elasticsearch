@@ -7,43 +7,37 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.hamcrest.Matcher;
-import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class TrimTests extends AbstractScalarFunctionTestCase {
-
-    private DataType randomType;
-
-    @Before
-    public void setup() {
-        randomType = randomFrom(strings());
+    public TrimTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
     }
 
-    @Override
-    protected TestCase getSimpleTestCase() {
-        BytesRef sampleData = addRandomLeadingOrTrailingWhitespaces(randomUnicodeOfLength(8));
-        List<TypedData> typedData = List.of(new TypedData(sampleData, randomType, randomUnicodeOfLength(8)));
-        return new TestCase(Source.EMPTY, typedData, equalTo(new BytesRef(sampleData.utf8ToString().trim())));
-    }
-
-    @Override
-    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
-        return equalTo(new BytesRef(((BytesRef) data.get(0)).utf8ToString().trim()));
-    }
-
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "TrimEvaluator[val=Attribute[channel=0]]";
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Trim basic test", () -> {
+            BytesRef sampleData = addRandomLeadingOrTrailingWhitespaces(randomUnicodeOfLength(8));
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(sampleData, randomFrom(strings()), "str")),
+                "TrimEvaluator[val=Attribute[channel=0]]",
+                equalTo(new BytesRef(sampleData.utf8ToString().trim()))
+            );
+        })));
     }
 
     @Override
@@ -69,7 +63,7 @@ public class TrimTests extends AbstractScalarFunctionTestCase {
         }
     }
 
-    BytesRef addRandomLeadingOrTrailingWhitespaces(String expected) {
+    static BytesRef addRandomLeadingOrTrailingWhitespaces(String expected) {
         StringBuilder builder = new StringBuilder();
         if (randomBoolean()) {
             builder.append(randomWhiteSpace());

@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
@@ -18,23 +21,34 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SubstringTests extends AbstractScalarFunctionTestCase {
-    @Override
-    protected TestCase getSimpleTestCase() {
-        int start = between(0, 8);
-        int length = between(0, 10 - start);
-        ;
-        List<TypedData> typedData = List.of(
-            new TypedData(new BytesRef(randomAlphaOfLength(10)), DataTypes.KEYWORD, "str"),
-            new TypedData(start + 1, DataTypes.INTEGER, "start"),
-            new TypedData(length, DataTypes.INTEGER, "end")
-        );
-        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
+    public SubstringTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Substring basic test", () -> {
+            int start = between(1, 8);
+            int length = between(1, 10 - start);
+            String text = randomAlphaOfLength(10);
+            return new TestCase(
+                Source.EMPTY,
+                List.of(
+                    new TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
+                    new TypedData(start, DataTypes.INTEGER, "start"),
+                    new TypedData(length, DataTypes.INTEGER, "end")
+                ),
+                "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
+                equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
+            );
+        })));
     }
 
     @Override
@@ -47,19 +61,6 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
         int start = (Integer) typedData.get(1).data();
         int end = (Integer) typedData.get(2).data();
         return equalTo(new BytesRef(str.substring(start - 1, start + end - 1)));
-    }
-
-    @Override
-    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
-        String str = ((BytesRef) data.get(0)).utf8ToString();
-        int start = (Integer) data.get(1);
-        int end = (Integer) data.get(2);
-        return equalTo(new BytesRef(str.substring(start - 1, start + end - 1)));
-    }
-
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]";
     }
 
     public void testNoLengthToString() {

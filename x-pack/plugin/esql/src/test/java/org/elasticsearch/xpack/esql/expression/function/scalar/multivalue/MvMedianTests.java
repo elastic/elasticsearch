@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -18,6 +21,7 @@ import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -27,6 +31,23 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
+    public MvMedianTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("mv_median(<double>)", () -> {
+            List<Double> mvData = randomList(1, 100, () -> randomDouble());
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(mvData, DataTypes.DOUBLE, "field")),
+                "MvMedian[field=Attribute[channel=0]]",
+                getMatcher(mvData, DataTypes.DOUBLE)
+            );
+        })));
+    }
+
     @Override
     protected Expression build(Source source, Expression field) {
         return new MvMedian(source, field);
@@ -37,8 +58,7 @@ public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
         return representableNumerics();
     }
 
-    @Override
-    protected Matcher<Object> resultMatcherForInput(List<?> input, DataType dataType) {
+    private static Matcher<Object> getMatcher(List<?> input, DataType dataType) {
         int middle = input.size() / 2;
         return switch (LocalExecutionPlanner.toElementType(dataType)) {
             case DOUBLE -> {
@@ -69,8 +89,8 @@ public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
     }
 
     @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "MvMedian[field=Attribute[channel=0]]";
+    protected Matcher<Object> resultMatcherForInput(List<?> input, DataType dataType) {
+        return getMatcher(input, dataType);
     }
 
     public void testRounding() {

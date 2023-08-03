@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -16,6 +19,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
@@ -23,6 +27,23 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MvSumTests extends AbstractMultivalueFunctionTestCase {
+    public MvSumTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("mv_sum(<double>)", () -> {
+            List<Double> mvData = randomList(1, 100, () -> randomDouble());
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(mvData, DataTypes.DOUBLE, "field")),
+                "MvSum[field=Attribute[channel=0]]",
+                equalTo(mvData.stream().mapToDouble(Double::doubleValue).summaryStatistics().getSum())
+            );
+        })));
+    }
+
     @Override
     protected Expression build(Source source, Expression field) {
         return new MvSum(source, field);
@@ -60,8 +81,4 @@ public class MvSumTests extends AbstractMultivalueFunctionTestCase {
         };
     }
 
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "MvSum[field=Attribute[channel=0]]";
-    }
 }

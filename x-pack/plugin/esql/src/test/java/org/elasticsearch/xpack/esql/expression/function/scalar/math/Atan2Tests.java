@@ -7,39 +7,42 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class Atan2Tests extends AbstractScalarFunctionTestCase {
-    @Override
-    protected TestCase getSimpleTestCase() {
-        double y = randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
-        double x = randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
-        List<TypedData> typedData = List.of(new TypedData(y, DataTypes.DOUBLE, "y"), new TypedData(x, DataTypes.DOUBLE, "x"));
-        return new TestCase(Source.EMPTY, typedData, equalTo(Math.atan2(y, x)));
+    public Atan2Tests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("double", () -> {
+            double y = randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
+            double x = randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(y, DataTypes.DOUBLE, "y"), new TypedData(x, DataTypes.DOUBLE, "x")),
+                "Atan2Evaluator[y=Attribute[channel=0], x=Attribute[channel=1]]",
+                equalTo(Math.atan2(y, x))
+            );
+        })));
     }
 
     @Override
     protected DataType expectedType(List<DataType> argTypes) {
         return DataTypes.DOUBLE;
-    }
-
-    @Override
-    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
-        return equalTo(Math.atan2(((Number) data.get(0)).doubleValue(), ((Number) data.get(1)).doubleValue()));
-    }
-
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "Atan2Evaluator[y=Attribute[channel=0], x=Attribute[channel=1]]";
     }
 
     @Override

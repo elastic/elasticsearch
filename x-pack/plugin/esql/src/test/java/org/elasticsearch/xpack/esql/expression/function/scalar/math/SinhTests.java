@@ -7,38 +7,41 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class SinhTests extends AbstractScalarFunctionTestCase {
-    @Override
-    protected TestCase getSimpleTestCase() {
-        double d = 1 / randomDouble();
-        List<TypedData> typedData = List.of(new TypedData(d, DataTypes.DOUBLE, "arg"));
-        return new TestCase(Source.EMPTY, typedData, equalTo(Math.sinh(d)));
+    public SinhTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("large double value", () -> {
+            double arg = 1 / randomDouble();
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
+                "SinhEvaluator[val=Attribute[channel=0]]",
+                equalTo(Math.sinh(arg))
+            );
+        })));
     }
 
     @Override
     protected DataType expectedType(List<DataType> argTypes) {
         return DataTypes.DOUBLE;
-    }
-
-    @Override
-    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
-        return equalTo(Math.sinh(((Number) data.get(0)).doubleValue()));
-    }
-
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "SinhEvaluator[val=Attribute[channel=0]]";
     }
 
     @Override

@@ -68,11 +68,6 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
     protected abstract long expectedUnsignedLongValue(long lhs, long rhs);
 
     @Override
-    protected final DataType expressionForSimpleDataType() {
-        return DataTypes.INTEGER;
-    }
-
-    @Override
     protected final boolean supportsType(DataType type) {
         return type.isNumeric();
     }

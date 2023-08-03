@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
@@ -19,35 +22,40 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CaseTests extends AbstractFunctionTestCase {
-    @Override
-    protected TestCase getSimpleTestCase() {
-        List<TypedData> typedData = List.of(
-            new TypedData(true, DataTypes.BOOLEAN, "cond"),
-            new TypedData(new BytesRef("a"), DataTypes.KEYWORD, "a"),
-            new TypedData(new BytesRef("b"), DataTypes.KEYWORD, "b")
-        );
-        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
+
+    public CaseTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
     }
 
-    @Override
-    protected DataType expressionForSimpleDataType() {
-        return DataTypes.KEYWORD;
-    }
-
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "CaseEvaluator[resultType=BYTES_REF, "
-            + "conditions=[ConditionEvaluator[condition=Attribute[channel=0], value=Attribute[channel=1]]], elseVal=Attribute[channel=2]]";
+    /**
+     * Generate the test cases for this test
+     */
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("basics", () -> {
+            List<TypedData> typedData = List.of(
+                new TypedData(true, DataTypes.BOOLEAN, "cond"),
+                new TypedData(new BytesRef("a"), DataTypes.KEYWORD, "a"),
+                new TypedData(new BytesRef("b"), DataTypes.KEYWORD, "b")
+            );
+            return new TestCase(
+                Source.EMPTY,
+                typedData,
+                "CaseEvaluator[resultType=BYTES_REF, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
+                    + "value=Attribute[channel=1]]], elseVal=Attribute[channel=2]]",
+                equalTo(new BytesRef("a"))
+            );
+        })));
     }
 
     @Override
@@ -69,33 +77,6 @@ public class CaseTests extends AbstractFunctionTestCase {
         } else {
             assertThat(toJavaObject(value, 0), equalTo(data.get(2)));
         }
-    }
-
-    @Override
-    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
-        for (int i = 0; i < data.size() - 1; i += 2) {
-            Object cond = data.get(i);
-            if (cond != null && ((Boolean) cond).booleanValue()) {
-                return equalTo(data.get(i + 1));
-            }
-        }
-        if (data.size() % 2 == 0) {
-            return null;
-        }
-        return equalTo(data.get(data.size() - 1));
-    }
-
-    protected Matcher<Object> resultsMatcher(List<TypedData> data) {
-        for (int i = 0; i < data.size() - 1; i += 2) {
-            TypedData cond = data.get(i);
-            if (cond != null && ((Boolean) cond.data()).booleanValue()) {
-                return equalTo(data.get(i + 1).data());
-            }
-        }
-        if (data.size() % 2 == 0) {
-            return null;
-        }
-        return equalTo(data.get(data.size() - 1).data());
     }
 
     @Override

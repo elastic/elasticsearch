@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
@@ -14,25 +17,27 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class PiTests extends AbstractScalarFunctionTestCase {
-    protected TestCase getSimpleTestCase() {
-        return new TestCase(Source.EMPTY, List.of(new TypedData(1, DataTypes.INTEGER, "foo")), equalTo(Math.PI));
+    public PiTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
     }
 
-    @Override
-    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
-        return equalTo(Math.PI);
-    }
-
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "LiteralsEvaluator[block=3.141592653589793]";
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Pi Test", () -> {
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(1, DataTypes.INTEGER, "foo")),
+                "LiteralsEvaluator[block=3.141592653589793]",
+                equalTo(Math.PI)
+            );
+        })));
     }
 
     @Override

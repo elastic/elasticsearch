@@ -7,38 +7,41 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class AtanTests extends AbstractScalarFunctionTestCase {
-    @Override
-    protected TestCase getSimpleTestCase() {
-        double d = randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
-        List<TypedData> typedData = List.of(new TypedData(d, DataTypes.DOUBLE, "arg"));
-        return new TestCase(Source.EMPTY, typedData, equalTo(Math.atan(d)));
+    public AtanTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("double", () -> {
+            double arg = randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
+                "AtanEvaluator[val=Attribute[channel=0]]",
+                equalTo(Math.atan(arg))
+            );
+        })));
     }
 
     @Override
     protected DataType expectedType(List<DataType> argTypes) {
         return DataTypes.DOUBLE;
-    }
-
-    @Override
-    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
-        return equalTo(Math.atan(((Number) data.get(0)).doubleValue()));
-    }
-
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "AtanEvaluator[val=Attribute[channel=0]]";
     }
 
     @Override

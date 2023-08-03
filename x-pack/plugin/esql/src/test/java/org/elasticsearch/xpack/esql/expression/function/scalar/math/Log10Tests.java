@@ -7,42 +7,43 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class Log10Tests extends AbstractScalarFunctionTestCase {
+    public Log10Tests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
 
-    @Override
-    protected TestCase getSimpleTestCase() {
-        List<TypedData> typedData = List.of(new TypedData(1000.0d, DOUBLE, "arg"));
-        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Log10 of Double", () -> {
+            // TODO: include larger values here
+            double arg = randomDouble();
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
+                "Log10DoubleEvaluator[val=Attribute[channel=0]]",
+                equalTo(Math.log10(arg))
+            );
+        })));
     }
 
     private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
         return equalTo(Math.log10((Double) typedData.get(0).data()));
-    }
-
-    @Override
-    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
-        return equalTo(Math.log10((Double) data.get(0)));
-    }
-
-    @Override
-    protected Matcher<Object> resultMatcher(List<Object> data) {
-        return equalTo(Math.log10((Double) data.get(0)));
-    }
-
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "Log10DoubleEvaluator[val=Attribute[channel=0]]";
     }
 
     @Override

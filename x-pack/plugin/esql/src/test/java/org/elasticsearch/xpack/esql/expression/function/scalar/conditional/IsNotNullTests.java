@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -18,17 +21,27 @@ import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class IsNotNullTests extends AbstractScalarFunctionTestCase {
-    @Override
-    protected TestCase getSimpleTestCase() {
-        List<TypedData> typedData = List.of(new TypedData(new BytesRef("cat"), DataTypes.KEYWORD, "exp"));
-        return new TestCase(Source.EMPTY, typedData, equalTo(true));
+    public IsNotNullTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Keyword Not Null", () -> {
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(new BytesRef("cat"), DataTypes.KEYWORD, "exp")),
+                "IsNotNullEvaluator[field=Attribute[channel=0]]",
+                equalTo(true)
+            );
+        })));
     }
 
     @Override
@@ -37,18 +50,8 @@ public class IsNotNullTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
-        return equalTo(true);
-    }
-
-    @Override
     protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
         assertFalse(((BooleanBlock) value).asVector().getBoolean(0));
-    }
-
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "IsNotNullEvaluator[field=Attribute[channel=0]]";
     }
 
     @Override

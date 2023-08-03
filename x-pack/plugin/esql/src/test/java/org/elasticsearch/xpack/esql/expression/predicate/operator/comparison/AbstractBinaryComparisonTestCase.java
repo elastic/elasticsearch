@@ -62,11 +62,6 @@ public abstract class AbstractBinaryComparisonTestCase extends AbstractBinaryOpe
 
     protected abstract <T extends Comparable<T>> Matcher<Object> resultMatcher(T lhs, T rhs);
 
-    @Override
-    protected final DataType expressionForSimpleDataType() {
-        return DataTypes.BOOLEAN;
-    }
-
     protected abstract boolean isEquality();
 
     @Override

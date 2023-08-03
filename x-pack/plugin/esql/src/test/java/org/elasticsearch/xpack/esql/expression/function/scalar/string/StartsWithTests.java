@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -16,22 +19,33 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class StartsWithTests extends AbstractScalarFunctionTestCase {
-    @Override
-    protected TestCase getSimpleTestCase() {
-        String str = randomAlphaOfLength(5);
-        String prefix = randomAlphaOfLength(5);
-        if (randomBoolean()) {
-            str = prefix + str;
-        }
-        List<TypedData> typedData = List.of(
-            new TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
-            new TypedData(new BytesRef(prefix), DataTypes.KEYWORD, "prefix")
-        );
-        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
+    public StartsWithTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Starts with basic test", () -> {
+            String str = randomAlphaOfLength(5);
+            String prefix = randomAlphaOfLength(5);
+            if (randomBoolean()) {
+                str = prefix + str;
+            }
+            return new TestCase(
+                Source.EMPTY,
+                List.of(
+                    new TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
+                    new TypedData(new BytesRef(prefix), DataTypes.KEYWORD, "prefix")
+                ),
+                "StartsWithEvaluator[str=Attribute[channel=0], prefix=Attribute[channel=1]]",
+                equalTo(str.startsWith(prefix))
+            );
+        })));
     }
 
     @Override
@@ -43,18 +57,6 @@ public class StartsWithTests extends AbstractScalarFunctionTestCase {
         String str = ((BytesRef) typedData.get(0).data()).utf8ToString();
         String prefix = ((BytesRef) typedData.get(1).data()).utf8ToString();
         return equalTo(str.startsWith(prefix));
-    }
-
-    @Override
-    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
-        String str = ((BytesRef) data.get(0)).utf8ToString();
-        String prefix = ((BytesRef) data.get(1)).utf8ToString();
-        return equalTo(str.startsWith(prefix));
-    }
-
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "StartsWithEvaluator[str=Attribute[channel=0], prefix=Attribute[channel=1]]";
     }
 
     @Override

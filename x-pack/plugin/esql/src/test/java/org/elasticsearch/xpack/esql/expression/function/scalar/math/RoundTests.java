@@ -7,20 +7,40 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.math.Maths;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RoundTests extends AbstractScalarFunctionTestCase {
+    public RoundTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("round(<double>, <int>)", () -> {
+            double number = 1 / randomDouble();
+            int precision = between(-30, 30);
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(number, DataTypes.DOUBLE, "number"), new TypedData(precision, DataTypes.INTEGER, "precision")),
+                "RoundDoubleEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]",
+                equalTo(Maths.round(number, precision))
+            );
+        })));
+    }
 
     public void testExamples() {
         assertEquals(123, process(123));
@@ -85,31 +105,8 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected TestCase getSimpleTestCase() {
-        List<TypedData> typedData = List.of(
-            new TypedData(1 / randomDouble(), DataTypes.DOUBLE, "arg"),
-            new TypedData(between(-30, 30), DataTypes.INTEGER, "exp")
-        );
-        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
-    }
-
-    @Override
     protected DataType expectedType(List<DataType> argTypes) {
         return argTypes.get(0);
-    }
-
-    @Override
-    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
-        return equalTo(Maths.round((Number) data.get(0), ((Number) data.get(1)).longValue()));
-    }
-
-    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
-        return equalTo(Maths.round((Number) typedData.get(0).data(), ((Number) typedData.get(1).data()).longValue()));
-    }
-
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "RoundDoubleEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]";
     }
 
     public void testNoDecimalsToString() {

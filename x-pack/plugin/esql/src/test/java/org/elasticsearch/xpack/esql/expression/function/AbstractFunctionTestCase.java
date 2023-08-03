@@ -60,15 +60,29 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
-    public class TestCase {
+    public static class TestCase {
+        /**
+         * The {@link Source} this test case should be run with
+         */
         private Source source;
+        /**
+         * The parameter values and types to pass into the function for this test run
+         */
         private List<TypedData> data;
 
+        /**
+         * The expected toString output for the evaluator this fuction invocation should generate
+         */
+        String evaluatorToString;
+        /**
+         * A matcher to validate the output of the function run on the given input data
+         */
         private Matcher<Object> matcher;
 
-        public TestCase(Source source, List<TypedData> data, Matcher<Object> matcher) {
+        public TestCase(Source source, List<TypedData> data, String evaluatorToString, Matcher<Object> matcher) {
             this.source = source;
             this.data = data;
+            this.evaluatorToString = evaluatorToString;
             this.matcher = matcher;
         }
 
@@ -98,6 +112,30 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
+     * This class exists to give a human-readable string representation of the test case.
+     */
+    protected static class TestCaseSupplier implements Supplier<TestCase> {
+
+        private String name;
+        private final Supplier<TestCase> wrapped;
+
+        public TestCaseSupplier(String name, Supplier<TestCase> wrapped) {
+            this.name = name;
+            this.wrapped = wrapped;
+        }
+
+        @Override
+        public TestCase get() {
+            return wrapped.get();
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    /**
      * Generate a random value of the appropriate type to fit into blocks of {@code e}.
      */
     public static Literal randomLiteral(DataType type) {
@@ -122,30 +160,27 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }, type);
     }
 
-    protected abstract TestCase getSimpleTestCase();
+    protected TestCase testCase;
 
-    protected abstract DataType expressionForSimpleDataType();
+    protected static Iterable<Object[]> parameterSuppliersFromTypedData(List<TestCaseSupplier> cases) {
+        List<Object[]> parameters = new ArrayList<>(cases.size());
+        for (TestCaseSupplier element : cases) {
+            parameters.add(new Object[] { element });
+        }
+        return parameters;
+    }
 
-    /**
-     * Return a {@link Matcher} to validate the results of evaluating the function
-     *
-     * @param data a list of the parameters that were passed to the evaluator
-     * @return a matcher to validate correctness against the given data set
-     */
-    protected abstract Matcher<Object> resultMatcher(List<Object> data, DataType dataType);
-
-    protected Matcher<Object> resultMatcher(List<Object> data) {
-        return resultMatcher(data, EsqlDataTypes.fromJava(data.get(0) instanceof List<?> list ? list.get(0) : data.get(0)));
+    protected static FieldAttribute field(String name, DataType type) {
+        return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true));
     }
 
     /**
-     * The expected results for calling {@code toString} on the {@link Expression} created by
-     * {@link AbstractFunctionTestCase#buildFieldExpression(TestCase)}.  Generally speaking, this can be implemented by returning
-     * a string literal
-     * @return The expected string representation
+     * Build the expression being tested, for the given source and list of arguments.  Test classes need to implement this
+     * to have something to test.
+     * @param source the source
+     * @param args arg list from the test case, should match the length expected
+     * @return an expression for evaluating the function being tested on the given arguments
      */
-    protected abstract String expectedEvaluatorSimpleToString();
-
     protected abstract Expression build(Source source, List<Expression> args);
 
     protected final Expression buildFieldExpression(TestCase testCase) {
@@ -181,24 +216,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
-    protected final FieldAttribute field(String name, DataType type) {
-        return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true));
-    }
-
     protected final void assertResolveTypeValid(Expression expression, DataType expectedType) {
         assertTrue(expression.typeResolved().resolved());
         assertThat(expression.dataType(), equalTo(expectedType));
     }
 
     public final void testSimple() {
-        TestCase testCase = getSimpleTestCase();
         Expression expression = buildFieldExpression(testCase);
         Object result = toJavaObject(evaluator(expression).get().eval(row(testCase.getDataValues())), 0);
         assertThat(result, testCase.getMatcher());
     }
 
     public final void testSimpleWithNulls() {
-        TestCase testCase = getSimpleTestCase();
         List<Object> simpleData = testCase.getDataValues();
         EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get();
         Block[] orig = BlockUtils.fromListRow(simpleData);
@@ -225,7 +254,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public final void testSimpleInManyThreads() throws ExecutionException, InterruptedException {
         int count = 10_000;
         int threads = 5;
-        TestCase testCase = getSimpleTestCase();
         Supplier<EvalOperator.ExpressionEvaluator> evalSupplier = evaluator(buildFieldExpression(testCase));
         ExecutorService exec = Executors.newFixedThreadPool(threads);
         try {
@@ -233,12 +261,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             for (int i = 0; i < threads; i++) {
                 List<Object> simpleData = testCase.getDataValues();
                 Page page = row(simpleData);
-                Matcher<Object> resultMatcher = resultMatcher(simpleData);
 
                 futures.add(exec.submit(() -> {
                     EvalOperator.ExpressionEvaluator eval = evalSupplier.get();
                     for (int c = 0; c < count; c++) {
-                        assertThat(toJavaObject(eval.eval(page), 0), resultMatcher);
+                        assertThat(toJavaObject(eval.eval(page), 0), testCase.getMatcher());
                     }
                 }));
             }
@@ -251,17 +278,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluatorSimpleToString() {
-        assertThat(evaluator(buildFieldExpression(getSimpleTestCase())).get().toString(), equalTo(expectedEvaluatorSimpleToString()));
+        assertThat(evaluator(buildFieldExpression(testCase)).get().toString(), equalTo(testCase.evaluatorToString));
     }
 
     public final void testSimpleConstantFolding() {
-        TestCase testCase = getSimpleTestCase();
         Expression e = buildLiteralExpression(testCase);
         assertTrue(e.foldable());
-        assertThat(e.fold(), resultMatcher(testCase.getDataValues()));
+        assertThat(e.fold(), testCase.getMatcher());
     }
 
     public void testSerializationOfSimple() {
-        assertSerialization(buildFieldExpression(getSimpleTestCase()));
+        assertSerialization(buildFieldExpression(testCase));
     }
 }

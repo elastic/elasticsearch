@@ -45,24 +45,12 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     @Override
-    protected TestCase getSimpleTestCase() {
-        List<Object> data = dataForPosition(supportedTypes()[0]);
-        List<TypedData> typedData = List.of(new TypedData(data, supportedTypes()[0], "f"));
-        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
-    }
-
-    @Override
     protected DataType expectedType(List<DataType> argTypes) {
         return argTypes.get(0);
     }
 
     private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
         return resultMatcherForInput((List<?>) typedData.get(0).data(), typedData.get(0).type());
-    }
-
-    @Override
-    protected final Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
-        return resultMatcherForInput((List<?>) data.get(0), dataType);
     }
 
     @Override

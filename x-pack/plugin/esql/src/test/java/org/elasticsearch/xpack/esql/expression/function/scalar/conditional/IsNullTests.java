@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -18,16 +21,27 @@ import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class IsNullTests extends AbstractScalarFunctionTestCase {
-    @Override
-    protected TestCase getSimpleTestCase() {
-        return new TestCase(Source.EMPTY, List.of(new TypedData(new BytesRef("cat"), DataTypes.KEYWORD, "exp")), equalTo(false));
+    public IsNullTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Keyword is Null", () -> {
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(new BytesRef("cat"), DataTypes.KEYWORD, "exp")),
+                "IsNullEvaluator[field=Attribute[channel=0]]",
+                equalTo(false)
+            );
+        })));
     }
 
     @Override
@@ -36,18 +50,8 @@ public class IsNullTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
-        return equalTo(false);
-    }
-
-    @Override
     protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
         assertTrue(((BooleanBlock) value).asVector().getBoolean(0));
-    }
-
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "IsNullEvaluator[field=Attribute[channel=0]]";
     }
 
     @Override

@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -18,15 +20,43 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.function.Supplier;
 
-import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LengthTests extends AbstractScalarFunctionTestCase {
-    @Override
-    protected TestCase getSimpleTestCase() {
-        List<TypedData> typedData = List.of(new TypedData(new BytesRef(randomAlphaOfLength(between(0, 10000))), DataTypes.KEYWORD, "f"));
-        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
+    public LengthTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("length basic test", () -> {
+            BytesRef value = new BytesRef(randomAlphaOfLength(between(0, 10000)));
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(value, DataTypes.KEYWORD, "f")),
+                "LengthEvaluator[val=Attribute[channel=0]]",
+                equalTo(UnicodeUtil.codePointCount(value))
+            );
+        }),
+            new TestCaseSupplier("empty string", () -> makeTestCase("", 0)),
+            new TestCaseSupplier("single ascii character", () -> makeTestCase("a", 1)),
+            new TestCaseSupplier("ascii string", () -> makeTestCase("clump", 5)),
+            new TestCaseSupplier("3 bytes, 1 code point", () -> makeTestCase("☕", 1)),
+            new TestCaseSupplier("6 bytes, 2 code points", () -> makeTestCase("❗️", 2)),
+            new TestCaseSupplier("100 random alpha", () -> makeTestCase(randomAlphaOfLength(100), 100)),
+            new TestCaseSupplier("100 random code points", () -> makeTestCase(randomUnicodeOfCodepointLength(100), 100))
+        ));
+    }
+
+    private static TestCase makeTestCase(String text, int expectedLength) {
+        return new TestCase(
+            Source.EMPTY,
+            List.of(new TypedData(new BytesRef(text), DataTypes.KEYWORD, "f")),
+            "LengthEvaluator[val=Attribute[channel=0]]",
+            equalTo(expectedLength)
+        );
     }
 
     @Override
@@ -39,16 +69,6 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Matcher<Object> resultMatcher(List<Object> simpleData, DataType dataType) {
-        return equalTo(UnicodeUtil.codePointCount((BytesRef) simpleData.get(0)));
-    }
-
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "LengthEvaluator[val=Attribute[channel=0]]";
-    }
-
-    @Override
     protected List<ArgumentSpec> argSpec() {
         return List.of(required(strings()));
     }
@@ -58,14 +78,4 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
         return new Length(source, args.get(0));
     }
 
-    public void testExamples() {
-        EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(getSimpleTestCase())).get();
-        assertThat(toJavaObject(eval.eval(row(List.of(new BytesRef("")))), 0), equalTo(0));
-        assertThat(toJavaObject(eval.eval(row(List.of(new BytesRef("a")))), 0), equalTo(1));
-        assertThat(toJavaObject(eval.eval(row(List.of(new BytesRef("clump")))), 0), equalTo(5));
-        assertThat(toJavaObject(eval.eval(row(List.of(new BytesRef("☕")))), 0), equalTo(1));  // 3 bytes, 1 code point
-        assertThat(toJavaObject(eval.eval(row(List.of(new BytesRef("❗️")))), 0), equalTo(2));  // 6 bytes, 2 code points
-        assertThat(toJavaObject(eval.eval(row(List.of(new BytesRef(randomAlphaOfLength(100))))), 0), equalTo(100));
-        assertThat(toJavaObject(eval.eval(row(List.of(new BytesRef(randomUnicodeOfCodepointLength(100))))), 0), equalTo(100));
-    }
 }

@@ -7,20 +7,40 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PowTests extends AbstractScalarFunctionTestCase {
+    public PowTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("pow(<double>, <int>)", () -> {
+            double base = 1 / randomDouble();
+            int exponent = between(-30, 30);
+            return new TestCase(
+                Source.EMPTY,
+                List.of(new TypedData(base, DataTypes.DOUBLE, "arg"), new TypedData(exponent, DataTypes.INTEGER, "exp")),
+                "PowDoubleEvaluator[base=Attribute[channel=0], exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                equalTo(Math.pow(base, exponent))
+            );
+        })));
+    }
 
     public void testExamples() {
         // Test NaN
@@ -87,15 +107,6 @@ public class PowTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected TestCase getSimpleTestCase() {
-        List<TypedData> typedData = List.of(
-            new TypedData(1 / randomDouble(), DataTypes.DOUBLE, "arg"),
-            new TypedData(between(-30, 30), DataTypes.INTEGER, "exp")
-        );
-        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
-    }
-
-    @Override
     protected DataType expectedType(List<DataType> argTypes) {
         var base = argTypes.get(0);
         var exp = argTypes.get(1);
@@ -106,20 +117,6 @@ public class PowTests extends AbstractScalarFunctionTestCase {
         } else {
             return DataTypes.INTEGER;
         }
-    }
-
-    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
-        return resultMatcher(List.of(typedData.get(0).data(), typedData.get(1).data()), typedData.get(0).type());
-    }
-
-    @Override
-    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
-        return equalTo(Math.pow(((Number) data.get(0)).doubleValue(), ((Number) data.get(1)).doubleValue()));
-    }
-
-    @Override
-    protected String expectedEvaluatorSimpleToString() {
-        return "PowDoubleEvaluator[base=Attribute[channel=0], exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]";
     }
 
     @Override

@@ -31,16 +31,15 @@ import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTestCase {
 
-    @Override
-    protected TestCase getSimpleTestCase() {
-        List<TypedData> typedData = List.of(
-            new TypedData(1, DataTypes.INTEGER, "rhs"),
-            new TypedData(randomValueOtherThanMany(v -> rhsOk(v) == false, () -> between(-1, 1)), DataTypes.INTEGER, "lhs")
-        );
-        return new TestCase(Source.EMPTY, typedData, resultsMatcher(typedData));
-    }
-
     protected abstract Matcher<Object> resultsMatcher(List<TypedData> typedData);
+
+    /**
+     * Return a {@link Matcher} to validate the results of evaluating the function
+     *
+     * @param data a list of the parameters that were passed to the evaluator
+     * @return a matcher to validate correctness against the given data set
+     */
+    protected abstract Matcher<Object> resultMatcher(List<Object> data, DataType dataType);
 
     protected boolean rhsOk(Object o) {
         return true;

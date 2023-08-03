@@ -1,0 +1,6 @@
+pr: 98167
+summary: Adapt Question Answering processing for non-batched evaluation
+area: Machine Learning
+type: bug
+issues:
+ - 97917

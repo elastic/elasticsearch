@@ -163,7 +163,8 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
 
         // we'll rollover the data stream by indexing 2 documents (like ILM expects) and assert that the rollover happens once so the
         // data stream has 3 backing indices, two managed by ILM and one will be managed by the data stream lifecycle
-        putComposableIndexTemplate(indexTemplateName, null, List.of(dataStreamName + "*"), Settings.EMPTY, null, new DataStreamLifecycle());
+        DataStreamLifecycle customLifecycle = customEnabledLifecycle();
+        putComposableIndexTemplate(indexTemplateName, null, List.of(dataStreamName + "*"), Settings.EMPTY, null, customLifecycle);
 
         indexDocs(dataStreamName, 2);
 
@@ -181,11 +182,11 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         assertBusy(() -> {
             String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
             String secondGenerationIndex = getDefaultBackingIndexName(dataStreamName, 2);
-            String thirdGenerationIndex = getDefaultBackingIndexName(dataStreamName, 3);
+            String writeIndex = getDefaultBackingIndexName(dataStreamName, 3);
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(
                 firstGenerationIndex,
                 secondGenerationIndex,
-                thirdGenerationIndex
+                writeIndex
             );
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
@@ -199,24 +200,26 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(secondGenerationExplain.getPhase(), is("hot"));
             assertThat(secondGenerationExplain.getStep(), is(PhaseCompleteStep.NAME));
 
-            // the write index is unmanaged
-            IndexLifecycleExplainResponse thirdGenerationExplain = explainResponse.getIndexResponses().get(thirdGenerationIndex);
+            // the write index is not managed by ILM
+            IndexLifecycleExplainResponse thirdGenerationExplain = explainResponse.getIndexResponses().get(writeIndex);
             assertThat(thirdGenerationExplain.managedByILM(), is(false));
 
             ExplainDataStreamLifecycleAction.Response dataStreamLifecycleExplainResponse = client().execute(
                 ExplainDataStreamLifecycleAction.INSTANCE,
-                new ExplainDataStreamLifecycleAction.Request(new String[] { thirdGenerationIndex })
+                new ExplainDataStreamLifecycleAction.Request(new String[] { writeIndex })
             ).actionGet();
             assertThat(dataStreamLifecycleExplainResponse.getIndices().size(), is(1));
             ExplainIndexDataStreamLifecycle writeIndexDataStreamLifecycleExplain = dataStreamLifecycleExplainResponse.getIndices().get(0);
             assertThat(writeIndexDataStreamLifecycleExplain.isManagedByLifecycle(), is(true));
+            assertThat(writeIndexDataStreamLifecycleExplain.getLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
         });
 
         // at this point we should be able to rollover the data stream by indexing only one document (as the data stream lifecycle is
         // configured to)
         indexDocs(dataStreamName, 1);
 
-        // data stream was rolled over and has 4 indices, 2 managed by ILM, and the latest 2 generations managed by the data stream lifecycle 
+        // data stream was rolled over and has 4 indices, 2 managed by ILM, and the latest 2 generations managed by the data stream
+        // lifecycle
         assertBusy(() -> {
             GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -225,6 +228,12 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().size(), is(4));
 
         });
+
+        // let's migrate this data stream to use the custom data stream lifecycle
+        client().execute(
+            PutDataStreamLifecycleAction.INSTANCE,
+            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, customLifecycle.getEffectiveDataRetention())
+        );
 
         assertBusy(() -> {
             String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
@@ -252,7 +261,10 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             IndexLifecycleExplainResponse thirdGenerationExplain = explainResponse.getIndexResponses().get(thirdGenerationIndex);
             assertThat(thirdGenerationExplain.managedByILM(), is(false));
 
-            // the write index is managed by data stream lifecycle
+            IndexLifecycleExplainResponse writeIndexExplain = explainResponse.getIndexResponses().get(writeIndex);
+            assertThat(writeIndexExplain.managedByILM(), is(false));
+
+            // the third generation and the write index are managed based on the custom lifecycle
             ExplainDataStreamLifecycleAction.Response dataStreamLifecycleExplainResponse = client().execute(
                 ExplainDataStreamLifecycleAction.INSTANCE,
                 new ExplainDataStreamLifecycleAction.Request(new String[] { thirdGenerationIndex, writeIndex })
@@ -260,6 +272,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(dataStreamLifecycleExplainResponse.getIndices().size(), is(2));
             for (ExplainIndexDataStreamLifecycle index : dataStreamLifecycleExplainResponse.getIndices()) {
                 assertThat(index.isManagedByLifecycle(), is(true));
+                assertThat(index.getLifecycle(), equalTo(customLifecycle));
             }
         });
     }
@@ -808,5 +821,9 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             )
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+    }
+
+    private static DataStreamLifecycle customEnabledLifecycle() {
+        return DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueMillis(randomMillisUpToYear9999())).build();
     }
 }

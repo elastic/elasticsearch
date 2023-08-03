@@ -16,24 +16,29 @@ import com.squareup.javapoet.TypeSpec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
 import static org.elasticsearch.compute.gen.Methods.appendMethod;
 import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR;
+import static org.elasticsearch.compute.gen.Types.ABSTRACT_NULLABLE_MULTIVALUE_FUNCTION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_ARRAY;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
+import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
+import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.arrayVectorType;
 import static org.elasticsearch.compute.gen.Types.blockType;
 
@@ -42,6 +47,7 @@ public class MvEvaluatorImplementer {
     private final ExecutableElement processFunction;
     private final FinishFunction finishFunction;
     private final SingleValueFunction singleValueFunction;
+    private final List<TypeMirror> warnExceptions;
     private final ClassName implementation;
     private final TypeName workType;
     private final TypeName fieldType;
@@ -52,7 +58,8 @@ public class MvEvaluatorImplementer {
         ExecutableElement processFunction,
         String extraName,
         String finishMethodName,
-        String singleValueFunction
+        String singleValueFunction,
+        List<TypeMirror> warnExceptions
     ) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
         this.processFunction = processFunction;
@@ -97,6 +104,8 @@ public class MvEvaluatorImplementer {
             this.singleValueFunction = new SingleValueFunction(fn);
         }
 
+        this.warnExceptions = warnExceptions;
+
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
             declarationType.getSimpleName() + extraName + "Evaluator"
@@ -118,23 +127,39 @@ public class MvEvaluatorImplementer {
         builder.addJavadoc("{@link $T} implementation for {@link $T}.\n", EXPRESSION_EVALUATOR, declarationType);
         builder.addJavadoc("This class is generated. Do not edit it.");
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
-        builder.superclass(ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR);
+        if (warnExceptions.isEmpty()) {
+            builder.superclass(ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR);
+        } else {
+            builder.superclass(ABSTRACT_NULLABLE_MULTIVALUE_FUNCTION_EVALUATOR);
+
+            builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
+        }
 
         builder.addMethod(ctor());
         builder.addMethod(name());
         builder.addMethod(eval("evalNullable", true));
-        builder.addMethod(eval("evalNotNullable", false));
+        if (warnExceptions.isEmpty()) {
+            builder.addMethod(eval("evalNotNullable", false));
+        }
         if (singleValueFunction != null) {
             builder.addMethod(evalSingleValued("evalSingleValuedNullable", true));
-            builder.addMethod(evalSingleValued("evalSingleValuedNotNullable", false));
+            if (warnExceptions.isEmpty()) {
+                builder.addMethod(evalSingleValued("evalSingleValuedNotNullable", false));
+            }
         }
         return builder.build();
     }
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
+        if (warnExceptions.isEmpty() == false) {
+            builder.addParameter(SOURCE, "source");
+        }
         builder.addParameter(EXPRESSION_EVALUATOR, "field");
         builder.addStatement("super($L)", "field");
+        if (warnExceptions.isEmpty() == false) {
+            builder.addStatement("this.warnings = new Warnings(source)");
+        }
         return builder.build();
     }
 
@@ -187,7 +212,17 @@ public class MvEvaluatorImplementer {
                 builder.addStatement("continue");
                 builder.endControlFlow();
             }
-            body.accept(builder);
+            if (warnExceptions.isEmpty() == false) {
+                builder.beginControlFlow("try");
+                body.accept(builder);
+                String catchPattern = "catch (" + warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | ")) + " e)";
+                builder.nextControlFlow(catchPattern, warnExceptions.stream().map(TypeName::get).toArray());
+                builder.addStatement("warnings.registerException(e)");
+                builder.addStatement("builder.appendNull()");
+                builder.endControlFlow();
+            } else {
+                body.accept(builder);
+            }
         }
         builder.endControlFlow();
 

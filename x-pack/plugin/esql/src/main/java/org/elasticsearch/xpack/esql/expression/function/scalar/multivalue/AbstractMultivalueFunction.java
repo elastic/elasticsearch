@@ -53,19 +53,13 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
         return evaluator(toEvaluator.apply(field()));
     }
 
-    public abstract static class AbstractEvaluator implements EvalOperator.ExpressionEvaluator {
-        private final EvalOperator.ExpressionEvaluator field;
-
+    /**
+     * Base evaluator that can handle both nulls- and no-nulls-containing blocks.
+     */
+    public abstract static class AbstractEvaluator extends AbstractNullableEvaluator {
         protected AbstractEvaluator(EvalOperator.ExpressionEvaluator field) {
-            this.field = field;
+            super(field);
         }
-
-        protected abstract String name();
-
-        /**
-         * Called when evaluating a {@link Block} that contains null values.
-         */
-        protected abstract Block evalNullable(Block fieldVal);
 
         /**
          * Called when evaluating a {@link Block} that does not contain null values.
@@ -75,14 +69,6 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
          * generally faster than building it via a {@link Block.Builder}.
          */
         protected abstract Vector evalNotNullable(Block fieldVal);
-
-        /**
-         * Called to evaluate single valued fields when the target block has null
-         * values.
-         */
-        protected Block evalSingleValuedNullable(Block fieldVal) {
-            return fieldVal;
-        }
 
         /**
          * Called to evaluate single valued fields when the target block does not
@@ -105,6 +91,38 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
                 return evalNullable(fieldVal);
             }
             return evalNotNullable(fieldVal).asBlock();
+        }
+    }
+
+    /**
+     * Base evaluator that can handle evaluator-checked exceptions; i.e. for expressions that can be evaluated to null.
+     */
+    public abstract static class AbstractNullableEvaluator implements EvalOperator.ExpressionEvaluator {
+        protected final EvalOperator.ExpressionEvaluator field;
+
+        protected AbstractNullableEvaluator(EvalOperator.ExpressionEvaluator field) {
+            this.field = field;
+        }
+
+        protected abstract String name();
+
+        /**
+         * Called when evaluating a {@link Block} that contains null values.
+         */
+        protected abstract Block evalNullable(Block fieldVal);
+
+        /**
+         * Called to evaluate single valued fields when the target block has null
+         * values.
+         */
+        protected Block evalSingleValuedNullable(Block fieldVal) {
+            return fieldVal;
+        }
+
+        @Override
+        public Block eval(Page page) {
+            Block fieldVal = field.eval(page);
+            return fieldVal.mayHaveMultivaluedFields() ? evalNullable(fieldVal) : evalSingleValuedNullable(fieldVal);
         }
 
         @Override

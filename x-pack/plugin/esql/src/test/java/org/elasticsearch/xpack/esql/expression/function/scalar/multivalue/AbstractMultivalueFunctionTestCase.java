@@ -22,7 +22,6 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -92,18 +91,20 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                     () -> type == DataTypes.NULL || (insertNulls && rarely()) ? singletonList(null) : List.of(dataForPosition(type))
                 );
                 Expression expression = build(Source.EMPTY, field("f", type));
-                try {
-                    Block result = evaluator(expression).get().eval(new Page(BlockUtils.fromList(data)));
-                    for (int p = 0; p < data.size(); p++) {
-                        if (data.get(p).get(0) == null) {
-                            assertTrue(type.toString(), result.isNull(p));
-                        } else {
-                            assertFalse(type.toString(), result.isNull(p));
-                            assertThat(type.toString(), toJavaObject(result, p), resultMatcherForInput((List<?>) data.get(p).get(0), type));
+                Block result = evaluator(expression).get().eval(new Page(BlockUtils.fromList(data)));
+                boolean warningsAsserted = false;
+                for (int p = 0; p < data.size(); p++) {
+                    if (data.get(p).get(0) == null) {
+                        assertTrue(type.toString(), result.isNull(p));
+                    } else if (result.isNull(p) && type != DataTypes.NULL) {
+                        if (warningsAsserted == false) {
+                            assertEvalWarnings(expression, type);
+                            // only the 1st failure in a block registers a warning; the rest will simply be deduplicated
+                            warningsAsserted = true;
                         }
+                    } else {
+                        assertThat(type.toString(), toJavaObject(result, p), resultMatcherForInput((List<?>) data.get(p).get(0), type));
                     }
-                } catch (ArithmeticException ae) {
-                    assertThat(ae.getMessage(), equalTo(type.typeName() + " overflow"));
                 }
             }
         }
@@ -123,15 +124,24 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             List<Object> data = type == DataTypes.NULL ? null : randomList(1, 100, () -> randomLiteral(type).value());
             Expression expression = build(Source.EMPTY, new Literal(Source.EMPTY, data, type));
             assertTrue(expression.foldable());
-            try {
-                assertThat(expression.fold(), resultMatcherForInput(data, type));
-            } catch (ArithmeticException ae) {
-                assertThat(ae.getMessage(), equalTo(type.typeName() + " overflow"));
+            Object folded = expression.fold();
+            if (folded == null && type != DataTypes.NULL) {
+                assertEvalWarnings(expression, type);
+            } else {
+                assertThat(folded, resultMatcherForInput(data, type));
             }
         }
     }
 
     private List<Object> dataForPosition(DataType type) {
         return randomList(1, 100, () -> randomLiteral(type).value());
+    }
+
+    private void assertEvalWarnings(Expression e, DataType dt) {
+        assertCriticalWarnings(
+            "Line -1:-1: evaluation of [" + e + "] failed, treating result as null. Only first 20 failures recorded.",
+            "java.lang.ArithmeticException: " + dt.typeName() + " overflow"
+        );
+
     }
 }

@@ -54,4 +54,10 @@ public @interface MvEvaluator {
      * just call this function.
      */
     String single() default "";
+
+    /**
+     * Exceptions thrown by the process method to catch and convert
+     * into a warning and turn into a null value.
+     */
+    Class<? extends Exception>[] warnExceptions() default {};
 }

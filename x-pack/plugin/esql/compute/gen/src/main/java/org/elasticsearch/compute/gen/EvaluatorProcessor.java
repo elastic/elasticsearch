@@ -92,7 +92,8 @@ public class EvaluatorProcessor implements Processor {
                             (ExecutableElement) evaluatorMethod,
                             mvEvaluatorAnn.extraName(),
                             mvEvaluatorAnn.finish(),
-                            mvEvaluatorAnn.single()
+                            mvEvaluatorAnn.single(),
+                            warnExceptions(evaluatorMethod)
                         ).sourceFile(),
                         env
                     );
@@ -115,18 +116,18 @@ public class EvaluatorProcessor implements Processor {
         return true;
     }
 
-    private List<TypeMirror> warnExceptions(Element evaluatorMethod) {
+    private static List<TypeMirror> warnExceptions(Element evaluatorMethod) {
         List<TypeMirror> result = new ArrayList<>();
         for (var mirror : evaluatorMethod.getAnnotationMirrors()) {
-            if (false == mirror.getAnnotationType().toString().equals(Evaluator.class.getName())) {
-                continue;
-            }
-            for (var e : mirror.getElementValues().entrySet()) {
-                if (false == e.getKey().getSimpleName().toString().equals("warnExceptions")) {
-                    continue;
-                }
-                for (var v : (List<?>) e.getValue().getValue()) {
-                    result.add((TypeMirror) ((AnnotationValue) v).getValue());
+            String annotationType = mirror.getAnnotationType().toString();
+            if (annotationType.equals(Evaluator.class.getName()) || annotationType.equals(MvEvaluator.class.getName())) {
+                for (var e : mirror.getElementValues().entrySet()) {
+                    if (false == e.getKey().getSimpleName().toString().equals("warnExceptions")) {
+                        continue;
+                    }
+                    for (var v : (List<?>) e.getValue().getValue()) {
+                        result.add((TypeMirror) ((AnnotationValue) v).getValue());
+                    }
                 }
             }
         }

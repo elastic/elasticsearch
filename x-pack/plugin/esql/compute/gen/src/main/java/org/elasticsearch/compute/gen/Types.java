@@ -94,6 +94,11 @@ public class Types {
         "AbstractMultivalueFunction",
         "AbstractEvaluator"
     );
+    static final ClassName ABSTRACT_NULLABLE_MULTIVALUE_FUNCTION_EVALUATOR = ClassName.get(
+        "org.elasticsearch.xpack.esql.expression.function.scalar.multivalue",
+        "AbstractMultivalueFunction",
+        "AbstractNullableEvaluator"
+    );
     static final ClassName ABSTRACT_CONVERT_FUNCTION_EVALUATOR = ClassName.get(
         "org.elasticsearch.xpack.esql.expression.function.scalar.convert",
         "AbstractConvertFunction",

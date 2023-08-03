@@ -4,21 +4,25 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvSum}.
  * This class is generated. Do not edit it.
  */
-public final class MvSumLongEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
-  public MvSumLongEvaluator(EvalOperator.ExpressionEvaluator field) {
+public final class MvSumLongEvaluator extends AbstractMultivalueFunction.AbstractNullableEvaluator {
+  private final Warnings warnings;
+
+  public MvSumLongEvaluator(Source source, EvalOperator.ExpressionEvaluator field) {
     super(field);
+    this.warnings = new Warnings(source);
   }
 
   @Override
@@ -37,36 +41,21 @@ public final class MvSumLongEvaluator extends AbstractMultivalueFunction.Abstrac
         builder.appendNull();
         continue;
       }
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      long value = v.getLong(first);
-      for (int i = first + 1; i < end; i++) {
-        long next = v.getLong(i);
-        value = MvSum.process(value, next);
+      try {
+        int first = v.getFirstValueIndex(p);
+        int end = first + valueCount;
+        long value = v.getLong(first);
+        for (int i = first + 1; i < end; i++) {
+          long next = v.getLong(i);
+          value = MvSum.process(value, next);
+        }
+        long result = value;
+        builder.appendLong(result);
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        builder.appendNull();
       }
-      long result = value;
-      builder.appendLong(result);
     }
     return builder.build();
-  }
-
-  @Override
-  public Vector evalNotNullable(Block fieldVal) {
-    LongBlock v = (LongBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    long[] values = new long[positionCount];
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      long value = v.getLong(first);
-      for (int i = first + 1; i < end; i++) {
-        long next = v.getLong(i);
-        value = MvSum.process(value, next);
-      }
-      long result = value;
-      values[p] = result;
-    }
-    return new LongArrayVector(values, positionCount);
   }
 }

@@ -632,6 +632,42 @@ a:integer | sum_a:integer
 // end::mv_sum-result[]
 ;
 
+mvSumIntsOverflow
+ROW ints = [0, 1, 2147483647]
+| EVAL mvsum = mv_sum(ints)
+| KEEP mvsum;
+
+warning:Line 2:16: evaluation of [mv_sum(ints)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: integer overflow
+
+mvsum:integer
+null
+;
+
+mvSumLongsOverflow
+ROW longs = [0, 1, 9223372036854775807]
+| EVAL mvsum = mv_sum(longs)
+| KEEP mvsum;
+
+warning:Line 2:16: evaluation of [mv_sum(longs)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: long overflow
+
+mvsum:long
+null
+;
+
+mvSumUnsignedLongsOverflow
+ROW ulongs = [0, 1, 18446744073709551615]
+| EVAL mvsum = mv_sum(ulongs)
+| KEEP mvsum;
+
+warning:Line 2:16: evaluation of [mv_sum(ulongs)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: unsigned_long overflow
+
+mvsum:unsigned_long
+null
+;
+
 e
 // tag::e[]
 ROW E()

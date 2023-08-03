@@ -15,11 +15,8 @@ import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.AccessDeniedException;
-import java.nio.file.NoSuchFileException;
 
 final class ByteSizeCachingDirectory extends ByteSizeDirectory {
 
@@ -33,20 +30,6 @@ final class ByteSizeCachingDirectory extends ByteSizeDirectory {
             this.modCount = modCount;
             this.pendingWrite = pendingWrite;
         }
-    }
-
-    private static long estimateSizeInBytes(Directory directory) throws IOException {
-        long estimatedSize = 0;
-        String[] files = directory.listAll();
-        for (String file : files) {
-            try {
-                estimatedSize += directory.fileLength(file);
-            } catch (NoSuchFileException | FileNotFoundException | AccessDeniedException e) {
-                // ignore, the file is not there no more; on Windows, if one thread concurrently deletes a file while
-                // calling Files.size, you can also sometimes hit AccessDeniedException
-            }
-        }
-        return estimatedSize;
     }
 
     private final SingleObjectCache<SizeAndModCount> size;
@@ -110,6 +93,11 @@ final class ByteSizeCachingDirectory extends ByteSizeDirectory {
             // we wrapped in the cache and unwrap here
             throw e.getCause();
         }
+    }
+
+    @Override
+    public long estimateDataSetSizeInBytes() throws IOException {
+        return estimateSizeInBytes(); // data set size is equal to directory size for most implementations
     }
 
     @Override

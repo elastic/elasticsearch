@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
@@ -113,6 +114,13 @@ public class ElasticsearchMappings {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> meta = (Map<String, Object>) metadata.sourceAsMap().get("_meta");
                     if (meta != null) {
+                        Integer systemIndexMappingsVersion = (Integer) meta.get(SystemIndexDescriptor.VERSION_META_KEY);
+                        if (systemIndexMappingsVersion == null) {
+                            logger.info("System index mappings version for [{}] not found, recreating", index);
+                            indicesToUpdate.add(index);
+                            continue;
+                        }
+
                         String versionString = (String) meta.get("version");
                         if (versionString == null) {
                             logger.info("Version of mappings for [{}] not found, recreating", index);

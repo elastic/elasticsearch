@@ -31,7 +31,15 @@ To test out manual downsampling, follow these steps:
 [[downsampling-manual-prereqs]]
 ==== Prerequisites
 
-Refer to <<tsds-prereqs,time series data stream prerequisites>>.
+* Refer to the <<tsds-prereqs,TSDS prerequisites>>.
+* It is not possible to downsample a data stream directly, nor 
+multiple indices at once. It's only possible to downsample one time series index
+(TSDS backing index).
+* In order to downsample an index, it needs to be read-only. For a TSDS write
+index, this means it needs to be rolled over and made read-only first.
+* Downsampling uses UTC timestamps.
+* Downsampling needs at least one metric field to exist in the time series 
+index.
 
 [discrete]
 [[downsampling-manual-create-index]]

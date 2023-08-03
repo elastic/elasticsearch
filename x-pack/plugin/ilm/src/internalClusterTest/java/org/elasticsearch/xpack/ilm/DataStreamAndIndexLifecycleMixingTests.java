@@ -216,8 +216,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         // configured to)
         indexDocs(dataStreamName, 1);
 
-        // data stream was rolled over and has 4 indices, 2 managed by ILM, 1 managed by the data stream lifecycle and the new write index
-        // managed by the data stream lifecycle
+        // data stream was rolled over and has 4 indices, 2 managed by ILM, and the latest 2 generations managed by the data stream lifecycle 
         assertBusy(() -> {
             GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)

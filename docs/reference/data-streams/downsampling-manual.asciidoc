@@ -463,9 +463,9 @@ GET /my-data-stream/_search
 // TEST[skip:Because we've skipped the previous steps]
 
 The TSDS with the new downsampled backing index contains just one document. For
-counters, this document would only have the last value. For gauges, you see the
-`min`, `max`, `sum`, and `value_count` statistics based off of the original
-sampled metrics:
+counters, this document would only have the last value. For gauges, the field
+type is now `aggregate_metric_double`. You see the `min`, `max`, `sum`, and
+`value_count` statistics based off of the original sampled metrics:
 
 [source,console-result]
 ----

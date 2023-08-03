@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,6 +22,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
@@ -104,7 +104,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
      * The minimum version a node should have to be able
      * to read this model snapshot.
      */
-    private final Version minVersion;
+    private final MlConfigVersion minVersion;
 
     /**
      * This is model snapshot's creation wall clock time.
@@ -122,7 +122,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     private ModelSnapshot(
         String jobId,
-        Version minVersion,
+        MlConfigVersion minVersion,
         Date timestamp,
         String description,
         String snapshotId,
@@ -148,7 +148,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     public ModelSnapshot(StreamInput in) throws IOException {
         jobId = in.readString();
-        minVersion = Version.readVersion(in);
+        minVersion = MlConfigVersion.readVersion(in);
         timestamp = in.readBoolean() ? new Date(in.readVLong()) : null;
         description = in.readOptionalString();
         snapshotId = in.readOptionalString();
@@ -163,7 +163,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        Version.writeVersion(minVersion, out);
+        MlConfigVersion.writeVersion(minVersion, out);
         if (timestamp != null) {
             out.writeBoolean(true);
             out.writeVLong(timestamp.getTime());
@@ -234,7 +234,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         return jobId;
     }
 
-    public Version getMinVersion() {
+    public MlConfigVersion getMinVersion() {
         return minVersion;
     }
 
@@ -383,7 +383,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
         // Stored snapshot documents created prior to 6.3.0 will have no
         // value for min_version.
-        private Version minVersion = Version.fromString("6.3.0");
+        private MlConfigVersion minVersion = MlConfigVersion.fromString("6.3.0");
 
         private Date timestamp;
         private String description;
@@ -421,13 +421,13 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setMinVersion(Version minVersion) {
+        public Builder setMinVersion(MlConfigVersion minVersion) {
             this.minVersion = minVersion;
             return this;
         }
 
         public Builder setMinVersion(String minVersion) {
-            this.minVersion = Version.fromString(minVersion);
+            this.minVersion = MlConfigVersion.fromString(minVersion);
             return this;
         }
 
@@ -501,7 +501,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     public static ModelSnapshot emptySnapshot(String jobId) {
         return new ModelSnapshot(
             jobId,
-            Version.CURRENT,
+            MlConfigVersion.CURRENT,
             new Date(),
             "empty snapshot",
             EMPTY_SNAPSHOT_ID,

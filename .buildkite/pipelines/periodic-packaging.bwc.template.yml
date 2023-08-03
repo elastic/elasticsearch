@@ -4,8 +4,8 @@
         matrix:
           setup:
             image:
-              - family/elasticsearch-rocky-8
-              - family/elasticsearch-ubuntu-2004
+              - rocky-8
+              - ubuntu-2004
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}

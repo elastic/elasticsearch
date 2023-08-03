@@ -78,6 +78,14 @@ public class RegexTests extends ESTestCase {
         assertFalse(Regex.simpleMatch("fff******ddd", "fffabcdd"));
     }
 
+    public void testArbitraryWildcardMatch() {
+        String prefix = randomBoolean() ? randomAlphaOfLengthBetween(1, 20) : "";
+        String suffix = randomBoolean() ? randomAlphaOfLengthBetween(1, 20) : "";
+        String pattern = prefix + "*".repeat(randomIntBetween(1, 1000)) + suffix;
+        String matchingString = prefix + randomAlphaOfLengthBetween(10, 20) + suffix;
+        assertTrue(Regex.simpleMatch(pattern, matchingString, randomBoolean()));
+    }
+
     public void testSimpleMatch() {
         for (int i = 0; i < 1000; i++) {
             final String matchingString = randomAlphaOfLength(between(0, 50));

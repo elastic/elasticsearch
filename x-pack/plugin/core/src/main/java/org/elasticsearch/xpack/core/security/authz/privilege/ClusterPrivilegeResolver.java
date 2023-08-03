@@ -279,6 +279,16 @@ public class ClusterPrivilegeResolver {
         Set.of("cluster:admin/logstash/pipeline/*")
     );
 
+    public static final NamedClusterPrivilege READ_FLEET_SECRETS = new ActionClusterPrivilege(
+        "read_fleet_secrets",
+        Set.of("cluster:admin/fleet/secrets/get")
+    );
+
+    public static final NamedClusterPrivilege WRITE_FLEET_SECRETS = new ActionClusterPrivilege(
+        "write_fleet_secrets",
+        Set.of("cluster:admin/fleet/secrets/post", "cluster:admin/fleet/secrets/delete")
+    );
+
     public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task", Set.of(CancelTasksAction.NAME + "*"));
 
     public static final NamedClusterPrivilege MANAGE_SEARCH_APPLICATION = new ActionClusterPrivilege(
@@ -357,6 +367,8 @@ public class ClusterPrivilegeResolver {
             MANAGE_OWN_API_KEY,
             MANAGE_ENRICH,
             MANAGE_LOGSTASH_PIPELINES,
+            READ_FLEET_SECRETS,
+            WRITE_FLEET_SECRETS,
             CANCEL_TASK,
             MANAGE_SEARCH_APPLICATION,
             MANAGE_SEARCH_SYNONYMS,

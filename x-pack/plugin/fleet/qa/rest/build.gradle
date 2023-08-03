@@ -15,6 +15,8 @@ restResources {
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user username: 'fleet_unprivileged_secrets', password: 'password', role: 'unprivileged_secrets'
 }
 
 if (BuildParams.inFipsJvm){

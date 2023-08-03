@@ -27,7 +27,9 @@ public class PostSecretRequest extends ActionRequest {
 
     public static final ConstructingObjectParser<PostSecretRequest, Void> PARSER = new ConstructingObjectParser<>(
         "post_secret_request",
-        args -> new PostSecretRequest((String) args[0], null)
+        args -> {
+            return new PostSecretRequest((String) args[0], XContentType.JSON);
+        }
     );
 
     static {

@@ -1,5 +1,0 @@
-pr: 98138
-summary: Do not store default template with search application if it is not sp…
-area: Application
-type: tech debt
-issues: []

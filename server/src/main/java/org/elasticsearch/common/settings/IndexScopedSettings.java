@@ -181,8 +181,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                     );
                 }
             }
-        }, Property.IndexScope), // this allows similarity settings to be passed
-        Setting.groupSetting("index.analysis.", Property.IndexScope), // this allows analysis settings to be passed
+        }, Property.IndexScope, Property.ServerlessPublic), // this allows similarity settings to be passed
+        Setting.groupSetting("index.analysis.", Property.IndexScope, Property.ServerlessPublic), // this allows analysis settings to be
+                                                                                                 // passed
 
         // TSDB index settings
         IndexSettings.MODE,

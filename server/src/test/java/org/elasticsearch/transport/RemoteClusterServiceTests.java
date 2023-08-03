@@ -48,6 +48,7 @@ import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -165,23 +166,25 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     assertTrue(service.isRemoteClusterRegistered("cluster_2"));
                     assertFalse(service.isRemoteClusterRegistered("foo"));
-                    Map<String, List<String>> perClusterIndices = service.groupClusterIndices(
-                        service.getRemoteClusterNames(),
-                        new String[] {
-                            "cluster_1:bar",
-                            "cluster_2:foo:bar",
-                            "cluster_1:test",
-                            "cluster_2:foo*",
-                            "foo",
-                            "cluster*:baz",
-                            "*:boo" }
-                    );
-                    List<String> localIndices = perClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                    assertNotNull(localIndices);
-                    assertEquals("foo", localIndices.get(0));
-                    assertEquals(2, perClusterIndices.size());
-                    assertEquals(Arrays.asList("bar", "test", "baz", "boo"), perClusterIndices.get("cluster_1"));
-                    assertEquals(Arrays.asList("foo:bar", "foo*", "baz", "boo"), perClusterIndices.get("cluster_2"));
+                    {
+                        Map<String, List<String>> perClusterIndices = service.groupClusterIndices(
+                            service.getRemoteClusterNames(),
+                            new String[] {
+                                "cluster_1:bar",
+                                "cluster_2:foo:bar",
+                                "cluster_1:test",
+                                "cluster_2:foo*",
+                                "foo",
+                                "cluster*:baz",
+                                "*:boo" }
+                        );
+                        List<String> localIndices = perClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                        assertNotNull(localIndices);
+                        assertEquals("foo", localIndices.get(0));
+                        assertEquals(2, perClusterIndices.size());
+                        assertEquals(Arrays.asList("bar", "test", "baz", "boo"), perClusterIndices.get("cluster_1"));
+                        assertEquals(Arrays.asList("foo:bar", "foo*", "baz", "boo"), perClusterIndices.get("cluster_2"));
+                    }
 
                     expectThrows(
                         NoSuchRemoteClusterException.class,
@@ -198,6 +201,125 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             new String[] { "cluster_1:bar", "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "does_not_exist:*" }
                         )
                     );
+
+                    // test cluster exclusions
+                    {
+                        String[] indices = shuffledList(List.of("cluster*:foo*", "foo", "-cluster_1:*", "*:boo")).toArray(new String[0]);
+
+                        Map<String, List<String>> perClusterIndices = service.groupClusterIndices(service.getRemoteClusterNames(), indices);
+                        assertEquals(2, perClusterIndices.size());
+                        List<String> localIndexes = perClusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                        assertNotNull(localIndexes);
+                        assertEquals(1, localIndexes.size());
+                        assertEquals("foo", localIndexes.get(0));
+
+                        List<String> cluster2 = perClusterIndices.get("cluster_2");
+                        assertNotNull(cluster2);
+                        assertEquals(2, cluster2.size());
+                        assertEquals(List.of("boo", "foo*"), cluster2.stream().sorted().toList());
+                    }
+                    {
+                        String[] indices = shuffledList(List.of("*:*", "-clu*_1:*", "*:boo")).toArray(new String[0]);
+
+                        Map<String, List<String>> perClusterIndices = service.groupClusterIndices(service.getRemoteClusterNames(), indices);
+                        assertEquals(1, perClusterIndices.size());
+
+                        List<String> cluster2 = perClusterIndices.get("cluster_2");
+                        assertNotNull(cluster2);
+                        assertEquals(2, cluster2.size());
+                        assertEquals(List.of("*", "boo"), cluster2.stream().sorted().toList());
+                    }
+                    {
+                        String[] indices = shuffledList(List.of("cluster*:foo*", "cluster_2:*", "foo", "-cluster_1:*", "-c*:*")).toArray(
+                            new String[0]
+                        );
+
+                        Map<String, List<String>> perClusterIndices = service.groupClusterIndices(service.getRemoteClusterNames(), indices);
+                        assertEquals(1, perClusterIndices.size());
+                        List<String> localIndexes = perClusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                        assertNotNull(localIndexes);
+                        assertEquals(1, localIndexes.size());
+                        assertEquals("foo", localIndexes.get(0));
+                    }
+                    {
+                        String[] indices = shuffledList(List.of("cluster*:*", "foo", "-*:*")).toArray(new String[0]);
+
+                        Map<String, List<String>> perClusterIndices = service.groupClusterIndices(service.getRemoteClusterNames(), indices);
+                        assertEquals(1, perClusterIndices.size());
+                        List<String> localIndexes = perClusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                        assertNotNull(localIndexes);
+                        assertEquals(1, localIndexes.size());
+                        assertEquals("foo", localIndexes.get(0));
+                    }
+                    {
+                        IllegalArgumentException e = expectThrows(
+                            IllegalArgumentException.class,
+                            () -> service.groupClusterIndices(
+                                service.getRemoteClusterNames(),
+                                // -cluster_1:foo* is not allowed, only -cluster_1:*
+                                new String[] { "cluster_1:bar", "-cluster_2:foo*", "cluster_1:test", "cluster_2:foo*", "foo" }
+                            )
+                        );
+                        assertThat(
+                            e.getMessage(),
+                            equalTo("To exclude a cluster you must specify the '*' wildcard for the index expression, but found: [foo*]")
+                        );
+                    }
+                    {
+                        IllegalArgumentException e = expectThrows(
+                            IllegalArgumentException.class,
+                            () -> service.groupClusterIndices(
+                                service.getRemoteClusterNames(),
+                                // -cluster_1:* will fail since cluster_1 was never included in order to qualify to be excluded
+                                new String[] { "-cluster_1:*", "cluster_2:foo*", "foo" }
+                            )
+                        );
+                        assertThat(
+                            e.getMessage(),
+                            equalTo(
+                                "Attempt to exclude cluster [cluster_1] failed as it is not included in the list of clusters to "
+                                    + "be included: [(local), cluster_2]. Input: [-cluster_1:*,cluster_2:foo*,foo]"
+                            )
+                        );
+                    }
+                    {
+                        IllegalArgumentException e = expectThrows(
+                            IllegalArgumentException.class,
+                            () -> service.groupClusterIndices(service.getRemoteClusterNames(), new String[] { "-cluster_1:*" })
+                        );
+                        assertThat(
+                            e.getMessage(),
+                            equalTo(
+                                "Attempt to exclude cluster [cluster_1] failed as it is not included in the list of clusters to "
+                                    + "be included: []. Input: [-cluster_1:*]"
+                            )
+                        );
+                    }
+                    {
+                        IllegalArgumentException e = expectThrows(
+                            IllegalArgumentException.class,
+                            () -> service.groupClusterIndices(service.getRemoteClusterNames(), new String[] { "-*:*" })
+                        );
+                        assertThat(
+                            e.getMessage(),
+                            equalTo(
+                                "Attempt to exclude clusters [cluster_1, cluster_2] failed as they are not included in the list of "
+                                    + "clusters to be included: []. Input: [-*:*]"
+                            )
+                        );
+                    }
+                    {
+                        String[] indices = shuffledList(List.of("cluster*:*", "*:foo", "-*:*")).toArray(new String[0]);
+
+                        IllegalArgumentException e = expectThrows(
+                            IllegalArgumentException.class,
+                            () -> service.groupClusterIndices(service.getRemoteClusterNames(), indices)
+                        );
+                        assertThat(
+                            e.getMessage(),
+                            containsString("The '-' exclusions in the index expression list excludes all indexes. Nothing to search.")
+                        );
+                    }
                 }
             }
         }

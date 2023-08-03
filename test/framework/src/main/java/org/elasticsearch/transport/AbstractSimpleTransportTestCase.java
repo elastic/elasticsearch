@@ -935,7 +935,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                             nodeA,
                             "internal:test",
                             new TestRequest(info),
-                            new ActionListenerResponseHandler<>(listener, TestResponse::new)
+                            new ActionListenerResponseHandler<>(listener, TestResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
                         );
                         try {
                             listener.actionGet();
@@ -973,7 +973,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                                 node,
                                 "internal:test",
                                 new TestRequest(info),
-                                new ActionListenerResponseHandler<>(listener, TestResponse::new)
+                                new ActionListenerResponseHandler<>(listener, TestResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
                             );
                             try {
                                 listener.actionGet();
@@ -1235,6 +1235,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             @Override
             public StringMessageResponse read(StreamInput in) throws IOException {
                 return new StringMessageResponse(in);
+            }
+
+            @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
             @Override
@@ -1586,6 +1591,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
+                public Executor executor(ThreadPool threadPool) {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
+                @Override
                 public void handleResponse(Version0Response response) {
                     assertThat(response.value1, equalTo(1));
                 }
@@ -1621,6 +1631,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 @Override
                 public Version1Response read(StreamInput in) throws IOException {
                     return new Version1Response(in);
+                }
+
+                @Override
+                public Executor executor(ThreadPool threadPool) {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
                 @Override
@@ -1667,6 +1682,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
+                public Executor executor(ThreadPool threadPool) {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
+                @Override
                 public void handleResponse(Version1Response response) {
                     assertThat(response.value1, equalTo(1));
                     assertThat(response.value2, equalTo(2));
@@ -1705,6 +1725,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 @Override
                 public Version0Response read(StreamInput in) throws IOException {
                     return new Version0Response(in);
+                }
+
+                @Override
+                public Executor executor(ThreadPool threadPool) {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
                 @Override
@@ -1846,6 +1871,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
+            @Override
             public void handleResponse(TestResponse response) {
                 addressB.set(response.remoteAddress());
                 latch.countDown();
@@ -1893,6 +1923,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         }
 
                         @Override
+                        public Executor executor(ThreadPool threadPool) {
+                            return TransportResponseHandler.TRANSPORT_WORKER;
+                        }
+
+                        @Override
                         public void handleResponse(TestResponse response) {
                             latch.countDown();
                         }
@@ -1920,6 +1955,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         @Override
                         public TestResponse read(StreamInput in) throws IOException {
                             return new TestResponse(in);
+                        }
+
+                        @Override
+                        public Executor executor(ThreadPool threadPool) {
+                            return TransportResponseHandler.TRANSPORT_WORKER;
                         }
 
                         @Override
@@ -2558,6 +2598,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         CountDownLatch responseLatch = new CountDownLatch(1);
         TransportResponseHandler<TransportResponse.Empty> transportResponseHandler = new TransportResponseHandler.Empty() {
             @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
+            @Override
             public void handleResponse(TransportResponse.Empty response) {
                 responseLatch.countDown();
             }
@@ -2619,6 +2664,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         });
         CountDownLatch responseLatch = new CountDownLatch(1);
         TransportResponseHandler<TransportResponse.Empty> transportResponseHandler = new TransportResponseHandler.Empty() {
+            @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
             @Override
             public void handleResponse(TransportResponse.Empty response) {
                 responseLatch.countDown();
@@ -2727,6 +2777,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         CountDownLatch responseLatch = new CountDownLatch(1);
         AtomicReference<TransportException> receivedException = new AtomicReference<>(null);
         TransportResponseHandler<TransportResponse.Empty> transportResponseHandler = new TransportResponseHandler.Empty() {
+            @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
             @Override
             public void handleResponse(TransportResponse.Empty response) {
                 responseLatch.countDown();
@@ -3096,7 +3151,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 serviceA.getLocalNode(),
                 ACTION,
                 TransportRequest.Empty.INSTANCE,
-                new ActionListenerResponseHandler<>(f, ignored -> TransportResponse.Empty.INSTANCE)
+                new ActionListenerResponseHandler<>(
+                    f,
+                    ignored -> TransportResponse.Empty.INSTANCE,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                )
             ),
             10,
             TimeUnit.SECONDS
@@ -3108,7 +3167,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 serviceB.getLocalNode(),
                 ACTION,
                 TransportRequest.Empty.INSTANCE,
-                new ActionListenerResponseHandler<>(f, ignored -> TransportResponse.Empty.INSTANCE)
+                new ActionListenerResponseHandler<>(
+                    f,
+                    ignored -> TransportResponse.Empty.INSTANCE,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                )
             ),
             10,
             TimeUnit.SECONDS
@@ -3186,7 +3249,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         serviceB.getLocalNode(),
                         ACTION,
                         new Request(requestSize),
-                        new ActionListenerResponseHandler<>(f, Response::new)
+                        new ActionListenerResponseHandler<>(f, Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                     ),
                     10,
                     TimeUnit.SECONDS
@@ -3279,6 +3342,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequest.Empty.INSTANCE,
                 TransportRequestOptions.EMPTY,
                 new TransportResponseHandler.Empty() {
+                    @Override
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
                     @Override
                     public void handleResponse(final TransportResponse.Empty response) {
                         fail("handle response should not be invoked");

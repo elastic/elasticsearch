@@ -717,7 +717,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
     }
 
-    // only inherited by CacheFileRegion to enable the use of a static var handle in on a non-static inner class
+    /**
+     * This class models a reference counted object that also tracks a flag for eviction of an instance.
+     * It is only inherited by CacheFileRegion to enable the use of a static var handle in on a non-static inner class.
+     * As long as the flag in {@link #evicted} is not set the instance's contents can be trusted. As soon as the flag is set, the contents
+     * of the instance can not be trusted. Thus, each read operation from a file region should be followed by a call to {@link #isEvicted()}
+     * to ensure that whatever bytes have been read are still valid.
+     * The reference count is used by write operations to a region on top of the eviction flag. Every write operation must first increment
+     * the reference count, then write to the region and then decrement it again. Only when the reference count reaches zero, will the
+     * region by moved to the {@link #freeRegions} list and becomes available for allocation again.
+     */
     private abstract static class EvictableRefCounted extends AbstractRefCounted {
         protected static final VarHandle VH_EVICTED_FIELD;
 
@@ -736,10 +745,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         @SuppressWarnings("FieldMayBeFinal") // updated via VH_EVICTED_FIELD (and _only_ via VH_EVICTED_FIELD)
         private volatile int evicted = 0;
 
+        /**
+         * @return true if the instance was evicted by this invocation, false if it was already evicted
+         */
         protected final boolean evict() {
             return VH_EVICTED_FIELD.compareAndSet(this, 0, 1);
         }
 
+        /**
+         * @return true if this instance has been evicted and its contents can not be trusted any longer
+         */
         public final boolean isEvicted() {
             return evicted != 0;
         }
@@ -809,7 +824,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         boolean tryRead(ByteBuffer buf, long offset) throws IOException {
             int startingPos = buf.position();
             sharedBytes.getFileChannel(sharedBytesPos).read(buf, physicalStartOffset() + getRegionRelativePosition(offset));
-            if (isEvicted() || hasReferences() == false) {
+            if (isEvicted()) {
                 buf.position(startingPos);
                 return false;
             }

@@ -132,7 +132,7 @@ final class RemoteClusterConnection implements Closeable {
                                 .stream()
                                 .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, Function.identity()));
                             return nodeLookup::get;
-                        }), RemoteClusterNodesAction.Response::new)
+                        }), RemoteClusterNodesAction.Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                     );
                 } else {
                     final ClusterStateRequest request = new ClusterStateRequest();
@@ -147,7 +147,8 @@ final class RemoteClusterConnection implements Closeable {
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(
                             contextPreservingActionListener.map(response -> response.getState().nodes()::get),
-                            ClusterStateResponse::new
+                            ClusterStateResponse::new,
+                            TransportResponseHandler.TRANSPORT_WORKER
                         )
                     );
                 }

@@ -6,7 +6,7 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'indices', 'index', 'fleet'
+    include '_common', 'bulk', 'cluster', 'nodes', 'indices', 'index', 'xpack', 'security', 'fleet'
   }
 }
 

@@ -293,7 +293,7 @@ public class AbstractAuditorTests extends ESTestCase {
                 TEST_INDEX,
                 new IndexTemplateConfig(
                     TEST_INDEX,
-                    "/org/elasticsearch/xpack/core/ml/notifications_index_template.json",
+                    "/ml/notifications_index_template.json",
                     Version.CURRENT.id,
                     "xpack.ml.version",
                     Map.of(

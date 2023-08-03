@@ -15,6 +15,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -34,13 +35,18 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
+import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,8 +59,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.startsWith;
@@ -68,6 +79,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
     private String region;
     private String signerOverride;
+    private final AtomicBoolean shouldFailCompleteMultipartUploadRequest = new AtomicBoolean();
 
     @Override
     public void setUp() throws Exception {
@@ -79,6 +91,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         } else if (randomBoolean()) {
             signerOverride = "AWS3SignerType";
         }
+        shouldFailCompleteMultipartUploadRequest.set(false);
         super.setUp();
     }
 
@@ -146,6 +159,47 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     @TestLogging(reason = "Enable request logging to debug #88841", value = "com.amazonaws.request:DEBUG")
     public void testRequestStats() throws Exception {
         super.testRequestStats();
+    }
+
+    public void testAbortRequestStats() throws Exception {
+        final String repository = createRepository(randomRepositoryName());
+
+        final String index = "index-no-merges";
+        createIndex(index, 1, 0);
+        final long nbDocs = randomLongBetween(10_000L, 20_000L);
+        try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), (int) nbDocs)) {
+            waitForDocs(nbDocs, indexer);
+        }
+        flushAndRefresh(index);
+        ForceMergeResponse forceMerge = client().admin().indices().prepareForceMerge(index).setFlush(true).setMaxNumSegments(1).get();
+        assertThat(forceMerge.getSuccessfulShards(), equalTo(1));
+        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
+
+        // Intentionally fail snapshot to trigger abortMultipartUpload requests
+        shouldFailCompleteMultipartUploadRequest.set(true);
+        final String snapshot = "snapshot";
+        clusterAdmin().prepareCreateSnapshot(repository, snapshot).setWaitForCompletion(true).setIndices(index).get();
+        clusterAdmin().prepareDeleteSnapshot(repository, snapshot).get();
+
+        final RepositoryStats repositoryStats = StreamSupport.stream(
+            internalCluster().getInstances(RepositoriesService.class).spliterator(),
+            false
+        ).map(repositoriesService -> {
+            try {
+                return repositoriesService.repository(repository);
+            } catch (RepositoryMissingException e) {
+                return null;
+            }
+        }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
+
+        Map<String, Long> sdkRequestCounts = repositoryStats.requestCounts;
+        assertThat(sdkRequestCounts.get("AbortMultipartObject"), greaterThan(0L));
+        assertThat(sdkRequestCounts.get("DeleteObjects"), greaterThan(0L));
+
+        final Map<String, Long> mockCalls = getMockRequestCounts();
+
+        String assertionErrorMsg = String.format("SDK sent [%s] calls and handler measured [%s] calls", sdkRequestCounts, mockCalls);
+        assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
     }
 
     public void testEnforcedCooldownPeriod() throws IOException {
@@ -307,10 +361,26 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
      * HTTP handler that tracks the number of requests performed against S3.
      */
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
-    private static class S3StatsCollectorHttpHandler extends HttpStatsCollectorHandler {
+    private class S3StatsCollectorHttpHandler extends HttpStatsCollectorHandler {
 
         S3StatsCollectorHttpHandler(final HttpHandler delegate) {
             super(delegate);
+        }
+
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI();
+            if (shouldFailCompleteMultipartUploadRequest.get() && Regex.simpleMatch("POST /*/*?uploadId=*", request)) {
+                try (exchange) {
+                    drainInputStream(exchange.getRequestBody());
+                    exchange.sendResponseHeaders(
+                        randomFrom(RestStatus.BAD_REQUEST.getStatus(), RestStatus.TOO_MANY_REQUESTS.getStatus()),
+                        -1
+                    );
+                    return;
+                }
+            }
+            super.handle(exchange);
         }
 
         @Override
@@ -323,6 +393,10 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 trackRequest("PutMultipartObject");
             } else if (Regex.simpleMatch("PUT /*/*", request)) {
                 trackRequest("PutObject");
+            } else if (Regex.simpleMatch("POST /*/?delete", request)) {
+                trackRequest("DeleteObjects");
+            } else if (Regex.simpleMatch("DELETE /*/*?uploadId=*", request)) {
+                trackRequest("AbortMultipartObject");
             }
         }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
@@ -80,7 +80,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     private static final ActionListener<Void> ASSERTING_DONE_LISTENER = ActionTestUtils.assertNoFailureListener(r -> {});
 
     private final ShardId shardId = new ShardId("index", "_na_", 0);
-    private final Settings idxSettings = indexSettings(Version.CURRENT, 1, 0).build();
+    private final Settings idxSettings = indexSettings(IndexVersion.current(), 1, 0).build();
 
     private IndexMetadata indexMetadata() throws IOException {
         return IndexMetadata.builder("index").putMapping("""

@@ -85,7 +85,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
     }
 
-    public static boolean isEnabled() {
+    public static boolean isFeatureEnabled() {
         return DATA_STREAM_LIFECYCLE_FEATURE_FLAG.isEnabled();
     }
 
@@ -95,20 +95,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     private final Downsampling downsampling;
 
     public DataStreamLifecycle() {
-        this((TimeValue) null);
-    }
-
-    public DataStreamLifecycle(@Nullable TimeValue dataRetention) {
-        this(dataRetention == null ? null : new Retention(dataRetention), null);
+        this(null, null);
     }
 
     public DataStreamLifecycle(@Nullable Retention dataRetention, @Nullable Downsampling downsampling) {
         this.dataRetention = dataRetention;
         this.downsampling = downsampling;
-    }
-
-    public DataStreamLifecycle(long timeInMills) {
-        this(TimeValue.timeValueMillis(timeInMills));
     }
 
     /**
@@ -168,7 +160,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             out.writeOptionalWriteable(dataRetention);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_026)) {
@@ -177,7 +169,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     public DataStreamLifecycle(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             dataRetention = in.readOptionalWriteable(Retention::read);
         } else {
             dataRetention = null;
@@ -232,31 +224,45 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         return PARSER.parse(parser, null);
     }
 
+    public static Builder newBuilder(DataStreamLifecycle lifecycle) {
+        return new Builder().dataRetention(lifecycle.getDataRetention()).downsampling(lifecycle.getDownsampling());
+    }
+
+    public static Builder newBuilder() {
+        return new Builder();
+    }
+
     /**
      * This builder helps during the composition of the data stream lifecycle templates.
      */
-    static class Builder {
+    public static class Builder {
         @Nullable
         private Retention dataRetention = null;
         @Nullable
         private Downsampling downsampling = null;
 
-        Builder dataRetention(@Nullable Retention value) {
+        public Builder dataRetention(@Nullable Retention value) {
             dataRetention = value;
             return this;
         }
 
-        Builder downsampling(@Nullable Downsampling value) {
+        public Builder dataRetention(@Nullable TimeValue value) {
+            dataRetention = value == null ? null : new Retention(value);
+            return this;
+        }
+
+        public Builder dataRetention(long value) {
+            dataRetention = new Retention(TimeValue.timeValueMillis(value));
+            return this;
+        }
+
+        public Builder downsampling(@Nullable Downsampling value) {
             downsampling = value;
             return this;
         }
 
-        DataStreamLifecycle build() {
+        public DataStreamLifecycle build() {
             return new DataStreamLifecycle(dataRetention, downsampling);
-        }
-
-        static Builder newBuilder(DataStreamLifecycle lifecycle) {
-            return new Builder().dataRetention(lifecycle.getDataRetention()).downsampling(lifecycle.getDownsampling());
         }
     }
 
@@ -352,6 +358,11 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             if (rounds != null) {
                 if (rounds.isEmpty()) {
                     throw new IllegalArgumentException("Downsampling configuration should have at least one round configured.");
+                }
+                if (rounds.size() > 10) {
+                    throw new IllegalArgumentException(
+                        "Downsampling configuration supports maximum 10 configured rounds. Found: " + rounds.size()
+                    );
                 }
                 Round previous = null;
                 for (Round round : rounds) {

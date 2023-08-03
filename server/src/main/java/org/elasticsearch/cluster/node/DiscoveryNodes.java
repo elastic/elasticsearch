@@ -664,7 +664,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(masterNodeId);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             out.writeVLong(nodeLeftGeneration);
         } // else nodeLeftGeneration is zero, or we're sending this to a remote cluster which does not care about the nodeLeftGeneration
         out.writeCollection(nodes.values());
@@ -679,7 +679,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             builder.localNodeId(localNode.getId());
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             builder.nodeLeftGeneration(in.readVLong());
         } // else nodeLeftGeneration is zero, or we're receiving this from a remote cluster so the nodeLeftGeneration does not matter to us
 

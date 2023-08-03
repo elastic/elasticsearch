@@ -682,12 +682,11 @@ Number of query cache misses.
 
 `cache_size`::
 (integer)
-Size, in bytes, of the query cache.
+Current number of cached queries.
 
 `cache_count`::
 (integer)
-Count of queries
-in the query cache.
+Total number of all queries that have been cached.
 
 `evictions`::
 (integer)

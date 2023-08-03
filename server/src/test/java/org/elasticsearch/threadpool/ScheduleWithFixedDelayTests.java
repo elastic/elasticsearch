@@ -31,7 +31,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -76,7 +78,11 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
             (e) -> {},
             (e) -> {}
         );
-        // this call was made during construction of the runnable
+        // not scheduled yet
+        verify(threadPool, never()).schedule(any(), any(), any());
+
+        reschedulingRunnable.start();
+        // this call was made by start
         verify(threadPool, times(1)).schedule(reschedulingRunnable, delay, Names.GENERIC);
 
         // create a thread and start the runnable
@@ -263,6 +269,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
             (e) -> {},
             (e) -> {}
         );
+        reschedulingRunnable.start();
         assertTrue(reschedulingRunnable.isCancelled());
     }
 

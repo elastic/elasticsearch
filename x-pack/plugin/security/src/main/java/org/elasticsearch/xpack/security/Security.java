@@ -158,6 +158,8 @@ import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.settings.GetSecuritySettingsAction;
+import org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
@@ -246,6 +248,8 @@ import org.elasticsearch.xpack.security.action.service.TransportDeleteServiceAcc
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.security.action.settings.TransportGetSecuritySettingsAction;
+import org.elasticsearch.xpack.security.action.settings.TransportUpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.security.action.token.TransportCreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportInvalidateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportRefreshTokenAction;
@@ -352,6 +356,8 @@ import org.elasticsearch.xpack.security.rest.action.service.RestCreateServiceAcc
 import org.elasticsearch.xpack.security.rest.action.service.RestDeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestGetServiceAccountAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestGetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.security.rest.action.settings.RestGetSecuritySettingsAction;
+import org.elasticsearch.xpack.security.rest.action.settings.RestUpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestChangePasswordAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUserPrivilegesAction;
@@ -1358,6 +1364,8 @@ public class Security extends Plugin
             new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
             new ActionHandler<>(SuggestProfilesAction.INSTANCE, TransportSuggestProfilesAction.class),
             new ActionHandler<>(SetProfileEnabledAction.INSTANCE, TransportSetProfileEnabledAction.class),
+            new ActionHandler<>(GetSecuritySettingsAction.INSTANCE, TransportGetSecuritySettingsAction.class),
+            new ActionHandler<>(UpdateSecuritySettingsAction.INSTANCE, TransportUpdateSecuritySettingsAction.class),
             usageAction,
             infoAction
         ).filter(Objects::nonNull).toList();
@@ -1442,7 +1450,9 @@ public class Security extends Plugin
             new RestUpdateProfileDataAction(settings, getLicenseState()),
             new RestSuggestProfilesAction(settings, getLicenseState()),
             new RestEnableProfileAction(settings, getLicenseState()),
-            new RestDisableProfileAction(settings, getLicenseState())
+            new RestDisableProfileAction(settings, getLicenseState()),
+            new RestGetSecuritySettingsAction(settings, getLicenseState()),
+            new RestUpdateSecuritySettingsAction(settings, getLicenseState())
         ).filter(Objects::nonNull).toList();
     }
 
@@ -1823,14 +1833,21 @@ public class Security extends Plugin
         if (enabled) {
             final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
             return List.of(
-                new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool", false),
+                new FixedExecutorBuilder(
+                    settings,
+                    TokenService.THREAD_POOL_NAME,
+                    1,
+                    1000,
+                    "xpack.security.authc.token.thread_pool",
+                    EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+                ),
                 new FixedExecutorBuilder(
                     settings,
                     SECURITY_CRYPTO_THREAD_POOL_NAME,
                     (allocatedProcessors + 1) / 2,
                     1000,
                     "xpack.security.crypto.thread_pool",
-                    false
+                    EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
                 )
             );
         }

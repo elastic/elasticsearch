@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
@@ -221,11 +222,16 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
         }
     }
 
-    private static class ChildResponseHandler implements TransportResponseHandler<TransportResponse.Empty> {
+    private static class ChildResponseHandler extends TransportResponseHandler.Empty {
         private final Runnable onException;
 
         ChildResponseHandler(Runnable onException) {
             this.onException = onException;
+        }
+
+        @Override
+        public Executor executor(ThreadPool threadPool) {
+            return TransportResponseHandler.TRANSPORT_WORKER;
         }
 
         @Override
@@ -237,11 +243,6 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
         public void handleException(TransportException exp) {
             assertThat(exp.unwrapCause(), anyOf(instanceOf(TaskCancelledException.class), instanceOf(NodeDisconnectedException.class)));
             onException.run();
-        }
-
-        @Override
-        public TransportResponse.Empty read(StreamInput in) {
-            return TransportResponse.Empty.INSTANCE;
         }
     }
 

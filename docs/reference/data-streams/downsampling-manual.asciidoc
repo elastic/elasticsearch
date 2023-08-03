@@ -462,9 +462,10 @@ GET /my-data-stream/_search
 ----
 // TEST[skip:Because we've skipped the previous steps]
 
-The TSDS with the new downsampled backing index contains just one document that
-includes the `min`, `max`, `sum`, and `value_count` statistics based off of the
-original sampled metrics:
+The TSDS with the new downsampled backing index contains just one document. For
+counters, this document would only have the last value. For gauges, you see the
+`min`, `max`, `sum`, and `value_count` statistics based off of the original
+sampled metrics:
 
 [source,console-result]
 ----
@@ -574,7 +575,7 @@ original sampled metrics:
   }
 }
 ----
-// TEST[skip:todo]
+// TEST[skip:Because we've skipped the previous step]
 
 Re-run the earlier aggregation. Even though the aggregation runs on the
 downsampled TSDS that only contains 1 document, it returns the same results as

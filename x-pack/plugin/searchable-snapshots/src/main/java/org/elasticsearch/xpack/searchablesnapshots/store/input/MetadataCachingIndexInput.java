@@ -18,6 +18,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
@@ -55,7 +56,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.store.input.ChecksumBl
  * Searchable snapshots index input that supports fully caching metadata files as well as header/footer information for each file,
  * consisting of a two-level cache (BlobStoreCacheService and CacheService).
  */
-public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
+public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexInput {
 
     protected static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
         () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)

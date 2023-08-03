@@ -43,6 +43,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -432,7 +433,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                                 );
 
                             }
-                        }, GetBlobChecksumAction.Response::new)
+                        }, GetBlobChecksumAction.Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                     );
                 }
             }

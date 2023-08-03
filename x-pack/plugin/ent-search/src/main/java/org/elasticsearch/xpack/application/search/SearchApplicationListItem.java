@@ -11,13 +11,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This class is used for returning information for lists of search applications, to avoid including all
@@ -26,12 +29,10 @@ import java.util.Objects;
 public class SearchApplicationListItem implements Writeable, ToXContentObject {
 
     public static final ParseField NAME_FIELD = new ParseField("name");
-    public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField ANALYTICS_COLLECTION_NAME_FIELD = new ParseField("analytics_collection_name");
 
     public static final ParseField UPDATED_AT_MILLIS_FIELD = new ParseField("updated_at_millis");
     private final String name;
-    private final String[] indices;
     private final String analyticsCollectionName;
 
     private final long updatedAtMillis;
@@ -39,17 +40,13 @@ public class SearchApplicationListItem implements Writeable, ToXContentObject {
     /**
      * Constructs a SearchApplicationListItem.
      *
-     * @param name The name of the search application
-     * @param indices The indices associated with the search application
+     * @param name                    The name of the search application
      * @param analyticsCollectionName The analytics collection associated with this application if one exists
-     * @param updatedAtMillis The timestamp in milliseconds when this search application was last updated.
+     * @param updatedAtMillis         The timestamp in milliseconds when this search application was last updated.
      */
-    public SearchApplicationListItem(String name, String[] indices, @Nullable String analyticsCollectionName, long updatedAtMillis) {
+    public SearchApplicationListItem(String name, @Nullable String analyticsCollectionName, long updatedAtMillis) {
         Objects.requireNonNull(name, "Name cannot be null on a SearchApplicationListItem");
         this.name = name;
-
-        Objects.requireNonNull(name, "Indices cannot be null on a SearchApplicationListItem");
-        this.indices = indices;
 
         this.analyticsCollectionName = analyticsCollectionName;
         this.updatedAtMillis = updatedAtMillis;
@@ -57,7 +54,6 @@ public class SearchApplicationListItem implements Writeable, ToXContentObject {
 
     public SearchApplicationListItem(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.indices = in.readStringArray();
         this.analyticsCollectionName = in.readOptionalString();
         this.updatedAtMillis = in.readLong();
     }
@@ -66,7 +62,6 @@ public class SearchApplicationListItem implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(NAME_FIELD.getPreferredName(), name);
-        builder.field(INDICES_FIELD.getPreferredName(), indices);
         if (analyticsCollectionName != null) {
             builder.field(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), analyticsCollectionName);
         }
@@ -75,10 +70,31 @@ public class SearchApplicationListItem implements Writeable, ToXContentObject {
         return builder;
     }
 
+    private static final ConstructingObjectParser<SearchApplicationListItem, String> PARSER = new ConstructingObjectParser<>(
+        "search_application_list_item`",
+        false,
+        (params) -> {
+            final String name = (String) params[0];
+            @SuppressWarnings("unchecked")
+            final String analyticsCollectionName = (String) params[2];
+            final Long updatedAtMillis = (Long) params[3];
+            return new SearchApplicationListItem(name, analyticsCollectionName, updatedAtMillis);
+        }
+    );
+
+    static {
+        PARSER.declareStringOrNull(optionalConstructorArg(), NAME_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), ANALYTICS_COLLECTION_NAME_FIELD);
+        PARSER.declareLong(optionalConstructorArg(), UPDATED_AT_MILLIS_FIELD);
+    }
+
+    public SearchApplicationListItem fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeStringArray(indices);
         out.writeOptionalString(analyticsCollectionName);
         out.writeLong(updatedAtMillis);
     }
@@ -90,15 +106,6 @@ public class SearchApplicationListItem implements Writeable, ToXContentObject {
      */
     public String name() {
         return name;
-    }
-
-    /**
-     * Returns the indices associated with the {@link SearchApplicationListItem}.
-     *
-     * @return the indices.
-     */
-    public String[] indices() {
-        return indices;
     }
 
     /**
@@ -125,15 +132,12 @@ public class SearchApplicationListItem implements Writeable, ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
         SearchApplicationListItem item = (SearchApplicationListItem) o;
         return name.equals(item.name)
-            && Arrays.equals(indices, item.indices)
             && Objects.equals(analyticsCollectionName, item.analyticsCollectionName)
             && updatedAtMillis == item.updatedAtMillis;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, analyticsCollectionName, updatedAtMillis);
-        result = 31 * result + Arrays.hashCode(indices);
-        return result;
+        return Objects.hash(name, analyticsCollectionName, updatedAtMillis);
     }
 }

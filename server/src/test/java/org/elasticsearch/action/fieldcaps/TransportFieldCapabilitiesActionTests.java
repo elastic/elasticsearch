@@ -9,9 +9,9 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -88,7 +88,11 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
 
             IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> action.doExecute(null, fieldCapsRequest, ActionListener.noop())
+                () -> PlainActionFuture.<FieldCapabilitiesResponse, RuntimeException>get(
+                    future -> action.doExecute(null, fieldCapsRequest, future),
+                    10,
+                    TimeUnit.SECONDS
+                )
             );
 
             assertThat(

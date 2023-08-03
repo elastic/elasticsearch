@@ -431,7 +431,7 @@ public abstract class Node<T extends Node<T>> {
         }
     }
 
-    private <U> boolean containsNull(List<U> us) {
+    private static <U> boolean containsNull(List<U> us) {
         // Use custom implementation because some implementations of `List.contains` (e.g. ImmutableCollections$AbstractImmutableList) throw
         // a NPE if any of the elements is null.
         for (U u : us) {

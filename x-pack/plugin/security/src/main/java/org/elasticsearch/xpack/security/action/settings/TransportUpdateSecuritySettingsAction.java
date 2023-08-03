@@ -118,7 +118,7 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
         }
     }
 
-    private Optional<UpdateSettingsClusterStateUpdateRequest> createUpdateSettingsRequest(
+    private static Optional<UpdateSettingsClusterStateUpdateRequest> createUpdateSettingsRequest(
         String indexName,
         Settings settingsToUpdate,
         TimeValue timeout,

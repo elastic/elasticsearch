@@ -1,0 +1,6 @@
+pr: 96941
+summary: Trim field references in reroute processor
+area: Ingest Node
+type: bug
+issues:
+ - 96939

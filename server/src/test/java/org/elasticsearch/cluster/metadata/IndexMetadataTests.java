@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
@@ -79,13 +80,7 @@ public class IndexMetadataTests extends ESTestCase {
         Double indexWriteLoadForecast = randomBoolean() ? randomDoubleBetween(0.0, 128, true) : null;
         Long shardSizeInBytesForecast = randomBoolean() ? randomLongBetween(1024, 10240) : null;
         IndexMetadata metadata = IndexMetadata.builder("foo")
-            .settings(
-                Settings.builder()
-                    .put("index.version.created", 1)
-                    .put("index.number_of_shards", numShard)
-                    .put("index.number_of_replicas", numberOfReplicas)
-                    .build()
-            )
+            .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
             .creationDate(randomLong())
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
@@ -176,13 +171,7 @@ public class IndexMetadataTests extends ESTestCase {
     public void testSelectShrinkShards() {
         int numberOfReplicas = randomIntBetween(0, 10);
         IndexMetadata metadata = IndexMetadata.builder("foo")
-            .settings(
-                Settings.builder()
-                    .put("index.version.created", 1)
-                    .put("index.number_of_shards", 32)
-                    .put("index.number_of_replicas", numberOfReplicas)
-                    .build()
-            )
+            .settings(indexSettings(32, numberOfReplicas).put("index.version.created", 1))
             .creationDate(randomLong())
             .build();
         Set<ShardId> shardIds = IndexMetadata.selectShrinkShards(0, metadata, 8);
@@ -226,25 +215,13 @@ public class IndexMetadataTests extends ESTestCase {
         int numTargetShards = randomFrom(4, 6, 8, 12);
 
         IndexMetadata split = IndexMetadata.builder("foo")
-            .settings(
-                Settings.builder()
-                    .put("index.version.created", 1)
-                    .put("index.number_of_shards", 2)
-                    .put("index.number_of_replicas", 0)
-                    .build()
-            )
+            .settings(indexSettings(2, 0).put("index.version.created", 1))
             .creationDate(randomLong())
             .setRoutingNumShards(numTargetShards * 2)
             .build();
 
         IndexMetadata shrink = IndexMetadata.builder("foo")
-            .settings(
-                Settings.builder()
-                    .put("index.version.created", 1)
-                    .put("index.number_of_shards", 32)
-                    .put("index.number_of_replicas", 0)
-                    .build()
-            )
+            .settings(indexSettings(32, 0).put("index.version.created", 1))
             .creationDate(randomLong())
             .build();
         int shard = randomIntBetween(0, numTargetShards - 1);
@@ -265,13 +242,7 @@ public class IndexMetadataTests extends ESTestCase {
 
     public void testSelectSplitShard() {
         IndexMetadata metadata = IndexMetadata.builder("foo")
-            .settings(
-                Settings.builder()
-                    .put("index.version.created", 1)
-                    .put("index.number_of_shards", 2)
-                    .put("index.number_of_replicas", 0)
-                    .build()
-            )
+            .settings(indexSettings(2, 0).put("index.version.created", 1))
             .creationDate(randomLong())
             .setRoutingNumShards(4)
             .build();
@@ -301,12 +272,7 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testIndexFormat() {
-        Settings defaultSettings = Settings.builder()
-            .put("index.version.created", 1)
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 1)
-            .build();
-
+        Settings defaultSettings = indexSettings(1, 1).put("index.version.created", 1).build();
         // matching version
         {
             IndexMetadata metadata = IndexMetadata.builder("foo")
@@ -446,10 +412,7 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testIsHidden() {
-        Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 8))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        Settings.Builder settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 8), 0);
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).build();
         assertFalse(indexMetadata.isHidden());
 
@@ -480,11 +443,7 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testLifeCyclePolicyName() {
-        Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 8))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
-
+        Settings.Builder settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 8), 0);
         IndexMetadata idxMeta1 = IndexMetadata.builder("test").settings(settings).build();
 
         // null means no policy
@@ -535,12 +494,7 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     private static Settings indexSettingsWithDataTier(String dataTier) {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(DataTier.TIER_PREFERENCE, dataTier)
-            .build();
+        return indexSettings(IndexVersion.current(), 1, 0).put(DataTier.TIER_PREFERENCE, dataTier).build();
     }
 
     private IndexMetadataStats randomIndexStats(int numberOfShards) {

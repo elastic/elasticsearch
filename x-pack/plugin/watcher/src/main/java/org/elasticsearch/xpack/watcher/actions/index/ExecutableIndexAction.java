@@ -88,6 +88,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         if (data.containsKey(INDEX_FIELD) || data.containsKey(TYPE_FIELD) || data.containsKey(ID_FIELD)) {
             data = mutableMap(data);
         }
+
         IndexRequest indexRequest = new IndexRequest();
         if (action.refreshPolicy != null) {
             indexRequest.setRefreshPolicy(action.refreshPolicy);
@@ -227,8 +228,9 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
      * Extracts the specified field out of data map, or alternative falls back to the action value
      */
     private String getField(String actionId, String watchId, String name, Map<String, Object> data, String fieldName, String defaultValue) {
-        Object obj = data.remove(fieldName);
-        if (obj != null) {
+        Object obj;
+        // map may be immutable - only try to remove if it's actually there
+        if (data.containsKey(fieldName) && (obj = data.remove(fieldName)) != null) {
             if (defaultValue != null) {
                 throw illegalState(
                     "could not execute action [{}] of watch [{}]. "

@@ -33,6 +33,7 @@ import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
@@ -70,7 +71,7 @@ public class RetryTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, Netty4Plugin.class);
+        return Arrays.asList(ReindexPlugin.class, Netty4Plugin.class, MainRestPlugin.class);
     }
 
     /**
@@ -171,16 +172,12 @@ public class RetryTests extends ESIntegTestCase {
             .put("node.attr.color", "blue")
             .build();
         final String node = internalCluster().startDataOnlyNode(nodeSettings);
-        final Settings indexSettings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.routing.allocation.include.color", "blue")
-            .build();
+        final Settings indexSettings = indexSettings(1, 0).put("index.routing.allocation.include.color", "blue").build();
 
         // Create the source index on the node with small thread pools so we can block them.
-        client().admin().indices().prepareCreate("source").setSettings(indexSettings).execute().actionGet();
+        indicesAdmin().prepareCreate("source").setSettings(indexSettings).execute().actionGet();
         // Not all test cases use the dest index but those that do require that it be on the node will small thread pools
-        client().admin().indices().prepareCreate("dest").setSettings(indexSettings).execute().actionGet();
+        indicesAdmin().prepareCreate("dest").setSettings(indexSettings).execute().actionGet();
         // Build the test data. Don't use indexRandom because that won't work consistently with such small thread pools.
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < DOC_COUNT; i++) {
@@ -190,7 +187,7 @@ public class RetryTests extends ESIntegTestCase {
         Retry retry = new Retry(BackoffPolicy.exponentialBackoff(), client().threadPool());
         BulkResponse initialBulkResponse = retry.withBackoff(client()::bulk, bulk.request()).actionGet();
         assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
-        client().admin().indices().prepareRefresh("source").get();
+        indicesAdmin().prepareRefresh("source").get();
 
         AbstractBulkByScrollRequestBuilder<?, ?> builder = request.apply(internalCluster().masterClient());
         // Make sure we use more than one batch so we have to scroll
@@ -252,7 +249,7 @@ public class RetryTests extends ESIntegTestCase {
          * master. We do this simply to make sure that the test request is not started on the
          * node who's queue we're manipulating.
          */
-        ListTasksResponse response = client().admin().cluster().prepareListTasks().setActions(action).setDetailed(true).get();
+        ListTasksResponse response = clusterAdmin().prepareListTasks().setActions(action).setDetailed(true).get();
         assertThat(response.getTasks(), hasSize(1));
         return (BulkByScrollTask.Status) response.getTasks().get(0).status();
     }

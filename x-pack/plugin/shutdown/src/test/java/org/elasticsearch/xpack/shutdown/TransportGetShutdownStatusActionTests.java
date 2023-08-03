@@ -47,13 +47,13 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
+import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -139,7 +139,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
      */
     public void testEmptyCluster() {
         RoutingTable routingTable = RoutingTable.EMPTY_ROUTING_TABLE;
-        ClusterState state = createTestClusterState(routingTable, Collections.emptyList(), SingleNodeShutdownMetadata.Type.REMOVE);
+        ClusterState state = createTestClusterState(routingTable, List.of(), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
             state,
@@ -483,17 +483,16 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
     public void testNodeNotInCluster() {
         String bogusNodeId = randomAlphaOfLength(10);
-        Map<String, IndexMetadata> indicesTable = new HashMap<>();
         RoutingTable.Builder routingTable = RoutingTable.builder();
 
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(
                 Metadata.builder()
-                    .indices(indicesTable)
+                    .indices(Map.of())
                     .putCustom(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
-                            Collections.singletonMap(
+                            Map.of(
                                 bogusNodeId,
                                 SingleNodeShutdownMetadata.builder()
                                     .setType(SingleNodeShutdownMetadata.Type.REMOVE)
@@ -580,8 +579,40 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         List<IndexMetadata> indices,
         SingleNodeShutdownMetadata.Type shutdownType
     ) {
-        Map<String, IndexMetadata> indicesTable = new HashMap<>();
-        indices.forEach(imd -> { indicesTable.put(imd.getIndex().getName(), imd); });
+        return createTestClusterState(indexRoutingTable, indices, shutdownType, false);
+    }
+
+    private ClusterState createTestClusterState(
+        RoutingTable indexRoutingTable,
+        List<IndexMetadata> indices,
+        SingleNodeShutdownMetadata.Type shutdownType,
+        boolean shuttingDownNodeAlreadyLeft
+    ) {
+        Map<String, IndexMetadata> indicesTable = indices.stream().collect(toMap(imd -> imd.getIndex().getName(), Function.identity()));
+        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder()
+            .add(
+                DiscoveryNode.createLocal(
+                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build(),
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9201),
+                    LIVE_NODE_ID
+                )
+            )
+            .add(
+                DiscoveryNode.createLocal(
+                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build(),
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9202),
+                    OTHER_LIVE_NODE_ID
+                )
+            );
+        if (shuttingDownNodeAlreadyLeft == false) {
+            discoveryNodesBuilder.add(
+                DiscoveryNode.createLocal(
+                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID).build(),
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9200),
+                    SHUTTING_DOWN_NODE_ID
+                )
+            );
+        }
 
         return ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(
@@ -590,7 +621,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                     .putCustom(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
-                            Collections.singletonMap(
+                            Map.of(
                                 SHUTTING_DOWN_NODE_ID,
                                 SingleNodeShutdownMetadata.builder()
                                     .setType(shutdownType)
@@ -602,36 +633,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                         )
                     )
             )
-            .nodes(
-                DiscoveryNodes.builder()
-                    .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder()
-                                .put(Settings.builder().build())
-                                .put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID)
-                                .build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                            SHUTTING_DOWN_NODE_ID
-                        )
-                    )
-                    .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder().put(Settings.builder().build()).put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                            LIVE_NODE_ID
-                        )
-                    )
-                    .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder()
-                                .put(Settings.builder().build())
-                                .put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID)
-                                .build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9202),
-                            OTHER_LIVE_NODE_ID
-                        )
-                    )
-            )
+            .nodes(discoveryNodesBuilder)
             .routingTable(indexRoutingTable)
             .build();
     }
@@ -646,7 +648,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             System.currentTimeMillis(),
             false,
             UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-            Collections.emptySet(),
+            Set.of(),
             nodeId
         );
     }
@@ -680,7 +682,12 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
-        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+        ClusterState state = createTestClusterState(
+            routingTable.build(),
+            List.of(imd),
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            randomBoolean()
+        );
 
         return TransportGetShutdownStatusAction.shardMigrationStatus(
             state,

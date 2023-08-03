@@ -29,13 +29,3 @@ tasks.named('forbiddenApisMain').configure {
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
-
-tasks.named("thirdPartyAudit").configure {
-  if (BuildParams.runtimeJavaVersion == JavaVersion.VERSION_20) {
-    ignoreMissingClasses(
-      // This class was removed in Java 20 but is only referenced by a class that requires preview features anyhow
-      // See: https://github.com/apache/lucene/pull/12042
-      'java.lang.foreign.MemorySession',
-    )
-  }
-}

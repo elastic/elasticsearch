@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.transform.integration.continuous;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,13 +23,11 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
-import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -85,9 +81,9 @@ import static org.hamcrest.Matchers.notNullValue;
  *          to check that optimizations worked
  *      - repeat
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93900")
 public class TransformContinuousIT extends TransformRestTestCase {
 
+    public static final int MAX_WAIT_TIME_ONE_ITERATION_SECONDS = 60;
     private List<ContinuousTestCase> transformTestCases = new ArrayList<>();
 
     @Before
@@ -267,21 +263,8 @@ public class TransformContinuousIT extends TransformRestTestCase {
 
             // test the output
             for (ContinuousTestCase testCase : transformTestCases) {
-                try {
-                    testCase.testIteration(run, modifiedEvents);
-                } catch (AssertionError testFailure) {
-                    throw new AssertionError(
-                        "Error in test case ["
-                            + testCase.getName()
-                            + "]."
-                            + "If you want to mute the test, please mute ["
-                            + testCase.getClass().getName()
-                            + "] only, but _not_ ["
-                            + this.getClass().getName()
-                            + "] as a whole.",
-                        testFailure
-                    );
-                }
+                int thisRun = run;
+                assertForTestCase(() -> testCase.testIteration(thisRun, modifiedEvents), testCase);
             }
         }
     }
@@ -449,7 +432,7 @@ public class TransformContinuousIT extends TransformRestTestCase {
 
     private void stopTransforms() throws IOException {
         for (ContinuousTestCase testCase : transformTestCases) {
-            stopTransform(testCase.getName(), true, null, false);
+            stopTransform(testCase.getName());
         }
     }
 
@@ -482,29 +465,33 @@ public class TransformContinuousIT extends TransformRestTestCase {
             delay,
             iteration
         );
-        for (ContinuousTestCase testCase : transformTestCases) {
-            assertBusy(() -> {
-                var stats = getTransformStats(testCase.getName());
-                Object lastSearchTimeObj = XContentMapValues.extractValue("checkpointing.last_search_time", stats);
-                assertThat(lastSearchTimeObj, is(notNullValue()));
-                long lastSearchTime = (long) lastSearchTimeObj;
-                assertThat(
-                    "transform ["
-                        + testCase.getName()
-                        + "] does not progress, iteration: "
-                        + iteration
-                        + ", state: "
-                        + stats.get("state")
-                        + ", reason: "
-                        + stats.get("reason"),
-                    Instant.ofEpochMilli(lastSearchTime),
-                    is(greaterThan(waitUntil))
-                );
-                // assert a checkpoint isn't in progress
-                Object state = XContentMapValues.extractValue("state", stats);
-                assertThat(state, is(equalTo("started")));
-            }, 30, TimeUnit.SECONDS);
-        }
+        assertBusy(() -> {
+            for (ContinuousTestCase testCase : transformTestCases) {
+                assertForTestCase(() -> {
+                    var stats = getTransformStats(testCase.getName());
+                    Object lastSearchTimeObj = XContentMapValues.extractValue("checkpointing.last_search_time", stats);
+                    assertThat(lastSearchTimeObj, is(notNullValue()));
+                    long lastSearchTime = (long) lastSearchTimeObj;
+                    assertThat(
+                        Strings.format(
+                            "Timeout [%ds] waiting for transform [%s] to finish next checkpoint, "
+                                + "iteration [%d], state [%s], reason in case of failure [%s], last search time [%d]",
+                            MAX_WAIT_TIME_ONE_ITERATION_SECONDS,
+                            testCase.getName(),
+                            iteration,
+                            stats.get("state"),
+                            stats.get("reason"),
+                            lastSearchTime
+                        ),
+                        Instant.ofEpochMilli(lastSearchTime),
+                        is(greaterThan(waitUntil))
+                    );
+                    // assert a checkpoint isn't in progress
+                    Object state = XContentMapValues.extractValue("state", stats);
+                    assertThat(state, is(equalTo("started")));
+                }, testCase);
+            }
+        }, MAX_WAIT_TIME_ONE_ITERATION_SECONDS, TimeUnit.SECONDS);
     }
 
     private void addTestCaseIfNotDisabled(ContinuousTestCase testCaseInstance) {
@@ -534,10 +521,22 @@ public class TransformContinuousIT extends TransformRestTestCase {
         assertAcknowledged(client().performRequest(putPipeline));
     }
 
-    @Override
-    protected Settings restClientSettings() {
-        final String token = "Basic "
-            + Base64.getEncoder().encodeToString(("x_pack_rest_user:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    private void assertForTestCase(CheckedRunnable<Exception> codeBlock, ContinuousTestCase testCase) throws Exception {
+        try {
+            codeBlock.run();
+        } catch (AssertionError testFailure) {
+            throw new AssertionError(
+                "Error in test case ["
+                    + testCase.getName()
+                    + "]."
+                    + "If you want to mute the test, please mute ["
+                    + testCase.getClass().getName()
+                    + "] only, but _not_ ["
+                    + this.getClass().getName()
+                    + "] as a whole.",
+                testFailure
+            );
+        }
     }
+
 }

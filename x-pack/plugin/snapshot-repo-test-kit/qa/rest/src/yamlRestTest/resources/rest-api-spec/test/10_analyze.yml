@@ -158,8 +158,8 @@ setup:
 ---
 "Timeout with large blobs":
   - skip:
-      version: all
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/90353"
+      version: "- 7.13.99"
+      reason: "abortWrites flag introduced in 7.14, and mixed-cluster support not required"
 
   - do:
       catch: request

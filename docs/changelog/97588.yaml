@@ -1,0 +1,5 @@
+pr: 97588
+summary: Fix weird `change_point` bug where all data values are equivalent
+area: Machine Learning
+type: bug
+issues: []

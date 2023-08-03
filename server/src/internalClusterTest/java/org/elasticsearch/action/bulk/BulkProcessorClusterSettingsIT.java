@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.xcontent.XContentType;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -29,7 +28,7 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
         internalCluster().startNode(settings);
 
         createIndex("willwork");
-        client().admin().cluster().prepareHealth("willwork").setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth("willwork").setWaitForGreenStatus().execute().actionGet();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("willwork").setId("1").setSource("{\"foo\":1}", XContentType.JSON));
@@ -51,15 +50,7 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
     }
 
     public void testIndexWithDisabledAutoCreateIndex() {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom("-*", "+.*")).build()
-                )
-                .get()
-        );
+        updateClusterSettings(Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom("-*", "+.*")));
         final BulkItemResponse itemResponse = client().prepareBulk()
             .add(client().prepareIndex("test-index").setSource("foo", "bar"))
             .get()

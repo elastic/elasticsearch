@@ -192,7 +192,8 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     @Override
     public final void parse(DocumentParserContext context) throws IOException {
         if (hasScript) {
-            throw new MapperParsingException(
+            throw new DocumentParsingException(
+                context.parser().getTokenLocation(),
                 "failed to parse field [" + fieldType().name() + "] of type + " + contentType() + "]",
                 new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter")
             );
@@ -201,7 +202,11 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             if (ignoreMalformed()) {
                 context.addIgnoredField(fieldType().name());
             } else {
-                throw new MapperParsingException("failed to parse field [" + fieldType().name() + "] of type [" + contentType() + "]", e);
+                throw new DocumentParsingException(
+                    context.parser().getTokenLocation(),
+                    "failed to parse field [" + fieldType().name() + "] of type [" + contentType() + "]",
+                    e
+                );
             }
         });
     }

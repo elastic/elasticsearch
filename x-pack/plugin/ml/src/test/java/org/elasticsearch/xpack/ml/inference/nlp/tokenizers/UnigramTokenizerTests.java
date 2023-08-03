@@ -128,13 +128,17 @@ public class UnigramTokenizerTests extends BaseTokenStreamTestCase {
 
     private static class TestNLPAnalyzer extends Analyzer {
         private final List<String> dictionary;
-        private final List<Double> scores;
+        private final double[] scores;
         private final String unknownToken;
         private final PrecompiledCharMapNormalizer.Config normalizer;
 
         TestNLPAnalyzer(List<String> dictionary, List<Double> scores, String unknownToken, PrecompiledCharMapNormalizer.Config normalizer) {
             this.dictionary = dictionary;
-            this.scores = scores;
+            this.scores = new double[scores.size()];
+            int i = 0;
+            for (Double s : scores) {
+                this.scores[i++] = s;
+            }
             this.unknownToken = unknownToken;
             this.normalizer = normalizer;
         }

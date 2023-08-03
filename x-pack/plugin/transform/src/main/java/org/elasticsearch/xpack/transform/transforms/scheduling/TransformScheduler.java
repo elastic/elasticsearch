@@ -79,7 +79,7 @@ public final class TransformScheduler {
     private Scheduler.Cancellable scheduledFuture;
 
     public TransformScheduler(Clock clock, ThreadPool threadPool, Settings settings) {
-        this.clock = Objects.requireNonNull(clock);
+        this.clock = new MonotonicClock(Objects.requireNonNull(clock));
         this.threadPool = Objects.requireNonNull(threadPool);
         this.schedulerFrequency = Transform.SCHEDULER_FREQUENCY.get(settings);
         this.scheduledTasks = new TransformScheduledTaskQueue();

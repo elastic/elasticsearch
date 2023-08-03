@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
 
 import java.io.IOException;
-import java.util.Locale;
 
 public enum VersionType implements Writeable {
     INTERNAL((byte) 0) {
@@ -286,7 +285,11 @@ public enum VersionType implements Writeable {
     }
 
     public static String toString(VersionType versionType) {
-        return versionType.name().toLowerCase(Locale.ROOT);
+        return switch (versionType) {
+            case INTERNAL -> "internal";
+            case EXTERNAL -> "external";
+            case EXTERNAL_GTE -> "external_gte";
+        };
     }
 
     public static VersionType fromValue(byte value) {

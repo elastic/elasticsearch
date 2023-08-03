@@ -161,7 +161,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     }
 
     private static class UpdateDesiredNodesExecutor implements ClusterStateTaskExecutor<UpdateDesiredNodesTask> {
-        private static final ActionListener<ClusterState> REROUTE_LISTENER = ActionListener.wrap(
+        private static final ActionListener<Void> REROUTE_LISTENER = ActionListener.wrap(
             r -> logger.trace("reroute after desired nodes update completed"),
             e -> logger.debug("reroute after desired nodes update failed", e)
         );

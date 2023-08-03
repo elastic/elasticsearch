@@ -301,7 +301,7 @@ public class ClusterChangedEventTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
 
         @Override
@@ -322,7 +322,7 @@ public class ClusterChangedEventTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
 
         @Override
@@ -466,7 +466,7 @@ public class ClusterChangedEventTests extends ESTestCase {
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             roles,
-            Version.CURRENT
+            null
         );
     }
 

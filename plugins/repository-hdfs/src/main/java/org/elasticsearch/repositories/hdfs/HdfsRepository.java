@@ -29,6 +29,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -43,6 +44,9 @@ import java.util.List;
 import java.util.Locale;
 
 public final class HdfsRepository extends BlobStoreRepository {
+
+    private static final int MIN_REPLICATION_FACTOR = 1;
+    private static final int MAX_REPLICATION_FACTOR = Short.MAX_VALUE;
 
     private static final Logger logger = LogManager.getLogger(HdfsRepository.class);
 
@@ -113,6 +117,42 @@ public final class HdfsRepository extends BlobStoreRepository {
             hadoopConfiguration.set(key, confSettings.get(key));
         }
 
+        Integer replicationFactor = repositorySettings.getAsInt("replication_factor", null);
+        if (replicationFactor != null && replicationFactor < MIN_REPLICATION_FACTOR) {
+            throw new RepositoryException(
+                metadata.name(),
+                "Value of replication_factor [{}] must be >= {}",
+                replicationFactor,
+                MIN_REPLICATION_FACTOR
+            );
+        }
+        if (replicationFactor != null && replicationFactor > MAX_REPLICATION_FACTOR) {
+            throw new RepositoryException(
+                metadata.name(),
+                "Value of replication_factor [{}] must be <= {}",
+                replicationFactor,
+                MAX_REPLICATION_FACTOR
+            );
+        }
+        int minReplicationFactory = hadoopConfiguration.getInt("dfs.replication.min", 0);
+        int maxReplicationFactory = hadoopConfiguration.getInt("dfs.replication.max", 512);
+        if (replicationFactor != null && replicationFactor < minReplicationFactory) {
+            throw new RepositoryException(
+                metadata.name(),
+                "Value of replication_factor [{}] must be >= dfs.replication.min [{}]",
+                replicationFactor,
+                minReplicationFactory
+            );
+        }
+        if (replicationFactor != null && replicationFactor > maxReplicationFactory) {
+            throw new RepositoryException(
+                metadata.name(),
+                "Value of replication_factor [{}] must be <= dfs.replication.max [{}]",
+                replicationFactor,
+                maxReplicationFactory
+            );
+        }
+
         // Disable FS cache
         hadoopConfiguration.setBoolean("fs.hdfs.impl.disable.cache", true);
         hadoopConfiguration.setBoolean("fs.webhdfs.impl.disable.cache", true);
@@ -148,7 +188,14 @@ public final class HdfsRepository extends BlobStoreRepository {
         );
 
         try {
-            return new HdfsBlobStore(fileContext, path, bufferSize, isReadOnly(), haEnabled);
+            return new HdfsBlobStore(
+                fileContext,
+                path,
+                bufferSize,
+                isReadOnly(),
+                haEnabled,
+                replicationFactor != null ? replicationFactor.shortValue() : null
+            );
         } catch (IOException e) {
             throw new UncheckedIOException(String.format(Locale.ROOT, "Cannot create HDFS repository for uri [%s]", blobstoreUri), e);
         }

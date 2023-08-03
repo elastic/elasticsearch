@@ -9,6 +9,7 @@
 package org.elasticsearch.search.functionscore;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -33,7 +34,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
-import static org.elasticsearch.client.internal.Requests.searchRequest;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
@@ -85,7 +85,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         Script scriptTwo = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
 
         SearchResponse response = client().search(
-            searchRequest().source(
+            new SearchRequest(new String[] {}).source(
                 searchSource().query(
                     functionScoreQuery(
                         functionScoreQuery(functionScoreQuery(scriptFunction(scriptOne)), scriptFunction(scriptTwo)),
@@ -106,7 +106,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
 
         SearchResponse response = client().search(
-            searchRequest().source(
+            new SearchRequest(new String[] {}).source(
                 searchSource().query(functionScoreQuery(scriptFunction(script))).aggregation(terms("score_agg").script(script))
             )
         ).actionGet();
@@ -131,7 +131,9 @@ public class FunctionScoreIT extends ESIntegTestCase {
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['random_score']", Collections.emptyMap());
         SearchResponse searchResponse = client().search(
-            searchRequest().source(searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)))
+            new SearchRequest(new String[] {}).source(
+                searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore))
+            )
         ).actionGet();
         if (score < minScore) {
             assertThat(searchResponse.getHits().getTotalHits().value, is(0L));
@@ -140,7 +142,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         }
 
         searchResponse = client().search(
-            searchRequest().source(
+            new SearchRequest(new String[] {}).source(
                 searchSource().query(
                     functionScoreQuery(
                         new MatchAllQueryBuilder(),
@@ -177,12 +179,14 @@ public class FunctionScoreIT extends ESIntegTestCase {
         }
 
         SearchResponse searchResponse = client().search(
-            searchRequest().source(searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)).size(numDocs))
+            new SearchRequest(new String[] {}).source(
+                searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)).size(numDocs)
+            )
         ).actionGet();
         assertMinScoreSearchResponses(numDocs, searchResponse, numMatchingDocs);
 
         searchResponse = client().search(
-            searchRequest().source(
+            new SearchRequest(new String[] {}).source(
                 searchSource().query(
                     functionScoreQuery(
                         new MatchAllQueryBuilder(),
@@ -212,8 +216,9 @@ public class FunctionScoreIT extends ESIntegTestCase {
         index("test", "1", jsonBuilder().startObject().field("text", "test text").endObject());
         refresh();
 
-        SearchResponse termQuery = client().search(searchRequest().source(searchSource().explain(true).query(termQuery("text", "text"))))
-            .get();
+        SearchResponse termQuery = client().search(
+            new SearchRequest(new String[] {}).source(searchSource().explain(true).query(termQuery("text", "text")))
+        ).get();
         assertSearchResponse(termQuery);
         assertThat(termQuery.getHits().getTotalHits().value, equalTo(1L));
         float termQueryScore = termQuery.getHits().getAt(0).getScore();
@@ -225,7 +230,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
 
     protected void testMinScoreApplied(CombineFunction boostMode, float expectedScore) throws InterruptedException, ExecutionException {
         SearchResponse response = client().search(
-            searchRequest().source(
+            new SearchRequest(new String[] {}).source(
                 searchSource().explain(true).query(functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(0.1f))
             )
         ).get();
@@ -234,7 +239,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getScore(), equalTo(expectedScore));
 
         response = client().search(
-            searchRequest().source(
+            new SearchRequest(new String[] {}).source(
                 searchSource().explain(true).query(functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(2f))
             )
         ).get();

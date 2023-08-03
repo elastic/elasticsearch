@@ -1,0 +1,130 @@
+[[cat-component-templates]]
+=== cat component templates API
+++++
+<titleabbrev>cat component templates</titleabbrev>
+++++
+
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<getting-component-templates,get component template API>>.
+====
+
+Returns information about <<indices-component-template,component templates>> in
+a cluster. Component templates are building blocks for constructing
+<<index-templates,index templates>> that specify index <<mapping,mappings>>,
+<<index-modules-settings,settings>>, and <<aliases,aliases>>.
+
+
+[[cat-component-templates-api-request]]
+==== {api-request-title}
+
+`GET /_cat/component_templates/<template_name>`
+
+`GET /_cat/component_templates`
+
+[[cat-component-templates-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[cat-component-templates-path-params]]
+==== {api-path-parms-title}
+
+`<template_name>`::
+(Optional, string) The name of the component template to return. Accepts
+wildcard expressions. If omitted, all component templates are returned.
+
+[[cat-component-templates-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-component-templates-api-example]]
+==== {api-examples-title}
+
+////
+[source,console]
+----
+PUT _component_template/my-template-1
+{
+  "template": {
+    "settings": {
+      "number_of_shards": 1
+    }
+  }
+}
+
+PUT _component_template/my-template-2
+{
+  "template": {
+    "mappings": {
+      "_source": {
+        "enabled": false
+      },
+      "properties": {
+        "host_name": {
+          "type": "keyword"
+        },
+        "created_at": {
+          "type": "date",
+          "format": "EEE MMM dd HH:mm:ss Z yyyy"
+        }
+      }
+    }
+  }
+}
+
+PUT _index_template/my-index-template
+{
+  "index_patterns": [
+    "my-index*"
+  ],
+  "composed_of": [
+    "my-template-1",
+    "my-template-2"
+  ]
+}
+----
+////
+
+[source,console]
+----
+GET _cat/component_templates/my-template-*?v=true&s=name
+----
+// TEST[continued]
+
+The API returns the following response:
+
+[source,txt]
+----
+name          version alias_count mapping_count settings_count metadata_count included_in
+my-template-1         0           0             1              0              [my-index-template]
+my-template-2         0           3             0              0              [my-index-template]
+----
+// TESTRESPONSE[s/\*/\\*/ s/\[/\\[/ s/\]/\\]/ non_json]
+
+////
+[source,console]
+----
+DELETE _index_template/my-index-template
+DELETE _component_template/my-template-1
+DELETE _component_template/my-template-2
+----
+// TEST[continued]
+////

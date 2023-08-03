@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,6 +29,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.ResizeAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -65,7 +65,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         Metadata.Builder metaBuilder = Metadata.builder();
         metaBuilder.put(
             IndexMetadata.builder("source")
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(2)
                 .numberOfReplicas(0)
                 .setRoutingNumShards(16)
@@ -75,12 +75,9 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         routingTableBuilder.addAsNew(metadata.index("source"));
 
         RoutingTable routingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1", Version.CURRENT)).add(newNode("node2", Version.CURRENT)))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
         RoutingTable prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
@@ -129,7 +126,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         metaBuilder.put(
             IndexMetadata.builder("target")
                 .settings(
-                    settings(Version.CURRENT).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), "source")
+                    settings(IndexVersion.current()).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), "source")
                         .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, IndexMetadata.INDEX_UUID_NA_VALUE)
                 )
                 .numberOfShards(1)
@@ -171,7 +168,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         metaBuilder.put(
             IndexMetadata.builder("target")
                 .settings(
-                    settings(Version.CURRENT).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), "source")
+                    settings(IndexVersion.current()).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), "source")
                         .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, IndexMetadata.INDEX_UUID_NA_VALUE)
                 )
                 .numberOfShards(4)
@@ -231,7 +228,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         metaBuilder.put(
             IndexMetadata.builder("target")
                 .settings(
-                    settings(Version.CURRENT).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), "source")
+                    settings(IndexVersion.current()).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), "source")
                         .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, IndexMetadata.INDEX_UUID_NA_VALUE)
                 )
                 .numberOfShards(4)
@@ -312,23 +309,13 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testGetForcedInitialShardAllocationToNodes() {
         var source = IndexMetadata.builder("source")
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid-1")
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            )
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid-1"))
             .build();
         var target = IndexMetadata.builder("target")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), "source")
+                indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), "source")
                     .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID.getKey(), "uuid-1")
                     .put(IndexMetadata.SETTING_INDEX_UUID, "uuid-2")
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             )
             .build();
         var clusterState = ClusterState.builder(new ClusterName("test-cluster"))

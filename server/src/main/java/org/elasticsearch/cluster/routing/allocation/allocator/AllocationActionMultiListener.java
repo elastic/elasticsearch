@@ -93,5 +93,5 @@ public class AllocationActionMultiListener<T> {
         return listeners;
     }
 
-    private record DelayedListener<T> (ActionListener<T> listener, T response) {}
+    private record DelayedListener<T>(ActionListener<T> listener, T response) {}
 }

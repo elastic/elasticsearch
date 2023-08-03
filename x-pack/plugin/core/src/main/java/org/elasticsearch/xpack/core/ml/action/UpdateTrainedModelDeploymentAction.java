@@ -44,44 +44,44 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         public static final ParseField TIMEOUT = new ParseField("timeout");
 
         static {
-            PARSER.declareString(Request::setModelId, MODEL_ID);
+            PARSER.declareString(Request::setDeploymentId, MODEL_ID);
             PARSER.declareInt(Request::setNumberOfAllocations, NUMBER_OF_ALLOCATIONS);
             PARSER.declareString((r, val) -> r.timeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         }
 
-        public static Request parseRequest(String modelId, XContentParser parser) {
+        public static Request parseRequest(String deploymentId, XContentParser parser) {
             Request request = PARSER.apply(parser, null);
-            if (request.getModelId() == null) {
-                request.setModelId(modelId);
-            } else if (Strings.isNullOrEmpty(modelId) == false && modelId.equals(request.getModelId()) == false) {
+            if (request.getDeploymentId() == null) {
+                request.setDeploymentId(deploymentId);
+            } else if (Strings.isNullOrEmpty(deploymentId) == false && deploymentId.equals(request.getDeploymentId()) == false) {
                 throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(Messages.INCONSISTENT_ID, MODEL_ID, request.getModelId(), modelId)
+                    Messages.getMessage(Messages.INCONSISTENT_ID, MODEL_ID, request.getDeploymentId(), deploymentId)
                 );
             }
             return request;
         }
 
-        private String modelId;
+        private String deploymentId;
         private int numberOfAllocations;
 
         private Request() {}
 
-        public Request(String modelId) {
-            setModelId(modelId);
+        public Request(String deploymentId) {
+            setDeploymentId(deploymentId);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            modelId = in.readString();
+            deploymentId = in.readString();
             numberOfAllocations = in.readVInt();
         }
 
-        public final void setModelId(String modelId) {
-            this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
+        public final void setDeploymentId(String deploymentId) {
+            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, MODEL_ID);
         }
 
-        public String getModelId() {
-            return modelId;
+        public String getDeploymentId() {
+            return deploymentId;
         }
 
         public void setNumberOfAllocations(int numberOfAllocations) {
@@ -95,14 +95,14 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(modelId);
+            out.writeString(deploymentId);
             out.writeVInt(numberOfAllocations);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(MODEL_ID.getPreferredName(), modelId);
+            builder.field(MODEL_ID.getPreferredName(), deploymentId);
             builder.field(NUMBER_OF_ALLOCATIONS.getPreferredName(), numberOfAllocations);
             builder.endObject();
             return builder;
@@ -119,7 +119,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, numberOfAllocations);
+            return Objects.hash(deploymentId, numberOfAllocations);
         }
 
         @Override
@@ -131,7 +131,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(modelId, other.modelId) && numberOfAllocations == other.numberOfAllocations;
+            return Objects.equals(deploymentId, other.deploymentId) && numberOfAllocations == other.numberOfAllocations;
         }
 
         @Override

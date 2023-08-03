@@ -54,12 +54,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        BuildParams.getBwcVersions()
-            .forPreviousUnreleased(
-                (BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
-                    configureBwcProject(project.project(unreleasedVersion.gradleProjectPath()), unreleasedVersion);
-                }
-            );
+        BuildParams.getBwcVersions().forPreviousUnreleased((BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
+            configureBwcProject(project.project(unreleasedVersion.gradleProjectPath()), unreleasedVersion);
+        });
     }
 
     private void configureBwcProject(Project project, BwcVersions.UnreleasedVersionInfo versionInfo) {

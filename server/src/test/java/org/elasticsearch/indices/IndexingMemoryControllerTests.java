@@ -9,8 +9,8 @@ package org.elasticsearch.indices;
 
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -39,7 +39,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -364,7 +363,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         shard = reinitShard(shard, imc);
         shardRef.set(shard);
         assertEquals(0, imc.availableShards().size());
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
 
         assertEquals(1, imc.availableShards().size());
@@ -410,7 +409,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
     ThreadPoolStats.Stats getRefreshThreadPoolStats() {
         final ThreadPoolStats stats = threadPool.stats();
         for (ThreadPoolStats.Stats s : stats) {
-            if (s.getName().equals(ThreadPool.Names.REFRESH)) {
+            if (s.name().equals(ThreadPool.Names.REFRESH)) {
                 return s;
             }
         }
@@ -468,12 +467,12 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         }
         assertBusy(() -> {
             ThreadPoolStats.Stats stats = getRefreshThreadPoolStats();
-            assertThat(stats.getCompleted(), equalTo(beforeStats.getCompleted() + iterations - 1));
+            assertThat(stats.completed(), equalTo(beforeStats.completed() + iterations - 1));
         });
         refreshLatch.get().countDown(); // allow refresh
         assertBusy(() -> {
             ThreadPoolStats.Stats stats = getRefreshThreadPoolStats();
-            assertThat(stats.getCompleted(), equalTo(beforeStats.getCompleted() + iterations));
+            assertThat(stats.completed(), equalTo(beforeStats.completed() + iterations));
         });
         assertThat(shard.refreshStats().getTotal(), equalTo(refreshStats.getTotal() + 1));
         closeShards(shard);

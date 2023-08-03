@@ -69,9 +69,10 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
         if (aggregation.keyed == false) {
             int i = 0;
             for (ParsedBucket bucket : aggregation.buckets) {
-                assert bucket.key == null;
-                bucket.key = String.valueOf(i);
-                i++;
+                if (bucket.key == null) {
+                    bucket.key = String.valueOf(i);
+                    i++;
+                }
             }
         }
         return aggregation;
@@ -80,6 +81,8 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Filters.Bucket {
 
         private String key;
+
+        private boolean keyedBucket = true;
 
         @Override
         public String getKey() {
@@ -97,6 +100,9 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
                 builder.startObject(key);
             } else {
                 builder.startObject();
+            }
+            if (isKeyed() == false && keyedBucket == false) {
+                builder.field(CommonFields.KEY.getPreferredName(), key);
             }
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
             getAggregations().toXContentInternal(builder, params);
@@ -122,6 +128,9 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
                 } else if (token.isValue()) {
                     if (CommonFields.DOC_COUNT.getPreferredName().equals(currentFieldName)) {
                         bucket.setDocCount(parser.longValue());
+                    } else if (CommonFields.KEY.getPreferredName().equals(currentFieldName)) {
+                        bucket.key = parser.text();
+                        bucket.keyedBucket = false;
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     XContentParserUtils.parseTypedKeysObject(

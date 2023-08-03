@@ -4,20 +4,20 @@
 
 In production, you should send monitoring data to a separate _monitoring cluster_
 so that historical data is available even when the nodes you are monitoring are
-not. For example, you can use {metricbeat} to ship monitoring data about {kib},
-{es}, {ls}, and Beats to the monitoring cluster.
+not.
 
+// tag::monitoring-rec[]
 [IMPORTANT]
 =========================
-{metricbeat} is the recommended method for collecting and shipping monitoring
-data to a monitoring cluster.
+{agent} and {metricbeat} are the recommended methods for collecting and shipping
+monitoring data to a monitoring cluster.
 
 If you have previously configured legacy collection methods, you should migrate
-to using {metricbeat} collection. Use either {metricbeat} collection or
-legacy collection methods; do not use both.
-
-Learn more about <<configuring-metricbeat>>.
+to using <<configuring-elastic-agent,{agent}>> or
+<<configuring-metricbeat,{metricbeat}>> collection. Do not use legacy collection
+alongside other collection methods.
 =========================
+// end::monitoring-rec[]
 
 If you have at least a Gold Subscription, using a dedicated monitoring cluster
 also enables you to monitor multiple clusters from a central location.
@@ -63,7 +63,7 @@ PUT _cluster/settings
 --
 
 .. If the {es} {security-features} are enabled on the monitoring cluster, create
-users that can send and retrieve monitoring data.
+users that can send and retrieve monitoring data:
 +
 --
 NOTE: If you plan to use {kib} to view monitoring data, username and password
@@ -71,7 +71,11 @@ credentials must be valid on both the {kib} server and the monitoring cluster.
 
 --
 
-*** If you plan to use {metricbeat} to collect data about {es} or {kib},
+*** If you plan to use {agent},
+create a user that has the `remote_monitoring_collector`
+<<built-in-roles-remote-monitoring-agent,built-in role>>.
+
+*** If you plan to use {metricbeat},
 create a user that has the `remote_monitoring_collector` built-in role and a
 user that has the `remote_monitoring_agent`
 <<built-in-roles-remote-monitoring-agent,built-in role>>. Alternatively, use the
@@ -102,16 +106,17 @@ Alternatively, use the `remote_monitoring_user` <<built-in-users,built-in user>>
 
 . Configure your production cluster to collect data and send it to the
 monitoring cluster:
-
+** <<configuring-elastic-agent,{agent} collection methods>>
 ** <<configuring-metricbeat,{metricbeat} collection methods>>
-
 ** <<collecting-monitoring-data,Legacy collection methods>>
 
 . (Optional)
 {logstash-ref}/configuring-logstash.html[Configure {ls} to collect data and send it to the monitoring cluster].
 
-. (Optional) Configure the Beats to collect data and send it to the monitoring
-cluster.
+. (Optional) {enterprise-search-ref}/monitoring.html[Configure {ents} monitoring].
+
+. (Optional) Configure the {beats} to collect data and send it to the monitoring
+cluster. Skip this step for {beats} that are managed by {agent}.
 ** {auditbeat-ref}/monitoring.html[Auditbeat]
 ** {filebeat-ref}/monitoring.html[Filebeat]
 ** {heartbeat-ref}/monitoring.html[Heartbeat]
@@ -119,10 +124,11 @@ cluster.
 ** {packetbeat-ref}/monitoring.html[Packetbeat]
 ** {winlogbeat-ref}/monitoring.html[Winlogbeat]
 
+. (Optional) {apm-guide-ref}/monitor-apm.html[Configure APM Server monitoring]
+
 . (Optional) Configure {kib} to collect data and send it to the monitoring cluster:
-
+** {kibana-ref}/monitoring-elastic-agent.html[{agent} collection methods]
 ** {kibana-ref}/monitoring-metricbeat.html[{metricbeat} collection methods]
-
 ** {kibana-ref}/monitoring-kibana.html[Legacy collection methods]
 
 . (Optional) Create a dedicated {kib} instance for monitoring, rather than using
@@ -132,7 +138,7 @@ cluster.
 --
 NOTE: If you log in to {kib} using SAML, Kerberos, PKI, OpenID Connect, or token
 authentication providers, a dedicated {kib} instance is *required*. The security
-tokens that are used in these contexts are cluster-specific, therefore you
+tokens that are used in these contexts are cluster-specific; therefore you
 cannot use a single {kib} instance to connect to both production and monitoring
 clusters.
 

@@ -444,7 +444,7 @@ Kerberos/SPNEGO debug logging on JVM, add following JVM system properties:
 
 `-Dsun.security.spnego.debug=true`
 
-For more information about JVM system properties, see <<jvm-options>>.
+For more information about JVM system properties, see <<set-jvm-options>>.
 
 [[trb-security-saml]]
 === Common SAML issues
@@ -589,7 +589,7 @@ Identity Provider sent. In this example, {es} is configured as follows:
 xpack.security.authc.realms.saml.<saml-realm-name>.attributes.principal: AttributeName0
 ....
 This configuration means that {es} expects to find a SAML Attribute with the name `AttributeName0` or a `NameID` with the appropriate format in the SAML
-response so that <<saml-attribute-mapping,it can map it>> to the `principal` user property. The `principal` user property is a
+response so that <<saml-attributes-mapping,it can map it>> to the `principal` user property. The `principal` user property is a
 mandatory one, so if this mapping can't happen, the authentication fails.
 
 If you are attempting to map a `NameID`, make sure that the expected `NameID` format matches the one that is sent.

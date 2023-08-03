@@ -45,7 +45,7 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     public void testSimple() {
-        GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("idx").get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices("idx").get();
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -57,7 +57,7 @@ public class GetIndexIT extends ESIntegTestCase {
 
     public void testSimpleUnknownIndex() {
         try {
-            client().admin().indices().prepareGetIndex().addIndices("missing_idx").get();
+            indicesAdmin().prepareGetIndex().addIndices("missing_idx").get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
             assertThat(e.getMessage(), is("no such index [missing_idx]"));
@@ -65,9 +65,7 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     public void testUnknownIndexWithAllowNoIndices() {
-        GetIndexResponse response = client().admin()
-            .indices()
-            .prepareGetIndex()
+        GetIndexResponse response = indicesAdmin().prepareGetIndex()
             .addIndices("missing_idx")
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .get();
@@ -78,7 +76,7 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     public void testEmpty() {
-        GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("empty_idx").get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices("empty_idx").get();
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -89,10 +87,7 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     public void testSimpleMapping() {
-        GetIndexResponse response = runWithRandomFeatureMethod(
-            client().admin().indices().prepareGetIndex().addIndices("idx"),
-            Feature.MAPPINGS
-        );
+        GetIndexResponse response = runWithRandomFeatureMethod(indicesAdmin().prepareGetIndex().addIndices("idx"), Feature.MAPPINGS);
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -103,10 +98,7 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     public void testSimpleAlias() {
-        GetIndexResponse response = runWithRandomFeatureMethod(
-            client().admin().indices().prepareGetIndex().addIndices("idx"),
-            Feature.ALIASES
-        );
+        GetIndexResponse response = runWithRandomFeatureMethod(indicesAdmin().prepareGetIndex().addIndices("idx"), Feature.ALIASES);
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -117,10 +109,7 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     public void testSimpleSettings() {
-        GetIndexResponse response = runWithRandomFeatureMethod(
-            client().admin().indices().prepareGetIndex().addIndices("idx"),
-            Feature.SETTINGS
-        );
+        GetIndexResponse response = runWithRandomFeatureMethod(indicesAdmin().prepareGetIndex().addIndices("idx"), Feature.SETTINGS);
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -137,7 +126,7 @@ public class GetIndexIT extends ESIntegTestCase {
             features.add(randomFrom(Feature.values()));
         }
         GetIndexResponse response = runWithRandomFeatureMethod(
-            client().admin().indices().prepareGetIndex().addIndices("idx"),
+            indicesAdmin().prepareGetIndex().addIndices("idx"),
             features.toArray(new Feature[features.size()])
         );
         String[] indices = response.indices();
@@ -168,7 +157,7 @@ public class GetIndexIT extends ESIntegTestCase {
             features.add(randomFrom(Feature.values()));
         }
         GetIndexResponse response = runWithRandomFeatureMethod(
-            client().admin().indices().prepareGetIndex().addIndices("empty_idx"),
+            indicesAdmin().prepareGetIndex().addIndices("empty_idx"),
             features.toArray(new Feature[features.size()])
         );
         String[] indices = response.indices();
@@ -192,9 +181,7 @@ public class GetIndexIT extends ESIntegTestCase {
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY, SETTING_READ_ONLY_ALLOW_DELETE)) {
             try {
                 enableIndexBlock("idx", block);
-                GetIndexResponse response = client().admin()
-                    .indices()
-                    .prepareGetIndex()
+                GetIndexResponse response = indicesAdmin().prepareGetIndex()
                     .addIndices("idx")
                     .addFeatures(Feature.MAPPINGS, Feature.ALIASES)
                     .get();
@@ -212,7 +199,7 @@ public class GetIndexIT extends ESIntegTestCase {
         try {
             enableIndexBlock("idx", SETTING_BLOCKS_METADATA);
             assertBlocked(
-                client().admin().indices().prepareGetIndex().addIndices("idx").addFeatures(Feature.MAPPINGS, Feature.ALIASES),
+                indicesAdmin().prepareGetIndex().addIndices("idx").addFeatures(Feature.MAPPINGS, Feature.ALIASES),
                 INDEX_METADATA_BLOCK
             );
         } finally {

@@ -241,7 +241,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
         // skip one to avoid the "all shards failed" failure.
         SearchShardIterator skipIterator = new SearchShardIterator(null, null, Collections.emptyList(), null);
-        skipIterator.resetAndSkip();
+        skipIterator.skip(true);
+        skipIterator.reset();
         action.skipShard(skipIterator);
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();

@@ -23,8 +23,8 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -40,6 +40,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
@@ -54,7 +55,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -492,15 +492,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
     private static ClusterState state() {
         final DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(
-                new DiscoveryNode(
-                    "1",
-                    ESTestCase.buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    new HashSet<>(DiscoveryNodeRole.roles()),
-                    Version.CURRENT
-                )
-            )
+            .add(DiscoveryNodeUtils.builder("1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build())
             .masterNodeId("1")
             .localNodeId("1")
             .build();
@@ -515,14 +507,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         String mappings
     ) {
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
-        indexMetadata.settings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), format)
-                .build()
-        );
+        indexMetadata.settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), format));
         indexMetadata.putAlias(AliasMetadata.builder(aliasName).build());
         indexMetadata.state(state);
         if (mappings != null) {

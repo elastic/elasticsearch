@@ -1,0 +1,5 @@
+pr: 95459
+summary: Add slf4j-nop in order to prevent startup warnings
+area: Infra/Logging
+type: bug
+issues: []

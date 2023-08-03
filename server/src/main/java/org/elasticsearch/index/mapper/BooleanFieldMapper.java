@@ -9,10 +9,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -21,12 +20,12 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -60,17 +59,6 @@ public class BooleanFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "boolean";
 
-    public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
-
-        static {
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.freeze();
-        }
-    }
-
     public static class Values {
         public static final BytesRef TRUE = new BytesRef("T");
         public static final BytesRef FALSE = new BytesRef("F");
@@ -103,9 +91,9 @@ public class BooleanFieldMapper extends FieldMapper {
 
         private final ScriptCompiler scriptCompiler;
 
-        private final Version indexCreatedVersion;
+        private final IndexVersion indexCreatedVersion;
 
-        public Builder(String name, ScriptCompiler scriptCompiler, boolean ignoreMalformedByDefault, Version indexCreatedVersion) {
+        public Builder(String name, ScriptCompiler scriptCompiler, boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion) {
             super(name);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
@@ -158,7 +146,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
     }
 
-    private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
+    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
 
     public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, c.scriptCompiler(), IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated()),
@@ -379,7 +367,7 @@ public class BooleanFieldMapper extends FieldMapper {
     private final Script script;
     private final FieldValues<Boolean> scriptValues;
     private final ScriptCompiler scriptCompiler;
-    private final Version indexCreatedVersion;
+    private final IndexVersion indexCreatedVersion;
     private final Explicit<Boolean> ignoreMalformed;
     private final boolean ignoreMalformedByDefault;
 
@@ -452,7 +440,7 @@ public class BooleanFieldMapper extends FieldMapper {
             return;
         }
         if (indexed) {
-            context.doc().add(new Field(fieldType().name(), value ? "T" : "F", Defaults.FIELD_TYPE));
+            context.doc().add(new StringField(fieldType().name(), value ? Values.TRUE : Values.FALSE, Field.Store.NO));
         }
         if (stored) {
             context.doc().add(new StoredField(fieldType().name(), value ? "T" : "F"));

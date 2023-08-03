@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.ml.job.results.CategoryDefinitionTests;
 import org.elasticsearch.xpack.ml.job.results.ModelPlotTests;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.junit.After;
 import org.junit.Before;
 
@@ -137,7 +138,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class,
-            MapperExtrasPlugin.class
+            MapperExtrasPlugin.class,
+            Wildcard.class
         );
     }
 
@@ -145,7 +147,9 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     public void createComponents() throws Exception {
         Settings.Builder builder = Settings.builder()
             .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
-        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class));
+        // We can't change the signature of createComponents to e.g. pass differing values of includeNodeInfo to pass to the
+        // AnomalyDetectionAuditor constructor. Instead we generate a random boolean value for that purpose.
+        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class), randomBoolean());
         jobResultsProvider = new JobResultsProvider(client(), builder.build(), TestIndexNameExpressionResolver.newInstance());
         renormalizer = mock(Renormalizer.class);
         process = mock(AutodetectProcess.class);
@@ -573,7 +577,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     }
 
     private static FlushAcknowledgement createFlushAcknowledgement() {
-        return new FlushAcknowledgement(randomAlphaOfLength(5), randomInstant());
+        return new FlushAcknowledgement(randomAlphaOfLength(5), randomInstant(), true);
     }
 
     private static class ResultsBuilder {
@@ -771,9 +775,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
 
     private List<Annotation> getAnnotations() throws Exception {
         // Refresh the annotations index so that recently indexed annotation docs are visible.
-        client().admin()
-            .indices()
-            .prepareRefresh(AnnotationIndex.LATEST_INDEX_NAME)
+        indicesAdmin().prepareRefresh(AnnotationIndex.LATEST_INDEX_NAME)
             .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
             .execute()
             .actionGet();

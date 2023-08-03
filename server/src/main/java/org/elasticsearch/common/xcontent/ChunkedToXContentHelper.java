@@ -62,6 +62,14 @@ public enum ChunkedToXContentHelper {
         return Iterators.single(((builder, params) -> builder.field(name, value)));
     }
 
+    public static Iterator<ToXContent> field(String name, long value) {
+        return Iterators.single(((builder, params) -> builder.field(name, value)));
+    }
+
+    public static Iterator<ToXContent> field(String name, String value) {
+        return Iterators.single(((builder, params) -> builder.field(name, value)));
+    }
+
     public static Iterator<ToXContent> array(String name, Iterator<? extends ToXContent> contents) {
         return Iterators.concat(ChunkedToXContentHelper.startArray(name), contents, ChunkedToXContentHelper.endArray());
     }
@@ -71,7 +79,7 @@ public enum ChunkedToXContentHelper {
     }
 
     private static <T> Iterator<ToXContent> map(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
-        return wrapWithObject(name, map.entrySet().stream().map(toXContent).iterator());
+        return wrapWithObject(name, Iterators.map(map.entrySet().iterator(), toXContent));
     }
 
     public static Iterator<ToXContent> singleChunk(ToXContent... contents) {

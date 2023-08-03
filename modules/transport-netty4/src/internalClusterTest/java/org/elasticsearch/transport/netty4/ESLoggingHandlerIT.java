@@ -11,7 +11,6 @@ package org.elasticsearch.transport.netty4;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ESNetty4IntegTestCase;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -85,7 +84,7 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
         appender.addExpectation(writeExpectation);
         appender.addExpectation(flushExpectation);
         appender.addExpectation(readExpectation);
-        client().admin().cluster().nodesHotThreads(new NodesHotThreadsRequest()).actionGet();
+        clusterAdmin().prepareNodesHotThreads().get();
         appender.assertAllExpectationsMatched();
     }
 

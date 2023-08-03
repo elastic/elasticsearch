@@ -47,7 +47,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.suggest.SuggestBuilders.phraseSuggestion;
@@ -181,10 +180,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     // see #3037
     public void testSuggestModes() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(SETTING_NUMBER_OF_SHARDS, 1)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.analysis.analyzer.biword.tokenizer", "standard")
+            indexSettings(1, 0).put("index.analysis.analyzer.biword.tokenizer", "standard")
                 .putList("index.analysis.analyzer.biword.filter", "shingler", "lowercase")
                 .put("index.analysis.filter.shingler.type", "shingle")
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
@@ -241,7 +237,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
     // see #2729
     public void testSizeOneShard() throws Exception {
-        prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
+        prepareCreate("test").setSettings(indexSettings(1, 0)).get();
         ensureGreen();
 
         for (int i = 0; i < 15; i++) {

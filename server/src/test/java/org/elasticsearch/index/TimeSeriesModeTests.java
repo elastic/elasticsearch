@@ -175,7 +175,8 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             e.getMessage(),
             equalTo(
                 "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.o] was [object]."
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. [dim.o] was [object]."
             )
         );
     }
@@ -192,7 +193,8 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             e.getMessage(),
             equalTo(
                 "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.non_dim] was not [time_series_dimension: true]."
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. [dim.non_dim] was not a dimension."
             )
         );
     }
@@ -209,7 +211,8 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             e.getMessage(),
             equalTo(
                 "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.non_kwd] was [integer]."
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. [dim.non_kwd] was [integer]."
             )
         );
     }
@@ -227,7 +230,8 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             e.getMessage(),
             equalTo(
                 "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.kwd] has a [script] parameter."
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. [dim.kwd] has a [script] parameter."
             )
         );
     }
@@ -242,7 +246,8 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             e.getMessage(),
             equalTo(
                 "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.kwd] was a runtime [keyword]."
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. [dim.kwd] was a runtime [keyword]."
             )
         );
     }

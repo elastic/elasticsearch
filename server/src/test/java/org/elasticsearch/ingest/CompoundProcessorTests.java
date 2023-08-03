@@ -52,9 +52,9 @@ public class CompoundProcessorTests extends ESTestCase {
         boolean isAsync = randomBoolean();
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1));
-        TestProcessor processor = new TestProcessor(
-            ingestDocument -> { assertStats(0, ingestDocument.getFieldValue("compoundProcessor", CompoundProcessor.class), 1, 0, 0, 0); }
-        ) {
+        TestProcessor processor = new TestProcessor(ingestDocument -> {
+            assertStats(0, ingestDocument.getFieldValue("compoundProcessor", CompoundProcessor.class), 1, 0, 0, 0);
+        }) {
             @Override
             public boolean isAsync() {
                 return isAsync;
@@ -205,19 +205,13 @@ public class CompoundProcessorTests extends ESTestCase {
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L);
         TestProcessor firstFailingProcessor = new TestProcessor("id1", "first", null, new RuntimeException("first failure"));
-        TestProcessor onFailure1 = new TestProcessor(
-            "id2",
-            "second",
-            null,
-            ingestDocument -> { ingestDocument.setFieldValue("foofield", "exists"); }
-        );
+        TestProcessor onFailure1 = new TestProcessor("id2", "second", null, ingestDocument -> {
+            ingestDocument.setFieldValue("foofield", "exists");
+        });
         TestProcessor onFailure2 = new TestProcessor("id3", "third", null, new RuntimeException("onfailure2"));
-        TestProcessor onFailure2onFailure = new TestProcessor(
-            "id4",
-            "4th",
-            null,
-            ingestDocument -> { ingestDocument.setFieldValue("foofield2", "ran"); }
-        );
+        TestProcessor onFailure2onFailure = new TestProcessor("id4", "4th", null, ingestDocument -> {
+            ingestDocument.setFieldValue("foofield2", "ran");
+        });
         CompoundProcessor of2 = new CompoundProcessor(false, List.of(onFailure2), List.of(onFailure2onFailure), relativeTimeProvider);
         CompoundProcessor compoundOnFailProcessor = new CompoundProcessor(false, List.of(onFailure1, of2), List.of(), relativeTimeProvider);
         CompoundProcessor compoundProcessor = new CompoundProcessor(
@@ -394,11 +388,6 @@ public class CompoundProcessorTests extends ESTestCase {
             }
 
             @Override
-            public boolean isAsync() {
-                return false;
-            }
-
-            @Override
             public String getType() {
                 return "pipeline";
             }
@@ -464,10 +453,6 @@ public class CompoundProcessorTests extends ESTestCase {
                 return "my_type2";
             }
 
-            @Override
-            public boolean isAsync() {
-                return false;
-            }
         }));
 
         Exception[] holder = new Exception[1];
@@ -487,11 +472,9 @@ public class CompoundProcessorTests extends ESTestCase {
             processors[i] = getTestProcessor(Integer.toString(i), randomBoolean(), randomBoolean());
         }
         CompoundProcessor compoundProcessor = new CompoundProcessor(true, List.of(processors), List.of(), relativeTimeProvider);
-        executeCompound(
-            compoundProcessor,
-            ingestDocument,
-            (result, e) -> { if (e != null) fail("CompoundProcessor threw exception despite ignoreFailure being true"); }
-        );
+        executeCompound(compoundProcessor, ingestDocument, (result, e) -> {
+            if (e != null) fail("CompoundProcessor threw exception despite ignoreFailure being true");
+        });
         for (int i = 0; i < processors.length; i++) {
             assertThat(
                 "Processor " + i + " ran " + processors[i].getInvokedCounter() + " times",
@@ -532,13 +515,89 @@ public class CompoundProcessorTests extends ESTestCase {
         }
     }
 
+    public void testSkipPipeline() {
+        TestProcessor processor1 = new TestProcessor(doc -> doc.reroute("foo"));
+        TestProcessor processor2 = new TestProcessor(new RuntimeException("this processor was expected to be skipped"));
+        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
+        when(relativeTimeProvider.getAsLong()).thenReturn(0L);
+        CompoundProcessor compoundProcessor = new CompoundProcessor(
+            false,
+            List.of(processor1, processor2),
+            List.of(),
+            relativeTimeProvider
+        );
+        executeCompound(compoundProcessor, ingestDocument, (result, e) -> {});
+        assertThat(processor1.getInvokedCounter(), equalTo(1));
+        assertStats(0, compoundProcessor, 0, 1, 0, 0);
+        assertThat(processor2.getInvokedCounter(), equalTo(0));
+        assertStats(1, compoundProcessor, 0, 0, 0, 0);
+    }
+
+    public void testSkipAsyncProcessor() {
+        TestProcessor processor1 = new TestProcessor(doc -> doc.reroute("foo")) {
+            @Override
+            public boolean isAsync() {
+                return true;
+            }
+        };
+        TestProcessor processor2 = new TestProcessor(new RuntimeException("this processor was expected to be skipped"));
+        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
+        when(relativeTimeProvider.getAsLong()).thenReturn(0L);
+        CompoundProcessor compoundProcessor = new CompoundProcessor(
+            false,
+            List.of(processor1, processor2),
+            List.of(),
+            relativeTimeProvider
+        );
+        executeCompound(compoundProcessor, ingestDocument, (result, e) -> {});
+        assertThat(processor1.getInvokedCounter(), equalTo(1));
+        assertStats(0, compoundProcessor, 0, 1, 0, 0);
+        assertThat(processor2.getInvokedCounter(), equalTo(0));
+        assertStats(1, compoundProcessor, 0, 0, 0, 0);
+    }
+
+    public void testSkipProcessorIgnoreFailure() {
+        TestProcessor processor1 = new TestProcessor(doc -> {
+            doc.reroute("foo");
+            throw new RuntimeException("simulate processor failure after calling skipCurrentPipeline()");
+        });
+        TestProcessor processor2 = new TestProcessor(doc -> {});
+        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
+        when(relativeTimeProvider.getAsLong()).thenReturn(0L);
+        CompoundProcessor compoundProcessor = new CompoundProcessor(true, List.of(processor1, processor2), List.of(), relativeTimeProvider);
+        executeCompound(compoundProcessor, ingestDocument, (result, e) -> {});
+        assertThat(processor1.getInvokedCounter(), equalTo(1));
+        assertStats(0, compoundProcessor, 0, 1, 1, 0);
+        assertThat(processor2.getInvokedCounter(), equalTo(0));
+        assertStats(1, compoundProcessor, 0, 0, 0, 0);
+    }
+
+    public void testDontSkipFailureProcessor() {
+        TestProcessor processor = new TestProcessor(doc -> {
+            doc.reroute("foo");
+            throw new RuntimeException("simulate processor failure after calling skipCurrentPipeline()");
+        });
+        TestProcessor failureProcessor1 = new TestProcessor(doc -> {});
+        TestProcessor failureProcessor2 = new TestProcessor(doc -> {});
+        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
+        when(relativeTimeProvider.getAsLong()).thenReturn(0L);
+        CompoundProcessor compoundProcessor = new CompoundProcessor(
+            false,
+            List.of(processor),
+            List.of(failureProcessor1, failureProcessor2),
+            relativeTimeProvider
+        );
+        executeCompound(compoundProcessor, ingestDocument, (result, e) -> {});
+        assertThat(processor.getInvokedCounter(), equalTo(1));
+        assertStats(0, compoundProcessor, 0, 1, 1, 0);
+        assertThat(failureProcessor1.getInvokedCounter(), equalTo(1));
+        assertThat(failureProcessor2.getInvokedCounter(), equalTo(1));
+    }
+
     private TestProcessor getTestProcessor(String tag, boolean isAsync, boolean shouldThrowException) {
-        return new TestProcessor(
-            tag,
-            "test-processor",
-            null,
-            ingestDocument -> { if (shouldThrowException) throw new RuntimeException("Intentionally failing"); }
-        ) {
+        return new TestProcessor(tag, "test-processor", null, ingestDocument -> {
+            if (shouldThrowException) throw new RuntimeException("Intentionally failing");
+        }) {
             @Override
             public boolean isAsync() {
                 return isAsync;
@@ -566,9 +625,9 @@ public class CompoundProcessorTests extends ESTestCase {
 
     private void assertStats(int processor, CompoundProcessor compoundProcessor, long current, long count, long failed, long time) {
         IngestStats.Stats stats = compoundProcessor.getProcessorsWithMetrics().get(processor).v2().createStats();
-        assertThat(stats.getIngestCount(), equalTo(count));
-        assertThat(stats.getIngestCurrent(), equalTo(current));
-        assertThat(stats.getIngestFailedCount(), equalTo(failed));
-        assertThat(stats.getIngestTimeInMillis(), equalTo(time));
+        assertThat(stats.ingestCount(), equalTo(count));
+        assertThat(stats.ingestCurrent(), equalTo(current));
+        assertThat(stats.ingestFailedCount(), equalTo(failed));
+        assertThat(stats.ingestTimeInMillis(), equalTo(time));
     }
 }

@@ -133,7 +133,7 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
                     return false;
                 }
                 return isModuleDependency
-                    || (it.getId()instanceof ProjectComponentIdentifier projectId && hasModuleInfoDotJava(project, projectId));
+                    || (it.getId() instanceof ProjectComponentIdentifier projectId && hasModuleInfoDotJava(project, projectId));
             })
             .flatMap(it -> Stream.concat(walkResolvedComponent(project, it, true, visited), Stream.of(it.getId())));
     }

@@ -44,7 +44,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
     private ShardStateAction.ShardStartedClusterStateTaskExecutor executor;
 
     @SuppressWarnings("unused")
-    private static void neverReroutes(String reason, Priority priority, ActionListener<ClusterState> listener) {
+    private static void neverReroutes(String reason, Priority priority, ActionListener<Void> listener) {
         fail("unexpectedly ran a deferred reroute");
     }
 

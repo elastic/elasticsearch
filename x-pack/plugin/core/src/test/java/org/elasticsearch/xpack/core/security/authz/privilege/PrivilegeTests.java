@@ -15,8 +15,10 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
@@ -51,6 +53,8 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.settings.GetSecuritySettingsAction;
+import org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
@@ -96,7 +100,7 @@ public class PrivilegeTests extends ESTestCase {
         }
     }
 
-    public void testCluster() throws Exception {
+    public void testCluster() {
         ClusterPrivilege allClusterPrivilege = ClusterPrivilegeResolver.resolve("all");
         assertThat(allClusterPrivilege, is(ClusterPrivilegeResolver.ALL));
         verifyClusterActionAllowed(allClusterPrivilege, "cluster:admin/xpack/security/*");
@@ -123,6 +127,40 @@ public class PrivilegeTests extends ESTestCase {
         builder = noneClusterPrivilege.buildPermission(builder);
         ClusterPermission combinedPermission = builder.build();
         assertTrue(combinedPermission.implies(monitorClusterPermission));
+
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            ClusterPrivilege crossClusterSearchClusterPrivilege = ClusterPrivilegeResolver.resolve("cross_cluster_search");
+            assertThat(crossClusterSearchClusterPrivilege, is(ClusterPrivilegeResolver.CROSS_CLUSTER_SEARCH));
+            verifyClusterActionAllowed(
+                crossClusterSearchClusterPrivilege,
+                "cluster:internal/remote_cluster/handshake",
+                "cluster:internal/remote_cluster/nodes"
+            );
+            verifyClusterActionDenied(crossClusterSearchClusterPrivilege, "internal:transport/handshake", "cluster:admin/xpack/security/*");
+            ClusterPermission crossClusterSearchClusterPermission = crossClusterSearchClusterPrivilege.buildPermission(
+                ClusterPermission.builder()
+            ).build();
+            assertTrue(allClusterPermission.implies(crossClusterSearchClusterPermission));
+
+            ClusterPrivilege crossClusterReplicationClusterPrivilege = ClusterPrivilegeResolver.resolve("cross_cluster_replication");
+            assertThat(crossClusterReplicationClusterPrivilege, is(ClusterPrivilegeResolver.CROSS_CLUSTER_REPLICATION));
+            verifyClusterActionAllowed(
+                crossClusterReplicationClusterPrivilege,
+                "cluster:internal/remote_cluster/handshake",
+                "cluster:internal/remote_cluster/nodes",
+                "cluster:monitor/state"
+
+            );
+            verifyClusterActionDenied(
+                crossClusterReplicationClusterPrivilege,
+                "internal:transport/handshake",
+                "cluster:admin/xpack/security/*"
+            );
+            ClusterPermission crossClusterReplicationClusterPermission = crossClusterReplicationClusterPrivilege.buildPermission(
+                ClusterPermission.builder()
+            ).build();
+            assertTrue(allClusterPermission.implies(crossClusterReplicationClusterPermission));
+        }
     }
 
     public void testClusterTemplateActions() throws Exception {
@@ -248,7 +286,8 @@ public class PrivilegeTests extends ESTestCase {
             GetServiceAccountCredentialsAction.NAME,
             GetUsersAction.NAME,
             HasPrivilegesAction.NAME,
-            GetUserPrivilegesAction.NAME
+            GetUserPrivilegesAction.NAME,
+            GetSecuritySettingsAction.NAME
         );
         verifyClusterActionAllowed(
             ClusterPrivilegeResolver.READ_SECURITY,
@@ -283,7 +322,8 @@ public class PrivilegeTests extends ESTestCase {
             DelegatePkiAuthenticationAction.NAME,
             ActivateProfileAction.NAME,
             SetProfileEnabledAction.NAME,
-            UpdateProfileDataAction.NAME
+            UpdateProfileDataAction.NAME,
+            UpdateSecuritySettingsAction.NAME
         );
     }
 
@@ -427,6 +467,35 @@ public class PrivilegeTests extends ESTestCase {
                 "cluster:admin/whatever"
             );
 
+        }
+    }
+
+    public void testDataStreamLifecyclePrivileges() {
+        assumeTrue("feature flag required", DataStreamLifecycle.isFeatureEnabled());
+        {
+            Predicate<String> predicate = IndexPrivilege.MANAGE_DATA_STREAM_LIFECYCLE.predicate();
+            // check indices actions
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/explain"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/get"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/delete"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/put"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/brand_new_api"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/brand_new_api"), is(true));
+            // check non data stream lifecycle action
+            assertThat(predicate.test("indices:admin/whatever"), is(false));
+        }
+
+        {
+            Predicate<String> predicate = IndexPrivilege.VIEW_METADATA.predicate();
+            // check indices actions
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/explain"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/get"), is(true));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/delete"), is(false));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/put"), is(false));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/brand_new_api"), is(false));
+            assertThat(predicate.test("indices:admin/data_stream/lifecycle/brand_new_api"), is(false));
+            // check non data stream lifecycle action
+            assertThat(predicate.test("indices:admin/whatever"), is(false));
         }
     }
 

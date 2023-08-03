@@ -236,7 +236,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             boolean ignoreZValue,
             boolean ignoreMalformed
         ) {
-            super(field, objectParser, nullValue, ignoreZValue, ignoreMalformed);
+            super(field, objectParser, nullValue, ignoreZValue, ignoreMalformed, true);
         }
 
         @Override

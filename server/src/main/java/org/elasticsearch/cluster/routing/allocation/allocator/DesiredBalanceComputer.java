@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfoSimulator;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -39,7 +38,6 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
 
-import static java.util.stream.Collectors.toSet;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
 /**
@@ -81,12 +79,12 @@ public class DesiredBalanceComputer {
 
         final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
         final var routingNodes = routingAllocation.routingNodes();
+        final var knownNodeIds = routingNodes.getAllNodeIds();
         final var changes = routingAllocation.changes();
         final var ignoredShards = getIgnoredShardsWithDiscardedAllocationStatus(desiredBalanceInput.ignoredShards());
-        final var knownNodeIds = routingAllocation.nodes().stream().map(DiscoveryNode::getId).collect(toSet());
         final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation.clusterInfo());
 
-        if (routingNodes.isEmpty()) {
+        if (routingNodes.size() == 0) {
             return new DesiredBalance(desiredBalanceInput.index(), Map.of());
         }
 
@@ -336,8 +334,8 @@ public class DesiredBalanceComputer {
             assignments.put(shardAndAssignments.getKey(), ShardAssignment.ofAssignedShards(shardAndAssignments.getValue()));
         }
 
-        for (var ignored : routingNodes.unassigned().ignored()) {
-            var info = ignored.unassignedInfo();
+        for (var shard : routingNodes.unassigned().ignored()) {
+            var info = shard.unassignedInfo();
             assert info != null
                 && (info.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO
                     || info.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT
@@ -351,19 +349,13 @@ public class DesiredBalanceComputer {
                 hasChanges = true;
             }
 
-            var unassigned = ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO;
+            var ignored = shard.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO ? 0 : 1;
             assignments.compute(
-                ignored.shardId(),
+                shard.shardId(),
                 (key, oldValue) -> oldValue == null
-                    ? new ShardAssignment(Set.of(), 1, 1, unassigned ? 0 : 1)
-                    : new ShardAssignment(
-                        oldValue.nodeIds(),
-                        oldValue.total() + 1,
-                        oldValue.unassigned() + 1,
-                        oldValue.ignored() + (unassigned ? 0 : 1)
-                    )
+                    ? new ShardAssignment(Set.of(), 1, 1, ignored)
+                    : new ShardAssignment(oldValue.nodeIds(), oldValue.total() + 1, oldValue.unassigned() + 1, oldValue.ignored() + ignored)
             );
-
         }
 
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();

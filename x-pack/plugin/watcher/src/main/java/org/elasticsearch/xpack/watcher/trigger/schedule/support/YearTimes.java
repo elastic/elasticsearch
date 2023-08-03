@@ -135,7 +135,7 @@ public class YearTimes implements Times {
         if (token != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("could not parse year times. expected an object, but found [{}]", token);
         }
-        Set<Month> monthsSet = new HashSet<>();
+        EnumSet<Month> monthsSet = EnumSet.noneOf(Month.class);
         Set<Integer> daysSet = new HashSet<>();
         Set<DayTimes> timesSet = new HashSet<>();
         String currentFieldName = null;
@@ -190,10 +190,8 @@ public class YearTimes implements Times {
                 }
             }
         }
-        EnumSet<Month> months = monthsSet.isEmpty() ? DEFAULT_MONTHS : EnumSet.copyOf(monthsSet);
-        int[] days = daysSet.isEmpty() ? DEFAULT_DAYS : CollectionUtils.toArray(daysSet);
-        DayTimes[] times = timesSet.isEmpty() ? new DayTimes[] { new DayTimes(0, 0) } : timesSet.toArray(new DayTimes[timesSet.size()]);
-        return new YearTimes(months, days, times);
+
+        return new YearTimes(monthsSet, CollectionUtils.toArray(daysSet), timesSet.toArray(DayTimes[]::new));
     }
 
     static Month parseMonthValue(XContentParser parser, XContentParser.Token token) throws IOException {

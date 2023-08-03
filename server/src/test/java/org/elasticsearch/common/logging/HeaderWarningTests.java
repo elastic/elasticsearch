@@ -296,4 +296,84 @@ public class HeaderWarningTests extends ESTestCase {
         assertThat(responses.get(0), containsString(Integer.toString(299)));
     }
 
+    // Reproduces https://github.com/elastic/elasticsearch/issues/95972
+    public void testAddComplexWarning() {
+        final int maxWarningHeaderCount = 2;
+        Settings settings = Settings.builder().put("http.max_warning_header_count", maxWarningHeaderCount).build();
+        ThreadContext threadContext = new ThreadContext(settings);
+        final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
+        HeaderWarning.addWarning(
+            threadContexts,
+            "legacy template [global] has index patterns [*] matching patterns from existing composable templates "
+                + "[.deprecation-indexing-template,.fleet-file-data,.fleet-files,.ml-anomalies-,.ml-notifications-000002,.ml-state,"
+                + ".ml-stats,.monitoring-beats-mb,.monitoring-ent-search-mb,.monitoring-es-mb,.monitoring-kibana-mb,"
+                + ".monitoring-logstash-mb,.profiling-ilm-lock,.slm-history,.watch-history-16,behavioral_analytics-events-default,"
+                + "ilm-history,logs,metrics,profiling-events,profiling-executables,profiling-metrics,profiling-returnpads-private,"
+                + "profiling-sq-executables,profiling-sq-leafframes,profiling-stackframes,profiling-stacktraces,"
+                + "profiling-symbols,synthetics] with patterns (.deprecation-indexing-template => [.logs-deprecation.*],"
+                + ".fleet-file-data => [.fleet-file-data-*-*],.fleet-files => [.fleet-files-*-*],.ml-anomalies- => [.ml-anomalies-*],"
+                + ".ml-notifications-000002 => [.ml-notifications-000002],.ml-state => [.ml-state*],.ml-stats => [.ml-stats-*],"
+                + ".monitoring-beats-mb => [.monitoring-beats-8-*],.monitoring-ent-search-mb => [.monitoring-ent-search-8-*],"
+                + ".monitoring-es-mb => [.monitoring-es-8-*],.monitoring-kibana-mb => [.monitoring-kibana-8-*],"
+                + ".monitoring-logstash-mb => [.monitoring-logstash-8-*],.profiling-ilm-lock => [.profiling-ilm-lock*],"
+                + ".slm-history => [.slm-history-5*],.watch-history-16 => [.watcher-history-16*],"
+                + "behavioral_analytics-events-default => [behavioral_analytics-events-*],ilm-history => [ilm-history-5*],"
+                + "logs => [logs-*-*],metrics => [metrics-*-*],profiling-events => [profiling-events*],profiling-executables => "
+                + "[profiling-executables*],profiling-metrics => [profiling-metrics*],profiling-returnpads-private => "
+                + "[.profiling-returnpads-private*],profiling-sq-executables => [.profiling-sq-executables*],"
+                + "profiling-sq-leafframes => [.profiling-sq-leafframes*],profiling-stackframes => [profiling-stackframes*],"
+                + "profiling-stacktraces => [profiling-stacktraces*],profiling-symbols => [.profiling-symbols*],synthetics => "
+                + "[synthetics-*-*]); this template [global] may be ignored in favor of a composable template at index creation time"
+        );
+        final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+
+        assertThat(responseHeaders.size(), equalTo(1));
+        final List<String> responses = responseHeaders.get("Warning");
+        assertThat(responses, hasSize(1));
+        // TODO 95972: As this uses the same regex as the assertion in HeaderWarning#addWarning() this also causes a StackOverflowError
+        // assertThat(responses.get(0), warningValueMatcher);
+        assertThat(responses.get(0), containsString("\"legacy template [global] has index patterns"));
+        assertThat(responses.get(0), containsString(Integer.toString(299)));
+    }
+
+    public void testHeaderWarningValidation() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
+
+        HeaderWarning.addWarning(threadContexts, allAllowedChars());
+
+        // LoggerMessageFormat.format makes sure all not allowed chars are escaped
+        HeaderWarning.addWarning(threadContexts, "\"");
+        HeaderWarning.addWarning(threadContexts, "\\");
+        HeaderWarning.addWarning(threadContexts, allNotAllowedChars());
+    }
+
+    private String allNotAllowedChars() {
+        StringBuilder chars = new StringBuilder();
+        for (char c = 0; c < 256; c++) {
+            if (c < '\t' || ('\t' < c && c < 0x20) || c == 0x7f) {
+                chars.append(c);
+            }
+        }
+        return chars.toString();
+    }
+
+    private static String allAllowedChars() {
+        StringBuilder allPossibleChars = new StringBuilder();
+        allPossibleChars.append('\t');
+        allPossibleChars.append(' ');
+        allPossibleChars.append('!');
+        for (int i = 0x23; i <= 0x5b; i++) {
+            allPossibleChars.append((char) i);
+        }
+        for (int i = 0x5d; i <= 0x7e; i++) {
+            allPossibleChars.append((char) i);
+        }
+        for (int i = 0x80; i <= 0xff; i++) {
+            allPossibleChars.append((char) i);
+        }
+        allPossibleChars.append("\\");
+        allPossibleChars.append("\\\"");
+        return allPossibleChars.toString();
+    }
 }

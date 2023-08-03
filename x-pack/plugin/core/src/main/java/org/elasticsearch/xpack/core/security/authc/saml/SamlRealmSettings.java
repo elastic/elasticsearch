@@ -17,10 +17,8 @@ import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
 
 public class SamlRealmSettings {
 
@@ -126,13 +124,13 @@ public class SamlRealmSettings {
     public static final Setting.AffixSetting<List<String>> SIGNING_MESSAGE_TYPES = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "signing.saml_messages",
-        key -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Setting.Property.NodeScope)
+        key -> Setting.stringListSetting(key, List.of("*"), Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<List<String>> REQUESTED_AUTHN_CONTEXT_CLASS_REF = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "req_authn_context_class_ref",
-        key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope)
+        key -> Setting.stringListSetting(key, Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<TimeValue> CLOCK_SKEW = Setting.affixKeySetting(

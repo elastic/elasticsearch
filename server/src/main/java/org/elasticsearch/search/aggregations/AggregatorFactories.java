@@ -333,6 +333,18 @@ public class AggregatorFactories {
             return false;
         }
 
+        /**
+         * Return false if this aggregation or any of the child aggregations does not support concurrent search
+         */
+        public boolean supportsConcurrentExecution() {
+            for (AggregationBuilder builder : aggregationBuilders) {
+                if (builder.supportsConcurrentExecution() == false) {
+                    return false;
+                }
+            }
+            return isInSortOrderExecutionRequired() == false;
+        }
+
         public Builder addAggregator(AggregationBuilder factory) {
             if (names.add(factory.name) == false) {
                 throw new IllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");
@@ -389,7 +401,7 @@ public class AggregatorFactories {
 
         public AggregatorFactories build(AggregationContext context, AggregatorFactory parent) throws IOException {
             if (aggregationBuilders.isEmpty() && pipelineAggregatorBuilders.isEmpty()) {
-                return EMPTY;
+                return AggregatorFactories.EMPTY;
             }
             AggregatorFactory[] aggFactories = new AggregatorFactory[aggregationBuilders.size()];
             int i = 0;

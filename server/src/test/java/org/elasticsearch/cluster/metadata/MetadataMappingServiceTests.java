@@ -113,12 +113,9 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
     }
 
     private static List<MetadataMappingService.PutMappingClusterStateUpdateTask> singleTask(PutMappingClusterStateUpdateRequest request) {
-        return Collections.singletonList(
-            new MetadataMappingService.PutMappingClusterStateUpdateTask(
-                request,
-                ActionListener.running(() -> { throw new AssertionError("task should not complete publication"); })
-            )
-        );
+        return Collections.singletonList(new MetadataMappingService.PutMappingClusterStateUpdateTask(request, ActionListener.running(() -> {
+            throw new AssertionError("task should not complete publication");
+        })));
     }
 
 }

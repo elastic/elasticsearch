@@ -295,8 +295,8 @@ as well as the various CPU and memory time series metrics.
 // TEST[skip:todo]
 // TEST[continued]
 
-Next, run a terms aggregation on the set of time series dimensions (`_tsid`) to
-create a date histogram on a fixed interval of one day.
+Next, you can run a terms aggregation on the set of time series dimensions (`_tsid`) to
+view a date histogram on a fixed interval of one day.
 
 [source,console]
 ----
@@ -339,14 +339,6 @@ GET /sample-01*/_search
 ----
 // TEST[continued]
 
-Re-run your search query to view the aggregated time series data.
-
-[source,console]
-----
-GET /sample-01*/_search
-----
-// TEST[continued]
-
 [discrete]
 [[downsampling-manual-run]]
 ==== Run downsampling for the index
@@ -384,7 +376,7 @@ DELETE /sample-01
 ==== View the results
 
 
-Now, re-run your search query:
+Re-run your search query (note that when querying downsampled indices there are <<querying-downsampled-indices-notes,a few nuances to be aware of>>):
 
 [source,console]
 ----
@@ -457,6 +449,51 @@ been calculated: `min`, `max`, `sum`, and `value_count`.
 ...
 ----
 // TEST[skip:todo]
+
+You can now re-run the earlier aggregation. Even though the aggregation runs on
+the downsampled data stream that only contains 288 documents, it returns the
+same results as the earlier aggregation on the original data stream.
+
+[source,console]
+----
+GET /sample-01*/_search
+{
+    "size": 0,
+    "aggs": {
+        "tsid": {
+            "terms": {
+                "field": "_tsid"
+            },
+            "aggs": {
+                "over_time": {
+                    "date_histogram": {
+                        "field": "@timestamp",
+                        "fixed_interval": "1d"
+                    },
+                    "aggs": {
+                        "min": {
+                            "min": {
+                                "field": "kubernetes.container.memory.usage.bytes"
+                            }
+                        },
+                        "max": {
+                            "max": {
+                                "field": "kubernetes.container.memory.usage.bytes"
+                            }
+                        },
+                        "avg": {
+                            "avg": {
+                                "field": "kubernetes.container.memory.usage.bytes"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+----
+// TEST[continued]
 
 This example demonstrates how downsampling can dramatically reduce the number of
 records stored for time series data, within whatever time boundaries you choose.

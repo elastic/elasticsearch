@@ -1,5 +1,0 @@
-pr: 92680
-summary: Fix `InputStream#readAllBytes` on `InputStreamIndexInput`
-area: Infra/Core
-type: bug
-issues: []

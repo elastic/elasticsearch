@@ -26,9 +26,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.WarningsHandler.PERMISSIVE;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.oneOf;
 
 public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
@@ -73,6 +73,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             {
               "persistent": {
                 "logger.org.elasticsearch.xpack.ml.inference": "TRACE",
+                "logger.org.elasticsearch.xpack.ml.inference.assignments": "DEBUG",
                 "logger.org.elasticsearch.xpack.ml.process": "DEBUG",
                 "logger.org.elasticsearch.xpack.ml.action": "TRACE"
               }
@@ -154,8 +155,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("wait_for_status", "yellow");
                     request.addParameter("timeout", "70s");
                 }));
-                assertThatTrainedModelAssignmentMetadataIsEmpty("upgrade-deployment-test-stop-mixed-cluster");
-
+                assertThatTrainedModelAssignmentMetadataIsEmpty(modelId);
             }
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
@@ -261,11 +261,18 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             "_cluster/state?filter_path=metadata.trained_model_assignment." + modelId
         );
         Response getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
-        assertThat(EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()), containsString("{}"));
+        String responseBody = EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity());
+        assertThat(responseBody, oneOf("{}", "{\"metadata\":{\"trained_model_assignment\":{}}}"));
 
+        // trained_model_allocation was renamed to trained_model_assignment
+        // in v8.3. The renaming happens automatically and the old
+        // metadata should be removed once all nodes are upgraded.
+        // However, sometimes there aren't enough cluster state change
+        // events in the upgraded cluster test for this to happen
         getTrainedModelAssignmentMetadataRequest = new Request("GET", "_cluster/state?filter_path=metadata.trained_model_allocation");
         getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
-        assertThat(EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()), equalTo("{}"));
+        responseBody = EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity());
+        assertThat(responseBody, oneOf("{}", "{\"metadata\":{\"trained_model_allocation\":{}}}"));
     }
 
     private Response getTrainedModelStats(String modelId) throws IOException {

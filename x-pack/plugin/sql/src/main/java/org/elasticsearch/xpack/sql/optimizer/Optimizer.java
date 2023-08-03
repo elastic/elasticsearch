@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
@@ -24,13 +23,12 @@ import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.FoldNull;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
@@ -325,9 +323,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Project project) {
             // check whether OrderBy relies on nested fields which are not used higher up
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (project.child() instanceof OrderBy ob) {
-                // end::noformat
                 // resolve function references (that maybe hiding the target)
                 AttributeMap.Builder<Function> collectRefs = AttributeMap.builder();
 
@@ -647,38 +643,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 || p instanceof Aggregate
                 || p instanceof Limit
                 || p instanceof OrderBy;
-        }
-    }
-
-    static class FoldNull extends OptimizerExpressionRule<Expression> {
-
-        FoldNull() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        protected Expression rule(Expression e) {
-            if (e instanceof IsNotNull) {
-                if (((IsNotNull) e).field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.TRUE, DataTypes.BOOLEAN);
-                }
-
-            } else if (e instanceof IsNull) {
-                if (((IsNull) e).field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.FALSE, DataTypes.BOOLEAN);
-                }
-
-            } else if (e instanceof In in) {
-                if (Expressions.isNull(in.value())) {
-                    return Literal.of(in, null);
-                }
-
-            } else if (e instanceof Alias == false
-                && e.nullable() == Nullability.TRUE
-                && Expressions.anyMatch(e.children(), Expressions::isNull)) {
-                    return Literal.of(e, null);
-                }
-            return e;
         }
     }
 
@@ -1036,23 +1000,19 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             // count the extended stats
             p.forEachExpressionUp(InnerAggregate.class, ia -> {
-                // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
                 if (ia.outer() instanceof ExtendedStats extStats) {
                     seen.putIfAbsent(extStats.field(), extStats);
                 }
-                // end::noformat
             });
 
             // then if there's a match, replace the stat inside the InnerAgg
             return p.transformExpressionsUp(InnerAggregate.class, ia -> {
-                // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
                 if (ia.outer() instanceof Stats stats) {
                     ExtendedStats ext = seen.get(stats.field());
                     if (ext != null && stats.field().equals(ext.field())) {
                         return new InnerAggregate(ia.inner(), ext);
                     }
                 }
-                // end::noformat
                 return ia;
             });
         }
@@ -1182,7 +1142,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(UnaryPlan plan) {
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if ((plan instanceof Project || plan instanceof Aggregate) && plan.child() instanceof LocalRelation relation) {
                 List<Object> foldedValues = null;
 
@@ -1193,7 +1152,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         foldedValues = extractLiterals(((Project) plan).projections());
                     }
                 } else if (relation.executable() instanceof EmptyExecutable) {
-                    // end::noformat
                     if (plan instanceof Aggregate agg) {
                         if (agg.groupings().isEmpty()) {
                             // Implicit groupings on empty relations must produce a singleton result set with the aggregation results

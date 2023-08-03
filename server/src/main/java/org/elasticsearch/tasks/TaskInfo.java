@@ -72,7 +72,7 @@ public record TaskInfo(
             in.readBoolean(),
             in.readBoolean(),
             TaskId.readFromStream(in),
-            in.readMap(StreamInput::readString, StreamInput::readString)
+            in.readMap(StreamInput::readString)
         );
     }
 

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -55,7 +55,9 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
         configProvider = new DataFrameAnalyticsConfigProvider(
             client(),
             xContentRegistry(),
-            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class)),
+            // We can't change the signature of createComponents to e.g. pass differing values of includeNodeInfo to pass to the
+            // DataFrameAnalyticsAuditor constructor. Instead we generate a random boolean value for that purpose.
+            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class), randomBoolean()),
             getInstanceFromNode(ClusterService.class)
         );
         dummyAuthenticationHeader = Authentication.newRealmAuthentication(
@@ -376,7 +378,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
         builder.addTask(
             MlTasks.dataFrameAnalyticsTaskId(analyticsId),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, Version.CURRENT, false),
+            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, MlConfigVersion.CURRENT, false),
             new PersistentTasksCustomMetadata.Assignment("node", "test assignment")
         );
         builder.updateTaskState(

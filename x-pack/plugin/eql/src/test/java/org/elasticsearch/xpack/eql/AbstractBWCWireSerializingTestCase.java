@@ -6,28 +6,25 @@
  */
 package org.elasticsearch.xpack.eql;
 
-import org.elasticsearch.KnownTransportVersions;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.eql.EqlTestUtils.EQL_GA_VERSION;
+import static org.elasticsearch.KnownTransportVersions.ALL_VERSIONS;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractBWCWireSerializingTestCase<T extends Writeable> extends AbstractWireSerializingTestCase<T> {
 
-    private static List<TransportVersion> getAllBWCVersions(TransportVersion version) {
-        return KnownTransportVersions.ALL_VERSIONS.stream()
-            .filter(v -> v.onOrAfter(EQL_GA_VERSION) && v.before(version) && TransportVersionUtils.isCompatible(version, v))
-            .collect(Collectors.toList());
+    private static List<TransportVersion> getAllBWCVersions() {
+        int minCompatVersion = Collections.binarySearch(ALL_VERSIONS, TransportVersion.MINIMUM_COMPATIBLE);
+        return ALL_VERSIONS.subList(minCompatVersion, ALL_VERSIONS.size());
     }
 
-    private static final List<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions(TransportVersion.CURRENT);
+    private static final List<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions();
 
     protected abstract T mutateInstanceForVersion(T instance, TransportVersion version);
 

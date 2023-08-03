@@ -1,0 +1,6 @@
+pr: 97062
+summary: Fix Painless method lookup over unknown super interfaces
+area: Infra/Scripting
+type: bug
+issues:
+ - 97022

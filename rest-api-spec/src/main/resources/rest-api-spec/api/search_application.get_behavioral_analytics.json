@@ -1,0 +1,37 @@
+{
+  "search_application.get_behavioral_analytics": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/list-analytics-collection.html",
+      "description": "Returns the existing behavioral analytics collections."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_application/analytics",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/_application/analytics/{name}",
+          "methods": [
+            "GET"
+          ],
+          "parts":{
+            "name":{
+              "type":"list",
+              "description":"A comma-separated list of analytics collections to limit the returned information"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

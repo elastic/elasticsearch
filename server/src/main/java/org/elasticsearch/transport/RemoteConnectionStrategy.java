@@ -24,6 +24,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
@@ -44,7 +45,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION;
 
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
@@ -141,8 +141,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         connectionManager.addListener(this);
     }
 
-    static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings) {
-        final String transportProfile = REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(clusterAlias).exists(settings)
+    static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings, boolean credentialsProtected) {
+        final String transportProfile = credentialsProtected
             ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
             : TransportSettings.DEFAULT_PROFILE;
 
@@ -382,6 +382,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected abstract void connectImpl(ActionListener<Void> listener);
 
     protected abstract RemoteConnectionInfo.ModeInfo getModeInfo();
+
+    protected boolean isRetryableException(Exception e) {
+        // ISE if we fail the handshake with a version incompatible node
+        return e instanceof ConnectTransportException || e instanceof IOException || e instanceof IllegalStateException;
+    }
 
     private List<ActionListener<Void>> getAndClearListeners() {
         final List<ActionListener<Void>> result;

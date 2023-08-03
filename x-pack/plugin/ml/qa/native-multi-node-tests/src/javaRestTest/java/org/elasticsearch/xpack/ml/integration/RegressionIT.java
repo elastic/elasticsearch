@@ -541,6 +541,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93228")
     public void testAliasFields() throws Exception {
         // The goal of this test is to assert alias fields are included in the analytics job.
         // We have a simple dataset with two integer fields: field_1 and field_2.

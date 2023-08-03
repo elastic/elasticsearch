@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.optimizer;
 
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -458,7 +459,7 @@ public final class OptimizerRules {
                                 }
                             } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) { // a = 2 AND a >/>= ?
                                 if ((compare == 0 && bc instanceof GreaterThan) || // a = 2 AND a > 2
-                                compare < 0) { // a = 2 AND a >/>= 3
+                                    compare < 0) { // a = 2 AND a >/>= 3
                                     return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                                 }
                             }
@@ -1039,15 +1040,15 @@ public final class OptimizerRules {
                                 // AND
                                 if ((conjunctive &&
                                 // a < 2 AND a < 3 -> a < 2
-                                (compare < 0 ||
+                                    (compare < 0 ||
                                 // a < 2 AND a <= 2 -> a < 2
-                                (compare == 0 && main instanceof LessThan && other instanceof LessThanOrEqual))) ||
+                                        (compare == 0 && main instanceof LessThan && other instanceof LessThanOrEqual))) ||
                                 // OR
-                                (conjunctive == false &&
+                                    (conjunctive == false &&
                                 // a < 2 OR a < 3 -> a < 3
-                                (compare > 0 ||
+                                        (compare > 0 ||
                                 // a <= 2 OR a < 2 -> a <= 2
-                                (compare == 0 && main instanceof LessThanOrEqual && other instanceof LessThan)))) {
+                                            (compare == 0 && main instanceof LessThanOrEqual && other instanceof LessThan)))) {
                                     bcs.remove(i);
                                     bcs.add(i, main);
 
@@ -1241,15 +1242,13 @@ public final class OptimizerRules {
             if (found.isEmpty() == false) {
                 // combine equals alongside the existing ors
                 final ZoneId finalZoneId = zoneId;
-                found.forEach(
-                    (k, v) -> {
-                        ors.add(
-                            v.size() == 1
-                                ? new Equals(k.source(), k, v.iterator().next(), finalZoneId)
-                                : createIn(k, new ArrayList<>(v), finalZoneId)
-                        );
-                    }
-                );
+                found.forEach((k, v) -> {
+                    ors.add(
+                        v.size() == 1
+                            ? new Equals(k.source(), k, v.iterator().next(), finalZoneId)
+                            : createIn(k, new ArrayList<>(v), finalZoneId)
+                    );
+                });
 
                 Expression combineOr = combineOr(ors);
                 // check the result semantically since the result might different in order
@@ -1668,6 +1667,35 @@ public final class OptimizerRules {
         }
     }
 
+    public static class FoldNull extends OptimizerExpressionRule<Expression> {
+
+        public FoldNull() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof IsNotNull isnn) {
+                if (isnn.field().nullable() == Nullability.FALSE) {
+                    return new Literal(e.source(), Boolean.TRUE, DataTypes.BOOLEAN);
+                }
+            } else if (e instanceof IsNull isn) {
+                if (isn.field().nullable() == Nullability.FALSE) {
+                    return new Literal(e.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                }
+            } else if (e instanceof In in) {
+                if (Expressions.isNull(in.value())) {
+                    return Literal.of(in, null);
+                }
+            } else if (e instanceof Alias == false
+                && e.nullable() == Nullability.TRUE
+                && Expressions.anyMatch(e.children(), Expressions::isNull)) {
+                    return Literal.of(e, null);
+                }
+            return e;
+        }
+    }
+
     // a IS NULL AND a IS NOT NULL -> FALSE
     // a IS NULL AND a > 10 -> a IS NULL and FALSE
     // can be extended to handle null conditions where available
@@ -1687,10 +1715,10 @@ public final class OptimizerRules {
 
             // first find isNull/isNotNull
             for (Expression ex : splits) {
-                if (ex instanceof IsNull) {
-                    nullExpressions.add(((IsNull) ex).field());
-                } else if (ex instanceof IsNotNull) {
-                    notNullExpressions.add(((IsNotNull) ex).field());
+                if (ex instanceof IsNull isn) {
+                    nullExpressions.add(isn.field());
+                } else if (ex instanceof IsNotNull isnn) {
+                    notNullExpressions.add(isnn.field());
                 }
                 // the rest
                 else {

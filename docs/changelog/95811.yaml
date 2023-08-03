@@ -1,0 +1,5 @@
+pr: 95811
+summary: Support null_value for rank_feature field type
+area: Search
+type: enhancement
+issues: []

@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.TimeValue;
@@ -29,7 +28,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public final class AnomalyDetectorsIndex {
 
     private static final String RESULTS_MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
-    private static final String RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/anomalydetection/";
+    private static final String RESOURCE_PATH = "/ml/anomalydetection/";
 
     private AnomalyDetectorsIndex() {}
 
@@ -103,7 +102,7 @@ public final class AnomalyDetectorsIndex {
         final ActionListener<Boolean> finalListener
     ) {
         final ActionListener<Boolean> stateIndexAndAliasCreated = ActionListener.wrap(success -> {
-            final ClusterHealthRequest request = Requests.clusterHealthRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
+            final ClusterHealthRequest request = new ClusterHealthRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
                 .waitForYellowStatus()
                 .masterNodeTimeout(masterNodeTimeout);
             executeAsyncWithOrigin(

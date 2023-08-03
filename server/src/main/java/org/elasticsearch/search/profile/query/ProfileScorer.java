@@ -33,13 +33,13 @@ final class ProfileScorer extends Scorer {
         super(w);
         this.scorer = scorer;
         this.profileWeight = w;
-        scoreTimer = profile.getTimer(QueryTimingType.SCORE);
-        nextDocTimer = profile.getTimer(QueryTimingType.NEXT_DOC);
-        advanceTimer = profile.getTimer(QueryTimingType.ADVANCE);
-        matchTimer = profile.getTimer(QueryTimingType.MATCH);
-        shallowAdvanceTimer = profile.getTimer(QueryTimingType.SHALLOW_ADVANCE);
-        computeMaxScoreTimer = profile.getTimer(QueryTimingType.COMPUTE_MAX_SCORE);
-        setMinCompetitiveScoreTimer = profile.getTimer(QueryTimingType.SET_MIN_COMPETITIVE_SCORE);
+        scoreTimer = profile.getNewTimer(QueryTimingType.SCORE);
+        nextDocTimer = profile.getNewTimer(QueryTimingType.NEXT_DOC);
+        advanceTimer = profile.getNewTimer(QueryTimingType.ADVANCE);
+        matchTimer = profile.getNewTimer(QueryTimingType.MATCH);
+        shallowAdvanceTimer = profile.getNewTimer(QueryTimingType.SHALLOW_ADVANCE);
+        computeMaxScoreTimer = profile.getNewTimer(QueryTimingType.COMPUTE_MAX_SCORE);
+        setMinCompetitiveScoreTimer = profile.getNewTimer(QueryTimingType.SET_MIN_COMPETITIVE_SCORE);
     }
 
     @Override

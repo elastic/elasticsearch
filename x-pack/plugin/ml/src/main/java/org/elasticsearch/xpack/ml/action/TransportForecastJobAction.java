@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -17,11 +16,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -86,7 +86,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         ForecastJobAction.Request request,
         JobTask task,
         ActionListener<ForecastJobAction.Response> listener
@@ -183,7 +183,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
     }
 
     static void validate(Job job, ForecastJobAction.Request request) {
-        if (job.getJobVersion() == null || job.getJobVersion().before(Version.fromString("6.1.0"))) {
+        if (job.getJobVersion() == null || job.getJobVersion().before(MlConfigVersion.fromString("6.1.0"))) {
             throw ExceptionsHelper.badRequestException("Cannot run forecast because jobs created prior to version 6.1 are not supported");
         }
 

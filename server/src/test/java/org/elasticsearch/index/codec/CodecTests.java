@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
@@ -27,6 +28,7 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -85,6 +87,7 @@ public class CodecTests extends ESTestCase {
             MapperPlugin.NOOP_FIELD_FILTER
         );
         MapperService service = new MapperService(
+            () -> TransportVersion.current(),
             settings,
             indexAnalyzers,
             parserConfig(),
@@ -92,7 +95,8 @@ public class CodecTests extends ESTestCase {
             mapperRegistry,
             () -> null,
             settings.getMode().idFieldMapperWithoutFieldData(),
-            ScriptCompiler.NONE
+            ScriptCompiler.NONE,
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
         );
         return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE);
     }

@@ -26,7 +26,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
-import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.notification.WebhookService;
 import org.elasticsearch.xpack.watcher.notification.email.Attachment;
 import org.elasticsearch.xpack.watcher.support.Variables;
 
@@ -120,20 +120,20 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     private final Logger logger;
     private final TimeValue interval;
     private final int retries;
-    private HttpClient httpClient;
+    private final WebhookService webhookService;
     private final TextTemplateEngine templateEngine;
     private boolean warningEnabled = REPORT_WARNING_ENABLED_SETTING.getDefault(Settings.EMPTY);
     private final Map<String, String> customWarnings = new ConcurrentHashMap<>(1);
 
     public ReportingAttachmentParser(
         Settings settings,
-        HttpClient httpClient,
+        WebhookService webhookService,
         TextTemplateEngine templateEngine,
         ClusterSettings clusterSettings
     ) {
         this.interval = INTERVAL_SETTING.get(settings);
         this.retries = RETRIES_SETTING.get(settings);
-        this.httpClient = httpClient;
+        this.webhookService = webhookService;
         this.templateEngine = templateEngine;
         this.logger = LogManager.getLogger(getClass());
         clusterSettings.addSettingsUpdateConsumer(REPORT_WARNING_ENABLED_SETTING, this::setWarningEnabled);
@@ -210,7 +210,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
             // IMPORTANT NOTE: This is only a temporary solution until we made the execution of watcher more async
             // This still blocks other executions on the thread and we have to get away from that
             sleep(sleepMillis, context, attachment);
-            HttpResponse response = httpClient.execute(pollingRequest);
+            HttpResponse response = webhookService.modifyAndExecuteHttpRequest(pollingRequest).v2();
 
             if (response.status() == 503) {
                 // requires us to interval another run, no action to take, except logging
@@ -322,7 +322,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
      * Trigger the initial report generation and catch possible exceptions
      */
     private HttpResponse requestReportGeneration(String watchId, String attachmentId, HttpRequest request) throws IOException {
-        HttpResponse response = httpClient.execute(request);
+        HttpResponse response = webhookService.modifyAndExecuteHttpRequest(request).v2();
         if (response.status() != 200) {
             throw new ElasticsearchException(
                 "Watch[{}] reporting[{}] Error response when trying to trigger reporting generation "

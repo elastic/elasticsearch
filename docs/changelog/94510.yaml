@@ -1,0 +1,5 @@
+pr: 94510
+summary: Reduce WaitForNoFollowersStep requests indices shard stats
+area: ILM+SLM
+type: enhancement
+issues: []

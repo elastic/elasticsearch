@@ -67,7 +67,7 @@ GET .ds-my-data-stream-2099.03.09-000003/_doc/2
 
 Use <<privileges-list-indices,index privileges>> to control access to an
 <<aliases,alias>>. Privileges on an index or data stream do not grant privileges
-on its aliases. For information about managing aliases, see <<alias>>.
+on its aliases. For information about managing aliases, see <<aliases>>.
 
 IMPORTANT: Don't use <<filter-alias,filtered aliases>> in place of
 <<document-level-security,document level security>>. {es} doesn't always apply

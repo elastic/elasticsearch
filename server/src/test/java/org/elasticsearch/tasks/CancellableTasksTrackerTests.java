@@ -35,6 +35,7 @@ public class CancellableTasksTrackerTests extends ESTestCase {
         // 0 == before put, 1 == during put, 2 == after put, before remove, 3 == during remove, 4 == after remove
         private final AtomicInteger state = new AtomicInteger();
         private final boolean concurrentRemove = randomBoolean();
+        private final long requestId = randomIntBetween(-1, 10);
 
         TestTask(Task task, String item, CancellableTasksTracker<String> tracker, Runnable awaitStart) {
             if (concurrentRemove) {
@@ -58,7 +59,7 @@ public class CancellableTasksTrackerTests extends ESTestCase {
                 awaitStart.run();
 
                 state.incrementAndGet();
-                tracker.put(task, item);
+                tracker.put(task, requestId, item);
                 state.incrementAndGet();
 
                 Thread.yield();
@@ -80,6 +81,8 @@ public class CancellableTasksTrackerTests extends ESTestCase {
                     final int stateBefore = state.get();
                     final String getResult = tracker.get(task.getId());
                     final Set<String> getByParentResult = tracker.getByParent(task.getParentTaskId()).collect(Collectors.toSet());
+                    final Set<String> getByChildrenResult = tracker.getChildrenByRequestId(task.getParentTaskId(), requestId)
+                        .collect(Collectors.toSet());
                     final Set<String> values = new HashSet<>(tracker.values());
                     final int stateAfter = state.get();
 
@@ -87,11 +90,13 @@ public class CancellableTasksTrackerTests extends ESTestCase {
 
                     if (getResult != null && task.getParentTaskId().isSet() && tracker.get(task.getId()) != null) {
                         assertThat(getByParentResult, hasItem(item));
+                        assertThat(getByChildrenResult, hasItem(item));
                     }
 
                     if (stateAfter == 0) {
                         assertNull(getResult);
                         assertThat(getByParentResult, not(hasItem(item)));
+                        assertThat(getByChildrenResult, not(hasItem(item)));
                         assertThat(values, not(hasItem(item)));
                     }
 
@@ -99,8 +104,10 @@ public class CancellableTasksTrackerTests extends ESTestCase {
                         assertSame(item, getResult);
                         if (task.getParentTaskId().isSet()) {
                             assertThat(getByParentResult, hasItem(item));
+                            assertThat(getByChildrenResult, hasItem(item));
                         } else {
                             assertThat(getByParentResult, empty());
+                            assertThat(getByChildrenResult, empty());
                         }
                         assertThat(values, hasItem(item));
                     }
@@ -109,6 +116,7 @@ public class CancellableTasksTrackerTests extends ESTestCase {
                         assertNull(getResult);
                         if (concurrentRemove == false) {
                             assertThat(getByParentResult, not(hasItem(item)));
+                            assertThat(getByChildrenResult, not(hasItem(item)));
                         } // else our remove might have completed but the concurrent one hasn't updated the parent ID map yet
                         assertThat(values, not(hasItem(item)));
                     }

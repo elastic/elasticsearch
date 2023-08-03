@@ -281,6 +281,13 @@ public class SearchModule {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> SEARCH_CONCURRENCY_ENABLED = Setting.boolSetting(
+        "search.concurrency_enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final Map<String, Highlighter> highlighters;
 
     private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();
@@ -1115,23 +1122,13 @@ public class SearchModule {
         );
         registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
 
-        registerQuery(
-            new QuerySpec<>(
-                KnnVectorQueryBuilder.NAME,
-                KnnVectorQueryBuilder::new,
-                parser -> {
-                    throw new IllegalArgumentException("[knn] queries cannot be provided directly, use the [knn] body parameter instead");
-                }
-            )
-        );
+        registerQuery(new QuerySpec<>(KnnVectorQueryBuilder.NAME, KnnVectorQueryBuilder::new, parser -> {
+            throw new IllegalArgumentException("[knn] queries cannot be provided directly, use the [knn] body parameter instead");
+        }));
 
-        registerQuery(
-            new QuerySpec<>(
-                KnnScoreDocQueryBuilder.NAME,
-                KnnScoreDocQueryBuilder::new,
-                parser -> { throw new IllegalArgumentException("[score_doc] queries cannot be provided directly"); }
-            )
-        );
+        registerQuery(new QuerySpec<>(KnnScoreDocQueryBuilder.NAME, KnnScoreDocQueryBuilder::new, parser -> {
+            throw new IllegalArgumentException("[score_doc] queries cannot be provided directly");
+        }));
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
 

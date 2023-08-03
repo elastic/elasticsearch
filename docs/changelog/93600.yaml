@@ -1,5 +1,0 @@
-pr: 93600
-summary: New `TransportBroadcastUnpromotableAction` action
-area: CRUD
-type: feature
-issues: []

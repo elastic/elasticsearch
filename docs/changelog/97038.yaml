@@ -1,0 +1,6 @@
+pr: 97038
+summary: Limit the details field length we store for each SLM invocation
+area: ILM+SLM
+type: bug
+issues:
+ - 96918

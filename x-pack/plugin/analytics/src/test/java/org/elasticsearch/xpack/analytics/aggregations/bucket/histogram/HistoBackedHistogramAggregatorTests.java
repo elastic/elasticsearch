@@ -213,10 +213,9 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
-                IllegalArgumentException e = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> { searchAndReduce(searcher, new AggTestConfig(aggBuilder, defaultFieldType(FIELD_NAME))); }
-                );
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+                    searchAndReduce(searcher, new AggTestConfig(aggBuilder, defaultFieldType(FIELD_NAME)));
+                });
 
                 assertEquals("Histogram aggregation on histogram fields does not support sub-aggregations", e.getMessage());
             }

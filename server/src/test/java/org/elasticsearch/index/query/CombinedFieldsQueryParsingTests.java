@@ -84,7 +84,7 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
 
     @Override
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
-        return new IndexAnalyzers(
+        return IndexAnalyzers.of(
             Map.of(
                 "default",
                 new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()),
@@ -92,9 +92,7 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
                 new NamedAnalyzer("mock_synonym", AnalyzerScope.INDEX, new MockSynonymAnalyzer()),
                 "stop",
                 new NamedAnalyzer("stop", AnalyzerScope.INDEX, new StopAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET))
-            ),
-            Map.of(),
-            Map.of()
+            )
         );
     }
 

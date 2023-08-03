@@ -1,0 +1,5 @@
+pr: 96516
+summary: "[Profiling] Tweak default ILM policy"
+area: Application
+type: enhancement
+issues: []

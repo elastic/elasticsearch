@@ -14,6 +14,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -73,21 +74,21 @@ public class DateScriptMapperTests extends MapperScriptTestCase<DateFieldScript.
     }
 
     @Override
-    protected void assertMultipleValues(IndexableField[] fields) {
-        assertEquals(2, fields.length);
-        assertEquals("LongField <field:1516729294000>", fields[0].toString());
-        assertEquals("LongField <field:1516729295000>", fields[1].toString());
+    protected void assertMultipleValues(List<IndexableField> fields) {
+        assertEquals(2, fields.size());
+        assertEquals("LongField <field:1516729294000>", fields.get(0).toString());
+        assertEquals("LongField <field:1516729295000>", fields.get(1).toString());
     }
 
     @Override
-    protected void assertDocValuesDisabled(IndexableField[] fields) {
-        assertEquals(1, fields.length);
-        assertEquals("LongPoint <field:1516729294000>", fields[0].toString());
+    protected void assertDocValuesDisabled(List<IndexableField> fields) {
+        assertEquals(1, fields.size());
+        assertEquals("LongPoint <field:1516729294000>", fields.get(0).toString());
     }
 
     @Override
-    protected void assertIndexDisabled(IndexableField[] fields) {
-        assertEquals(1, fields.length);
-        assertEquals("docValuesType=SORTED_NUMERIC<field:1516729294000>", fields[0].toString());
+    protected void assertIndexDisabled(List<IndexableField> fields) {
+        assertEquals(1, fields.size());
+        assertEquals("docValuesType=SORTED_NUMERIC<field:1516729294000>", fields.get(0).toString());
     }
 }

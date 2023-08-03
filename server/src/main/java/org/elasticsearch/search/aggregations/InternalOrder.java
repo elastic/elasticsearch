@@ -30,8 +30,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.ToLongFunction;
 
-import static java.util.stream.Collectors.toList;
-
 /**
  * Implementations for {@link Bucket} ordering strategies.
  */
@@ -187,7 +185,7 @@ public abstract class InternalOrder extends BucketOrder {
         public <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator) {
             List<Comparator<T>> comparators = orderElements.stream()
                 .map(oe -> oe.partiallyBuiltBucketComparator(ordinalReader, aggregator))
-                .collect(toList());
+                .toList();
             return (lhs, rhs) -> {
                 for (Comparator<T> c : comparators) {
                     int result = c.compare(lhs, rhs);
@@ -201,7 +199,7 @@ public abstract class InternalOrder extends BucketOrder {
 
         @Override
         public Comparator<Bucket> comparator() {
-            List<Comparator<Bucket>> comparators = orderElements.stream().map(BucketOrder::comparator).collect(toList());
+            List<Comparator<Bucket>> comparators = orderElements.stream().map(BucketOrder::comparator).toList();
             return (lhs, rhs) -> {
                 for (Comparator<Bucket> c : comparators) {
                     int result = c.compare(lhs, rhs);
@@ -217,7 +215,7 @@ public abstract class InternalOrder extends BucketOrder {
         Comparator<DelayedBucket<? extends Bucket>> delayedBucketComparator() {
             List<Comparator<DelayedBucket<? extends Bucket>>> comparators = orderElements.stream()
                 .map(BucketOrder::delayedBucketComparator)
-                .collect(toList());
+                .toList();
             return (lhs, rhs) -> {
                 for (Comparator<DelayedBucket<? extends Bucket>> c : comparators) {
                     int result = c.compare(lhs, rhs);

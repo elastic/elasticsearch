@@ -8,7 +8,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -16,7 +15,6 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -264,11 +262,11 @@ public final class KeyValueProcessor extends AbstractProcessor {
             Set<String> excludeKeys = null;
             List<String> includeKeysList = ConfigurationUtils.readOptionalList(TYPE, processorTag, config, "include_keys");
             if (includeKeysList != null) {
-                includeKeys = Collections.unmodifiableSet(Sets.newHashSet(includeKeysList));
+                includeKeys = Set.copyOf(includeKeysList);
             }
             List<String> excludeKeysList = ConfigurationUtils.readOptionalList(TYPE, processorTag, config, "exclude_keys");
             if (excludeKeysList != null) {
-                excludeKeys = Collections.unmodifiableSet(Sets.newHashSet(excludeKeysList));
+                excludeKeys = Set.copyOf(excludeKeysList);
             }
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             return new KeyValueProcessor(

@@ -74,7 +74,7 @@ Inner hits also supports the following per document features:
 * <<highlighting,Highlighting>>
 * <<request-body-search-explain,Explain>>
 * <<search-fields-param,Search fields>>
-* <<request-body-search-source-filtering,Source filtering>>
+* <<source-filtering,Source filtering>>
 * <<script-fields,Script fields>>
 * <<docvalue-fields,Doc value fields>>
 * <<request-body-search-version,Include versions>>

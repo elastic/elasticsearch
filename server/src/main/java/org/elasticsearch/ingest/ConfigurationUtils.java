@@ -321,6 +321,27 @@ public final class ConfigurationUtils {
     /**
      * Returns and removes the specified property of type list from the specified configuration map.
      *
+     * If the property value isn't of type list or string an {@link ElasticsearchParseException} is thrown.
+     */
+    public static List<String> readOptionalListOrString(
+        String processorType,
+        String processorTag,
+        Map<String, Object> configuration,
+        String propertyName
+    ) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            return List.of();
+        }
+        if (value instanceof String) {
+            return List.of(readString(processorType, processorTag, propertyName, value));
+        }
+        return readList(processorType, processorTag, propertyName, value);
+    }
+
+    /**
+     * Returns and removes the specified property of type list from the specified configuration map.
+     *
      * If the property value isn't of type list an {@link ElasticsearchParseException} is thrown.
      * If the property is missing an {@link ElasticsearchParseException} is thrown
      */

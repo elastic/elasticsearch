@@ -78,7 +78,7 @@ match data streams and indices. Supports comma-separated values, such as
 `open,hidden`. Defaults to `all`. Valid values are:
 
 `all`:::
-Match any data stream or index, including <<hidden,hidden>> ones.
+Match any data stream or index, including <<multi-hidden,hidden>> ones.
 
 `open`:::
 Match open indices and data streams.

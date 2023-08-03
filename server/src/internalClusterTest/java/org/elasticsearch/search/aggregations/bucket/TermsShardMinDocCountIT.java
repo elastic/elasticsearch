@@ -9,7 +9,6 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
@@ -22,8 +21,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
@@ -46,10 +43,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         } else {
             textMappings = "type=text,fielddata=true";
         }
-        assertAcked(
-            prepareCreate(index).setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .setMapping("text", textMappings)
-        );
+        assertAcked(prepareCreate(index).setSettings(indexSettings(1, 0)).setMapping("text", textMappings));
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
         addTermsDocs("1", 1, 0, indexBuilders);// high score but low doc freq
@@ -115,10 +109,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         if (termtype.equals("text")) {
             termMappings += ",fielddata=true";
         }
-        assertAcked(
-            prepareCreate(index).setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .setMapping("text", termMappings)
-        );
+        assertAcked(prepareCreate(index).setSettings(indexSettings(1, 0)).setMapping("text", termMappings));
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
         addTermsDocs("1", 1, indexBuilders);// low doc freq but high score

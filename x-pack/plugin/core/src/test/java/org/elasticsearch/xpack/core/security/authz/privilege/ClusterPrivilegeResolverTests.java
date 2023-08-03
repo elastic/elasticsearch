@@ -8,6 +8,10 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,6 +19,10 @@ import java.util.List;
 import java.util.SortedMap;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
 
 public class ClusterPrivilegeResolverTests extends ESTestCase {
 
@@ -42,4 +50,48 @@ public class ClusterPrivilegeResolverTests extends ESTestCase {
         );
     }
 
+    public void testDataStreamActionsNotGrantedByAllClusterPrivilege() {
+        ClusterPrivilegeResolver.ALL.permission()
+            .privileges()
+            .forEach(
+                p -> ((ActionClusterPrivilege) p).getAllowedActionPatterns()
+                    .forEach(pattern -> assertThat(pattern, not(startsWith("indices:admin/data_stream/"))))
+            );
+
+        assertThat(
+            ClusterPrivilegeResolver.ALL.permission()
+                .check(
+                    "indices:admin/data_stream/" + randomAlphaOfLengthBetween(0, 10),
+                    mock(TransportRequest.class),
+                    AuthenticationTestHelper.builder().build()
+                ),
+            is(false)
+        );
+    }
+
+    public void testPrivilegesForCreateAndUpdateCrossClusterApiKey() {
+        assertThat(
+            ClusterPrivilegeResolver.MANAGE_API_KEY.permission()
+                .check(CreateCrossClusterApiKeyAction.NAME, mock(TransportRequest.class), AuthenticationTestHelper.builder().build()),
+            is(false)
+        );
+
+        assertThat(
+            ClusterPrivilegeResolver.MANAGE_API_KEY.permission()
+                .check(UpdateCrossClusterApiKeyAction.NAME, mock(TransportRequest.class), AuthenticationTestHelper.builder().build()),
+            is(false)
+        );
+
+        assertThat(
+            ClusterPrivilegeResolver.MANAGE_SECURITY.permission()
+                .check(CreateCrossClusterApiKeyAction.NAME, mock(TransportRequest.class), AuthenticationTestHelper.builder().build()),
+            is(true)
+        );
+
+        assertThat(
+            ClusterPrivilegeResolver.MANAGE_SECURITY.permission()
+                .check(UpdateCrossClusterApiKeyAction.NAME, mock(TransportRequest.class), AuthenticationTestHelper.builder().build()),
+            is(true)
+        );
+    }
 }

@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
@@ -588,13 +589,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             .put(
                 IndexMetadata.builder(shard.getIndexName())
                     .settings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                            .put(IndexMetadata.SETTING_INDEX_UUID, shard.getIndexName())
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, shard.getIndexName())
                             .put(DataTier.TIER_PREFERENCE, tierPreference)
-                            .build()
                     )
             );
         if (desiredNodes != null) {

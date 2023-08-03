@@ -14,7 +14,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -50,7 +49,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        BulkRequest bulkRequest = Requests.bulkRequest();
+        BulkRequest bulkRequest = new BulkRequest();
         String defaultIndex = request.param("index");
         String defaultRouting = request.param("routing");
         String defaultPipeline = request.param("pipeline");

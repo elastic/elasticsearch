@@ -274,6 +274,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final long daysBetween = ChronoUnit.DAYS.between(start, expiration);
         assertThat(daysBetween, is(7L));
 
+        assertThat(getApiKeyDocument(response.getId()).get("type"), equalTo("rest"));
+        assertThat(getApiKeyInfo(client(), response.getId(), randomBoolean(), randomBoolean()).getType(), is(ApiKey.Type.REST));
+
         // create simple api key
         final CreateApiKeyResponse simple = new CreateApiKeyRequestBuilder(client).setName("simple").get();
         assertEquals("simple", simple.getName());
@@ -498,7 +501,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         } else {
             builder.put(ApiKeyService.DELETE_RETENTION_PERIOD.getKey(), TimeValue.timeValueDays(deleteRetentionPeriodDays));
         }
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get();
+        updateClusterSettings(builder);
     }
 
     private void doTestInvalidKeysImmediatelyDeletedByRemover(String namePrefix) throws Exception {
@@ -758,7 +761,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     private void refreshSecurityIndex() throws Exception {
         assertBusy(() -> {
-            final RefreshResponse refreshResponse = client().admin().indices().prepareRefresh(SECURITY_MAIN_ALIAS).get();
+            final RefreshResponse refreshResponse = indicesAdmin().prepareRefresh(SECURITY_MAIN_ALIAS).get();
             assertThat(refreshResponse.getFailedShards(), is(0));
         });
     }
@@ -1736,9 +1739,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // Clear the auth cache to force recompute the expensive hash which requires the crypto thread pool
         apiKeyService.getApiKeyAuthCache().invalidateAll();
 
-        final List<NodeInfo> nodeInfos = client().admin()
-            .cluster()
-            .prepareNodesInfo()
+        final List<NodeInfo> nodeInfos = clusterAdmin().prepareNodesInfo()
             .get()
             .getNodes()
             .stream()
@@ -1884,10 +1885,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertEquals(2, apiKeyService.getRoleDescriptorsBytesCache().count());
 
         // Close security index to trigger invalidation
-        final CloseIndexResponse closeIndexResponse = client().admin()
-            .indices()
-            .close(new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7))
-            .get();
+        final CloseIndexResponse closeIndexResponse = indicesAdmin().close(new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7)).get();
         assertTrue(closeIndexResponse.isAcknowledged());
         assertBusy(() -> {
             expectThrows(NullPointerException.class, () -> apiKeyService.getFromCache(docId));
@@ -2661,7 +2659,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null),
                 randomValueOtherThanMany(
                     rd -> RoleDescriptorRequestValidator.validate(rd) != null,
-                    () -> RoleDescriptorTests.randomRoleDescriptor(false, allowRemoteIndices)
+                    () -> RoleDescriptorTests.randomRoleDescriptor(false, allowRemoteIndices, false)
                 )
             );
             case 2 -> null;
@@ -2699,6 +2697,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final Map<String, Object> apiKeyDocMap = getApiKeyDocument(apiKeyId);
         final boolean useGetApiKey = randomBoolean();
         final ApiKey apiKeyInfo = getApiKeyInfo(client(), apiKeyId, true, useGetApiKey);
+        // Update does not change API key type
+        assertThat(apiKeyDocMap.get("type"), equalTo("rest"));
+        assertThat(apiKeyInfo.getType(), equalTo(ApiKey.Type.REST));
         for (Map.Entry<ApiKeyAttribute, Object> entry : attributes.entrySet()) {
             switch (entry.getKey()) {
                 case CREATOR -> {

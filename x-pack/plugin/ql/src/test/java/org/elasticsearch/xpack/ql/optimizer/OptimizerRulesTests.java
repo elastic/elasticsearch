@@ -40,11 +40,14 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.FoldNull;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -224,6 +227,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public void testConstantFoldingLikes() {
         assertEquals(TRUE, new ConstantFolding().rule(new Like(EMPTY, of("test_emp"), new LikePattern("test%", (char) 0))).canonical());
+        assertEquals(TRUE, new ConstantFolding().rule(new WildcardLike(EMPTY, of("test_emp"), new WildcardPattern("test*"))).canonical());
         assertEquals(TRUE, new ConstantFolding().rule(new RLike(EMPTY, of("test_emp"), new RLikePattern("test.emp"))).canonical());
     }
 
@@ -1434,6 +1438,18 @@ public class OptimizerRulesTests extends ESTestCase {
         }
     }
 
+    public void testMatchAllWildcardLikeToExist() throws Exception {
+        for (String s : asList("*", "**", "***")) {
+            WildcardPattern pattern = new WildcardPattern(s);
+            FieldAttribute fa = getFieldAttribute();
+            WildcardLike l = new WildcardLike(EMPTY, fa, pattern);
+            Expression e = new ReplaceRegexMatch().rule(l);
+            assertEquals(IsNotNull.class, e.getClass());
+            IsNotNull inn = (IsNotNull) e;
+            assertEquals(fa, inn.field());
+        }
+    }
+
     public void testMatchAllRLikeToExist() throws Exception {
         RLikePattern pattern = new RLikePattern(".*");
         FieldAttribute fa = getFieldAttribute();
@@ -1455,6 +1471,18 @@ public class OptimizerRulesTests extends ESTestCase {
             assertEquals(fa, eq.left());
             assertEquals(s.replace("0", StringUtils.EMPTY), eq.right().fold());
         }
+    }
+
+    public void testExactMatchWildcardLike() throws Exception {
+        String s = "ab";
+        WildcardPattern pattern = new WildcardPattern(s);
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike l = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = new ReplaceRegexMatch().rule(l);
+        assertEquals(Equals.class, e.getClass());
+        Equals eq = (Equals) e;
+        assertEquals(fa, eq.left());
+        assertEquals(s, eq.right().fold());
     }
 
     public void testExactMatchRLike() throws Exception {
@@ -1568,6 +1596,38 @@ public class OptimizerRulesTests extends ESTestCase {
         In in = (In) or.right();
         assertEquals(fa, in.value());
         assertThat(in.list(), contains(ONE, THREE));
+    }
+
+    // Null folding
+
+    public void testNullFoldingIsNull() {
+        FoldNull foldNull = new FoldNull();
+        assertEquals(true, foldNull.rule(new IsNull(EMPTY, NULL)).fold());
+        assertEquals(false, foldNull.rule(new IsNull(EMPTY, TRUE)).fold());
+    }
+
+    public void testGenericNullableExpression() {
+        FoldNull rule = new FoldNull();
+        // arithmetic
+        assertNullLiteral(rule.rule(new Add(EMPTY, getFieldAttribute(), NULL)));
+        // comparison
+        assertNullLiteral(rule.rule(greaterThanOf(getFieldAttribute(), NULL)));
+        // regex
+        assertNullLiteral(rule.rule(new RLike(EMPTY, NULL, new RLikePattern("123"))));
+    }
+
+    public void testNullFoldingDoesNotApplyOnLogicalExpressions() {
+        FoldNull rule = new FoldNull();
+
+        Or or = new Or(EMPTY, NULL, TRUE);
+        assertEquals(or, rule.rule(or));
+        or = new Or(EMPTY, NULL, NULL);
+        assertEquals(or, rule.rule(or));
+
+        And and = new And(EMPTY, NULL, TRUE);
+        assertEquals(and, rule.rule(and));
+        and = new And(EMPTY, NULL, NULL);
+        assertEquals(and, rule.rule(and));
     }
 
     //
@@ -1705,5 +1765,10 @@ public class OptimizerRulesTests extends ESTestCase {
         Filter expected = new Filter(EMPTY, new Aggregate(EMPTY, combinedFilter, emptyList(), emptyList()), aggregateCondition);
         assertEquals(expected, new PushDownAndCombineFilters().apply(fb));
 
+    }
+
+    private void assertNullLiteral(Expression expression) {
+        assertEquals(Literal.class, expression.getClass());
+        assertNull(expression.fold());
     }
 }

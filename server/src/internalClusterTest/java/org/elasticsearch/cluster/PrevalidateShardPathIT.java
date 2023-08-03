@@ -67,7 +67,7 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
         }
         // Check that after relocation the source node doesn't have the shard path
         String node3 = internalCluster().startDataOnlyNode();
-        updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.exclude._name", node2));
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node2), indexName);
         ensureGreen(indexName);
         assertBusy(() -> {
             try {
@@ -84,8 +84,8 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
                 // temporarily failed to clean up the shard folder, we need to trigger another cluster state change for this removal to
                 // finally succeed.
                 updateIndexSettings(
-                    indexName,
-                    Settings.builder().put("index.routing.allocation.exclude.name", "non-existent" + randomAlphaOfLength(5))
+                    Settings.builder().put("index.routing.allocation.exclude.name", "non-existent" + randomAlphaOfLength(5)),
+                    indexName
                 );
                 throw e;
             }

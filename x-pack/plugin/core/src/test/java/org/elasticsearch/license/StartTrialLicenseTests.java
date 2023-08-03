@@ -27,7 +27,7 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(addRoles(super.nodeSettings(nodeOrdinal, otherSettings), Set.of(DiscoveryNodeRole.DATA_ROLE)))
-            .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic")
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic")
             .build();
     }
 
@@ -45,7 +45,7 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
 
         // Test that starting will fail without acknowledgement
         PostStartTrialRequestBuilder builder = licensingClient.preparePostStartTrial();
-        builder.request().setType(randomFrom(LicenseService.VALID_TRIAL_TYPES).getTypeName());
+        builder.request().setType(randomFrom(LicenseSettings.VALID_TRIAL_TYPES).getTypeName());
         PostStartTrialResponse response2 = builder.get();
         assertEquals(200, response2.getStatus().getRestStatus().getStatus());
         assertFalse(response2.getStatus().isTrialStarted());
@@ -56,7 +56,7 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
             assertEquals("basic", getLicenseResponse.license().type());
         });
 
-        License.LicenseType type = randomFrom(LicenseService.VALID_TRIAL_TYPES);
+        License.LicenseType type = randomFrom(LicenseSettings.VALID_TRIAL_TYPES);
 
         PostStartTrialRequestBuilder builder2 = licensingClient.preparePostStartTrial();
         builder2.setAcknowledge(true);
@@ -73,7 +73,7 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
         GetTrialStatusResponse response4 = licensingClient.prepareGetStartTrial().get();
         assertFalse(response4.isEligibleToStartTrial());
 
-        License.LicenseType secondAttemptType = randomFrom(LicenseService.VALID_TRIAL_TYPES);
+        License.LicenseType secondAttemptType = randomFrom(LicenseSettings.VALID_TRIAL_TYPES);
 
         PostStartTrialRequestBuilder builder3 = licensingClient.preparePostStartTrial();
         builder3.setAcknowledge(true);

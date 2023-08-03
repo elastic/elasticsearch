@@ -162,6 +162,10 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         return taskParams.getModelId();
     }
 
+    public String getDeploymentId() {
+        return taskParams.getDeploymentId();
+    }
+
     public StartTrainedModelDeploymentAction.TaskParams getTaskParams() {
         return taskParams;
     }
@@ -192,6 +196,10 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
 
         if (nodeIds.isEmpty()) {
             return List.of();
+        }
+
+        if (nodeIds.size() == 1) {
+            return List.of(new Tuple<>(nodeIds.get(0), numberOfRequests));
         }
 
         if (allocationSum == 0) {
@@ -375,9 +383,10 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         public Builder addRoutingEntry(String nodeId, RoutingInfo routingInfo) {
             if (nodeRoutingTable.containsKey(nodeId)) {
                 throw new ResourceAlreadyExistsException(
-                    "routing entry for node [{}] for model [{}] already exists",
+                    "routing entry for node [{}] for model [{}] deployment [{}] already exists",
                     nodeId,
-                    taskParams.getModelId()
+                    taskParams.getModelId(),
+                    taskParams.getDeploymentId()
                 );
             }
             nodeRoutingTable.put(nodeId, routingInfo);
@@ -388,9 +397,10 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             RoutingInfo existingRoutingInfo = nodeRoutingTable.get(nodeId);
             if (existingRoutingInfo == null) {
                 throw new ResourceNotFoundException(
-                    "routing entry for node [{}] for model [{}] does not exist",
+                    "routing entry for node [{}] for model [{}] deployment [{}] does not exist",
                     nodeId,
-                    taskParams.getModelId()
+                    taskParams.getModelId(),
+                    taskParams.getDeploymentId()
                 );
             }
             if (existingRoutingInfo.equals(routingInfo)) {
@@ -458,6 +468,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         public Builder setNumberOfAllocations(int numberOfAllocations) {
             this.taskParams = new StartTrainedModelDeploymentAction.TaskParams(
                 taskParams.getModelId(),
+                taskParams.getDeploymentId(),
                 taskParams.getModelBytes(),
                 numberOfAllocations,
                 taskParams.getThreadsPerAllocation(),

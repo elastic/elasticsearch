@@ -10,7 +10,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -26,6 +26,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
+
+import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_DISABLED;
 
 /**
  * Stores the determined file format.
@@ -131,7 +133,7 @@ public class TextStructure implements ToXContentObject, Writeable {
     }
 
     private static String getNonNullEcsCompatibilityString(String ecsCompatibility) {
-        return (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? Grok.ECS_COMPATIBILITY_MODES[0] : ecsCompatibility;
+        return (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? ECS_COMPATIBILITY_DISABLED : ecsCompatibility;
     }
 
     private final int numLinesAnalyzed;
@@ -235,7 +237,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         needClientTimezone = in.readBoolean();
         mappings = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap()));
         ingestPipeline = in.readBoolean() ? Collections.unmodifiableMap(in.readMap()) : null;
-        fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap(StreamInput::readString, FieldStats::new)));
+        fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap(FieldStats::new)));
         explanation = in.readImmutableList(StreamInput::readString);
     }
 
@@ -755,11 +757,11 @@ public class TextStructure implements ToXContentObject, Writeable {
                     }
                     if (ecsCompatibility != null
                         && ecsCompatibility.isEmpty() == false
-                        && Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+                        && GrokBuiltinPatterns.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
                         throw new IllegalArgumentException(
                             ECS_COMPATIBILITY.getPreferredName()
                                 + "] must be one of ["
-                                + String.join(", ", Grok.ECS_COMPATIBILITY_MODES)
+                                + String.join(", ", GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES)
                                 + "] if specified"
                         );
                     }

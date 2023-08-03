@@ -13,6 +13,7 @@ import org.elasticsearch.core.Streams;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Objects;
 
 public class InputStreamStreamInput extends StreamInput {
 
@@ -50,7 +51,7 @@ public class InputStreamStreamInput extends StreamInput {
 
     @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
-        if (len < 0) throw new IndexOutOfBoundsException();
+        Objects.checkFromIndexSize(offset, len, b.length);
         final int read = Streams.readFully(is, b, offset, len);
         if (read != len) {
             throw new EOFException();

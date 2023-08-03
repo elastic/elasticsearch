@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Model;
+import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Deployment;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
 
 import java.util.ArrayList;
@@ -44,26 +44,29 @@ class RandomizedAssignmentRounding {
     private final Random random;
     private final int rounds;
     private final Collection<Node> nodes;
-    private final Collection<Model> models;
+    private final Collection<AssignmentPlan.Deployment> deployments;
     private final AssignmentHolder assignmentHolder;
 
-    RandomizedAssignmentRounding(Random random, int rounds, Collection<Node> nodes, Collection<Model> models) {
+    RandomizedAssignmentRounding(Random random, int rounds, Collection<Node> nodes, Collection<AssignmentPlan.Deployment> deployments) {
         if (rounds <= 0) {
             throw new IllegalArgumentException("rounds must be > 0");
         }
         this.random = Objects.requireNonNull(random);
         this.rounds = rounds;
         this.nodes = Objects.requireNonNull(nodes);
-        this.models = Objects.requireNonNull(models);
+        this.deployments = Objects.requireNonNull(deployments);
         this.assignmentHolder = new AssignmentHolder();
     }
 
-    AssignmentPlan computePlan(Map<Tuple<Model, Node>, Double> allocationVars, Map<Tuple<Model, Node>, Double> assignmentVars) {
+    AssignmentPlan computePlan(
+        Map<Tuple<AssignmentPlan.Deployment, Node>, Double> allocationVars,
+        Map<Tuple<AssignmentPlan.Deployment, Node>, Double> assignmentVars
+    ) {
         AssignmentPlan bestPlan = assignmentHolder.toPlan();
 
         assignmentHolder.initializeAssignments(allocationVars, assignmentVars);
         assignmentHolder.assignUnderSubscribedNodes();
-        List<Tuple<Model, Node>> softAssignmentQueue = assignmentHolder.createSoftAssignmentQueue();
+        List<Tuple<AssignmentPlan.Deployment, Node>> softAssignmentQueue = assignmentHolder.createSoftAssignmentQueue();
 
         if (softAssignmentQueue.isEmpty() == false) {
             logger.debug(() -> "Random assignment rounding across [" + rounds + "] rounds");
@@ -86,12 +89,12 @@ class RandomizedAssignmentRounding {
     }
 
     private class AssignmentHolder {
-        private final Map<Tuple<Model, Node>, Double> assignments = new HashMap<>();
-        private final Map<Tuple<Model, Node>, Double> allocations = new HashMap<>();
+        private final Map<Tuple<AssignmentPlan.Deployment, Node>, Double> assignments = new HashMap<>();
+        private final Map<Tuple<AssignmentPlan.Deployment, Node>, Double> allocations = new HashMap<>();
         private final ResourceTracker resourceTracker;
 
         private AssignmentHolder() {
-            resourceTracker = new ResourceTracker(nodes, models);
+            resourceTracker = new ResourceTracker(nodes, deployments);
         }
 
         private AssignmentHolder(AssignmentHolder holder) {
@@ -100,10 +103,13 @@ class RandomizedAssignmentRounding {
             resourceTracker = new ResourceTracker(holder.resourceTracker);
         }
 
-        private void initializeAssignments(Map<Tuple<Model, Node>, Double> allocationVars, Map<Tuple<Model, Node>, Double> assignmentVars) {
+        private void initializeAssignments(
+            Map<Tuple<AssignmentPlan.Deployment, Node>, Double> allocationVars,
+            Map<Tuple<AssignmentPlan.Deployment, Node>, Double> assignmentVars
+        ) {
             for (Node n : nodes) {
-                for (Model m : models) {
-                    Tuple<Model, Node> index = Tuple.tuple(m, n);
+                for (AssignmentPlan.Deployment m : deployments) {
+                    Tuple<Deployment, Node> index = Tuple.tuple(m, n);
                     double assignment = assignmentVars.get(index);
                     double allocations = allocationVars.get(index);
 
@@ -123,20 +129,20 @@ class RandomizedAssignmentRounding {
         private void assignUnderSubscribedNodes(Collection<Node> nodeSelection) {
             // Snap to one any non-zero assignments on nodes where all the soft assigned models fit.
             for (Node n : nodeSelection.stream().sorted(Comparator.comparingDouble(this::decreasingQualityNodeOrder)).toList()) {
-                List<Model> assignedModels = new ArrayList<>();
+                List<AssignmentPlan.Deployment> assignedDeployments = new ArrayList<>();
                 long totalModelMemory = 0;
                 int maxTotalThreads = 0;
-                for (Model m : models) {
-                    Tuple<Model, Node> assignment = Tuple.tuple(m, n);
+                for (AssignmentPlan.Deployment m : deployments) {
+                    Tuple<AssignmentPlan.Deployment, Node> assignment = Tuple.tuple(m, n);
                     if (assignments.get(assignment) > 0) {
                         totalModelMemory += m.memoryBytes();
                         maxTotalThreads += (int) Math.ceil(allocations.get(assignment)) * m.threadsPerAllocation();
-                        assignedModels.add(m);
+                        assignedDeployments.add(m);
                     }
                 }
                 if (totalModelMemory <= n.availableMemoryBytes() && maxTotalThreads <= n.cores()) {
-                    for (Model m : assignedModels) {
-                        Tuple<Model, Node> assignment = Tuple.tuple(m, n);
+                    for (AssignmentPlan.Deployment m : assignedDeployments) {
+                        Tuple<AssignmentPlan.Deployment, Node> assignment = Tuple.tuple(m, n);
                         if (assignments.get(assignment) > 0 && assignments.get(assignment) < 1) {
                             assignModelToNode(m, n, allocationsToAssign(assignment));
                         }
@@ -146,7 +152,7 @@ class RandomizedAssignmentRounding {
             }
         }
 
-        private int allocationsToAssign(Tuple<Model, Node> assignment) {
+        private int allocationsToAssign(Tuple<AssignmentPlan.Deployment, Node> assignment) {
             if (isInteger(allocations.get(assignment))) {
                 // We round this separately because if we used ceil and the value was just about the
                 // integer value we'll use one additional allocation when we shouldn't.
@@ -155,8 +161,8 @@ class RandomizedAssignmentRounding {
             return (int) Math.ceil(allocations.get(assignment));
         }
 
-        private void assignModelToNode(Model m, Node n, int allocations) {
-            Tuple<Model, Node> assignment = Tuple.tuple(m, n);
+        private void assignModelToNode(Deployment m, Node n, int allocations) {
+            Tuple<AssignmentPlan.Deployment, Node> assignment = Tuple.tuple(m, n);
             int assignedAllocations = Math.min(allocations, resourceTracker.remainingModelAllocations.get(m));
             assignments.put(assignment, 1.0);
             this.allocations.put(assignment, (double) assignedAllocations);
@@ -165,8 +171,8 @@ class RandomizedAssignmentRounding {
 
         private double decreasingQualityNodeOrder(Node n) {
             double quality = 0.0;
-            for (Model m : models) {
-                Tuple<Model, Node> index = Tuple.tuple(m, n);
+            for (AssignmentPlan.Deployment m : deployments) {
+                Tuple<AssignmentPlan.Deployment, Node> index = Tuple.tuple(m, n);
                 if (allocations.get(index) > 0) {
                     quality += (1 + (m.currentAllocationsByNodeId().containsKey(n.id()) ? 1 : 0)) * allocations.get(index) * m
                         .threadsPerAllocation();
@@ -186,7 +192,7 @@ class RandomizedAssignmentRounding {
 
             // We know the models on this node are definitely assigned thus we can also
             // assign any extra cores this node has to the models in descending size order.
-            for (Model m : models.stream()
+            for (AssignmentPlan.Deployment m : deployments.stream()
                 .filter(m -> assignments.get(Tuple.tuple(m, n)) == 1 && resourceTracker.remainingModelAllocations.get(m) > 0)
                 .sorted(Comparator.comparingDouble(this::remainingModelOrder))
                 .toList()) {
@@ -204,21 +210,21 @@ class RandomizedAssignmentRounding {
             zeroSoftAssignmentsOfSatisfiedModels();
         }
 
-        private double remainingModelOrder(Model m) {
+        private double remainingModelOrder(AssignmentPlan.Deployment m) {
             return (m.currentAllocationsByNodeId().isEmpty() ? 1 : 2) * -m.memoryBytes();
         }
 
         private boolean hasSoftAssignments(Node n) {
-            return models.stream().anyMatch(m -> isSoftAssignment(m, n));
+            return deployments.stream().anyMatch(m -> isSoftAssignment(m, n));
         }
 
-        private boolean isSoftAssignment(Model m, Node n) {
-            Tuple<Model, Node> index = Tuple.tuple(m, n);
+        private boolean isSoftAssignment(AssignmentPlan.Deployment m, Node n) {
+            Tuple<AssignmentPlan.Deployment, Node> index = Tuple.tuple(m, n);
             return (assignments.get(index) > 0 && assignments.get(index) < 1) || isInteger(allocations.get(index)) == false;
         }
 
         private void zeroSoftAssignmentsOfSatisfiedModels() {
-            for (Model m : models) {
+            for (AssignmentPlan.Deployment m : deployments) {
                 if (resourceTracker.remainingModelAllocations.get(m) <= 0) {
                     for (Node n : nodes) {
                         if (isSoftAssignment(m, n)) {
@@ -229,14 +235,14 @@ class RandomizedAssignmentRounding {
             }
         }
 
-        private void unassign(Tuple<Model, Node> assignment) {
+        private void unassign(Tuple<AssignmentPlan.Deployment, Node> assignment) {
             assignments.put(assignment, 0.0);
             allocations.put(assignment, 0.0);
         }
 
-        private List<Tuple<Model, Node>> createSoftAssignmentQueue() {
-            List<Tuple<Model, Node>> queue = new ArrayList<>();
-            models.forEach(m -> nodes.forEach(n -> {
+        private List<Tuple<AssignmentPlan.Deployment, Node>> createSoftAssignmentQueue() {
+            List<Tuple<AssignmentPlan.Deployment, Node>> queue = new ArrayList<>();
+            deployments.forEach(m -> nodes.forEach(n -> {
                 if (isSoftAssignment(m, n)) {
                     queue.add(Tuple.tuple(m, n));
                 }
@@ -248,21 +254,21 @@ class RandomizedAssignmentRounding {
             return queue;
         }
 
-        private double assignmentDistanceFromZeroOrOneOrder(Tuple<Model, Node> assignment) {
+        private double assignmentDistanceFromZeroOrOneOrder(Tuple<AssignmentPlan.Deployment, Node> assignment) {
             return Math.min(assignments.get(assignment), 1 - assignments.get(assignment));
         }
 
-        private double assignmentMostRemainingThreadsOrder(Tuple<Model, Node> assignment) {
+        private double assignmentMostRemainingThreadsOrder(Tuple<AssignmentPlan.Deployment, Node> assignment) {
             return -allocations.get(assignment) * assignment.v1().threadsPerAllocation();
         }
 
-        private void doRandomizedRounding(List<Tuple<Model, Node>> softAssignmentQueue) {
-            for (Tuple<Model, Node> assignment : softAssignmentQueue) {
+        private void doRandomizedRounding(List<Tuple<AssignmentPlan.Deployment, Node>> softAssignmentQueue) {
+            for (Tuple<AssignmentPlan.Deployment, Node> assignment : softAssignmentQueue) {
                 // Other operations can snap assignments in the queue thus we check whether the assignment remains soft.
                 if (isSoftAssignment(assignment.v1(), assignment.v2()) == false) {
                     continue;
                 }
-                Model m = assignment.v1();
+                AssignmentPlan.Deployment m = assignment.v1();
                 Node n = assignment.v2();
 
                 double roundUpProbability = allocations.get(assignment) - Math.floor(allocations.get(assignment));
@@ -286,8 +292,8 @@ class RandomizedAssignmentRounding {
         }
 
         private void unassignOversizedModels(Node n) {
-            for (Model m : models) {
-                Tuple<Model, Node> assignment = Tuple.tuple(m, n);
+            for (AssignmentPlan.Deployment m : deployments) {
+                Tuple<AssignmentPlan.Deployment, Node> assignment = Tuple.tuple(m, n);
                 if (assignments.get(assignment) < 1.0 && m.memoryBytes() > resourceTracker.remainingNodeMemory.get(n)) {
                     unassign(assignment);
                 }
@@ -295,14 +301,14 @@ class RandomizedAssignmentRounding {
         }
 
         private AssignmentPlan toPlan() {
-            AssignmentPlan.Builder builder = AssignmentPlan.builder(nodes, models);
-            for (Map.Entry<Tuple<Model, Node>, Integer> assignment : tryAssigningRemainingCores().entrySet()) {
+            AssignmentPlan.Builder builder = AssignmentPlan.builder(nodes, deployments);
+            for (Map.Entry<Tuple<AssignmentPlan.Deployment, Node>, Integer> assignment : tryAssigningRemainingCores().entrySet()) {
                 builder.assignModelToNode(assignment.getKey().v1(), assignment.getKey().v2(), assignment.getValue());
             }
             return builder.build();
         }
 
-        private Map<Tuple<Model, Node>, Integer> tryAssigningRemainingCores() {
+        private Map<Tuple<AssignmentPlan.Deployment, Node>, Integer> tryAssigningRemainingCores() {
             // Eagerly assign allocations to models with larger size first on the first node
             // where the model fits.
             //
@@ -311,13 +317,13 @@ class RandomizedAssignmentRounding {
             // add a job, which doesn't have its quota of allocations, to the allocation
             // random rounding finds.
 
-            Map<Tuple<Model, Node>, Integer> resultAllocations = new HashMap<>();
+            Map<Tuple<AssignmentPlan.Deployment, Node>, Integer> resultAllocations = new HashMap<>();
 
-            ResourceTracker resourceTracker = new ResourceTracker(nodes, models);
+            ResourceTracker resourceTracker = new ResourceTracker(nodes, deployments);
 
-            for (Model m : models) {
+            for (AssignmentPlan.Deployment m : deployments) {
                 for (Node n : nodes) {
-                    Tuple<Model, Node> assignment = Tuple.tuple(m, n);
+                    Tuple<AssignmentPlan.Deployment, Node> assignment = Tuple.tuple(m, n);
                     int allocations = (int) Math.floor(this.allocations.getOrDefault(assignment, 0.0));
                     resultAllocations.put(assignment, allocations);
                     if (allocations > 0) {
@@ -326,7 +332,7 @@ class RandomizedAssignmentRounding {
                 }
             }
 
-            for (Model m : models.stream()
+            for (Deployment m : deployments.stream()
                 .filter(m -> resourceTracker.remainingModelAllocations.get(m) > 0)
                 .sorted(Comparator.comparingDouble(this::remainingModelOrder))
                 .toList()) {
@@ -365,7 +371,7 @@ class RandomizedAssignmentRounding {
 
         private double remainingNodeOrder(
             Node n,
-            Model m,
+            AssignmentPlan.Deployment m,
             int remainingNodeCores,
             long remainingNodeMemory,
             int remainingModelAllocations
@@ -386,22 +392,22 @@ class RandomizedAssignmentRounding {
 
     private static class ResourceTracker {
 
-        final Set<Tuple<Model, Node>> assignments = new HashSet<>();
+        final Set<Tuple<AssignmentPlan.Deployment, Node>> assignments = new HashSet<>();
         final Map<Node, Long> remainingNodeMemory;
         final Map<Node, Integer> remainingNodeCores;
-        final Map<Model, Integer> remainingModelAllocations;
+        final Map<AssignmentPlan.Deployment, Integer> remainingModelAllocations;
 
-        ResourceTracker(Collection<Node> nodes, Collection<Model> models) {
+        ResourceTracker(Collection<Node> nodes, Collection<AssignmentPlan.Deployment> deployments) {
             remainingNodeMemory = Maps.newHashMapWithExpectedSize(nodes.size());
             remainingNodeCores = Maps.newHashMapWithExpectedSize(nodes.size());
-            remainingModelAllocations = Maps.newHashMapWithExpectedSize(models.size());
+            remainingModelAllocations = Maps.newHashMapWithExpectedSize(deployments.size());
 
             nodes.forEach(n -> {
                 remainingNodeMemory.put(n, n.availableMemoryBytes());
                 remainingNodeCores.put(n, n.cores());
             });
 
-            for (Model m : models) {
+            for (AssignmentPlan.Deployment m : deployments) {
                 for (Node n : nodes) {
                     if (m.currentAllocationsByNodeId().containsKey(n.id())) {
                         assignments.add(Tuple.tuple(m, n));
@@ -418,7 +424,7 @@ class RandomizedAssignmentRounding {
             remainingModelAllocations = new HashMap<>(copy.remainingModelAllocations);
         }
 
-        void assign(Model m, Node n, int allocations) {
+        void assign(AssignmentPlan.Deployment m, Node n, int allocations) {
             if (assignments.contains(Tuple.tuple(m, n)) == false) {
                 assignments.add(Tuple.tuple(m, n));
                 remainingNodeMemory.compute(n, (k, v) -> v - m.memoryBytes());

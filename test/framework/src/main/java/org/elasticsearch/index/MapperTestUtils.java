@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -50,7 +51,7 @@ public class MapperTestUtils {
     ) throws IOException {
         Settings.Builder settingsBuilder = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).put(settings);
         if (settings.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
-            settingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+            settingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
         }
         Settings finalSettings = settingsBuilder.build();
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
@@ -58,6 +59,7 @@ public class MapperTestUtils {
         IndexAnalyzers indexAnalyzers = createTestAnalysis(indexSettings, finalSettings).indexAnalyzers;
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
         return new MapperService(
+            () -> TransportVersion.current(),
             indexSettings,
             indexAnalyzers,
             XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
@@ -65,7 +67,8 @@ public class MapperTestUtils {
             mapperRegistry,
             () -> null,
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
-            ScriptCompiler.NONE
+            ScriptCompiler.NONE,
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
         );
     }
 }

@@ -1,4 +1,37 @@
 ---
+setup:
+  - skip:
+      features: [ "allowed_warnings" ]
+
+  - do:
+      allowed_warnings:
+        - "index template [add_final_pipeline] has index patterns [foo] matching patterns from existing older templates [global] with patterns (global => [*]); this template [add_final_pipeline] will take precedence during new index creation"
+      indices.put_index_template:
+        name: add_final_pipeline
+        body:
+          index_patterns: [ "foo" ]
+          template:
+            settings:
+              final_pipeline: "final_pipeline"
+
+  - do:
+      ingest.put_pipeline:
+        id: "final_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "append" : {
+                  "field" : "accumulator",
+                  "value" : [
+                    "non-repeated-value"
+                  ]
+                }
+              }
+            ]
+          }
+
+---
 teardown:
 - do:
     ingest.delete_pipeline:
@@ -9,6 +42,10 @@ teardown:
     indices.delete:
       index: foo
 
+- do:
+    ingest.delete_pipeline:
+      id: final_pipeline
+      ignore: 404
 ---
 "Test Change Target Index with Explicit Pipeline":
 
@@ -50,6 +87,7 @@ teardown:
       index: foo
       id: "1"
 - match: { _source.a: true }
+- match: { _source.accumulator: [ "non-repeated-value" ] }
 
 # only the foo index
 - do:
@@ -108,6 +146,7 @@ teardown:
       index: foo
       id: "1"
 - match: { _source.a: true }
+- match: { _source.accumulator: [ "non-repeated-value" ] }
 
 # only the foo index
 - do:

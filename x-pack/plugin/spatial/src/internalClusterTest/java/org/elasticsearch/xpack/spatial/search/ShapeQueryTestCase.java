@@ -52,7 +52,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
 
     public void testNullShape() throws Exception {
         String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate(defaultIndexName).setMapping(mapping).get();
+        indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
         client().prepareIndex(defaultIndexName)
@@ -66,7 +66,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
 
     public void testIndexPointsFilterRectangle() throws Exception {
         String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate(defaultIndexName).setMapping(mapping).get();
+        indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
         client().prepareIndex(defaultIndexName)
@@ -103,7 +103,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
 
     public void testIndexPointsCircle() throws Exception {
         String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate(defaultIndexName).setMapping(mapping).get();
+        indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
         client().prepareIndex(defaultIndexName)
@@ -132,7 +132,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
 
     public void testIndexPointsPolygon() throws Exception {
         String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate(defaultIndexName).setMapping(mapping).get();
+        indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
         client().prepareIndex(defaultIndexName)
@@ -161,7 +161,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
 
     public void testIndexPointsMultiPolygon() throws Exception {
         String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate(defaultIndexName).setMapping(mapping).get();
+        indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
         client().prepareIndex(defaultIndexName)
@@ -204,7 +204,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
 
     public void testIndexPointsRectangle() throws Exception {
         String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate(defaultIndexName).setMapping(mapping).get();
+        indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
         client().prepareIndex(defaultIndexName)
@@ -233,7 +233,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
 
     public void testIndexPointsIndexedRectangle() throws Exception {
         String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate(defaultIndexName).setMapping(mapping).get();
+        indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
         client().prepareIndex(defaultIndexName)
@@ -260,7 +260,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
         );
-        client().admin().indices().prepareCreate(indexedShapeIndex).setMapping(queryShapesMapping).get();
+        indicesAdmin().prepareCreate(indexedShapeIndex).setMapping(queryShapesMapping).get();
         ensureGreen();
 
         client().prepareIndex(indexedShapeIndex)
@@ -300,7 +300,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
     }
 
     public void testDistanceQuery() throws Exception {
-        client().admin().indices().prepareCreate("test_distance").setMapping("location", "type=shape").execute().actionGet();
+        indicesAdmin().prepareCreate("test_distance").setMapping("location", "type=shape").execute().actionGet();
         ensureGreen();
 
         Circle circle = new Circle(1, 0, 10);

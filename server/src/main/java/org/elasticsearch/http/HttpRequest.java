@@ -11,50 +11,23 @@ package org.elasticsearch.http;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * A basic http request abstraction. Http modules needs to implement this interface to integrate with the
- * server package's rest handling.
+ * server package's rest handling. This interface exposes the request's content as well as methods to be used
+ * to generate a response.
  */
-public interface HttpRequest {
+public interface HttpRequest extends HttpPreRequest {
 
     enum HttpVersion {
         HTTP_1_0,
         HTTP_1_1
     }
 
-    /**
-     * Returns the HTTP method used in the HTTP request.
-     *
-     * @return the {@link RestRequest.Method} used in the REST request
-     * @throws IllegalArgumentException if the HTTP method is invalid
-     */
-    RestRequest.Method method();
-
-    /**
-     * The uri of the rest request, with the query string.
-     */
-    String uri();
-
     BytesReference content();
-
-    /**
-     * Get all of the headers and values associated with the headers. Modifications of this map are not supported.
-     */
-    Map<String, List<String>> getHeaders();
-
-    default String header(String name) {
-        List<String> values = getHeaders().get(name);
-        if (values != null && values.isEmpty() == false) {
-            return values.get(0);
-        }
-        return null;
-    }
 
     List<String> strictCookies();
 

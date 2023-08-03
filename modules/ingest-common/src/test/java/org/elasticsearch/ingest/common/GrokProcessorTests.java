@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.grok.MatcherWatchdog;
+import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestIngestDocument;
@@ -30,7 +31,7 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Map.of("ONE", "1"),
+            new PatternBank(Map.of("ONE", "1")),
             List.of("%{ONE:one}"),
             fieldName,
             false,
@@ -48,7 +49,7 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Map.of(),
+            PatternBank.EMPTY,
             List.of("(?<a>(?i)A)"),
             fieldName,
             false,
@@ -66,7 +67,7 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Map.of("ONE", "1"),
+            new PatternBank(Map.of("ONE", "1")),
             List.of("%{ONE:one}"),
             fieldName,
             false,
@@ -86,7 +87,7 @@ public class GrokProcessorTests extends ESTestCase {
             () -> new GrokProcessor(
                 randomAlphaOfLength(10),
                 null,
-                Map.of("ONE", "1"),
+                new PatternBank(Map.of("ONE", "1")),
                 List.of("%{NOTONE:not_one}"),
                 fieldName,
                 false,
@@ -105,7 +106,7 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Map.of(),
+            PatternBank.EMPTY,
             List.of(fieldName),
             fieldName,
             false,
@@ -123,7 +124,7 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Map.of("ONE", "1"),
+            new PatternBank(Map.of("ONE", "1")),
             List.of("%{ONE:one}"),
             fieldName,
             false,
@@ -142,7 +143,7 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Map.of("ONE", "1"),
+            new PatternBank(Map.of("ONE", "1")),
             List.of("%{ONE:one}"),
             fieldName,
             false,
@@ -160,7 +161,7 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Map.of("ONE", "1"),
+            new PatternBank(Map.of("ONE", "1")),
             List.of("%{ONE:one}"),
             fieldName,
             false,
@@ -178,7 +179,7 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Map.of("ONE", "1"),
+            new PatternBank(Map.of("ONE", "1")),
             List.of("%{ONE:one}"),
             fieldName,
             false,
@@ -195,7 +196,7 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Map.of("ONE", "1"),
+            new PatternBank(Map.of("ONE", "1")),
             List.of("%{ONE:one}"),
             fieldName,
             false,
@@ -213,7 +214,7 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Map.of("ONE", "1"),
+            new PatternBank(Map.of("ONE", "1")),
             List.of("%{ONE:one}"),
             fieldName,
             false,
@@ -235,7 +236,7 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            patternBank,
+            new PatternBank(patternBank),
             List.of("%{ONE:one}", "%{TWO:two}", "%{THREE:three}"),
             fieldName,
             false,
@@ -259,7 +260,7 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            patternBank,
+            new PatternBank(patternBank),
             List.of("%{ONE:one}", "%{TWO:two}", "%{THREE:three}"),
             fieldName,
             true,
@@ -282,7 +283,7 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            patternBank,
+            new PatternBank(patternBank),
             List.of("%{ONE:one}"),
             fieldName,
             true,
@@ -321,7 +322,7 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            patternBank,
+            new PatternBank(patternBank),
             List.of("%{ONE:first}-%{TWO:second}", "%{ONE:first}-%{THREE:second}"),
             fieldName,
             randomBoolean(),
@@ -342,7 +343,7 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            patternBank,
+            new PatternBank(patternBank),
             List.of("%{ONETWO:first}%{ONETWO:first}"),
             fieldName,
             randomBoolean(),
@@ -363,7 +364,7 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            patternBank,
+            new PatternBank(patternBank),
             List.of("%{ONETWO:first}|%{THREE:second}"),
             fieldName,
             randomBoolean(),

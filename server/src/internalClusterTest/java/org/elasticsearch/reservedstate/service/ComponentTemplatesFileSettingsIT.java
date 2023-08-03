@@ -365,11 +365,11 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
 
-        Files.createDirectories(fileSettingsService.operatorSettingsDir());
+        Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
@@ -402,10 +402,9 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final ClusterStateResponse clusterStateResponse = client().admin()
-            .cluster()
-            .state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get()))
-            .actionGet();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+        ).actionGet();
 
         Map<String, ComposableIndexTemplate> allTemplates = clusterStateResponse.getState().metadata().templatesV2();
 

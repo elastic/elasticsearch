@@ -27,11 +27,9 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -88,16 +86,16 @@ public class SecurityContextTests extends ESTestCase {
     }
 
     public void testSetInternalUser() {
-        final User internalUser = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
+        final InternalUser internalUser = AuthenticationTestHelper.randomInternalUser();
         assertNull(securityContext.getAuthentication());
         assertNull(securityContext.getUser());
-        securityContext.setInternalUser(internalUser, TransportVersion.CURRENT);
+        securityContext.setInternalUser(internalUser, TransportVersion.current());
         assertEquals(internalUser, securityContext.getUser());
         assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
 
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> securityContext.setInternalUser(randomFrom(internalUser, SystemUser.INSTANCE), TransportVersion.CURRENT)
+            () -> securityContext.setInternalUser(randomFrom(internalUser, InternalUsers.SYSTEM_USER), TransportVersion.current())
         );
         assertEquals("authentication ([_xpack_security_authentication]) is already present in the context", e.getMessage());
     }
@@ -116,14 +114,9 @@ public class SecurityContextTests extends ESTestCase {
             original = null;
         }
 
-        final User executionUser = randomFrom(
-            SystemUser.INSTANCE,
-            XPackUser.INSTANCE,
-            XPackSecurityUser.INSTANCE,
-            AsyncSearchUser.INSTANCE
-        );
+        final InternalUser executionUser = AuthenticationTestHelper.randomInternalUserWithLocalRoleDescriptor();
         final AtomicReference<StoredContext> contextAtomicReference = new AtomicReference<>();
-        securityContext.executeAsInternalUser(executionUser, TransportVersion.CURRENT, (originalCtx) -> {
+        securityContext.executeAsInternalUser(executionUser, TransportVersion.current(), (originalCtx) -> {
             assertEquals(executionUser, securityContext.getUser());
             assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
@@ -218,7 +211,7 @@ public class SecurityContextTests extends ESTestCase {
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
             assertSame(original.getAuthenticatingSubject().getMetadata(), authentication.getAuthenticatingSubject().getMetadata());
-        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.CURRENT));
+        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.current()));
     }
 
     public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteOldApiKeyMetadata() throws IOException {
@@ -258,7 +251,7 @@ public class SecurityContextTests extends ESTestCase {
                         equalTo(original.getAuthenticatingSubject().getMetadata().get(key))
                     );
                 });
-        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.CURRENT));
+        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.current()));
     }
 
     public void testExecuteAfterRemovingParentAuthorization() {

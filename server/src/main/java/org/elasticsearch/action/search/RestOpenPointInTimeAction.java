@@ -14,6 +14,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -21,6 +23,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestOpenPointInTimeAction extends BaseRestHandler {
 
     @Override
@@ -41,6 +44,13 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
         openRequest.routing(request.param("routing"));
         openRequest.preference(request.param("preference"));
         openRequest.keepAlive(TimeValue.parseTimeValue(request.param("keep_alive"), null, "keep_alive"));
+        if (request.hasParam("max_concurrent_shard_requests")) {
+            final int maxConcurrentShardRequests = request.paramAsInt(
+                "max_concurrent_shard_requests",
+                openRequest.maxConcurrentShardRequests()
+            );
+            openRequest.maxConcurrentShardRequests(maxConcurrentShardRequests);
+        }
         return channel -> client.execute(OpenPointInTimeAction.INSTANCE, openRequest, new RestToXContentListener<>(channel));
     }
 }

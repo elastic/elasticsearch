@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.eql.analysis;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -68,7 +69,12 @@ public class CancellationTests extends ESTestCase {
     public void mockTransportService() {
         threadPool = new TestThreadPool(getClass().getName());
         // The TransportService needs to be able to return a valid RemoteClusterServices object down the stream, required by the Verifier.
-        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
+        transportService = MockTransportService.createNewService(
+            Settings.EMPTY,
+            VersionInformation.CURRENT,
+            TransportVersion.current(),
+            threadPool
+        );
     }
 
     @After

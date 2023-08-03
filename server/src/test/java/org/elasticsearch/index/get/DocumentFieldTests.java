@@ -43,6 +43,16 @@ public class DocumentFieldTests extends ESTestCase {
         assertEquals("{\"field\":[\"ignored1\",\"ignored2\"]}", ignoredOutput);
     }
 
+    public void testUnserializableXContent() {
+        DocumentField df = new DocumentField(
+            "field",
+            List.of((ToXContent) (builder, params) -> { throw new UnsupportedOperationException(); })
+        );
+        String output = Strings.toString(df.getValidValuesWriter());
+        assertEquals("""
+            {"field":["<unserializable>"]}""", output);
+    }
+
     public void testEqualsAndHashcode() {
         checkEqualsAndHashCode(
             randomDocumentField(XContentType.JSON).v1(),

@@ -140,7 +140,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
             }
         };
         registry = new AnalysisModule(environment, singletonList(plugin), new StablePluginsRegistry()).getAnalysisRegistry();
-        indexAnalyzers = registry.build(this.indexSettings);
+        indexAnalyzers = registry.build(IndexService.IndexCreationContext.RELOAD_ANALYZERS, this.indexSettings);
         maxTokenCount = IndexSettings.MAX_TOKEN_COUNT_SETTING.getDefault(settings);
         idxMaxTokenCount = this.indexSettings.getMaxTokenCount();
     }
@@ -322,10 +322,9 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
     public void testGetFieldAnalyzerWithoutIndexAnalyzers() {
         AnalyzeAction.Request req = new AnalyzeAction.Request().field("field").text("text");
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { TransportAnalyzeAction.analyze(req, registry, null, maxTokenCount); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            TransportAnalyzeAction.analyze(req, registry, null, maxTokenCount);
+        });
         assertEquals(e.getMessage(), "analysis based on a specific field requires an index");
     }
 

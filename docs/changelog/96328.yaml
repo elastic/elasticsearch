@@ -1,0 +1,6 @@
+pr: 96328
+summary: Add `ingest` information to the cluster info endpoint
+area: Stats
+type: enhancement
+issues:
+ - 95392

@@ -30,9 +30,7 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
 
     @Before
     public void populateIndex() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("authors")
+        indicesAdmin().prepareCreate("authors")
             .setMapping("author", "type=keyword", "joined", "type=date,format=yyyy-MM-dd")
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
@@ -44,11 +42,9 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
         for (Map<String, String> author : authors) {
             client().prepareIndex("authors").setSource(author).setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).get();
         }
-        client().admin().indices().prepareRefresh("authors").get();
+        indicesAdmin().prepareRefresh("authors").get();
 
-        client().admin()
-            .indices()
-            .prepareCreate("publishers")
+        indicesAdmin().prepareCreate("publishers")
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
         client().prepareBulk("publishers")
@@ -56,33 +52,28 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
             .add(new IndexRequest().id("p2").source("name", "The second publisher", "city", "Toronto"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
-        client().admin()
-            .indices()
-            .prepareCreate("books")
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
-            .setMapping("""
-                {
-                    "properties": {
-                        "title": {"type": "text"},
-                        "author_id": {"type": "keyword"},
-                        "genre": {"type": "keyword"},
-                        "published_date": {
-                            "type": "date",
-                            "format": "yyyy-MM-dd"
-                        }
-                    },
-                    "runtime": {
-                        "author": {
-                            "type": "lookup",
-                            "target_index": "authors",
-                            "input_field": "author_id",
-                            "target_field": "author",
-                            "fetch_fields": ["first_name", "last_name"]
-                        }
+        indicesAdmin().prepareCreate("books").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)).setMapping("""
+            {
+                "properties": {
+                    "title": {"type": "text"},
+                    "author_id": {"type": "keyword"},
+                    "genre": {"type": "keyword"},
+                    "published_date": {
+                        "type": "date",
+                        "format": "yyyy-MM-dd"
+                    }
+                },
+                "runtime": {
+                    "author": {
+                        "type": "lookup",
+                        "target_index": "authors",
+                        "input_field": "author_id",
+                        "target_field": "author",
+                        "fetch_fields": ["first_name", "last_name"]
                     }
                 }
-                """)
-            .get();
+            }
+            """).get();
         List<Map<String, Object>> books = List.of(
             Map.of(
                 "title",
@@ -137,7 +128,7 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
         for (Map<String, Object> book : books) {
             client().prepareIndex("books").setSource(book).setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).get();
         }
-        client().admin().indices().prepareRefresh("books").get();
+        indicesAdmin().prepareRefresh("books").get();
     }
 
     public void testBasic() {

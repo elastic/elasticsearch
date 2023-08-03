@@ -75,17 +75,17 @@ public class TransportUpdateTrainedModelDeploymentAction extends TransportMaster
         logger.debug(
             () -> format(
                 "[%s] received request to update number of allocations to [%s]",
-                request.getModelId(),
+                request.getDeploymentId(),
                 request.getNumberOfAllocations()
             )
         );
 
         trainedModelAssignmentClusterService.updateNumberOfAllocations(
-            request.getModelId(),
+            request.getDeploymentId(),
             request.getNumberOfAllocations(),
             ActionListener.wrap(updatedAssignment -> {
                 auditor.info(
-                    request.getModelId(),
+                    request.getDeploymentId(),
                     Messages.getMessage(Messages.INFERENCE_DEPLOYMENT_UPDATED_NUMBER_OF_ALLOCATIONS, request.getNumberOfAllocations())
                 );
                 listener.onResponse(new CreateTrainedModelAssignmentAction.Response(updatedAssignment));

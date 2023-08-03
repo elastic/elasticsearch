@@ -121,7 +121,8 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
         return new TextEmbeddingConfig(
             embeddingConfig.getVocabularyConfig(),
             tokenizationUpdate == null ? embeddingConfig.getTokenization() : tokenizationUpdate.apply(embeddingConfig.getTokenization()),
-            resultsField == null ? embeddingConfig.getResultsField() : resultsField
+            resultsField == null ? embeddingConfig.getResultsField() : resultsField,
+            embeddingConfig.getEmbeddingSize()
         );
     }
 

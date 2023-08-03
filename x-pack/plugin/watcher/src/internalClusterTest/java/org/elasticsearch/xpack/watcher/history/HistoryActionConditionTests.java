@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
+import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
@@ -114,9 +115,14 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
         assertWatchWithMinimumActionsCount(id, ExecutionState.EXECUTED, 1);
 
         // only one action should have failed via condition
-        final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+        assertBusy(() -> {
+            // Watcher history is now written asynchronously, so we check this in an assertBusy
+            ensureGreen(HistoryStoreField.DATA_STREAM);
+            final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
+            assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+        });
 
+        final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
         final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
 
@@ -158,9 +164,14 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
         assertWatchWithMinimumActionsCount(id, ExecutionState.EXECUTED, 1);
 
         // only one action should have failed via condition
-        final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+        assertBusy(() -> {
+            // Watcher history is now written asynchronously, so we check this in an assertBusy
+            ensureGreen(HistoryStoreField.DATA_STREAM);
+            final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
+            assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+        });
 
+        final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
         final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
 
@@ -187,7 +198,6 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65064")
     public void testActionCondition() throws Exception {
         final String id = "testActionCondition";
         final List<ExecutableCondition> actionConditions = new ArrayList<>();
@@ -209,8 +219,14 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
         assertWatchWithMinimumActionsCount(id, ExecutionState.EXECUTED, 1);
 
         // all actions should be successful
+        assertBusy(() -> {
+            // Watcher history is now written asynchronously, so we check this in an assertBusy
+            ensureGreen(HistoryStoreField.DATA_STREAM);
+            final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
+            assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+        });
+
         final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
 
         final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());

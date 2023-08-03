@@ -118,8 +118,9 @@ class Retry2 {
      * listeners.
      * @param timeout
      * @param unit
+     * @return True if all outstanding requests complete in the given time, false otherwise
      */
-    void awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
+    boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
         isClosing = true;
         /*
          * This removes the party that was placed in the phaser at initialization so that the phaser will terminate once all in-flight
@@ -128,8 +129,10 @@ class Retry2 {
         inFlightRequestsPhaser.arriveAndDeregister();
         try {
             inFlightRequestsPhaser.awaitAdvanceInterruptibly(0, timeout, unit);
+            return true;
         } catch (TimeoutException e) {
             logger.debug("Timed out waiting for all requests to complete during awaitClose");
+            return false;
         }
     }
 

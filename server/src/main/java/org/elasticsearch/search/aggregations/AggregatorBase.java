@@ -273,6 +273,15 @@ public abstract class AggregatorBase extends Aggregator {
         return subAggregatorbyName.get(aggName);
     }
 
+    @Override
+    public void releaseAggregations() {
+        // release sub aggregations
+        Arrays.stream(subAggregators).forEach(Aggregator::releaseAggregations);
+        // release this aggregation
+        close();
+        context.removeReleasable(this);
+    }
+
     /**
      * Called after collection of all document is done.
      * <p>

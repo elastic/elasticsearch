@@ -19,11 +19,11 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Stack;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
@@ -71,7 +71,7 @@ public class XContentTestUtilsTests extends ESTestCase {
             )
         ) {
             parser.nextToken();
-            List<String> insertPaths = XContentTestUtils.getInsertPaths(parser, new Stack<>());
+            List<String> insertPaths = XContentTestUtils.getInsertPaths(parser, new ArrayDeque<>());
             assertEquals(5, insertPaths.size());
             assertThat(insertPaths, hasItem(equalTo("")));
             assertThat(insertPaths, hasItem(equalTo("list1.2")));

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.shutdown;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -39,10 +38,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
     public void testShardAllocationIsDelayedForRestartingNode() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0) // Disable "normal" delayed allocation
+            // Disable "normal" delayed allocation
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
         ).get();
         ensureGreen("test");
         indexRandomData();
@@ -56,6 +53,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
             null, // Make sure it works with the default - we'll check this override in other tests
+            null,
             null
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
@@ -64,9 +62,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         internalCluster().restartNode(nodeToRestartName, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                assertBusy(
-                    () -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); }
-                );
+                assertBusy(() -> assertThat(clusterAdmin().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)));
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -78,10 +74,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
     public void testShardAllocationWillProceedAfterTimeout() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0) // Disable "normal" delayed allocation
+            // Disable "normal" delayed allocation
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
         ).get();
         ensureGreen("test");
         indexRandomData();
@@ -95,6 +89,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
             TimeValue.timeValueMillis(randomIntBetween(10, 1000)),
+            null,
             null
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
@@ -110,10 +105,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
     public void testIndexLevelAllocationDelayWillBeUsedIfLongerThanShutdownDelay() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "3h") // Use a long timeout we definitely won't hit
+            // Use a long timeout we definitely won't hit
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "3h")
         ).get();
         ensureGreen("test");
         indexRandomData();
@@ -127,6 +120,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
             TimeValue.timeValueMillis(0), // No delay for reallocating these shards, IF this timeout is used.
+            null,
             null
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
@@ -135,9 +129,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         internalCluster().restartNode(nodeToRestartName, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                assertBusy(
-                    () -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); }
-                );
+                assertBusy(() -> { assertThat(clusterAdmin().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); });
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -155,6 +147,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
             TimeValue.timeValueMillis(1),
+            null,
             null
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
@@ -184,10 +177,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
     private String setupLongTimeoutTestCase() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0) // Disable "normal" delayed allocation
+            // Disable "normal" delayed allocation
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
         ).get();
         ensureGreen("test");
         indexRandomData();
@@ -202,6 +193,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
                 SingleNodeShutdownMetadata.Type.RESTART,
                 this.getTestName(),
                 TimeValue.timeValueHours(3),
+                null,
                 null
             );
             AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
@@ -212,7 +204,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         internalCluster().stopNode(nodeToRestartName);
 
         // Verify that the shard's allocation is delayed
-        assertBusy(() -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); });
+        assertBusy(() -> { assertThat(clusterAdmin().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); });
 
         return nodeToRestartId;
     }
@@ -227,13 +219,13 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
     }
 
     private String findIdOfNodeWithShard() {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         List<ShardRouting> startedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
         return randomFrom(startedShards).currentNodeId();
     }
 
     private String findNodeNameFromId(String id) {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         return state.nodes().get(id).getName();
     }
 }

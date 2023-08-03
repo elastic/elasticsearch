@@ -358,8 +358,9 @@ public class MultiGetRequest extends ActionRequest
      * of the worst case performance. Fetches with this enabled will be slower the
      * enabling synthetic source natively in the index.
      */
-    public void setForceSyntheticSource(boolean forceSyntheticSource) {
+    public MultiGetRequest setForceSyntheticSource(boolean forceSyntheticSource) {
         this.forceSyntheticSource = forceSyntheticSource;
+        return this;
     }
 
     /**

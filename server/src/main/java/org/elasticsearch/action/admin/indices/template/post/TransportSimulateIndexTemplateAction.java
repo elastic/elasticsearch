@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.template.post;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -17,7 +16,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -28,10 +27,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
@@ -66,6 +67,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     private final IndicesService indicesService;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
+    private final ClusterSettings clusterSettings;
 
     @Inject
     public TransportSimulateIndexTemplateAction(
@@ -96,6 +98,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         this.indicesService = indicesService;
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
+        this.clusterSettings = clusterService.getClusterSettings();
     }
 
     @Override
@@ -152,7 +155,17 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         overlapping.putAll(findConflictingV1Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
         overlapping.putAll(findConflictingV2Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
 
-        listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
+        if (request.includeDefaults() && DataStreamLifecycle.isFeatureEnabled()) {
+            listener.onResponse(
+                new SimulateIndexTemplateResponse(
+                    template,
+                    overlapping,
+                    clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
+                )
+            );
+        } else {
+            listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
+        }
     }
 
     /**
@@ -183,7 +196,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
 
         // create the index with dummy settings in the cluster state so we can parse and validate the aliases
         Settings dummySettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(settings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -220,7 +233,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         ComposableIndexTemplate template = simulatedState.metadata().templatesV2().get(matchingTemplate);
         // create the index with dummy settings in the cluster state so we can parse and validate the aliases
         Settings.Builder dummySettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
@@ -291,7 +304,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         );
 
         Settings settings = Settings.builder().put(templateSettings).put(additionalSettings.build()).build();
-        DataLifecycle lifecycle = resolveLifecycle(simulatedState.metadata(), matchingTemplate);
+        DataStreamLifecycle lifecycle = resolveLifecycle(simulatedState.metadata(), matchingTemplate);
         return new Template(settings, mergedMapping, aliasesByName, lifecycle);
     }
 }

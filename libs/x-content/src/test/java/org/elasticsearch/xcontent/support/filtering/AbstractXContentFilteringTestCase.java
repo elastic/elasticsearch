@@ -305,7 +305,6 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92632")
     public void testDotsAndDoubleWildcardInExcludedFieldName() throws IOException {
         testFilter(
             builder -> builder.startObject().endObject(),
@@ -408,7 +407,9 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
             return filterOnBuilder(sample, includes, excludes);
         }
         FilterPath[] excludesFilter = FilterPath.compile(excludes);
-        if (excludesFilter != null && Arrays.stream(excludesFilter).anyMatch(FilterPath::hasDoubleWildcard)) {
+        if (excludesFilter != null
+            && Arrays.stream(excludesFilter).anyMatch(FilterPath::hasDoubleWildcard)
+            && matchFieldNamesWithDots == false) {
             return filterOnBuilder(sample, includes, excludes);
         }
         return filterOnParser(sample, includes, excludes, matchFieldNamesWithDots);

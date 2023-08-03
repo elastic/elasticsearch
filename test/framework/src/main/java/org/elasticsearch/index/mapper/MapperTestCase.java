@@ -25,7 +25,6 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -71,8 +71,10 @@ import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesPattern;
@@ -244,8 +246,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.field("field");
             value.accept(b);
         });
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             "didn't throw while parsing " + source.source().utf8ToString(),
             () -> mapperService.documentMapper().parse(source)
         );
@@ -277,9 +279,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 b.field("field");
                 example.value.accept(b);
             }));
-            IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertThat(fields, equalTo(new IndexableField[0]));
-            assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), equalTo(new String[] { "field" }));
+            List<IndexableField> fields = doc.rootDoc().getFields("field");
+            assertThat(fields, empty());
+            assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), contains("field"));
         }
     }
 
@@ -318,7 +320,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected static void assertHasNorms(LuceneDocument doc, String field) {
-        IndexableField[] fields = doc.getFields(field);
+        List<IndexableField> fields = doc.getFields(field);
         for (IndexableField indexableField : fields) {
             IndexableFieldType indexableFieldType = indexableField.fieldType();
             if (indexableFieldType.indexOptions() != IndexOptions.NONE) {
@@ -330,7 +332,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected static void assertNoDocValuesField(LuceneDocument doc, String field) {
-        IndexableField[] fields = doc.getFields(field);
+        List<IndexableField> fields = doc.getFields(field);
         for (IndexableField indexableField : fields) {
             assertEquals(DocValuesType.NONE, indexableField.fieldType().docValuesType());
         }
@@ -368,8 +370,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testBlankName() {
-        Version version = getVersion();
-        assumeTrue("blank field names are rejected from 8.6.0 onwards", version.onOrAfter(Version.V_8_6_0));
+        IndexVersion version = getVersion();
+        assumeTrue("blank field names are rejected from 8.6.0 onwards", version.onOrAfter(IndexVersion.V_8_6_0));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(version, mapping(b -> {
             b.startObject("  ");
             minimalMapping(b);
@@ -474,7 +476,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testDeprecatedBoost() throws IOException {
         try {
-            createMapperService(Version.V_7_10_0, fieldMapping(b -> {
+            createMapperService(IndexVersion.V_7_10_0, fieldMapping(b -> {
                 minimalMapping(b);
                 b.field("boost", 2.0);
             }));
@@ -487,10 +489,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             assertThat(e.getMessage(), anyOf(containsString("Unknown parameter [boost]"), containsString("[boost : 2.0]")));
         }
 
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(Version.V_8_0_0, fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("boost", 2.0);
-        })));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(IndexVersion.V_8_0_0, fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("boost", 2.0);
+            }))
+        );
         assertThat(e.getMessage(), anyOf(containsString("Unknown parameter [boost]"), containsString("[boost : 2.0]")));
 
         assertParseMinimalWarnings();
@@ -503,47 +508,43 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         throws IOException {
 
         SetOnce<List<?>> result = new SetOnce<>();
-        withLuceneIndex(
-            mapperService,
-            iw -> { iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc()); },
-            iw -> {
-                SearchLookup lookup = new SearchLookup(
-                    mapperService::fieldType,
-                    fieldDataLookup(mapperService),
-                    SourceProvider.fromStoredFields()
-                );
-                ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft, MappedFieldType.FielddataOperation.SEARCH));
-                IndexSearcher searcher = newSearcher(iw);
-                LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-                Source source = lookup.getSource(context, 0);
-                valueFetcher.setNextReader(context);
-                result.set(valueFetcher.fetchValues(source, 0, new ArrayList<>()));
-            }
-        );
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
+        }, iw -> {
+            SearchLookup lookup = new SearchLookup(
+                mapperService::fieldType,
+                fieldDataLookup(mapperService),
+                SourceProvider.fromStoredFields()
+            );
+            ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft, MappedFieldType.FielddataOperation.SEARCH));
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+            Source source = lookup.getSource(context, 0);
+            valueFetcher.setNextReader(context);
+            result.set(valueFetcher.fetchValues(source, 0, new ArrayList<>()));
+        });
         return result.get();
     }
 
     protected final void assertScriptDocValues(MapperService mapperService, Object sourceValue, Matcher<List<?>> dvMatcher)
         throws IOException {
-        withLuceneIndex(
-            mapperService,
-            iw -> { iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", sourceValue))).rootDoc()); },
-            iw -> {
-                IndexSearcher searcher = newSearcher(iw);
-                MappedFieldType ft = mapperService.fieldType("field");
-                SourceProvider sourceProvider = mapperService.mappingLookup().isSourceSynthetic()
-                    ? (ctx, doc) -> { throw new IllegalArgumentException("Can't load source in scripts in synthetic mode"); }
-                    : SourceProvider.fromStoredFields();
-                SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
-                IndexFieldData<?> sfd = ft.fielddataBuilder(
-                    new FieldDataContext("", () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
-                ).build(null, null);
-                LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
-                DocValuesScriptFieldFactory sff = lfd.getScriptFieldFactory("field");
-                sff.setNextDocId(0);
-                assertThat(sff.toScriptDocValues(), dvMatcher);
-            }
-        );
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", sourceValue))).rootDoc());
+        }, iw -> {
+            IndexSearcher searcher = newSearcher(iw);
+            MappedFieldType ft = mapperService.fieldType("field");
+            SourceProvider sourceProvider = mapperService.mappingLookup().isSourceSynthetic() ? (ctx, doc) -> {
+                throw new IllegalArgumentException("Can't load source in scripts in synthetic mode");
+            } : SourceProvider.fromStoredFields();
+            SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
+            IndexFieldData<?> sfd = ft.fielddataBuilder(
+                new FieldDataContext("", () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
+            ).build(null, null);
+            LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
+            DocValuesScriptFieldFactory sff = lfd.getScriptFieldFactory("field");
+            sff.setNextDocId(0);
+            assertThat(sff.toScriptDocValues(), dvMatcher);
+        });
     }
 
     private class UpdateCheck {
@@ -733,7 +734,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             while (values.size() < count) {
                 values.add(generateRandomInputValue(ft));
             }
-            assertFetch(mapperService, "field", values, randomFetchTestFormat());
+            assertFetchMany(mapperService, "field", values, randomFetchTestFormat(), count);
         } finally {
             assertParseMinimalWarnings();
         }
@@ -794,6 +795,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected abstract Object generateRandomInputValue(MappedFieldType ft);
 
     /**
+     * Assert that fetching many values using {@link MappedFieldType#valueFetcher}
+     * produces the same values as fetching using doc values.
+     */
+    protected void assertFetchMany(MapperService mapperService, String field, Object value, String format, int count) throws IOException {
+        assertFetch(mapperService, field, value, format);
+    }
+
+    /**
      * Assert that fetching a value using {@link MappedFieldType#valueFetcher}
      * produces the same value as fetching using doc values.
      */
@@ -809,9 +818,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
-        when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(
-            inv -> fieldDataLookup(mapperService).apply(ft, () -> { throw new UnsupportedOperationException(); }, fdt)
-        );
+        when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(inv -> fieldDataLookup(mapperService).apply(ft, () -> {
+            throw new UnsupportedOperationException();
+        }, fdt));
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
@@ -949,10 +958,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         if (allowsNullValues()) {
             ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
-            assertThat(doc.docs().get(0).getFields("field").length, equalTo(0));
-            assertThat(doc.docs().get(0).getFields("_field_names").length, equalTo(0));
+            assertThat(doc.docs().get(0).getFields("field"), empty());
+            assertThat(doc.docs().get(0).getFields("_field_names"), empty());
         } else {
-            expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
+            expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
         }
 
         assertWarnings(getParseMinimalWarnings());
@@ -966,7 +975,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         MapperService mapper = createMapperService(fieldMapping(this::minimalMapping));
         try {
             IndexSettings settings = createIndexSettings(
-                Version.CURRENT,
+                IndexVersion.current(),
                 Settings.builder()
                     .put(IndexSettings.MODE.getKey(), "time_series")
                     .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
@@ -983,7 +992,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
         return "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-            + "and without the [script] parameter. ["
+            + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+            + "without the [script] parameter. ["
             + mapper.name()
             + "] was ["
             + mapper.typeName()

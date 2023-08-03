@@ -10,7 +10,7 @@ import org.elasticsearch.gradle.util.GradleUtils
 
 import java.nio.file.Files
 
-String buildNumber = System.getenv('BUILD_NUMBER')
+String buildNumber = System.getenv('BUILD_NUMBER') ?: System.getenv('BUILDKITE_BUILD_NUMBER')
 String performanceTest = System.getenv('BUILD_PERFORMANCE_TEST')
 if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(project) == false) {
   File uploadFile = file("build/${buildNumber}.tar.bz2")

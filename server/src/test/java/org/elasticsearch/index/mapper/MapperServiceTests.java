@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.VersionUtils;
@@ -282,12 +283,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         {
             IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
-            Settings settings = Settings.builder()
-                .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", 1)
-                .put("index.version.created", Version.CURRENT)
-                .build();
-            builder.settings(settings);
+            builder.settings(indexSettings(IndexVersion.current(), 1, 0));
 
             // Text fields are not stored by default, so an incoming update that is identical but
             // just has `stored:false` should not require an update
@@ -298,12 +294,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         {
             IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
-            Settings settings = Settings.builder()
-                .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", 1)
-                .put("index.version.created", Version.CURRENT)
-                .build();
-            builder.settings(settings);
+            builder.settings(indexSettings(IndexVersion.current(), 1, 0));
 
             // However, an update that really does need a rebuild will throw an exception
             builder.putMapping("""
@@ -423,7 +414,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
             }"""));
 
         assertNull(parsedDocument.dynamicMappingsUpdate());
-        IndexableField[] fields = parsedDocument.rootDoc().getFields("obj.sub.string");
-        assertEquals(1, fields.length);
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields("obj.sub.string");
+        assertEquals(1, fields.size());
     }
 }

@@ -11,15 +11,16 @@ package org.elasticsearch.search.suggest.completion.context;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -175,32 +176,22 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
         final Set<String> geohashes = new HashSet<>();
 
         if (fieldName != null) {
-            IndexableField[] fields = document.getFields(fieldName);
+            List<IndexableField> fields = document.getFields(fieldName);
             GeoPoint spare = new GeoPoint();
-            if (fields.length == 0) {
-                IndexableField[] lonFields = document.getFields(fieldName + ".lon");
-                IndexableField[] latFields = document.getFields(fieldName + ".lat");
-                if (lonFields.length > 0 && latFields.length > 0) {
-                    for (int i = 0; i < lonFields.length; i++) {
-                        IndexableField lonField = lonFields[i];
-                        IndexableField latField = latFields[i];
-                        assert lonField.fieldType().docValuesType() == latField.fieldType().docValuesType();
-                        // we write doc values fields differently: one field for all values, so we need to only care about indexed fields
-                        if (lonField.fieldType().docValuesType() == DocValuesType.NONE) {
-                            spare.reset(latField.numericValue().doubleValue(), lonField.numericValue().doubleValue());
-                            geohashes.add(stringEncode(spare.getLon(), spare.getLat(), precision));
-                        }
-                    }
-                }
-            } else {
-                for (IndexableField field : fields) {
-                    if (field instanceof StringField) {
-                        spare.resetFromString(field.stringValue());
-                        geohashes.add(spare.geohash());
-                    } else if (field instanceof LatLonPoint || field instanceof LatLonDocValuesField) {
-                        spare.resetFromIndexableField(field);
-                        geohashes.add(spare.geohash());
-                    }
+            for (IndexableField field : fields) {
+                if (field instanceof StringField) {
+                    spare.resetFromString(field.stringValue());
+                    geohashes.add(spare.geohash());
+                } else if (field instanceof LatLonDocValuesField) {
+                    spare.resetFromEncoded(field.numericValue().longValue());
+                    geohashes.add(spare.geohash());
+                } else if (field instanceof LatLonPoint) {
+                    BytesRef bytes = field.binaryValue();
+                    spare.reset(
+                        NumericUtils.sortableBytesToInt(bytes.bytes, bytes.offset),
+                        NumericUtils.sortableBytesToInt(bytes.bytes, bytes.offset + Integer.BYTES)
+                    );
+                    geohashes.add(spare.geohash());
                 }
             }
         }
@@ -276,11 +267,11 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     }
 
     @Override
-    public void validateReferences(Version indexVersionCreated, Function<String, MappedFieldType> fieldResolver) {
+    public void validateReferences(IndexVersion indexVersionCreated, Function<String, MappedFieldType> fieldResolver) {
         if (fieldName != null) {
             MappedFieldType mappedFieldType = fieldResolver.apply(fieldName);
             if (mappedFieldType == null) {
-                if (indexVersionCreated.before(Version.V_7_0_0)) {
+                if (indexVersionCreated.before(IndexVersion.V_7_0_0)) {
                     deprecationLogger.warn(
                         DeprecationCategory.MAPPINGS,
                         "geo_context_mapping",
@@ -296,7 +287,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                     );
                 }
             } else if (GeoPointFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName()) == false) {
-                if (indexVersionCreated.before(Version.V_7_0_0)) {
+                if (indexVersionCreated.before(IndexVersion.V_7_0_0)) {
                     deprecationLogger.warn(
                         DeprecationCategory.MAPPINGS,
                         "geo_context_mapping",

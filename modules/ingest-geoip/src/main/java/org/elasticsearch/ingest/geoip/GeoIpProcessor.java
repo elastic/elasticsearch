@@ -25,6 +25,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -33,7 +34,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -330,24 +330,22 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP:
-                    geoData.put("ip", NetworkAddress.format(ipAddress));
-                    break;
-                case ASN:
+                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case ASN -> {
                     if (asn != null) {
                         geoData.put("asn", asn);
                     }
-                    break;
-                case ORGANIZATION_NAME:
+                }
+                case ORGANIZATION_NAME -> {
                     if (organization_name != null) {
                         geoData.put("organization_name", organization_name);
                     }
-                    break;
-                case NETWORK:
+                }
+                case NETWORK -> {
                     if (network != null) {
                         geoData.put("network", network.toString());
                     }
-                    break;
+                }
             }
         }
         return geoData;
@@ -376,19 +374,22 @@ public final class GeoIpProcessor extends AbstractProcessor {
             } else if (loader == null) {
                 throw new ResourceNotFoundException("database file [" + databaseFile + "] doesn't exist");
             }
-            // Only check whether the suffix has changed and not the entire database type.
-            // To sanity check whether a city db isn't overwriting with a country or asn db.
-            // For example overwriting a geoip lite city db with geoip city db is a valid change, but the db type is slightly different,
-            // by checking just the suffix this assertion doesn't fail.
-            String expectedSuffix = databaseType.substring(databaseType.lastIndexOf('-'));
-            assert loader.getDatabaseType().endsWith(expectedSuffix)
-                : "database type [" + loader.getDatabaseType() + "] doesn't match with expected suffix [" + expectedSuffix + "]";
+
+            if (Assertions.ENABLED) {
+                // Only check whether the suffix has changed and not the entire database type.
+                // To sanity check whether a city db isn't overwriting with a country or asn db.
+                // For example overwriting a geoip lite city db with geoip city db is a valid change, but the db type is slightly different,
+                // by checking just the suffix this assertion doesn't fail.
+                String expectedSuffix = databaseType.substring(databaseType.lastIndexOf('-'));
+                assert loader.getDatabaseType().endsWith(expectedSuffix)
+                    : "database type [" + loader.getDatabaseType() + "] doesn't match with expected suffix [" + expectedSuffix + "]";
+            }
             return loader;
         }
     }
 
     public static final class Factory implements Processor.Factory {
-        static final Set<Property> DEFAULT_CITY_PROPERTIES = Collections.unmodifiableSet(
+        static final Set<Property> DEFAULT_CITY_PROPERTIES = Set.copyOf(
             EnumSet.of(
                 Property.CONTINENT_NAME,
                 Property.COUNTRY_NAME,
@@ -399,10 +400,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 Property.LOCATION
             )
         );
-        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = Collections.unmodifiableSet(
+        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = Set.copyOf(
             EnumSet.of(Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
         );
-        static final Set<Property> DEFAULT_ASN_PROPERTIES = Collections.unmodifiableSet(
+        static final Set<Property> DEFAULT_ASN_PROPERTIES = Set.copyOf(
             EnumSet.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK)
         );
 
@@ -425,6 +426,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             boolean firstOnly = readBooleanProperty(TYPE, processorTag, config, "first_only", true);
+
+            // Validating the download_database_on_pipeline_creation even if the result
+            // is not used directly by the factory.
+            downloadDatabaseOnPipelineCreation(config, processorTag);
 
             // noop, should be removed in 9.0
             Object value = config.remove("fallback_to_default_databases");
@@ -455,7 +460,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                         throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
                     }
                 }
-                properties = Collections.unmodifiableSet(modifiableProperties);
+                properties = Set.copyOf(modifiableProperties);
             } else {
                 if (databaseType.endsWith(CITY_DB_SUFFIX)) {
                     properties = DEFAULT_CITY_PROPERTIES;
@@ -484,6 +489,14 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 firstOnly,
                 databaseFile
             );
+        }
+
+        public static boolean downloadDatabaseOnPipelineCreation(Map<String, Object> config) {
+            return downloadDatabaseOnPipelineCreation(config, null);
+        }
+
+        public static boolean downloadDatabaseOnPipelineCreation(Map<String, Object> config, String processorTag) {
+            return readBooleanProperty(GeoIpProcessor.TYPE, processorTag, config, "download_database_on_pipeline_creation", true);
         }
 
         private static boolean useDatabaseUnavailableProcessor(GeoIpDatabase database, String databaseName) {

@@ -127,7 +127,8 @@ public class VectorTileRestIT extends ESRestTestCase {
             {
               "properties": {
                 "location": {
-                  "type": "geo_shape"
+                  "type": "geo_shape",
+                  "store":""" + " " + random().nextBoolean() + """
                 },
                 "name": {
                   "type": "keyword"
@@ -896,7 +897,7 @@ public class VectorTileRestIT extends ESRestTestCase {
                   "percentiles": {
                      "field": "value1",
                      "percents": [95, 99, 99.9]
-                    }
+                  }
                 }
               }
             }""");

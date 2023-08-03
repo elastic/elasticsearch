@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.TimeValue;
@@ -36,7 +37,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
         String indexName = indexMetadata.getIndex().getName();
         IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(indexName);
         assert indexAbstraction != null : "invalid cluster metadata. index [" + indexName + "] was not found";
-        IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+        DataStream dataStream = indexAbstraction.getParentDataStream();
 
         if (dataStream != null) {
             assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
@@ -47,7 +48,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
                 getClient().execute(
                     DeleteDataStreamAction.INSTANCE,
                     deleteReq,
-                    ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
+                    listener.delegateFailureAndWrap((l, response) -> l.onResponse(null))
                 );
                 return;
             } else if (dataStream.getWriteIndex().getName().equals(indexName)) {
@@ -69,7 +70,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
             .indices()
             .delete(
                 new DeleteIndexRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE),
-                ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
+                listener.delegateFailureAndWrap((l, response) -> l.onResponse(null))
             );
     }
 

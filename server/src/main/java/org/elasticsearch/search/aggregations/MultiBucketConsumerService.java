@@ -64,8 +64,8 @@ public class MultiBucketConsumerService {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+        protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+            super.writeTo(out, nestedExceptionsWriter);
             out.writeInt(maxBuckets);
         }
 
@@ -75,7 +75,7 @@ public class MultiBucketConsumerService {
 
         @Override
         public RestStatus status() {
-            return RestStatus.SERVICE_UNAVAILABLE;
+            return RestStatus.BAD_REQUEST;
         }
 
         @Override
@@ -125,20 +125,16 @@ public class MultiBucketConsumerService {
             }
         }
 
-        public void reset() {
-            this.count = 0;
-        }
-
         public int getCount() {
             return count;
-        }
-
-        public int getLimit() {
-            return limit;
         }
     }
 
     public MultiBucketConsumer create() {
         return new MultiBucketConsumer(maxBucket, breaker);
+    }
+
+    public int getLimit() {
+        return maxBucket;
     }
 }

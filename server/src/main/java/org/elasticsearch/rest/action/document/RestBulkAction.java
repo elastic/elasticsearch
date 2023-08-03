@@ -12,7 +12,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
@@ -70,7 +69,7 @@ public class RestBulkAction extends BaseRestHandler {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
             request.param("type");
         }
-        BulkRequest bulkRequest = Requests.bulkRequest();
+        BulkRequest bulkRequest = new BulkRequest();
         String defaultIndex = request.param("index");
         String defaultRouting = request.param("routing");
         FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);

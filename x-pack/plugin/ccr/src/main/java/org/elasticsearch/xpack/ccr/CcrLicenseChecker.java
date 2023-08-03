@@ -119,10 +119,11 @@ public class CcrLicenseChecker {
         final Consumer<Exception> onFailure,
         final BiConsumer<String[], Tuple<IndexMetadata, DataStream>> consumer
     ) {
+        final var remoteClient = client.getRemoteClusterClient(clusterAlias, client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME));
         checkRemoteClusterLicenseAndFetchClusterState(
             client,
             clusterAlias,
-            client.getRemoteClusterClient(clusterAlias),
+            remoteClient,
             CcrRequests.metadataRequest(leaderIndex),
             onFailure,
             remoteClusterStateResponse -> {
@@ -152,9 +153,8 @@ public class CcrLicenseChecker {
                 }
                 IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndex);
                 final DataStream remoteDataStream = indexAbstraction.getParentDataStream() != null
-                    ? indexAbstraction.getParentDataStream().getDataStream()
+                    ? indexAbstraction.getParentDataStream()
                     : null;
-                final Client remoteClient = client.getRemoteClusterClient(clusterAlias);
                 hasPrivilegesToFollowIndices(remoteClient, new String[] { leaderIndex }, e -> {
                     if (e == null) {
                         fetchLeaderHistoryUUIDs(
@@ -193,7 +193,9 @@ public class CcrLicenseChecker {
         final Consumer<ClusterStateResponse> leaderClusterStateConsumer
     ) {
         try {
-            Client remoteClient = systemClient(client.getRemoteClusterClient(clusterAlias));
+            Client remoteClient = systemClient(
+                client.getRemoteClusterClient(clusterAlias, client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME))
+            );
             checkRemoteClusterLicenseAndFetchClusterState(
                 client,
                 clusterAlias,

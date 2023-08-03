@@ -28,11 +28,9 @@ public class CumulativeCardinalityPipelineAggregationBuilder extends AbstractPip
     public static final String NAME = "cumulative_cardinality";
 
     public static final ConstructingObjectParser<CumulativeCardinalityPipelineAggregationBuilder, String> PARSER =
-        new ConstructingObjectParser<>(
-            NAME,
-            false,
-            (args, name) -> { return new CumulativeCardinalityPipelineAggregationBuilder(name, (String) args[0]); }
-        );
+        new ConstructingObjectParser<>(NAME, false, (args, name) -> {
+            return new CumulativeCardinalityPipelineAggregationBuilder(name, (String) args[0]);
+        });
     static {
         PARSER.declareString(constructorArg(), BUCKETS_PATH_FIELD);
         PARSER.declareString(CumulativeCardinalityPipelineAggregationBuilder::format, FORMAT);

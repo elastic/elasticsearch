@@ -19,8 +19,6 @@ public class LifecycleSettings {
     public static final String LIFECYCLE_POLL_INTERVAL = "indices.lifecycle.poll_interval";
     public static final String LIFECYCLE_NAME = IndexMetadata.LIFECYCLE_NAME;
     public static final String LIFECYCLE_INDEXING_COMPLETE = "index.lifecycle.indexing_complete";
-    public static final String LIFECYCLE_ORIGINATION_DATE = "index.lifecycle.origination_date";
-    public static final String LIFECYCLE_PARSE_ORIGINATION_DATE = "index.lifecycle.parse_origination_date";
     public static final String LIFECYCLE_HISTORY_INDEX_ENABLED = "indices.lifecycle.history_index_enabled";
     public static final String LIFECYCLE_STEP_MASTER_TIMEOUT = "indices.lifecycle.step.master_timeout";
     public static final String LIFECYCLE_STEP_WAIT_TIME_THRESHOLD = "index.lifecycle.step.wait_time_threshold";
@@ -50,19 +48,6 @@ public class LifecycleSettings {
     );
     public static final Setting<Boolean> LIFECYCLE_INDEXING_COMPLETE_SETTING = Setting.boolSetting(
         LIFECYCLE_INDEXING_COMPLETE,
-        false,
-        Setting.Property.Dynamic,
-        Setting.Property.IndexScope
-    );
-    public static final Setting<Long> LIFECYCLE_ORIGINATION_DATE_SETTING = Setting.longSetting(
-        LIFECYCLE_ORIGINATION_DATE,
-        -1,
-        -1,
-        Setting.Property.Dynamic,
-        Setting.Property.IndexScope
-    );
-    public static final Setting<Boolean> LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING = Setting.boolSetting(
-        LIFECYCLE_PARSE_ORIGINATION_DATE,
         false,
         Setting.Property.Dynamic,
         Setting.Property.IndexScope

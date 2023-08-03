@@ -7,15 +7,16 @@
 
 package org.elasticsearch.repositories.blobstore.testkit;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.ConcurrentRegisterOperationException;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -50,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -270,7 +272,8 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         private final long maxTotalBlobSize;
         private final Map<String, byte[]> blobs = ConcurrentCollections.newConcurrentMap();
         private final AtomicLong totalBytesWritten = new AtomicLong();
-        private final Map<String, AtomicLong> registers = ConcurrentCollections.newConcurrentMap();
+        private final Map<String, BytesRegister> registers = ConcurrentCollections.newConcurrentMap();
+        private final AtomicBoolean firstRegisterRead = new AtomicBoolean(true);
 
         AssertingBlobContainer(
             BlobPath path,
@@ -409,20 +412,36 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public long getRegister(String key) throws ConcurrentRegisterOperationException {
-            if (randomBoolean() && randomBoolean()) {
-                throw new ConcurrentRegisterOperationException(new ElasticsearchException("simulated"));
+        public void getRegister(String key, ActionListener<OptionalBytesReference> listener) {
+            if (firstRegisterRead.compareAndSet(true, false) && randomBoolean() && randomBoolean()) {
+                // only fail the first read, we must not fail the final check
+                listener.onResponse(OptionalBytesReference.EMPTY);
+            } else if (randomBoolean()) {
+                listener.onResponse(OptionalBytesReference.of(registers.computeIfAbsent(key, ignored -> new BytesRegister()).get()));
+            } else {
+                final var bogus = randomFrom(BytesArray.EMPTY, new BytesArray(new byte[] { randomByte() }));
+                compareAndExchangeRegister(key, bogus, bogus, listener);
             }
-            return registers.computeIfAbsent(key, ignored -> new AtomicLong()).get();
         }
 
         @Override
-        public long compareAndExchangeRegister(String key, long expected, long updated) throws ConcurrentRegisterOperationException {
-            if (expected != updated && randomBoolean() && randomBoolean()) {
-                // don't fail the final check because we know there can be no concurrent operations at that point
-                throw new ConcurrentRegisterOperationException(new ElasticsearchException("simulated"));
+        public void compareAndExchangeRegister(
+            String key,
+            BytesReference expected,
+            BytesReference updated,
+            ActionListener<OptionalBytesReference> listener
+        ) {
+            firstRegisterRead.set(false);
+            if (updated.length() > 1 && randomBoolean() && randomBoolean()) {
+                // updated.length() > 1 so we don't fail the final check because we know there can be no concurrent operations at that point
+                listener.onResponse(OptionalBytesReference.MISSING);
+            } else {
+                listener.onResponse(
+                    OptionalBytesReference.of(
+                        registers.computeIfAbsent(key, ignored -> new BytesRegister()).compareAndExchange(expected, updated)
+                    )
+                );
             }
-            return registers.computeIfAbsent(key, ignored -> new AtomicLong()).compareAndExchange(expected, updated);
         }
     }
 

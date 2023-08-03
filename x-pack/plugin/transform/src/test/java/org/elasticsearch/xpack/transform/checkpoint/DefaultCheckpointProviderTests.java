@@ -87,9 +87,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         when(remoteClient2.threadPool()).thenReturn(threadPool);
         remoteClient3 = mock(Client.class);
         when(remoteClient3.threadPool()).thenReturn(threadPool);
-        when(client.getRemoteClusterClient("remote-1")).thenReturn(remoteClient1);
-        when(client.getRemoteClusterClient("remote-2")).thenReturn(remoteClient2);
-        when(client.getRemoteClusterClient("remote-3")).thenReturn(remoteClient3);
+        when(client.getRemoteClusterClient(eq("remote-1"), any())).thenReturn(remoteClient1);
+        when(client.getRemoteClusterClient(eq("remote-2"), any())).thenReturn(remoteClient2);
+        when(client.getRemoteClusterClient(eq("remote-3"), any())).thenReturn(remoteClient3);
         transformConfigManager = mock(IndexBasedTransformConfigManager.class);
         transformAuditor = MockTransformAuditor.createMockAuditor();
     }
@@ -112,7 +112,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source did not resolve to any open indexes"
             ),
-            () -> { provider.reportSourceIndexChanges(Collections.singleton("index"), Collections.emptySet()); }
+            () -> {
+                provider.reportSourceIndexChanges(Collections.singleton("index"), Collections.emptySet());
+            }
         );
 
         assertExpectation(
@@ -128,7 +130,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source did not resolve to any concrete indexes"
             ),
-            () -> { provider.reportSourceIndexChanges(Collections.emptySet(), Collections.emptySet()); }
+            () -> {
+                provider.reportSourceIndexChanges(Collections.emptySet(), Collections.emptySet());
+            }
         );
     }
 
@@ -150,7 +154,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source index resolve found changes, removedIndexes: [index], new indexes: [other_index]"
             ),
-            () -> { provider.reportSourceIndexChanges(Collections.singleton("index"), Collections.singleton("other_index")); }
+            () -> {
+                provider.reportSourceIndexChanges(Collections.singleton("index"), Collections.singleton("other_index"));
+            }
         );
 
         assertExpectation(
@@ -166,7 +172,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source index resolve found changes, removedIndexes: [index], new indexes: []"
             ),
-            () -> { provider.reportSourceIndexChanges(Sets.newHashSet("index", "other_index"), Collections.singleton("other_index")); }
+            () -> {
+                provider.reportSourceIndexChanges(Sets.newHashSet("index", "other_index"), Collections.singleton("other_index"));
+            }
         );
         assertExpectation(
             new MockLogAppender.SeenEventExpectation(
@@ -181,7 +189,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source index resolve found changes, removedIndexes: [], new indexes: [other_index]"
             ),
-            () -> { provider.reportSourceIndexChanges(Collections.singleton("index"), Sets.newHashSet("index", "other_index")); }
+            () -> {
+                provider.reportSourceIndexChanges(Collections.singleton("index"), Sets.newHashSet("index", "other_index"));
+            }
         );
     }
 
@@ -212,7 +222,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source index resolve found more than 10 changes, [50] removed indexes, [50] new indexes"
             ),
-            () -> { provider.reportSourceIndexChanges(oldSet, newSet); }
+            () -> {
+                provider.reportSourceIndexChanges(oldSet, newSet);
+            }
         );
     }
 

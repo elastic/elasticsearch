@@ -157,4 +157,9 @@ public class ConfigurationCacheCompatibleAwareGradleRunner extends GradleRunner 
     public BuildResult buildAndFail() throws InvalidRunnerConfigurationException, UnexpectedBuildSuccess {
         return delegate.buildAndFail();
     }
+
+    @Override
+    public BuildResult run() throws InvalidRunnerConfigurationException {
+        return delegate.run();
+    }
 }

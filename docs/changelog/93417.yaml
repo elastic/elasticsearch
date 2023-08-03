@@ -1,5 +1,0 @@
-pr: 93417
-summary: Do not refresh all indices in `TransportBulkAction`
-area: CRUD
-type: bug
-issues: []

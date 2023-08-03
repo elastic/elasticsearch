@@ -9,7 +9,6 @@ package org.elasticsearch.action.admin.cluster.configuration;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -37,10 +37,10 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.ClusterState.builder;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -58,14 +58,15 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
     private static VotingConfigExclusion otherNode1Exclusion, otherNode2Exclusion;
 
     private TransportService transportService;
+    private TransportAddVotingConfigExclusionsActionTests.FakeReconfigurator reconfigurator;
 
     @BeforeClass
     public static void createThreadPoolAndClusterService() {
         threadPool = new TestThreadPool("test", Settings.EMPTY);
-        localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
-        otherNode1 = new DiscoveryNode("other1", "other1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        localNode = DiscoveryNodeUtils.create("local");
+        otherNode1 = DiscoveryNodeUtils.builder("other1").name("other1").roles(emptySet()).build();
         otherNode1Exclusion = new VotingConfigExclusion(otherNode1);
-        otherNode2 = new DiscoveryNode("other2", "other2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        otherNode2 = DiscoveryNodeUtils.builder("other2").name("other2").roles(emptySet()).build();
         otherNode2Exclusion = new VotingConfigExclusion(otherNode2);
         clusterService = createClusterService(threadPool, localNode);
     }
@@ -87,13 +88,15 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
             null,
             emptySet()
         );
+        reconfigurator = new TransportAddVotingConfigExclusionsActionTests.FakeReconfigurator();
 
         new TransportClearVotingConfigExclusionsAction(
             transportService,
             clusterService,
             threadPool,
             new ActionFilters(emptySet()),
-            TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext())
+            TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+            reconfigurator
         ); // registers action
 
         transportService.start();
@@ -186,6 +189,28 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
     }
 
+    public void testCannotClearVotingConfigurationWhenItIsDisabled() {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        final SetOnce<TransportException> exceptionHolder = new SetOnce<>();
+
+        reconfigurator.disableUserVotingConfigModifications();
+
+        transportService.sendRequest(
+            localNode,
+            ClearVotingConfigExclusionsAction.NAME,
+            new ClearVotingConfigExclusionsRequest(),
+            expectError(e -> {
+                exceptionHolder.set(e);
+                countDownLatch.countDown();
+            })
+        );
+
+        safeAwait(countDownLatch);
+        final Throwable rootCause = exceptionHolder.get().getRootCause();
+        assertThat(rootCause, instanceOf(IllegalStateException.class));
+        assertThat(rootCause.getMessage(), startsWith("Unable to modify the voting configuration"));
+    }
+
     private TransportResponseHandler<ActionResponse.Empty> expectSuccess(Consumer<ActionResponse.Empty> onResponse) {
         return responseHandler(onResponse, e -> { throw new AssertionError("unexpected", e); });
     }
@@ -198,7 +223,17 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         Consumer<ActionResponse.Empty> onResponse,
         Consumer<TransportException> onException
     ) {
-        return new TransportResponseHandler<ActionResponse.Empty>() {
+        return new TransportResponseHandler<>() {
+            @Override
+            public ActionResponse.Empty read(StreamInput in) {
+                return ActionResponse.Empty.INSTANCE;
+            }
+
+            @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
             @Override
             public void handleResponse(ActionResponse.Empty response) {
                 onResponse.accept(response);
@@ -207,11 +242,6 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
             @Override
             public void handleException(TransportException exp) {
                 onException.accept(exp);
-            }
-
-            @Override
-            public ActionResponse.Empty read(StreamInput in) {
-                return ActionResponse.Empty.INSTANCE;
             }
         };
     }

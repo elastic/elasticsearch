@@ -19,6 +19,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -32,6 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestCountAction extends BaseRestHandler {
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCountAction.class);
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in count requests is deprecated.";

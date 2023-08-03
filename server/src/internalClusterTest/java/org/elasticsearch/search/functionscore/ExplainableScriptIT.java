@@ -11,6 +11,7 @@ package org.elasticsearch.search.functionscore;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
@@ -44,7 +45,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.client.internal.Requests.searchRequest;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
@@ -127,7 +127,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh().get();
         ensureYellow();
         SearchResponse response = client().search(
-            searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
+            new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
                 .source(
                     searchSource().explain(true)
                         .query(

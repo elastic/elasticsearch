@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -47,6 +48,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -145,7 +147,15 @@ public class Setting<T> implements ToXContentObject {
          * Indicates that this index-level setting was deprecated in {@link Version#V_7_17_0} and is
          * forbidden in indices created from {@link Version#V_8_0_0} onwards.
          */
-        IndexSettingDeprecatedInV7AndRemovedInV8
+        IndexSettingDeprecatedInV7AndRemovedInV8,
+
+        /**
+         * Indicates that this setting is accessible by non-operator users (public) in serverless
+         * Users will be allowed to set and see values of this setting.
+         * All other settings will be rejected when used on a PUT request
+         * and filtered out on a GET
+         */
+        ServerlessPublic
     }
 
     private final Key key;
@@ -363,6 +373,13 @@ public class Setting<T> implements ToXContentObject {
      */
     public final boolean isOperatorOnly() {
         return properties.contains(Property.OperatorDynamic);
+    }
+
+    /**
+     * Returns <code>true</code> if this setting is accessibly by non-operators (public users), otherwise <code>false</code>
+     */
+    public final boolean isServerlessPublic() {
+        return properties.contains(Property.ServerlessPublic);
     }
 
     /**
@@ -1268,17 +1285,22 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
-    public static Setting<Version> versionSetting(final String key, final Version defaultValue, Property... properties) {
-        return new Setting<>(key, Integer.toString(defaultValue.id), s -> Version.fromId(Integer.parseInt(s)), properties);
-    }
-
-    public static Setting<Version> versionSetting(
-        final String key,
-        Setting<Version> fallbackSetting,
-        Validator<Version> validator,
+    public static <T extends VersionId<T>> Setting<T> versionIdSetting(
+        String key,
+        T defaultValue,
+        IntFunction<T> parseVersion,
         Property... properties
     ) {
-        return new Setting<>(key, fallbackSetting, s -> Version.fromId(Integer.parseInt(s)), properties);
+        return new Setting<>(key, Integer.toString(defaultValue.id()), s -> parseVersion.apply(Integer.parseInt(s)), properties);
+    }
+
+    public static <T extends VersionId<T>> Setting<T> versionIdSetting(
+        final String key,
+        Setting<T> fallbackSetting,
+        Validator<T> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, fallbackSetting, fallbackSetting.parser, validator, properties);
     }
 
     public static Setting<Float> floatSetting(String key, float defaultValue, Property... properties) {
@@ -1644,6 +1666,7 @@ public class Setting<T> implements ToXContentObject {
         return new ListSetting<>(key, null, s -> defValue, Setting::parseableStringToList, v -> {}, properties) {
             @Override
             public List<String> get(Settings settings) {
+                checkDeprecation(settings);
                 return settings.getAsList(getKey(), defValue);
             }
         };
@@ -1945,6 +1968,21 @@ public class Setting<T> implements ToXContentObject {
         Property... properties
     ) {
         return new Setting<>(key, defaultValue.getStringRep(), (s) -> TimeValue.parseTimeValue(s, key), validator, properties);
+    }
+
+    public static Setting<TimeValue> timeSetting(
+        String key,
+        Function<Settings, TimeValue> defaultValue,
+        Validator<TimeValue> validator,
+        Property... properties
+    ) {
+        return new Setting<>(
+            key,
+            s -> defaultValue.apply(s).getStringRep(),
+            (s) -> TimeValue.parseTimeValue(s, key),
+            validator,
+            properties
+        );
     }
 
     public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {

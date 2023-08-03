@@ -27,6 +27,8 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -110,10 +112,25 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         if (shape == null && indexedShapeId == null) {
             throw new IllegalArgumentException("either shape or indexedShapeId is required");
         }
+        if (shape != null) {
+            checkGeometry(shape);
+        }
         this.fieldName = fieldName;
         this.shape = shape;
         this.indexedShapeId = indexedShapeId;
         this.supplier = null;
+    }
+
+    private void checkGeometry(Geometry geometry) {
+        // linear ring geometries are not serializable, fail at construction time.
+        if (geometry.type() == ShapeType.LINEARRING) {
+            throw new IllegalArgumentException("[" + ShapeType.LINEARRING + "] geometries are not supported");
+        }
+        if (geometry instanceof GeometryCollection<?> collection) {
+            for (Geometry geometry1 : collection) {
+                checkGeometry(geometry1);
+            }
+        }
     }
 
     protected AbstractGeometryQueryBuilder(String fieldName, Supplier<Geometry> supplier, String indexedShapeId) {
@@ -195,6 +212,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         if (geometry == null) {
             throw new IllegalArgumentException("No geometry defined");
         }
+        checkGeometry(geometry);
         this.shape = geometry;
         return (QB) this;
     }
@@ -476,10 +494,10 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             queryRewriteContext.registerAsyncAction((client, listener) -> {
                 GetRequest getRequest = new GetRequest(indexedShapeIndex, indexedShapeId);
                 getRequest.routing(indexedShapeRouting);
-                fetch(client, getRequest, indexedShapePath, ActionListener.wrap(builder -> {
+                fetch(client, getRequest, indexedShapePath, listener.delegateFailureAndWrap((l, builder) -> {
                     supplier.set(builder);
                     listener.onResponse(null);
-                }, listener::onFailure));
+                }));
             });
             return newShapeQueryBuilder(this.fieldName, supplier::get, this.indexedShapeId).relation(relation);
         }

@@ -285,16 +285,21 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             query = fieldType.regexpQuery(value, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates, method, context);
         }
         if (query == null) {
-            RegexpQuery regexpQuery = new RegexpQuery(
-                new Term(fieldName, BytesRefs.toBytesRef(value)),
-                sanitisedSyntaxFlag,
-                matchFlagsValue,
-                maxDeterminizedStates
-            );
-            if (method != null) {
-                regexpQuery.setRewriteMethod(method);
-            }
-            query = regexpQuery;
+            return method == null
+                ? new RegexpQuery(
+                    new Term(fieldName, BytesRefs.toBytesRef(value)),
+                    sanitisedSyntaxFlag,
+                    matchFlagsValue,
+                    maxDeterminizedStates
+                )
+                : new RegexpQuery(
+                    new Term(fieldName, BytesRefs.toBytesRef(value)),
+                    sanitisedSyntaxFlag,
+                    matchFlagsValue,
+                    RegexpQuery.DEFAULT_PROVIDER,
+                    maxDeterminizedStates,
+                    method
+                );
         }
         return query;
     }

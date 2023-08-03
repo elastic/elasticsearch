@@ -28,6 +28,10 @@ public record ShardAssignment(Set<String> nodeIds, int total, int unassigned, in
         return primary ? total == ignored : ignored > 0;
     }
 
+    public int assigned() {
+        return nodeIds.size();
+    }
+
     public static ShardAssignment ofAssignedShards(List<ShardRouting> routings) {
         assert routings.stream().allMatch(ShardRouting::started) : routings;
         var nodeIds = routings.stream().map(ShardRouting::currentNodeId).collect(toCollection(LinkedHashSet::new));

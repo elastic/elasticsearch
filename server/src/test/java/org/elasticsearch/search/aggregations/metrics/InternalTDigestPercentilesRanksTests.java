@@ -29,12 +29,15 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         boolean keyed,
         DocValueFormat format,
         double[] percents,
-        double[] values
+        double[] values,
+        boolean empty
     ) {
-        final TDigestState state = new TDigestState(100);
+        if (empty) {
+            return new InternalTDigestPercentileRanks(name, percents, null, keyed, format, metadata);
+        }
+        final TDigestState state = TDigestState.create(100);
         Arrays.stream(values).forEach(state::add);
 
-        assertEquals(state.centroidCount(), values.length);
         return new InternalTDigestPercentileRanks(name, percents, state, keyed, format, metadata);
     }
 
@@ -100,7 +103,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
                 Arrays.sort(percents);
             }
             case 2 -> {
-                TDigestState newState = new TDigestState(state.compression());
+                TDigestState newState = TDigestState.createUsingParamsFrom(state);
                 newState.add(state);
                 for (int i = 0; i < between(10, 100); i++) {
                     newState.add(randomDouble());

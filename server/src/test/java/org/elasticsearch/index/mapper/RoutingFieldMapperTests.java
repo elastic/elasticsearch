@@ -53,7 +53,8 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
                 XContentType.JSON,
                 "routing_value",
-                Map.of()
+                Map.of(),
+                false
             )
         );
 
@@ -63,7 +64,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
 
     public void testIncludeInObjectNotAllowed() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
-        Exception e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source(b -> b.field("_routing", "foo"))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> docMapper.parse(source(b -> b.field("_routing", "foo"))));
 
         assertThat(e.getCause().getMessage(), containsString("Field [_routing] is a metadata field and cannot be added inside a document"));
     }

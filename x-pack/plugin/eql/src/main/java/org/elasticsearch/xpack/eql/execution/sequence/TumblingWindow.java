@@ -10,20 +10,30 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
 import org.elasticsearch.xpack.eql.execution.assembler.Executable;
 import org.elasticsearch.xpack.eql.execution.assembler.SequenceCriterion;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
+import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
+import org.elasticsearch.xpack.eql.execution.search.Timestamp;
 import org.elasticsearch.xpack.eql.session.EmptyPayload;
 import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.ReversedIterator;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.util.ActionListeners;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
@@ -38,6 +48,8 @@ import java.util.Set;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.ActionListener.runAfter;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.eql.execution.ExecutionUtils.copySource;
+import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.addFilter;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
 import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 
@@ -58,6 +70,13 @@ import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 public class TumblingWindow implements Executable {
 
     private static final int CACHE_MAX_SIZE = 64;
+
+    /**
+     * Missing events are checked using multi-queries.
+     * This is the max number of sequences that are checked with a single multi-query.
+     * If more sequences have to be checked, then multiple multi-queries are executed.
+     */
+    private static final int MISSING_EVENTS_SEQUENCES_CHECK_BATCH_SIZE = 1000;
 
     private final Logger log = LogManager.getLogger(TumblingWindow.class);
 
@@ -83,6 +102,7 @@ public class TumblingWindow implements Executable {
     private final int windowSize;
 
     private final boolean hasKeys;
+    private final List<List<Attribute>> listOfKeys;
 
     // flag used for DESC sequences to indicate whether
     // the window needs to restart (since the DESC query still has results)
@@ -102,7 +122,13 @@ public class TumblingWindow implements Executable {
         }
     }
 
-    public TumblingWindow(QueryClient client, List<SequenceCriterion> criteria, SequenceCriterion until, SequenceMatcher matcher) {
+    public TumblingWindow(
+        QueryClient client,
+        List<SequenceCriterion> criteria,
+        SequenceCriterion until,
+        SequenceMatcher matcher,
+        List<List<Attribute>> listOfKeys
+    ) {
         this.client = client;
 
         this.until = until;
@@ -110,10 +136,11 @@ public class TumblingWindow implements Executable {
         this.maxStages = criteria.size();
         this.matcher = matcher;
 
-        SequenceCriterion baseRequest = criteria.get(0);
+        SequenceCriterion baseRequest = criteria.get(matcher.firstPositiveStage);
         this.windowSize = baseRequest.queryRequest().searchSource().size();
         this.hasKeys = baseRequest.keySize() > 0;
         this.restartWindowFromTailQuery = baseRequest.descending();
+        this.listOfKeys = listOfKeys;
     }
 
     @Override
@@ -121,7 +148,7 @@ public class TumblingWindow implements Executable {
         log.trace("Starting sequence window w/ fetch size [{}]", windowSize);
         startTime = System.currentTimeMillis();
         // clear the memory at the end of the algorithm
-        tumbleWindow(0, runAfter(listener, () -> {
+        tumbleWindow(matcher.firstPositiveStage, runAfter(listener, () -> {
             matcher.clear();
             client.close(listener.delegateFailure((l, r) -> {}));
         }));
@@ -131,13 +158,13 @@ public class TumblingWindow implements Executable {
      * Move the window while preserving the same base.
      */
     private void tumbleWindow(int currentStage, ActionListener<Payload> listener) {
-        if (currentStage > 0 && matcher.hasCandidates() == false) {
+        if (currentStage > matcher.firstPositiveStage && matcher.hasCandidates() == false) {
             if (restartWindowFromTailQuery) {
-                currentStage = 0;
+                currentStage = matcher.firstPositiveStage;
             } else {
                 // if there are no in-flight sequences (from previous stages)
                 // no need to look for more results
-                payload(listener);
+                checkMissingEvents(() -> doPayload(listener), listener);
                 return;
             }
         }
@@ -146,7 +173,7 @@ public class TumblingWindow implements Executable {
         // finished all queries in this window, run a trim
         // for descending queries clean everything
         if (restartWindowFromTailQuery) {
-            if (currentStage == 0) {
+            if (currentStage == matcher.firstPositiveStage) {
                 matcher.trim(null);
             }
         } else {
@@ -161,7 +188,8 @@ public class TumblingWindow implements Executable {
             }
         }
 
-        advance(currentStage, listener);
+        int c = currentStage;
+        checkMissingEvents(() -> advance(c, listener), listener);
     }
 
     /**
@@ -169,7 +197,147 @@ public class TumblingWindow implements Executable {
      */
     private void rebaseWindow(int nextStage, ActionListener<Payload> listener) {
         log.trace("Rebasing window...");
-        advance(nextStage, listener);
+        checkMissingEvents(() -> advance(nextStage, listener), listener);
+    }
+
+    public void checkMissingEvents(Runnable next, ActionListener<Payload> listener) {
+        Set<Sequence> sequencesToCheck = matcher.toCheckForMissing();
+        if (sequencesToCheck.isEmpty()) {
+            if (matcher.limitReached()) {
+                doPayload(listener);
+                return;
+            }
+            next.run();
+        } else {
+            Iterator<Sequence> iterator = sequencesToCheck.iterator();
+            List<Sequence> batchToCheck = new ArrayList<>();
+
+            for (int i = 0; i < MISSING_EVENTS_SEQUENCES_CHECK_BATCH_SIZE && iterator.hasNext(); i++) {
+                batchToCheck.add(iterator.next());
+                iterator.remove();
+            }
+
+            List<SearchRequest> queries = prepareQueryForMissingEvents(batchToCheck);
+            client.multiQuery(queries, wrap(p -> doCheckMissingEvents(batchToCheck, p, listener, next), listener::onFailure));
+        }
+    }
+
+    private void doCheckMissingEvents(List<Sequence> batchToCheck, MultiSearchResponse p, ActionListener<Payload> listener, Runnable next) {
+        MultiSearchResponse.Item[] responses = p.getResponses();
+        int nextResponse = 0;
+        for (Sequence sequence : batchToCheck) {
+            boolean leading = true;
+            boolean discarded = false;
+            Timestamp lastLeading = null;
+            Timestamp firstTrailing = null;
+            for (int i = 0; i < criteria.size(); i++) {
+                SequenceCriterion criterion = criteria.get(i);
+                if (criterion.missing()) {
+                    SearchResponse response = responses[nextResponse++].getResponse();
+                    if (discarded) {
+                        continue; // consume all the responses for this sequence even if it's already discarded
+                    }
+                    SearchHit[] hits = response.getHits().getHits();
+                    if (leading) {
+                        if (hits.length == 0) {
+                            continue;
+                        }
+                        Timestamp hitTimestamp = criterion.timestamp(hits[0]);
+                        lastLeading = lastLeading == null || lastLeading.instant().compareTo(hitTimestamp.instant()) < 0
+                            ? hitTimestamp
+                            : lastLeading;
+                    } else if (trailing(i)) {
+                        if (hits.length == 0) {
+                            continue;
+                        }
+                        Timestamp hitTimestamp = criterion.timestamp(hits[0]);
+                        firstTrailing = firstTrailing == null || firstTrailing.instant().compareTo(hitTimestamp.instant()) > 0
+                            ? hitTimestamp
+                            : firstTrailing;
+                    } else {
+                        if (hits.length > 0) {
+                            discarded = true;
+                        }
+                    }
+                } else {
+                    leading = false;
+                }
+            }
+            if (discarded == false) {
+                int lastStage = criteria.size() - 1;
+                if ((firstTrailing == null && lastLeading == null)
+                    || (lastLeading == null && matcher.isMissingEvent(0))
+                    || (firstTrailing == null && matcher.isMissingEvent(lastStage))
+                    || (matcher.isMissingEvent(0) && matcher.isMissingEvent(lastStage) && biggerThanMaxSpan(lastLeading, firstTrailing))
+                    || (matcher.isMissingEvent(0)
+                        && matcher.isMissingEvent(lastStage) == false
+                        && biggerThanMaxSpan(lastLeading, sequence.ordinal().timestamp()))
+                    || (matcher.isMissingEvent(0) == false
+                        && matcher.isMissingEvent(lastStage)
+                        && biggerThanMaxSpan(sequence.startOrdinal().timestamp(), firstTrailing))
+
+                ) {
+                    matcher.addToCompleted(sequence);
+                }
+            }
+        }
+        checkMissingEvents(next, listener);
+    }
+
+    private boolean biggerThanMaxSpan(Timestamp from, Timestamp to) {
+        if (from == null || to == null) {
+            return true;
+        }
+        return matcher.exceedsMaxSpan(from, to);
+    }
+
+    private List<SearchRequest> prepareQueryForMissingEvents(List<Sequence> toCheck) {
+        List<SearchRequest> result = new ArrayList<>();
+        for (Sequence sequence : toCheck) {
+            boolean leading = true;
+            for (int i = 0; i < criteria.size(); i++) {
+                SequenceCriterion criterion = criteria.get(i);
+                if (criterion.missing()) {
+                    BoxedQueryRequest r = criterion.queryRequest();
+                    RangeQueryBuilder range = r.timestampRangeQuery();
+                    SearchSourceBuilder builder = copySource(r.searchSource());
+                    if (leading) {
+                        builder.sorts().clear();
+                        builder.sort(r.timestampField(), SortOrder.DESC);
+                        range.lt(sequence.startOrdinal().timestamp().instant().toEpochMilli());
+                    } else if (trailing(i)) {
+                        builder.sorts().clear();
+                        builder.sort(r.timestampField(), SortOrder.ASC);
+                        range.gt(sequence.ordinal().timestamp().instant().toEpochMilli());
+                    } else {
+                        range.lt(sequence.matchAt(matcher.nextPositiveStage(i)).ordinal().timestamp().instant().toEpochMilli());
+                        range.gt(sequence.matchAt(matcher.previousPositiveStage(i)).ordinal().timestamp().instant().toEpochMilli());
+                        builder.sort(r.timestampField(), SortOrder.ASC);
+                    }
+                    addKeyFilter(i, sequence, builder);
+                    RuntimeUtils.addFilter(range, builder);
+                    result.add(RuntimeUtils.prepareRequest(builder.size(1).trackTotalHits(false), false, Strings.EMPTY_ARRAY));
+                } else {
+                    leading = false;
+                }
+            }
+        }
+        return result;
+    }
+
+    private void addKeyFilter(int stage, Sequence sequence, SearchSourceBuilder builder) {
+        List<Attribute> keys = listOfKeys.get(stage);
+        if (keys.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < keys.size(); i++) {
+            Attribute k = keys.get(i);
+            addFilter(new TermQueryBuilder(k.qualifiedName(), sequence.key().asList().get(i)), builder);
+        }
+    }
+
+    private boolean trailing(int i) {
+        return matcher.nextPositiveStage(i - 1) < 0;
     }
 
     private void advance(int stage, ActionListener<Payload> listener) {
@@ -180,7 +348,7 @@ public class TumblingWindow implements Executable {
 
         // add key constraints
         if (hasKeys) {
-            addKeyConstraints(stage - 1, base.queryRequest());
+            addKeyConstraints(matcher.previousPositiveStage(stage), base.queryRequest());
         }
 
         log.trace("{}", matcher);
@@ -229,6 +397,11 @@ public class TumblingWindow implements Executable {
             }
         } else {
             info = null;
+            // this covers the case where there is only one positive criterion and all the others are missing events
+            if (baseStage == matcher.firstPositiveStage && baseStage == matcher.lastPositiveStage) {
+                payload(listener);
+                return;
+            }
         }
         completeBaseCriterion(baseStage, hits, info, listener);
     }
@@ -242,11 +415,11 @@ public class TumblingWindow implements Executable {
             return;
         }
 
-        int nextStage = baseStage + 1;
+        int nextStage = nextPositiveStage(baseStage);
         boolean windowCompleted = hits.size() < windowSize;
 
         // there are still queries
-        if (nextStage < maxStages) {
+        if (nextStage > 0) { // -1 means no further positive stages
             boolean descendingQuery = base.descending();
             Runnable next = null;
 
@@ -269,7 +442,8 @@ public class TumblingWindow implements Executable {
                     if (info != null) {
                         // DESC means starting the window
                         restartWindowFromTailQuery = false;
-                        next = () -> advance(1, listener);
+                        final int stage = nextPositiveStage(matcher.firstPositiveStage);
+                        next = () -> checkMissingEvents(() -> advance(stage, listener), listener);
                     }
                     // if there are no new results, no need to check the window
                     else {
@@ -278,7 +452,7 @@ public class TumblingWindow implements Executable {
                 }
                 // for ASC queries continue if there are still matches available
                 else {
-                    if (matcher.hasFollowingCandidates(baseStage)) {
+                    if (matcher.hasFollowingCandidates(matcher.previousPositiveStage(nextStage))) {
                         next = () -> rebaseWindow(nextStage, listener);
                     }
                     // otherwise bail-out, unless it's a DESC sequence that hasn't completed yet
@@ -287,7 +461,7 @@ public class TumblingWindow implements Executable {
                         if (restartWindowFromTailQuery == false) {
                             shouldTerminate = true;
                         } else {
-                            next = () -> tumbleWindow(0, listener);
+                            next = () -> tumbleWindow(matcher.firstPositiveStage, listener);
                         }
                     }
                 }
@@ -301,7 +475,7 @@ public class TumblingWindow implements Executable {
             else {
                 // DESC means starting the window
                 if (descendingQuery) {
-                    next = () -> advance(1, listener);
+                    next = () -> advance(nextPositiveStage(matcher.firstPositiveStage), listener);
                 }
                 // ASC to continue
                 else {
@@ -310,7 +484,7 @@ public class TumblingWindow implements Executable {
             }
 
             // until check for HEAD queries
-            if (until != null && info != null && info.baseStage == 0) {
+            if (until != null && info != null && info.baseStage == matcher.firstPositiveStage) {
                 untilCriterion(info, listener, next);
             } else {
                 next.run();
@@ -321,7 +495,7 @@ public class TumblingWindow implements Executable {
             // no more results either
             if (windowCompleted) {
                 if (restartWindowFromTailQuery) {
-                    tumbleWindow(0, listener);
+                    tumbleWindow(matcher.firstPositiveStage, listener);
                 } else {
                     payload(listener);
                 }
@@ -331,6 +505,10 @@ public class TumblingWindow implements Executable {
                 tumbleWindow(baseStage, listener);
             }
         }
+    }
+
+    private int nextPositiveStage(int current) {
+        return matcher.nextPositiveStage(current);
     }
 
     private void untilCriterion(WindowInfo window, ActionListener<Payload> listener, Runnable next) {
@@ -391,7 +569,7 @@ public class TumblingWindow implements Executable {
 
             log.trace("Found [{}] hits", hits.size());
 
-            int nextStage = currentStage + 1;
+            int nextPositiveStage = nextPositiveStage(currentStage);
 
             // if there is at least one result, process it
             if (hits.isEmpty() == false) {
@@ -421,8 +599,8 @@ public class TumblingWindow implements Executable {
 
                 // any subsequence query will be ASC - initialize its starting point if not set
                 // this is the case during the headOrdinal run for HEAD queries or for each window for TAIL ones
-                if (nextStage < maxStages) {
-                    BoxedQueryRequest nextRequest = criteria.get(nextStage).queryRequest();
+                if (nextPositiveStage > 0) {
+                    BoxedQueryRequest nextRequest = criteria.get(nextPositiveStage).queryRequest();
                     if (nextRequest.from() == null || nextRequest.after() == null) {
                         nextRequest.from(headOrdinal);
                         nextRequest.nextAfter(headOrdinal);
@@ -438,8 +616,8 @@ public class TumblingWindow implements Executable {
             // looks like this stage is done, move on
             else {
                 // but first check is there are still candidates within the current window
-                if (currentStage + 1 < maxStages && matcher.hasFollowingCandidates(criterion.stage())) {
-                    secondaryCriterion(window, currentStage + 1, listener);
+                if (nextPositiveStage > 0 && matcher.hasFollowingCandidates(criterion.stage())) {
+                    secondaryCriterion(window, nextPositiveStage, listener);
                 } else {
                     // otherwise, advance it
                     tumbleWindow(window.baseStage, listener);
@@ -497,9 +675,10 @@ public class TumblingWindow implements Executable {
      * (based on the results of their predecessors).
      */
     private void setupWindowFromTail(Ordinal from) {
-        // TAIL can only be at stage 0
-        // the ASC window starts at stage 1
-        BoxedQueryRequest request = criteria.get(1).queryRequest();
+        // TAIL can only be at the first positive stage
+        // the ASC window starts at next positive stage
+        int secondPositiveStage = nextPositiveStage(matcher.firstPositiveStage);
+        BoxedQueryRequest request = criteria.get(secondPositiveStage).queryRequest();
 
         // check if it hasn't been set before
         if (from.equals(request.from()) == false) {
@@ -511,7 +690,7 @@ public class TumblingWindow implements Executable {
                 until.queryRequest().from(from).nextAfter(from);
             }
             // reset all sub queries
-            for (int i = 2; i < maxStages; i++) {
+            for (int i = secondPositiveStage + 1; i < maxStages; i++) {
                 BoxedQueryRequest subRequest = criteria.get(i).queryRequest();
                 subRequest.from(null);
             }
@@ -537,6 +716,10 @@ public class TumblingWindow implements Executable {
     }
 
     private void payload(ActionListener<Payload> listener) {
+        checkMissingEvents(() -> doPayload(listener), listener);
+    }
+
+    private void doPayload(ActionListener<Payload> listener) {
         List<Sequence> completed = matcher.completed();
 
         log.trace("Sending payload for [{}] sequences", completed.size());
@@ -548,12 +731,30 @@ public class TumblingWindow implements Executable {
 
         // get results through search (to keep using PIT)
         client.fetchHits(hits(completed), ActionListeners.map(listener, listOfHits -> {
-            if (criteria.get(0).descending()) {
+            if (criteria.get(matcher.firstPositiveStage).descending()) {
                 Collections.reverse(completed);
             }
-            SequencePayload payload = new SequencePayload(completed, listOfHits, false, timeTook());
+            SequencePayload payload = new SequencePayload(completed, addMissingEventPlaceholders(listOfHits), false, timeTook());
             return payload;
         }));
+    }
+
+    private List<List<SearchHit>> addMissingEventPlaceholders(List<List<SearchHit>> hitLists) {
+        List<List<SearchHit>> result = new ArrayList<>();
+
+        for (List<SearchHit> hits : hitLists) {
+            List<SearchHit> filled = new ArrayList<>();
+            result.add(filled);
+            int nextHit = 0;
+            for (int i = 0; i < criteria.size(); i++) {
+                if (matcher.isMissingEvent(i)) {
+                    filled.add(null);
+                } else {
+                    filled.add(hits.get(nextHit++));
+                }
+            }
+        }
+        return result;
     }
 
     private TimeValue timeTook() {
@@ -592,7 +793,7 @@ public class TumblingWindow implements Executable {
 
     Iterable<List<HitReference>> hits(List<Sequence> sequences) {
         return () -> {
-            Iterator<Sequence> delegate = criteria.get(0).descending() != criteria.get(1).descending()
+            Iterator<Sequence> delegate = criteria.get(matcher.firstPositiveStage).descending()
                 ? new ReversedIterator<>(sequences)
                 : sequences.iterator();
 
@@ -605,7 +806,14 @@ public class TumblingWindow implements Executable {
 
                 @Override
                 public List<HitReference> next() {
-                    return delegate.next().hits();
+                    List<HitReference> result = new ArrayList<>();
+                    List<HitReference> originalHits = delegate.next().hits();
+                    for (HitReference hit : originalHits) {
+                        if (hit != null) {
+                            result.add(hit);
+                        }
+                    }
+                    return result;
                 }
             };
         };
@@ -639,7 +847,7 @@ public class TumblingWindow implements Executable {
                         int keySize = originalKeys.length;
                         partial.add(new Object[keySize]);
                         for (int i = 0; i < keySize; i++) {
-                            if (originalKeys[i]instanceof List<?> possibleValues) {
+                            if (originalKeys[i] instanceof List<?> possibleValues) {
                                 List<Object[]> newPartial = new ArrayList<>(possibleValues.size() * partial.size());
                                 for (Object possibleValue : possibleValues) {
                                     for (Object[] partialKey : partial) {

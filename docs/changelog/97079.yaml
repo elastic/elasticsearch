@@ -1,0 +1,5 @@
+pr: 97079
+summary: Enable Serverless API protections dynamically
+area: Infra/REST API
+type: enhancement
+issues: []

@@ -1,0 +1,6 @@
+pr: 95894
+summary: Integrate CCS with new `search_shards` API
+area: Search
+type: enhancement
+issues:
+ - 93730

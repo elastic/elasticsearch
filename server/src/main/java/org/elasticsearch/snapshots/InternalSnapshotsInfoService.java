@@ -53,7 +53,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
     private static final Logger logger = LogManager.getLogger(InternalSnapshotsInfoService.class);
 
-    private static final ActionListener<ClusterState> REROUTE_LISTENER = ActionListener.wrap(
+    private static final ActionListener<Void> REROUTE_LISTENER = ActionListener.wrap(
         r -> logger.trace("reroute after snapshot shard size update completed"),
         e -> logger.debug("reroute after snapshot shard size update failed", e)
     );

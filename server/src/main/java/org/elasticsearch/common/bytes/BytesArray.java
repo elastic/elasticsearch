@@ -22,7 +22,6 @@ public final class BytesArray extends AbstractBytesReference {
     public static final BytesArray EMPTY = new BytesArray(BytesRef.EMPTY_BYTES, 0, 0);
     private final byte[] bytes;
     private final int offset;
-    private final int length;
 
     public BytesArray(String bytes) {
         this(new BytesRef(bytes));
@@ -33,12 +32,12 @@ public final class BytesArray extends AbstractBytesReference {
     }
 
     public BytesArray(BytesRef bytesRef, boolean deepCopy) {
+        super(bytesRef.length);
         if (deepCopy) {
             bytesRef = BytesRef.deepCopyOf(bytesRef);
         }
         bytes = bytesRef.bytes;
         offset = bytesRef.offset;
-        length = bytesRef.length;
     }
 
     public BytesArray(byte[] bytes) {
@@ -46,9 +45,9 @@ public final class BytesArray extends AbstractBytesReference {
     }
 
     public BytesArray(byte[] bytes, int offset, int length) {
+        super(length);
         this.bytes = bytes;
         this.offset = offset;
-        this.length = length;
     }
 
     @Override
@@ -64,11 +63,6 @@ public final class BytesArray extends AbstractBytesReference {
             }
         }
         return -1;
-    }
-
-    @Override
-    public int length() {
-        return length;
     }
 
     @Override

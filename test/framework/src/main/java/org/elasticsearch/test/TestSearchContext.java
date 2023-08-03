@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.test;
 
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
@@ -42,6 +42,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -54,11 +55,8 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 
 public class TestSearchContext extends SearchContext {
-    public static final SearchShardTarget SHARD_TARGET = new SearchShardTarget("test", new ShardId("test", "test", 0), null);
-
     final IndexService indexService;
     final BitsetFilterCache fixedBitSetFilterCache;
-    final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     final IndexShard indexShard;
     final QuerySearchResult queryResult = new QuerySearchResult();
     final SearchExecutionContext searchExecutionContext;
@@ -70,7 +68,7 @@ public class TestSearchContext extends SearchContext {
     SortAndFormats sort;
     boolean trackScores = false;
     int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
-
+    RankShardContext rankShardContext;
     ContextIndexSearcher searcher;
     int from;
     int size;
@@ -474,13 +472,38 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
+    public void addDfsResult() {
+        // this space intentionally left blank
+    }
+
+    @Override
     public QuerySearchResult queryResult() {
         return queryResult;
     }
 
     @Override
+    public void addQueryResult() {
+        // this space intentionally left blank
+    }
+
+    @Override
+    public TotalHits getTotalHits() {
+        return queryResult.getTotalHits();
+    }
+
+    @Override
+    public float getMaxScore() {
+        return queryResult.getMaxScore();
+    }
+
+    @Override
     public FetchSearchResult fetchResult() {
         return null;
+    }
+
+    @Override
+    public void addFetchResult() {
+        // this space intentionally left blank
     }
 
     @Override
@@ -496,11 +519,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public Profilers getProfilers() {
         return null; // no profiling
-    }
-
-    @Override
-    public Map<Class<?>, Collector> queryCollectors() {
-        return queryCollectors;
     }
 
     @Override
@@ -521,6 +539,16 @@ public class TestSearchContext extends SearchContext {
     @Override
     public boolean isCancelled() {
         return task.isCancelled();
+    }
+
+    @Override
+    public RankShardContext rankShardContext() {
+        return rankShardContext;
+    }
+
+    @Override
+    public void rankShardContext(RankShardContext rankShardContext) {
+        this.rankShardContext = rankShardContext;
     }
 
     @Override

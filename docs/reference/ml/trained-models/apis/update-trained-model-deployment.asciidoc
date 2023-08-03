@@ -14,7 +14,7 @@ beta::[]
 [[update-trained-model-deployment-request]]
 == {api-request-title}
 
-`POST _ml/trained_models/<model_id>/deployment/_update`
+`POST _ml/trained_models/<deployment_id>/deployment/_update`
 
 
 [[update-trained-model-deployments-prereqs]]
@@ -32,9 +32,9 @@ You can either increase or decrease the number of allocations of such a deployme
 [[update-trained-model-deployments-path-parms]]
 == {api-path-parms-title}
 
-`<model_id>`::
+`<deployment_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 
 [[update-trained-model-deployment-request-body]]
 == {api-request-body-title}

@@ -8,13 +8,17 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import fixture.gcs.GoogleCloudStorageHttpFixture;
+import fixture.gcs.TestUtils;
+
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
+import org.junit.ClassRule;
 
 import java.util.Base64;
 import java.util.Collection;
@@ -24,6 +28,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
+    private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.google.fixture", "true"));
+
+    @ClassRule
+    public static GoogleCloudStorageHttpFixture fixture = new GoogleCloudStorageHttpFixture(USE_FIXTURE, "bucket", "o/oauth2/token");
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -34,12 +42,9 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
     protected Settings nodeSettings() {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings());
 
-        if (Strings.isNullOrEmpty(System.getProperty("test.google.endpoint")) == false) {
-            builder.put("gcs.client.default.endpoint", System.getProperty("test.google.endpoint"));
-        }
-
-        if (Strings.isNullOrEmpty(System.getProperty("test.google.tokenURI")) == false) {
-            builder.put("gcs.client.default.token_uri", System.getProperty("test.google.tokenURI"));
+        if (USE_FIXTURE) {
+            builder.put("gcs.client.default.endpoint", fixture.getAddress());
+            builder.put("gcs.client.default.token_uri", fixture.getAddress() + "/o/oauth2/token");
         }
 
         return builder.build();
@@ -47,22 +52,26 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
 
     @Override
     protected SecureSettings credentials() {
-        assertThat(System.getProperty("test.google.account"), not(blankOrNullString()));
+        if (USE_FIXTURE == false) {
+            assertThat(System.getProperty("test.google.account"), not(blankOrNullString()));
+        }
         assertThat(System.getProperty("test.google.bucket"), not(blankOrNullString()));
 
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setFile(
-            "gcs.client.default.credentials_file",
-            Base64.getDecoder().decode(System.getProperty("test.google.account"))
-        );
+        if (USE_FIXTURE) {
+            secureSettings.setFile("gcs.client.default.credentials_file", TestUtils.createServiceAccount(random()));
+        } else {
+            secureSettings.setFile(
+                "gcs.client.default.credentials_file",
+                Base64.getDecoder().decode(System.getProperty("test.google.account"))
+            );
+        }
         return secureSettings;
     }
 
     @Override
     protected void createRepository(final String repoName) {
-        AcknowledgedResponse putRepositoryResponse = client().admin()
-            .cluster()
-            .preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository("test-repo")
             .setType("gcs")
             .setSettings(
                 Settings.builder()

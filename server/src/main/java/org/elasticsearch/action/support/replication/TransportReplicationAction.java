@@ -9,7 +9,6 @@
 package org.elasticsearch.action.support.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -70,6 +70,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
@@ -265,7 +266,7 @@ public abstract class TransportReplicationAction<
 
     /**
      * Execute the specified replica operation. This is done under a permit from
-     * {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, String, Object)}.
+     * {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, String)}.
      *
      * @param shardRequest the request to the replica shard
      * @param replica      the replica shard to perform the operation on
@@ -445,7 +446,7 @@ public abstract class TransportReplicationAction<
                             primaryRequest.getPrimaryTerm()
                         ),
                         transportOptions,
-                        new ActionListenerResponseHandler<>(onCompletionListener, reader) {
+                        new ActionListenerResponseHandler<>(onCompletionListener, reader, TransportResponseHandler.TRANSPORT_WORKER) {
                             @Override
                             public void handleResponse(Response response) {
                                 setPhase(replicationTask, "finished");
@@ -483,6 +484,7 @@ public abstract class TransportReplicationAction<
                             }
                         }
 
+                        assert primaryShardReference.indexShard.isPrimaryMode();
                         primaryShardReference.close(); // release shard operation lock before responding to caller
                         setPhase(replicationTask, "finished");
                         onCompletionListener.onResponse(response);
@@ -692,7 +694,11 @@ public abstract class TransportReplicationAction<
                             clusterService.localNode(),
                             transportReplicaAction,
                             replicaRequest,
-                            new ActionListenerResponseHandler<>(onCompletionListener, ReplicaResponse::new)
+                            new ActionListenerResponseHandler<>(
+                                onCompletionListener,
+                                ReplicaResponse::new,
+                                TransportResponseHandler.TRANSPORT_WORKER
+                            )
                         );
                     }
 
@@ -948,6 +954,11 @@ public abstract class TransportReplicationAction<
                 }
 
                 @Override
+                public Executor executor(ThreadPool threadPool) {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
+                @Override
                 public void handleResponse(Response response) {
                     finishOnSuccess(response);
                 }
@@ -1057,7 +1068,7 @@ public abstract class TransportReplicationAction<
         final Request request,
         final ActionListener<Releasable> onAcquired
     ) {
-        primary.acquirePrimaryOperationPermit(onAcquired, executor, request, forceExecutionOnPrimary);
+        primary.acquirePrimaryOperationPermit(onAcquired, executor, forceExecutionOnPrimary);
     }
 
     /**
@@ -1072,7 +1083,7 @@ public abstract class TransportReplicationAction<
         final long globalCheckpoint,
         final long maxSeqNoOfUpdatesOrDeletes
     ) {
-        replica.acquireReplicaOperationPermit(primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, onAcquired, executor, request);
+        replica.acquireReplicaOperationPermit(primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, onAcquired, executor);
     }
 
     class PrimaryShardReference
@@ -1247,7 +1258,8 @@ public abstract class TransportReplicationAction<
             );
             final ActionListenerResponseHandler<ReplicaResponse> handler = new ActionListenerResponseHandler<>(
                 listener,
-                ReplicaResponse::new
+                ReplicaResponse::new,
+                TransportResponseHandler.TRANSPORT_WORKER
             );
             transportService.sendRequest(node, transportReplicaAction, replicaRequest, transportOptions, handler);
         }
@@ -1333,6 +1345,16 @@ public abstract class TransportReplicationAction<
         @Override
         public TaskId getParentTask() {
             return request.getParentTask();
+        }
+
+        @Override
+        public void setRequestId(long requestId) {
+            request.setRequestId(requestId);
+        }
+
+        @Override
+        public long getRequestId() {
+            return request.getRequestId();
         }
 
         @Override

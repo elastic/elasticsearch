@@ -200,7 +200,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
         public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(docs.size());
             for (Map<String, Object> doc : docs) {
-                out.writeMapWithConsistentOrder(doc);
+                out.writeGenericMap(doc);
             }
             generatedDestIndexSettings.writeTo(out);
         }

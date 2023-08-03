@@ -123,7 +123,7 @@ public class MetadataRolloverService {
             );
             case DATA_STREAM -> rolloverDataStream(
                 currentState,
-                (IndexAbstraction.DataStream) indexAbstraction,
+                (DataStream) indexAbstraction,
                 rolloverTarget,
                 createIndexRequest,
                 metConditions,
@@ -155,7 +155,7 @@ public class MetadataRolloverService {
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> resolveAliasRolloverNames(currentState.metadata(), indexAbstraction, newIndexName);
-            case DATA_STREAM -> resolveDataStreamRolloverNames(currentState.getMetadata(), (IndexAbstraction.DataStream) indexAbstraction);
+            case DATA_STREAM -> resolveDataStreamRolloverNames(currentState.getMetadata(), (DataStream) indexAbstraction);
             default ->
                 // the validate method above prevents this case
                 throw new IllegalStateException("unable to roll over type [" + indexAbstraction.getType().getDisplayName() + "]");
@@ -174,10 +174,9 @@ public class MetadataRolloverService {
         return new NameResolution(sourceIndexName, unresolvedName, rolloverIndexName);
     }
 
-    private static NameResolution resolveDataStreamRolloverNames(Metadata metadata, IndexAbstraction.DataStream dataStream) {
-        final DataStream ds = dataStream.getDataStream();
+    private static NameResolution resolveDataStreamRolloverNames(Metadata metadata, DataStream dataStream) {
         final IndexMetadata originalWriteIndex = metadata.index(dataStream.getWriteIndex());
-        return new NameResolution(originalWriteIndex.getIndex().getName(), null, ds.nextWriteIndexAndGeneration(metadata).v1());
+        return new NameResolution(originalWriteIndex.getIndex().getName(), null, dataStream.nextWriteIndexAndGeneration(metadata).v1());
     }
 
     private RolloverResult rolloverAlias(
@@ -234,7 +233,7 @@ public class MetadataRolloverService {
 
     private RolloverResult rolloverDataStream(
         ClusterState currentState,
-        IndexAbstraction.DataStream dataStream,
+        DataStream dataStream,
         String dataStreamName,
         CreateIndexRequest createIndexRequest,
         List<Condition<?>> metConditions,
@@ -269,9 +268,8 @@ public class MetadataRolloverService {
             templateV2 = systemDataStreamDescriptor.getComposableIndexTemplate();
         }
 
-        final DataStream ds = dataStream.getDataStream();
         final Index originalWriteIndex = dataStream.getWriteIndex();
-        final Tuple<String, Long> nextIndexAndGeneration = ds.nextWriteIndexAndGeneration(currentState.metadata());
+        final Tuple<String, Long> nextIndexAndGeneration = dataStream.nextWriteIndexAndGeneration(currentState.metadata());
         final String newWriteIndexName = nextIndexAndGeneration.v1();
         final long newGeneration = nextIndexAndGeneration.v2();
         MetadataCreateIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
@@ -294,7 +292,7 @@ public class MetadataRolloverService {
             createIndexClusterStateRequest,
             silent,
             (builder, indexMetadata) -> builder.put(
-                ds.rollover(indexMetadata.getIndex(), newGeneration, metadata.isTimeSeriesTemplate(templateV2))
+                dataStream.rollover(indexMetadata.getIndex(), newGeneration, metadata.isTimeSeriesTemplate(templateV2))
             ),
             rerouteCompletionIsNotRequired()
         );

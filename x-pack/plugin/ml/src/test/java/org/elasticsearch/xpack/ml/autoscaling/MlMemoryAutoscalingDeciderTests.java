@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -26,6 +26,7 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -1054,10 +1055,28 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
                 List.of(
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 2, 3, 100, null, Priority.NORMAL)
+                        new StartTrainedModelDeploymentAction.TaskParams(
+                            "model1",
+                            "deployment_1",
+                            TEST_JOB_SIZE,
+                            2,
+                            3,
+                            100,
+                            null,
+                            Priority.NORMAL
+                        )
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null, Priority.NORMAL)
+                        new StartTrainedModelDeploymentAction.TaskParams(
+                            "model1",
+                            "deployment_1",
+                            TEST_JOB_SIZE,
+                            1,
+                            1,
+                            100,
+                            null,
+                            Priority.NORMAL
+                        )
                     ).build()
                 ),
                 withMlNodes("ml_node_1", "ml_node_2")
@@ -1067,10 +1086,28 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
                 List.of(
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 3, 100, null, Priority.NORMAL)
+                        new StartTrainedModelDeploymentAction.TaskParams(
+                            "model1",
+                            "deployment_1",
+                            TEST_JOB_SIZE,
+                            1,
+                            3,
+                            100,
+                            null,
+                            Priority.NORMAL
+                        )
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null, Priority.NORMAL)
+                        new StartTrainedModelDeploymentAction.TaskParams(
+                            "model1",
+                            "deployment_1",
+                            TEST_JOB_SIZE,
+                            1,
+                            1,
+                            100,
+                            null,
+                            Priority.NORMAL
+                        )
                     ).build()
                 ),
                 withMlNodes("ml_node_1", "ml_node_2")
@@ -1080,10 +1117,28 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
                 List.of(
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 3, 100, null, Priority.NORMAL)
+                        new StartTrainedModelDeploymentAction.TaskParams(
+                            "model1",
+                            "deployment_1",
+                            TEST_JOB_SIZE,
+                            1,
+                            3,
+                            100,
+                            null,
+                            Priority.NORMAL
+                        )
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null, Priority.NORMAL)
+                        new StartTrainedModelDeploymentAction.TaskParams(
+                            "model1",
+                            "deployment_1",
+                            TEST_JOB_SIZE,
+                            1,
+                            1,
+                            100,
+                            null,
+                            Priority.NORMAL
+                        )
                     ).build()
                 ),
                 withMlNodes("ml_node_1", "ml_node_2", "ml_node_3", "ml_node_4")
@@ -1303,19 +1358,18 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
     private static List<DiscoveryNode> withMlNodes(String... nodeName) {
         return Arrays.stream(nodeName)
             .map(
-                n -> new DiscoveryNode(
+                n -> DiscoveryNodeUtils.create(
                     n,
                     buildNewFakeTransportAddress(),
                     Map.of(
-                        MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+                        MACHINE_MEMORY_NODE_ATTR,
                         String.valueOf(TEST_NODE_SIZE),
-                        MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+                        MAX_JVM_SIZE_NODE_ATTR,
                         String.valueOf(TEST_JVM_SIZE),
                         MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR,
                         String.valueOf(TEST_ALLOCATED_PROCESSORS)
                     ),
-                    Set.of(DiscoveryNodeRole.ML_ROLE),
-                    Version.CURRENT
+                    Set.of(DiscoveryNodeRole.ML_ROLE)
                 )
             )
             .toList();
@@ -1330,7 +1384,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         builder.addTask(
             MlTasks.dataFrameAnalyticsTaskId(jobId),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(jobId, Version.CURRENT, true),
+            new StartDataFrameAnalyticsAction.TaskParams(jobId, MlConfigVersion.CURRENT, true),
             nodeId == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
         );
         if (jobState != null) {
@@ -1401,12 +1455,11 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
 
     private static long autoBytesForMl(Long nodeSize, Long jvmSize) {
         return NativeMemoryCalculator.allowedBytesForMl(
-            new DiscoveryNode(
+            DiscoveryNodeUtils.create(
                 "node",
                 ESTestCase.buildNewFakeTransportAddress(),
                 Map.of(MAX_JVM_SIZE_NODE_ATTR, jvmSize.toString(), MACHINE_MEMORY_NODE_ATTR, nodeSize.toString()),
-                Set.of(DiscoveryNodeRole.ML_ROLE),
-                Version.CURRENT
+                Set.of(DiscoveryNodeRole.ML_ROLE)
             ),
             0, // passing 0 proves auto is used
             true

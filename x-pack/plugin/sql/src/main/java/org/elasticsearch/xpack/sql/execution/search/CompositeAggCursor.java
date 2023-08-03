@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder;
@@ -136,7 +137,7 @@ public class CompositeAggCursor implements Cursor {
 
         SearchRequest request = prepareRequest(nextQuery, cfg, includeFrozen, indices);
 
-        client.search(request, new ActionListener.Delegating<>(listener) {
+        client.search(request, new DelegatingActionListener<>(listener) {
             @Override
             public void onResponse(SearchResponse response) {
                 handle(

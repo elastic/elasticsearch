@@ -33,6 +33,11 @@
         "description": "A byte-size value for configuring the inference cache size. For example, 20mb.",
         "required": false
       },
+      "deployment_id":{
+        "type":"string",
+        "description": "The Id of the new deployment. Defaults to the model_id if not set.",
+        "required": false
+      },
       "number_of_allocations":{
         "type":"int",
         "description": "The total number of allocations this model is assigned across machine learning nodes.",

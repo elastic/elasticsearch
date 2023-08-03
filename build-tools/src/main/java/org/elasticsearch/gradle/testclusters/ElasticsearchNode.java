@@ -1372,7 +1372,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 }
             });
         } catch (UncheckedIOException e) {
-            if (e.getCause()instanceof NoSuchFileException cause) {
+            if (e.getCause() instanceof NoSuchFileException cause) {
                 // Ignore these files that are sometimes left behind by the JVM
                 if (cause.getFile() == null || cause.getFile().contains(".attach_pid") == false) {
                     throw new UncheckedIOException(cause);
@@ -1493,13 +1493,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         Map<String, String> expansions = new HashMap<>();
         Version version = getVersion();
         String heapDumpOrigin = getVersion().onOrAfter("6.3.0") ? "-XX:HeapDumpPath=data" : "-XX:HeapDumpPath=/heap/dump/path";
-        Path relativeLogPath = workingDir.relativize(confPathLogs);
-        expansions.put(heapDumpOrigin, "-XX:HeapDumpPath=" + relativeLogPath);
+        expansions.put(heapDumpOrigin, "-XX:HeapDumpPath=" + confPathLogs);
         if (version.onOrAfter("6.2.0")) {
-            expansions.put("logs/gc.log", relativeLogPath.resolve("gc.log").toString());
+            expansions.put("logs/gc.log", confPathLogs.resolve("gc.log").toString());
         }
         if (getVersion().getMajor() >= 7) {
-            expansions.put("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=" + relativeLogPath.resolve("hs_err_pid%p.log"));
+            expansions.put("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log"));
         }
         return expansions;
     }

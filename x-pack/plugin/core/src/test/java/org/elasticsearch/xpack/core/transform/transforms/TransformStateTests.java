@@ -32,7 +32,8 @@ public class TransformStateTests extends AbstractXContentSerializingTestCase<Tra
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomTransformProgress(),
             randomBoolean() ? null : randomNodeAttributes(),
-            randomBoolean()
+            randomBoolean(),
+            randomBoolean() ? null : AuthorizationStateTests.randomAuthorizationState()
         );
     }
 
@@ -75,15 +76,28 @@ public class TransformStateTests extends AbstractXContentSerializingTestCase<Tra
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomTransformProgress(),
             randomBoolean() ? null : randomNodeAttributes(),
-            false
-        ); // Will be false after BWC deserialization
+            false,
+            randomBoolean() ? null : AuthorizationStateTests.randomAuthorizationState()
+        );
+        // auth_state will be null after BWC deserialization
+        TransformState expectedState = new TransformState(
+            state.getTaskState(),
+            state.getIndexerState(),
+            state.getPosition(),
+            state.getCheckpoint(),
+            state.getReason(),
+            state.getProgress(),
+            state.getNode(),
+            state.shouldStopAtNextCheckpoint(),
+            null
+        );
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setTransportVersion(TransportVersion.V_7_5_0);
             state.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
                 in.setTransportVersion(TransportVersion.V_7_5_0);
                 TransformState streamedState = new TransformState(in);
-                assertEquals(state, streamedState);
+                assertEquals(expectedState, streamedState);
             }
         }
     }

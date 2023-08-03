@@ -19,8 +19,6 @@ import java.io.IOException;
 
 public final class RecoveryFileChunkRequest extends RecoveryTransportRequest implements RefCounted {
     private final boolean lastChunk;
-    private final long recoveryId;
-    private final ShardId shardId;
     private final long position;
     private final ReleasableBytesReference content;
     private final StoreFileMetadata metadata;
@@ -30,8 +28,6 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest imp
 
     public RecoveryFileChunkRequest(StreamInput in) throws IOException {
         super(in);
-        recoveryId = in.readLong();
-        shardId = new ShardId(in);
         final String name = in.readString();
         position = in.readVLong();
         final long length = in.readVLong();
@@ -55,23 +51,13 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest imp
         int totalTranslogOps,
         long sourceThrottleTimeInNanos
     ) {
-        super(requestSeqNo);
-        this.recoveryId = recoveryId;
-        this.shardId = shardId;
+        super(requestSeqNo, recoveryId, shardId);
         this.metadata = metadata;
         this.position = position;
         this.content = content.retain();
         this.lastChunk = lastChunk;
         this.totalTranslogOps = totalTranslogOps;
         this.sourceThrottleTimeInNanos = sourceThrottleTimeInNanos;
-    }
-
-    public long recoveryId() {
-        return this.recoveryId;
-    }
-
-    public ShardId shardId() {
-        return shardId;
     }
 
     public String name() {
@@ -101,8 +87,6 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest imp
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(recoveryId);
-        shardId.writeTo(out);
         out.writeString(metadata.name());
         out.writeVLong(position);
         out.writeVLong(metadata.length());
@@ -116,7 +100,7 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest imp
 
     @Override
     public String toString() {
-        return shardId + ": name='" + name() + '\'' + ", position=" + position + ", length=" + length();
+        return shardId() + ": name='" + name() + '\'' + ", position=" + position + ", length=" + length();
     }
 
     public StoreFileMetadata metadata() {

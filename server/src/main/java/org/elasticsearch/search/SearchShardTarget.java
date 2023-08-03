@@ -23,7 +23,6 @@ import java.util.Objects;
  * The target that the search request was executed on.
  */
 public final class SearchShardTarget implements Writeable, Comparable<SearchShardTarget> {
-
     private final Text nodeId;
     private final ShardId shardId;
     private final String clusterAlias;
@@ -113,6 +112,11 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         return Objects.hash(nodeId, shardId, clusterAlias);
     }
 
+    /**
+     * NOTE: this representation is used as the "id" for shards for the REST response
+     * when query profiling is requested. So changing this formulation may break
+     * systems that rely on the format, including the parser in SearchProfileResults.
+     */
     @Override
     public String toString() {
         String shardToString = "["

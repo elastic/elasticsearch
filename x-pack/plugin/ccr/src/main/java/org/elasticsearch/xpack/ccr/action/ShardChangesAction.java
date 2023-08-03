@@ -308,7 +308,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             out.writeZLong(globalCheckpoint);
             out.writeZLong(maxSeqNo);
             out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
-            out.writeArray(Translog.Operation::writeOperation, operations);
+            out.writeArray(operations);
             out.writeVLong(tookInMillis);
         }
 
@@ -557,7 +557,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                 "not exposing operations from [" + fromSeqNo + "] greater than the global checkpoint [" + globalCheckpoint + "]"
             );
         }
-        int seenBytes = 0;
+        long seenBytes = 0;
         // - 1 is needed, because toSeqNo is inclusive
         long toSeqNo = Math.min(globalCheckpoint, (fromSeqNo + maxOperationCount) - 1);
         assert fromSeqNo <= toSeqNo : "invalid range from_seqno[" + fromSeqNo + "] > to_seqno[" + toSeqNo + "]";

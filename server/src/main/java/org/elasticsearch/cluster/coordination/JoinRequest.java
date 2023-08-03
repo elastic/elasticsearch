@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,6 +25,11 @@ public class JoinRequest extends TransportRequest {
     private final DiscoveryNode sourceNode;
 
     /**
+     * The transport version used by the sending node.
+     */
+    private final TransportVersion transportVersion;
+
+    /**
      * The minimum term for which the joining node will accept any cluster state publications. If the joining node is in a strictly greater
      * term than the master it wants to join then the master must enter a new term and hold another election. Doesn't necessarily match
      * {@link JoinRequest#optionalJoin}.
@@ -38,9 +44,10 @@ public class JoinRequest extends TransportRequest {
      */
     private final Optional<Join> optionalJoin;
 
-    public JoinRequest(DiscoveryNode sourceNode, long minimumTerm, Optional<Join> optionalJoin) {
+    public JoinRequest(DiscoveryNode sourceNode, TransportVersion transportVersion, long minimumTerm, Optional<Join> optionalJoin) {
         assert optionalJoin.isPresent() == false || optionalJoin.get().getSourceNode().equals(sourceNode);
         this.sourceNode = sourceNode;
+        this.transportVersion = transportVersion;
         this.minimumTerm = minimumTerm;
         this.optionalJoin = optionalJoin;
     }
@@ -48,6 +55,12 @@ public class JoinRequest extends TransportRequest {
     public JoinRequest(StreamInput in) throws IOException {
         super(in);
         sourceNode = new DiscoveryNode(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            transportVersion = TransportVersion.readVersion(in);
+        } else {
+            // there's a 1-1 mapping from Version to TransportVersion before 8.8.0
+            transportVersion = TransportVersion.fromId(sourceNode.getVersion().id);
+        }
         minimumTerm = in.readLong();
         optionalJoin = Optional.ofNullable(in.readOptionalWriteable(Join::new));
     }
@@ -56,12 +69,19 @@ public class JoinRequest extends TransportRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         sourceNode.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            TransportVersion.writeVersion(transportVersion, out);
+        }
         out.writeLong(minimumTerm);
         out.writeOptionalWriteable(optionalJoin.orElse(null));
     }
 
     public DiscoveryNode getSourceNode() {
         return sourceNode;
+    }
+
+    public TransportVersion getTransportVersion() {
+        return transportVersion;
     }
 
     public long getMinimumTerm() {
@@ -88,16 +108,26 @@ public class JoinRequest extends TransportRequest {
 
         if (minimumTerm != that.minimumTerm) return false;
         if (sourceNode.equals(that.sourceNode) == false) return false;
+        if (transportVersion.equals(that.transportVersion) == false) return false;
         return optionalJoin.equals(that.optionalJoin);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceNode, minimumTerm, optionalJoin);
+        return Objects.hash(sourceNode, transportVersion, minimumTerm, optionalJoin);
     }
 
     @Override
     public String toString() {
-        return "JoinRequest{" + "sourceNode=" + sourceNode + ", minimumTerm=" + minimumTerm + ", optionalJoin=" + optionalJoin + '}';
+        return "JoinRequest{"
+            + "sourceNode="
+            + sourceNode
+            + ", transportVersion="
+            + transportVersion
+            + ", minimumTerm="
+            + minimumTerm
+            + ", optionalJoin="
+            + optionalJoin
+            + '}';
     }
 }

@@ -10,11 +10,13 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Objects;
 
 /**
  * A StreamInput that reads off a {@link BytesRefIterator}. This is used to provide
@@ -85,32 +87,7 @@ class BytesReferenceStreamInput extends StreamInput {
     @Override
     public int readVInt() throws IOException {
         if (slice.remaining() >= 5) {
-            byte b = slice.get();
-            if (b >= 0) {
-                return b;
-            }
-            int i = b & 0x7F;
-            b = slice.get();
-            i |= (b & 0x7F) << 7;
-            if (b >= 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7F) << 14;
-            if (b >= 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7F) << 21;
-            if (b >= 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x0F) << 28;
-            if ((b & 0xF0) == 0) {
-                return i;
-            }
-            throwOnBrokenVInt(b, i);
+            return ByteBufferStreamInput.readVInt(slice);
         }
         return super.readVInt();
     }
@@ -118,57 +95,7 @@ class BytesReferenceStreamInput extends StreamInput {
     @Override
     public long readVLong() throws IOException {
         if (slice.remaining() >= 10) {
-            byte b = slice.get();
-            long i = b & 0x7FL;
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7FL) << 7;
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7FL) << 14;
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7FL) << 21;
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7FL) << 28;
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7FL) << 35;
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7FL) << 42;
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7FL) << 49;
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= ((b & 0x7FL) << 56);
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            if (b != 0 && b != 1) {
-                throwOnBrokenVLong(b, i);
-            }
-            i |= ((long) b) << 63;
-            return i;
+            return ByteBufferStreamInput.readVLong(slice);
         } else {
             return super.readVLong();
         }
@@ -201,17 +128,9 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public void readBytes(byte[] b, int bOffset, int len) throws IOException {
-        final int length = bytesReference.length();
-        final int offset = offset();
-        if (offset + len > length) {
-            throwIndexOutOfBounds(len, length, offset);
-        }
+        Objects.checkFromIndexSize(offset(), len, bytesReference.length());
         final int bytesRead = read(b, bOffset, len);
         assert bytesRead == len : bytesRead + " vs " + len;
-    }
-
-    private static void throwIndexOutOfBounds(int len, int length, int offset) {
-        throw new IndexOutOfBoundsException("Cannot read " + len + " bytes from stream with length " + length + " at offset " + offset);
     }
 
     @Override

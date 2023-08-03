@@ -48,8 +48,8 @@ public class RoutingMissingException extends ElasticsearchException {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+        super.writeTo(out, nestedExceptionsWriter);
         if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }

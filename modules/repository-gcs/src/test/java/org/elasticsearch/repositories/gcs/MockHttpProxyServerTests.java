@@ -8,36 +8,30 @@
 package org.elasticsearch.repositories.gcs;
 
 import org.apache.http.HttpHost;
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.DefaultProxyRoutePlanner;
+import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.net.InetAddress;
-import java.nio.charset.StandardCharsets;
 
 public class MockHttpProxyServerTests extends ESTestCase {
 
     public void testProxyServerWorks() throws Exception {
         String httpBody = randomAlphaOfLength(32);
-        var proxyServer = new MockHttpProxyServer((is, os) -> {
-            try (
-                var reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-                var writer = new OutputStreamWriter(os, StandardCharsets.UTF_8)
-            ) {
-                assertEquals("GET http://googleapis.com/ HTTP/1.1", reader.readLine());
-                writer.write(Strings.format("""
-                    HTTP/1.1 200 OK\r
-                    Content-Length: %s\r
-                    \r
-                    %s""", httpBody.length(), httpBody));
+        var proxyServer = new MockHttpProxyServer() {
+            @Override
+            public void handle(HttpRequest request, HttpResponse response, HttpContext context) {
+                assertEquals("GET http://googleapis.com/ HTTP/1.1", request.getRequestLine().toString());
+                response.setEntity(new StringEntity(httpBody, ContentType.TEXT_PLAIN));
             }
-        }).await();
+        };
         var httpClient = HttpClients.custom()
             .setRoutePlanner(new DefaultProxyRoutePlanner(new HttpHost(InetAddress.getLoopbackAddress(), proxyServer.getPort())))
             .build();

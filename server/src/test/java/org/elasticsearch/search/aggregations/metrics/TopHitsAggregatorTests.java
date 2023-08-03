@@ -30,7 +30,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -137,7 +136,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
 
     private Document document(String id, String... stringValues) {
         Document document = new Document();
-        document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Store.YES));
         for (String stringValue : stringValues) {
             document.add(new Field("string", new BytesRef(stringValue), KeywordFieldMapper.Defaults.FIELD_TYPE));
         }

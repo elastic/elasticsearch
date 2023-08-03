@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -78,7 +77,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         applyCreatedDates(
             originalState,
             stateBuilder,
-            (IndexAbstraction.DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            (DataStream) originalState.metadata().getIndicesLookup().get("test"),
             lastCreated,
             1
         );
@@ -209,7 +208,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         applyCreatedDates(
             originalState,
             stateBuilder,
-            (IndexAbstraction.DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            (DataStream) originalState.metadata().getIndicesLookup().get("test"),
             lastCreated,
             1
         );
@@ -250,7 +249,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         applyCreatedDates(
             originalState,
             stateBuilder,
-            (IndexAbstraction.DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            (DataStream) originalState.metadata().getIndicesLookup().get("test"),
             lastCreated,
             1
         );
@@ -283,7 +282,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             assertThat(forecastDataStream.getIndices().subList(0, indices), Matchers.equalTo(dataStream.getIndices()));
 
             RoutingTable forecastRoutingTable = forecast.state().routingTable();
-            assertThat(forecastRoutingTable.allShards().size(), Matchers.equalTo((expectedIndices) * shardCopies));
+            assertThat(forecastRoutingTable.allShards().count(), Matchers.equalTo((long) (expectedIndices) * shardCopies));
 
             forecastDataStream.getIndices()
                 .forEach(index -> assertThat(forecastRoutingTable.allShards(index.getName()).size(), Matchers.equalTo(shardCopies)));
@@ -381,7 +380,6 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     private ClusterInfo randomClusterInfo(ClusterState state) {
         Map<String, Long> shardSizes = state.routingTable()
             .allShards()
-            .stream()
             .map(ClusterInfo::shardIdentifierFromRouting)
             .collect(Collectors.toMap(Function.identity(), id -> randomLongBetween(1, 1000), (v1, v2) -> v1));
         Map<String, DiskUsage> diskUsage = new HashMap<>();
@@ -394,7 +392,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     private ClusterState.Builder applyCreatedDates(
         ClusterState state,
         ClusterState.Builder builder,
-        IndexAbstraction.DataStream ds,
+        DataStream ds,
         long last,
         long decrement
     ) {

@@ -19,7 +19,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.StandardOpenOption;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +52,7 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return Collections.singletonMap(UserAgentProcessor.TYPE, new UserAgentProcessor.Factory(userAgentParsers));
+        return Map.of(UserAgentProcessor.TYPE, new UserAgentProcessor.Factory(userAgentParsers));
     }
 
     static Map<String, UserAgentParser> createUserAgentParsers(Path userAgentConfigDirectory, UserAgentCache cache) throws IOException {
@@ -90,11 +89,11 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
             }
         }
 
-        return Collections.unmodifiableMap(userAgentParsers);
+        return Map.copyOf(userAgentParsers);
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.singletonList(CACHE_SIZE_SETTING);
+        return List.of(CACHE_SIZE_SETTING);
     }
 }

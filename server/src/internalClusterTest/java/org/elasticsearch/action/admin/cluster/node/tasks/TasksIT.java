@@ -43,7 +43,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -128,28 +127,28 @@ public class TasksIT extends ESIntegTestCase {
 
     public void testTaskCounts() {
         // Run only on data nodes
-        ListTasksResponse response = client().admin()
-            .cluster()
-            .prepareListTasks("data:true")
-            .setActions(ListTasksAction.NAME + "[n]")
-            .get();
+        ListTasksResponse response = clusterAdmin().prepareListTasks("data:true").setActions(ListTasksAction.NAME + "[n]").get();
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(cluster().numDataNodes()));
     }
 
-    public void testMasterNodeOperationTasks() {
+    public void testMasterNodeOperationTasks() throws Exception {
         registerTaskManagerListeners(ClusterHealthAction.NAME);
 
         // First run the health on the master node - should produce only one task on the master node
         internalCluster().masterClient().admin().cluster().prepareHealth().get();
         assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
-        assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)); // counting only unregistration events
+        // counting only unregistration events
+        // When checking unregistration events there might be some delay since receiving the response from the cluster doesn't
+        // guarantee that the task has been unregistered.
+        assertBusy(() -> assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)));
 
         resetTaskManagerListeners(ClusterHealthAction.NAME);
 
         // Now run the health on a non-master node - should produce one task on master and one task on another node
         internalCluster().nonMasterClient().admin().cluster().prepareHealth().get();
         assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
-        assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)); // counting only unregistration events
+        // counting only unregistration events
+        assertBusy(() -> assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)));
         List<TaskInfo> tasks = findEvents(ClusterHealthAction.NAME, Tuple::v1);
 
         // Verify that one of these tasks is a parent of another task
@@ -167,7 +166,7 @@ public class TasksIT extends ESIntegTestCase {
         // tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().admin().indices().prepareValidateQuery("test").setAllShards(true).get();
+        indicesAdmin().prepareValidateQuery("test").setAllShards(true).get();
 
         // the field stats operation should produce one main task
         NumShards numberOfShards = getNumShards("test");
@@ -184,7 +183,7 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManagerListeners(ForceMergeAction.NAME + "[n]"); // node level tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().admin().indices().prepareForceMerge("test").get();
+        indicesAdmin().prepareForceMerge("test").get();
 
         // the percolate operation should produce one main task
         assertEquals(1, numberOfEvents(ForceMergeAction.NAME, Tuple::v1));
@@ -200,7 +199,7 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManagerListeners(ValidateQueryAction.NAME + "[s]"); // shard level tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().admin().indices().prepareValidateQuery("test").get();
+        indicesAdmin().prepareValidateQuery("test").get();
 
         // the validate operation should produce one main task
         assertEquals(1, numberOfEvents(ValidateQueryAction.NAME, Tuple::v1));
@@ -216,7 +215,7 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManagerListeners(RefreshAction.NAME + "[s][*]"); // primary and replica shard tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         // the refresh operation should produce one main task
         NumShards numberOfShards = getNumShards("test");
@@ -300,7 +299,7 @@ public class TasksIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
         // ensures the mapping is available on all nodes so we won't retry the request (in case replicas don't have the right mapping).
-        client().admin().indices().preparePutMapping("test").setSource("foo", "type=keyword").get();
+        indicesAdmin().preparePutMapping("test").setSource("foo", "type=keyword").get();
         client().prepareBulk().add(client().prepareIndex("test").setId("test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON)).get();
 
         // the bulk operation should produce one main task
@@ -456,21 +455,19 @@ public class TasksIT extends ESIntegTestCase {
             // Need to run the task in a separate thread because node client's .execute() is blocked by our task listener
             index = new Thread(() -> {
                 IndexResponse indexResponse = client().prepareIndex("test").setSource("test", "test").get();
-                assertArrayEquals(ReplicationResponse.EMPTY, indexResponse.getShardInfo().getFailures());
+                assertArrayEquals(ReplicationResponse.NO_FAILURES, indexResponse.getShardInfo().getFailures());
             });
             index.start();
             assertTrue(taskRegistered.await(10, TimeUnit.SECONDS)); // waiting for at least one task to be registered
 
-            ListTasksResponse listResponse = client().admin()
-                .cluster()
-                .prepareListTasks()
+            ListTasksResponse listResponse = clusterAdmin().prepareListTasks()
                 .setActions("indices:data/write/index*")
                 .setDetailed(true)
                 .get();
             assertThat(listResponse.getTasks(), not(empty()));
             for (TaskInfo task : listResponse.getTasks()) {
                 assertNotNull(task.status());
-                GetTaskResponse getResponse = client().admin().cluster().prepareGetTask(task.taskId()).get();
+                GetTaskResponse getResponse = clusterAdmin().prepareGetTask(task.taskId()).get();
                 assertFalse("task should still be running", getResponse.getTask().isCompleted());
                 TaskInfo fetchedWithGet = getResponse.getTask().getTask();
                 assertEquals(task.id(), fetchedWithGet.id());
@@ -490,10 +487,7 @@ public class TasksIT extends ESIntegTestCase {
             }
             assertBusy(
                 () -> {
-                    assertEquals(
-                        emptyList(),
-                        client().admin().cluster().prepareListTasks().setActions("indices:data/write/index*").get().getTasks()
-                    );
+                    assertEquals(emptyList(), clusterAdmin().prepareListTasks().setActions("indices:data/write/index*").get().getTasks());
                 }
             );
         }
@@ -511,27 +505,21 @@ public class TasksIT extends ESIntegTestCase {
         assertBusy(
             () -> assertEquals(
                 internalCluster().size(),
-                client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()
+                clusterAdmin().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()
             )
         );
 
         logger.info("--> cancelling the main test task");
-        CancelTasksResponse cancelTasksResponse = client().admin()
-            .cluster()
-            .prepareCancelTasks()
-            .setActions(TestTaskPlugin.TestTaskAction.NAME)
-            .get();
+        CancelTasksResponse cancelTasksResponse = clusterAdmin().prepareCancelTasks().setActions(TestTaskPlugin.TestTaskAction.NAME).get();
         assertEquals(1, cancelTasksResponse.getTasks().size());
 
         expectThrows(TaskCancelledException.class, future::actionGet);
 
         logger.info("--> checking that test tasks are not running");
-        assertEquals(
-            0,
-            client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "*").get().getTasks().size()
-        );
+        assertEquals(0, clusterAdmin().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "*").get().getTasks().size());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95325")
     public void testTasksUnblocking() throws Exception {
         // Start blocking test task
         TestTaskPlugin.NodesRequest request = new TestTaskPlugin.NodesRequest("test");
@@ -540,28 +528,25 @@ public class TasksIT extends ESIntegTestCase {
         assertBusy(
             () -> assertEquals(
                 internalCluster().size(),
-                client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()
+                clusterAdmin().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()
             )
         );
 
         new TestTaskPlugin.UnblockTestTasksRequestBuilder(client(), TestTaskPlugin.UnblockTestTasksAction.INSTANCE).get();
 
         future.get();
-        assertEquals(
-            0,
-            client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()
+        assertBusy(
+            () -> assertEquals(
+                0,
+                clusterAdmin().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()
+            )
         );
     }
 
     public void testListTasksWaitForCompletion() throws Exception {
         waitForCompletionTestCase(
             randomBoolean(),
-            id -> client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions(TestTaskPlugin.TestTaskAction.NAME)
-                .setWaitForCompletion(true)
-                .execute(),
+            id -> clusterAdmin().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME).setWaitForCompletion(true).execute(),
             response -> {
                 assertThat(response.getNodeFailures(), empty());
                 assertThat(response.getTaskFailures(), empty());
@@ -573,33 +558,25 @@ public class TasksIT extends ESIntegTestCase {
     }
 
     public void testGetTaskWaitForCompletionWithoutStoringResult() throws Exception {
-        waitForCompletionTestCase(
-            false,
-            id -> client().admin().cluster().prepareGetTask(id).setWaitForCompletion(true).execute(),
-            response -> {
-                assertTrue(response.getTask().isCompleted());
-                // We didn't store the result so it won't come back when we wait
-                assertNull(response.getTask().getResponse());
-                // But the task's details should still be there because we grabbed a reference to the task before waiting for it to complete
-                assertNotNull(response.getTask().getTask());
-                assertEquals(TestTaskPlugin.TestTaskAction.NAME, response.getTask().getTask().action());
-            }
-        );
+        waitForCompletionTestCase(false, id -> clusterAdmin().prepareGetTask(id).setWaitForCompletion(true).execute(), response -> {
+            assertTrue(response.getTask().isCompleted());
+            // We didn't store the result so it won't come back when we wait
+            assertNull(response.getTask().getResponse());
+            // But the task's details should still be there because we grabbed a reference to the task before waiting for it to complete
+            assertNotNull(response.getTask().getTask());
+            assertEquals(TestTaskPlugin.TestTaskAction.NAME, response.getTask().getTask().action());
+        });
     }
 
     public void testGetTaskWaitForCompletionWithStoringResult() throws Exception {
-        waitForCompletionTestCase(
-            true,
-            id -> client().admin().cluster().prepareGetTask(id).setWaitForCompletion(true).execute(),
-            response -> {
-                assertTrue(response.getTask().isCompleted());
-                // We stored the task so we should get its results
-                assertEquals(0, response.getTask().getResponseAsMap().get("failure_count"));
-                // The task's details should also be there
-                assertNotNull(response.getTask().getTask());
-                assertEquals(TestTaskPlugin.TestTaskAction.NAME, response.getTask().getTask().action());
-            }
-        );
+        waitForCompletionTestCase(true, id -> clusterAdmin().prepareGetTask(id).setWaitForCompletion(true).execute(), response -> {
+            assertTrue(response.getTask().isCompleted());
+            // We stored the task so we should get its results
+            assertEquals(0, response.getTask().getResponseAsMap().get("failure_count"));
+            // The task's details should also be there
+            assertNotNull(response.getTask().getTask());
+            assertEquals(TestTaskPlugin.TestTaskAction.NAME, response.getTask().getTask().action());
+        });
     }
 
     /**
@@ -621,25 +598,20 @@ public class TasksIT extends ESIntegTestCase {
             taskId = waitForTestTaskStartOnAllNodes();
 
             // Wait for the task to start
-            assertBusy(() -> client().admin().cluster().prepareGetTask(taskId).get());
+            assertBusy(() -> clusterAdmin().prepareGetTask(taskId).get());
 
             // Register listeners so we can be sure the waiting started
             CountDownLatch waitForWaitingToStart = new CountDownLatch(1);
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
                 ((MockTaskManager) transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
                     @Override
-                    public void waitForTaskCompletion(Task task) {
-                        waitForWaitingToStart.countDown();
-                    }
+                    public void waitForTaskCompletion(Task task) {}
 
                     @Override
                     public void onTaskRegistered(Task task) {}
 
                     @Override
-                    public void onTaskUnregistered(Task task) {}
-
-                    @Override
-                    public void subscribeForRemovedTasks(RemovedTaskListener removedTaskListener) {
+                    public void onTaskUnregistered(Task task) {
                         waitForWaitingToStart.countDown();
                     }
                 });
@@ -667,9 +639,7 @@ public class TasksIT extends ESIntegTestCase {
 
     public void testListTasksWaitForTimeout() throws Exception {
         waitForTimeoutTestCase(id -> {
-            ListTasksResponse response = client().admin()
-                .cluster()
-                .prepareListTasks()
+            ListTasksResponse response = clusterAdmin().prepareListTasks()
                 .setActions(TestTaskPlugin.TestTaskAction.NAME)
                 .setWaitForCompletion(true)
                 .setTimeout(timeValueMillis(100))
@@ -683,7 +653,7 @@ public class TasksIT extends ESIntegTestCase {
         waitForTimeoutTestCase(id -> {
             Exception e = expectThrows(
                 Exception.class,
-                () -> client().admin().cluster().prepareGetTask(id).setWaitForCompletion(true).setTimeout(timeValueMillis(100)).get()
+                () -> clusterAdmin().prepareGetTask(id).setWaitForCompletion(true).setTimeout(timeValueMillis(100)).get()
             );
             return singleton(e);
         });
@@ -701,7 +671,7 @@ public class TasksIT extends ESIntegTestCase {
             TaskId taskId = waitForTestTaskStartOnAllNodes();
 
             // Wait for the task to start
-            assertBusy(() -> client().admin().cluster().prepareGetTask(taskId).get());
+            assertBusy(() -> clusterAdmin().prepareGetTask(taskId).get());
 
             // Spin up a request that should wait for those tasks to finish
             // It will timeout because we haven't unblocked the tasks
@@ -724,24 +694,20 @@ public class TasksIT extends ESIntegTestCase {
      */
     private TaskId waitForTestTaskStartOnAllNodes() throws Exception {
         assertBusy(() -> {
-            List<TaskInfo> tasks = client().admin()
-                .cluster()
-                .prepareListTasks()
+            List<TaskInfo> tasks = clusterAdmin().prepareListTasks()
                 .setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]")
                 .get()
                 .getTasks();
             assertEquals(internalCluster().size(), tasks.size());
         });
-        List<TaskInfo> task = client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME).get().getTasks();
+        List<TaskInfo> task = clusterAdmin().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME).get().getTasks();
         assertThat(task, hasSize(1));
         return task.get(0).taskId();
     }
 
     public void testTasksListWaitForNoTask() throws Exception {
         // Spin up a request to wait for no matching tasks
-        ActionFuture<ListTasksResponse> waitResponseFuture = client().admin()
-            .cluster()
-            .prepareListTasks()
+        ActionFuture<ListTasksResponse> waitResponseFuture = clusterAdmin().prepareListTasks()
             .setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]")
             .setWaitForCompletion(true)
             .setTimeout(timeValueMillis(10))
@@ -753,9 +719,7 @@ public class TasksIT extends ESIntegTestCase {
 
     public void testTasksGetWaitForNoTask() throws Exception {
         // Spin up a request to wait for no matching tasks
-        ActionFuture<GetTaskResponse> waitResponseFuture = client().admin()
-            .cluster()
-            .prepareGetTask("notfound:1")
+        ActionFuture<GetTaskResponse> waitResponseFuture = clusterAdmin().prepareGetTask("notfound:1")
             .setWaitForCompletion(true)
             .setTimeout(timeValueMillis(10))
             .execute();
@@ -774,12 +738,7 @@ public class TasksIT extends ESIntegTestCase {
             .map(PersistentTasksCustomMetadata.PersistentTask::getExecutorNode)
             .collect(Collectors.toSet());
         // Spin up a request to wait for all tasks in the cluster to make sure it doesn't cause an infinite loop
-        ListTasksResponse response = client().admin()
-            .cluster()
-            .prepareListTasks()
-            .setWaitForCompletion(true)
-            .setTimeout(timeValueSeconds(10))
-            .get();
+        ListTasksResponse response = clusterAdmin().prepareListTasks().setWaitForCompletion(true).setTimeout(timeValueSeconds(10)).get();
 
         // We expect the nodes that are running always-running-tasks to report FailedNodeException and fail to list their tasks
         assertThat(response.getNodeFailures().size(), equalTo(nodesRunningTasks.size()));
@@ -810,7 +769,7 @@ public class TasksIT extends ESIntegTestCase {
         TaskInfo taskInfo = events.get(0);
         TaskId taskId = taskInfo.taskId();
 
-        TaskResult taskResult = client().admin().cluster().getTask(new GetTaskRequest().setTaskId(taskId)).get().getTask();
+        TaskResult taskResult = clusterAdmin().getTask(new GetTaskRequest().setTaskId(taskId)).get().getTask();
         assertTrue(taskResult.isCompleted());
         assertNull(taskResult.getError());
 
@@ -824,7 +783,7 @@ public class TasksIT extends ESIntegTestCase {
         Map<?, ?> result = taskResult.getResponseAsMap();
         assertEquals("0", result.get("failure_count").toString());
 
-        assertNoFailures(client().admin().indices().prepareRefresh(TaskResultsService.TASK_INDEX).get());
+        assertNoFailures(indicesAdmin().prepareRefresh(TaskResultsService.TASK_INDEX).get());
 
         SearchResponse searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX)
             .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.action", taskInfo.action())))
@@ -866,7 +825,7 @@ public class TasksIT extends ESIntegTestCase {
         TaskInfo failedTaskInfo = events.get(0);
         TaskId failedTaskId = failedTaskInfo.taskId();
 
-        TaskResult taskResult = client().admin().cluster().getTask(new GetTaskRequest().setTaskId(failedTaskId)).get().getTask();
+        TaskResult taskResult = clusterAdmin().getTask(new GetTaskRequest().setTaskId(failedTaskId)).get().getTask();
         assertTrue(taskResult.isCompleted());
         assertNull(taskResult.getResponse());
 
@@ -887,10 +846,10 @@ public class TasksIT extends ESIntegTestCase {
 
     public void testGetTaskNotFound() throws Exception {
         // Node isn't found, tasks index doesn't even exist
-        expectNotFound(() -> client().admin().cluster().prepareGetTask("not_a_node:1").get());
+        expectNotFound(() -> clusterAdmin().prepareGetTask("not_a_node:1").get());
 
         // Node exists but the task still isn't found
-        expectNotFound(() -> client().admin().cluster().prepareGetTask(new TaskId(internalCluster().getNodeNames()[0], 1)).get());
+        expectNotFound(() -> clusterAdmin().prepareGetTask(new TaskId(internalCluster().getNodeNames()[0], 1)).get());
     }
 
     public void testNodeNotFoundButTaskFound() throws Exception {
@@ -1033,7 +992,7 @@ public class TasksIT extends ESIntegTestCase {
      * about the fetched task and returns a map of it's status.
      */
     private GetTaskResponse expectFinishedTask(TaskId taskId) throws IOException {
-        GetTaskResponse response = client().admin().cluster().prepareGetTask(taskId).get();
+        GetTaskResponse response = clusterAdmin().prepareGetTask(taskId).get();
         assertTrue("the task should have been completed before fetching", response.getTask().isCompleted());
         TaskInfo info = response.getTask().getTask();
         assertEquals(taskId, info.taskId());

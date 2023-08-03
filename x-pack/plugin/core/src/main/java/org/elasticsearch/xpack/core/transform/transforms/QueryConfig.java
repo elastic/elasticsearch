@@ -147,7 +147,7 @@ public class QueryConfig implements SimpleDiffable<QueryConfig>, Writeable, ToXC
 
         try {
             queryFromXContent(source, namedXContentRegistry, deprecationLogger);
-        } catch (IOException e) {
+        } catch (Exception e) {
             onDeprecation.accept(
                 new DeprecationIssue(
                     Level.CRITICAL,

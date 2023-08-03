@@ -25,6 +25,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.utils.CircleUtils;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -202,6 +203,7 @@ public class CircleProcessorTests extends ESTestCase {
             fieldName,
             true,
             false,
+            randomBoolean(),
             Orientation.RIGHT,
             null,
             null,
@@ -210,6 +212,7 @@ public class CircleProcessorTests extends ESTestCase {
 
         SearchExecutionContext mockedContext = mock(SearchExecutionContext.class);
         when(mockedContext.getFieldType(any())).thenReturn(shapeType);
+        when(mockedContext.indexVersionCreated()).thenReturn(IndexVersion.current());
         Query sameShapeQuery = shapeType.geoShapeQuery(mockedContext, fieldName, ShapeRelation.INTERSECTS, geometry);
         Query pointOnDatelineQuery = shapeType.geoShapeQuery(
             mockedContext,

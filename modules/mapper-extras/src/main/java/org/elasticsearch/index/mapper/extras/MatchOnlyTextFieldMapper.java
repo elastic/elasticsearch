@@ -27,10 +27,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -91,17 +91,17 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Version indexCreatedVersion;
+        private final IndexVersion indexCreatedVersion;
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final TextParams.Analyzers analyzers;
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
-            this(name, Version.CURRENT, indexAnalyzers);
+            this(name, IndexVersion.current(), indexAnalyzers);
         }
 
-        public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
@@ -252,10 +252,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             // Disable scoring
-            return new ConstantScoreQuery(super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context));
+            return new ConstantScoreQuery(
+                super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context, rewriteMethod)
+            );
         }
 
         @Override
@@ -276,8 +279,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             boolean transpositions,
             SearchExecutionContext context
         ) {
-            FuzzyQuery fuzzyQuery = new FuzzyQuery(new Term(name(), term), maxDistance, prefixLength, 128, transpositions);
-            fuzzyQuery.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            FuzzyQuery fuzzyQuery = new FuzzyQuery(
+                new Term(name(), term),
+                maxDistance,
+                prefixLength,
+                128,
+                transpositions,
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
+            );
             IntervalsSource fuzzyIntervals = Intervals.multiterm(fuzzyQuery.getAutomata(), term);
             return toIntervalsSource(fuzzyIntervals, fuzzyQuery, context);
         }
@@ -347,7 +356,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
     }
 
-    private final Version indexCreatedVersion;
+    private final IndexVersion indexCreatedVersion;
     private final IndexAnalyzers indexAnalyzers;
     private final NamedAnalyzer indexAnalyzer;
     private final int positionIncrementGap;

@@ -56,7 +56,7 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
         this.ephemeralId = in.readString();
         this.name = in.readString();
         this.type = in.readString();
-        this.location = in.readMap(StreamInput::readString, StreamInput::readString);
+        this.location = in.readMap(StreamInput::readString);
         this.startedAt = in.readLong();
         this.stoppedAt = in.readOptionalLong();
     }

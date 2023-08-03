@@ -76,7 +76,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         List<TDigestState> values = buckets.stream()
             .map(b -> resolveTDigestBucketValue(histo, b, bucketsPaths()[0]))
             .filter(v -> v != null)
-            .collect(Collectors.toList());
+            .toList();
 
         int index = 0;
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
@@ -94,7 +94,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
                     if (state == null) {
                         // We have to create a new TDigest histogram because otherwise it will alter the
                         // existing histogram and bucket value
-                        state = new TDigestState(bucketState.compression());
+                        state = TDigestState.createUsingParamsFrom(bucketState);
                     }
                     state.add(bucketState);
 
@@ -126,7 +126,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         List<DoubleHistogram> values = buckets.stream()
             .map(b -> resolveHDRBucketValue(histo, b, bucketsPaths()[0]))
             .filter(v -> v != null)
-            .collect(Collectors.toList());
+            .toList();
 
         int index = 0;
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {

@@ -8,11 +8,11 @@
 
 package org.elasticsearch.reservedstate.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
-import org.elasticsearch.client.internal.Requests;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.SettingsUpdater;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
@@ -32,6 +32,8 @@ import java.util.stream.Collectors;
  */
 public class ReservedClusterSettingsAction implements ReservedClusterStateHandler<Map<String, Object>> {
 
+    private static final Logger logger = LogManager.getLogger(ReservedClusterSettingsAction.class);
+
     public static final String NAME = "cluster_settings";
 
     private final ClusterSettings clusterSettings;
@@ -47,7 +49,7 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
 
     @SuppressWarnings("unchecked")
     private ClusterUpdateSettingsRequest prepare(Object input, Set<String> previouslySet) {
-        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
+        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest();
 
         Map<String, Object> persistentSettings = new HashMap<>();
         Set<String> toDelete = new HashSet<>(previouslySet);
@@ -74,12 +76,13 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
             validate(request);
         }
 
-        ClusterState state = prevState.state();
+        final var state = new SettingsUpdater(clusterSettings).updateSettings(
+            prevState.state(),
+            request.transientSettings(),
+            request.persistentSettings(),
+            logger
+        );
 
-        TransportClusterUpdateSettingsAction.ClusterUpdateSettingsTask updateSettingsTask =
-            new TransportClusterUpdateSettingsAction.ClusterUpdateSettingsTask(clusterSettings, request);
-
-        state = updateSettingsTask.execute(state);
         Set<String> currentKeys = request.persistentSettings()
             .keySet()
             .stream()

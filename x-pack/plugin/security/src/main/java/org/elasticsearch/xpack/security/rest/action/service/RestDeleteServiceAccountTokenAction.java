@@ -13,6 +13,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
@@ -24,6 +26,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestDeleteServiceAccountTokenAction extends SecurityBaseRestHandler {
 
     public RestDeleteServiceAccountTokenAction(Settings settings, XPackLicenseState licenseState) {

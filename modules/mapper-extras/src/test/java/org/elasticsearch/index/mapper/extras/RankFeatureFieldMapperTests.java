@@ -16,12 +16,14 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
@@ -30,6 +32,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RankFeatureFieldMapperTests extends MapperTestCase {
@@ -93,13 +96,13 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc1 = mapper.parse(source(b -> b.field("field", 10)));
-        IndexableField[] fields = doc1.rootDoc().getFields("_feature");
-        assertEquals(1, fields.length);
-        assertThat(fields[0], instanceOf(FeatureField.class));
-        FeatureField featureField1 = (FeatureField) fields[0];
+        List<IndexableField> fields = doc1.rootDoc().getFields("_feature");
+        assertEquals(1, fields.size());
+        assertThat(fields.get(0), instanceOf(FeatureField.class));
+        FeatureField featureField1 = (FeatureField) fields.get(0);
 
         ParsedDocument doc2 = mapper.parse(source(b -> b.field("field", 12)));
-        FeatureField featureField2 = (FeatureField) doc2.rootDoc().getFields("_feature")[0];
+        FeatureField featureField2 = (FeatureField) doc2.rootDoc().getFields("_feature").get(0);
 
         int freq1 = getFrequency(featureField1.tokenStream(null, null));
         int freq2 = getFrequency(featureField2.tokenStream(null, null));
@@ -112,20 +115,58 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
         );
 
         ParsedDocument doc1 = mapper.parse(source(b -> b.field("field", 10)));
-        IndexableField[] fields = doc1.rootDoc().getFields("_feature");
-        assertEquals(1, fields.length);
-        assertThat(fields[0], instanceOf(FeatureField.class));
-        FeatureField featureField1 = (FeatureField) fields[0];
+        List<IndexableField> fields = doc1.rootDoc().getFields("_feature");
+        assertEquals(1, fields.size());
+        assertThat(fields.get(0), instanceOf(FeatureField.class));
+        FeatureField featureField1 = (FeatureField) fields.get(0);
 
         ParsedDocument doc2 = mapper.parse(source(b -> b.field("field", 12)));
-        FeatureField featureField2 = (FeatureField) doc2.rootDoc().getFields("_feature")[0];
+        FeatureField featureField2 = (FeatureField) doc2.rootDoc().getFields("_feature").get(0);
 
         int freq1 = getFrequency(featureField1.tokenStream(null, null));
         int freq2 = getFrequency(featureField2.tokenStream(null, null));
         assertTrue(freq1 > freq2);
     }
 
-    public void testRejectMultiValuedFields() throws MapperParsingException, IOException {
+    /**
+     * Method that tests an exception is thrown when nullValue provided for rank feature is not a positive number
+     */
+    public void testExceptionIsThrownWhenNullValueNonPositive() {
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "rank_feature").field("null_value", "-2")))
+        );
+        String message = "[null_value] must be a positive normal float for field of type [rank_feature], got "
+            + Float.valueOf(-2f).toString()
+            + " which is less than the minimum positive normal float: "
+            + Float.MIN_NORMAL;
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
+        assertEquals(IllegalArgumentException.class, e.getCause().getClass());
+        assertEquals(message, e.getCause().getMessage());
+    }
+
+    public void testNullValue() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "rank_feature")));
+        ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
+        assertThat(doc.rootDoc().getFields("_feature"), empty());
+
+        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "rank_feature").field("null_value", "24")));
+        doc = mapper.parse(source(b -> {}));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(0, fields.size());
+
+        doc = mapper.parse(source(b -> b.nullField("field")));
+        assertEquals(1, doc.rootDoc().getFields("_feature").size());
+        FeatureField featureField = (FeatureField) doc.rootDoc().getFields("_feature").get(0);
+        ParsedDocument doc1 = mapper.parse(source(b -> b.field("field", 12)));
+        FeatureField featureField1 = (FeatureField) doc1.rootDoc().getFields("_feature").get(0);
+
+        int freq = getFrequency(featureField.tokenStream(null, null));
+        int freq1 = getFrequency(featureField1.tokenStream(null, null));
+        assertTrue(freq > freq1);
+    }
+
+    public void testRejectMultiValuedFields() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("field").field("type", "rank_feature").endObject();
             b.startObject("foo").startObject("properties");
@@ -135,8 +176,8 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
             b.endObject().endObject();
         }));
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", Arrays.asList(10, 20))))
         );
         assertEquals(
@@ -144,7 +185,7 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
             e.getCause().getMessage()
         );
 
-        e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+        e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("foo");
             {
                 b.startObject().field("field", 10).endObject();

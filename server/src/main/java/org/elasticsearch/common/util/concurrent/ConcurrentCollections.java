@@ -46,7 +46,7 @@ public abstract class ConcurrentCollections {
     }
 
     public static <V> Set<V> newConcurrentSet() {
-        return Collections.newSetFromMap(ConcurrentCollections.<V, Boolean>newConcurrentMap());
+        return Collections.newSetFromMap(ConcurrentCollections.newConcurrentMap());
     }
 
     public static <T> Queue<T> newQueue() {

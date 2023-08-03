@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -34,6 +33,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Request;
@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradePredicate;
@@ -109,13 +110,12 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             return;
         }
 
-        if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+        if (TransportVersionUtils.isMinTransportVersionSameAsCurrent(state) == false) {
             listener.onFailure(
                 ExceptionsHelper.conflictStatusException(
-                    "Cannot upgrade job [{}] snapshot [{}] as not all nodes are on version {}. All nodes must be the same version",
+                    "Cannot upgrade job [{}] snapshot [{}] while cluster upgrade is in progress.",
                     request.getJobId(),
-                    request.getSnapshotId(),
-                    state.nodes().getMaxNodeVersion().toString()
+                    request.getSnapshotId()
                 )
             );
             return;
@@ -190,13 +190,13 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                 );
                 return;
             }
-            if (Version.CURRENT.equals(response.result.getMinVersion())) {
+            if (MlConfigVersion.CURRENT.equals(response.result.getMinVersion())) {
                 listener.onFailure(
                     ExceptionsHelper.conflictStatusException(
                         "Cannot upgrade job [{}] snapshot [{}] as it is already compatible with current version {}",
                         request.getJobId(),
                         request.getSnapshotId(),
-                        Version.CURRENT
+                        MlConfigVersion.CURRENT
                     )
                 );
                 return;

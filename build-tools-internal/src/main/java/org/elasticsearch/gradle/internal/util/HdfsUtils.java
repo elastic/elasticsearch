@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal.util;
 
-import org.apache.tools.ant.taskdefs.condition.Os;
+import org.elasticsearch.gradle.OS;
 import org.gradle.api.Project;
 import org.gradle.api.logging.Logging;
 
@@ -24,7 +24,7 @@ public class HdfsUtils {
             Logging.getLogger(HdfsUtils.class).warn("hdfs Fixture unsupported since there are spaces in the path: '" + projectPath + "'");
             return false;
         }
-        return (Os.isFamily(Os.FAMILY_WINDOWS) == false) ? true : isHadoopWindowsInstallationAvailable();
+        return (OS.current() != OS.WINDOWS) ? true : isHadoopWindowsInstallationAvailable();
     }
 
     private static boolean isHadoopWindowsInstallationAvailable() {

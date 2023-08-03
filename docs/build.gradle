@@ -101,6 +101,7 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
   requiresFeature 'es.dlm_feature_flag_enabled', Version.fromString("8.8.0")
+  requiresFeature 'es.synonyms_api_feature_flag_enabled', Version.fromString("8.9.0")
 
   // build the cluster with all plugins
   project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
@@ -124,6 +125,7 @@ tasks.named("yamlRestTest").configure {
   }
   if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.dlm_feature_flag_enabled', 'true'
+    systemProperty 'es.synonyms_api_feature_flag_enabled', 'true'
   }
 }
 

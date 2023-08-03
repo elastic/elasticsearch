@@ -1,6 +1,5 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -18,9 +17,4 @@ testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: 'fleet_unprivileged_secrets', password: 'password', role: 'unprivileged_secrets'
-}
-
-if (BuildParams.inFipsJvm){
-  // Test clusters run with security disabled
-  tasks.named("yamlRestTest").configure{enabled = false }
 }

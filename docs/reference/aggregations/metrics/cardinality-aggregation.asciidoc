@@ -260,7 +260,7 @@ appropriate execution method.  The two heuristics are:
  - `save_memory_heuristic` - this was the default in {es} 8.3 and
    earlier
 
-When not specified, {es} will apply a heuristic to chose the
-appropriate mode.  Also note that some data (i.e. non-ordinal fields), `direct`
+When not specified, {es} will apply a heuristic to choose the
+appropriate mode.  Also note that for some data (non-ordinal fields), `direct`
 is the only option, and the hint will be ignored in these cases.  Generally
 speaking, it should not be necessary to set this value.

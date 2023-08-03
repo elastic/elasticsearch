@@ -61,6 +61,7 @@ dependencies {
   compileOnly project(path: xpackModule('ml-package-loader'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('ilm'))
+  testImplementation project(path: xpackModule('slm'))
   testImplementation project(path: xpackModule('shutdown'))
   testImplementation project(':modules:data-streams')
   testImplementation project(path: xpackModule('monitoring'))

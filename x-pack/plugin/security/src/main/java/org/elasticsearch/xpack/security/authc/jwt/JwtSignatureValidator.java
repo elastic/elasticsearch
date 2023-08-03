@@ -285,8 +285,9 @@ public interface JwtSignatureValidator extends Releasable {
                     primaryException
                 );
 
-                jwkSetLoader.reload(ActionListener.wrap(reloadResult -> {
-                    if (Arrays.equals(jwkSetLoader.getContentAndJwksAlgs().sha256(), initialJwksVersion)) {
+                jwkSetLoader.reload(ActionListener.wrap(ignore -> {
+                    final JwkSetLoader.ContentAndJwksAlgs maybeUpdatedContentAndJwksAlgs = jwkSetLoader.getContentAndJwksAlgs();
+                    if (Arrays.equals(maybeUpdatedContentAndJwksAlgs.sha256(), initialJwksVersion)) {
                         logger.debug(
                             "No change in reloaded JWK set with sha256=[{}] will not retry signature verification",
                             MessageDigests.toHexString(jwkSetLoader.getContentAndJwksAlgs().sha256())
@@ -300,13 +301,9 @@ public interface JwtSignatureValidator extends Releasable {
                     // Enhancement idea: When some JWKs are retained (ex: rotation), only invalidate for removed JWKs.
                     reloadNotifier.reloaded();
 
-                    if (reloadResult.isEmpty()) {
-                        logger.debug("Reloaded empty PKC JWKs, signature verification will fail for JWT [{}]", tokenPrincipal);
-                        // fall through and let try/catch below handle empty JWKs failure log and response
-                    }
-
                     try {
-                        validateSignature(signedJWT, reloadResult.jwks());
+                        final JwkSetLoader.JwksAlgs updatedJwksAlgs = maybeUpdatedContentAndJwksAlgs.jwksAlgs();
+                        validateSignature(signedJWT, updatedJwksAlgs.jwks());
                         listener.onResponse(null);
                     } catch (Exception secondaryException) {
                         logger.debug(

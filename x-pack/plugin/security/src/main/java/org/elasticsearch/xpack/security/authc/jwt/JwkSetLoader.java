@@ -44,7 +44,7 @@ public class JwkSetLoader implements Releasable {
 
     private static final Logger logger = LogManager.getLogger(JwkSetLoader.class);
 
-    private final AtomicReference<ListenableFuture<JwksAlgs>> reloadFutureRef = new AtomicReference<>();
+    private final AtomicReference<ListenableFuture<Void>> reloadFutureRef = new AtomicReference<>();
     private final RealmConfig realmConfig;
     private final List<String> allowedJwksAlgsPkc;
     private final String jwkSetPath;
@@ -72,7 +72,7 @@ public class JwkSetLoader implements Releasable {
 
         // Any exception during loading requires closing JwkSetLoader's HTTP client to avoid a thread pool leak
         try {
-            final PlainActionFuture<JwksAlgs> future = new PlainActionFuture<>();
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
             reload(future);
             // ASSUME: Blocking read operations are OK during startup
             future.actionGet(TimeValue.timeValueMinutes(1));
@@ -84,11 +84,10 @@ public class JwkSetLoader implements Releasable {
 
     /**
      * Reload the JWK sets, compare to existing JWK sets and update it to the reloaded value if
-     * they are different. The listener is called with false if the reloaded content is the same
-     * as the existing one or true if they are different.
+     * they are different.
      */
-    void reload(final ActionListener<JwksAlgs> listener) {
-        final ListenableFuture<JwksAlgs> future = getFuture();
+    void reload(final ActionListener<Void> listener) {
+        final ListenableFuture<Void> future = getFuture();
         future.addListener(listener);
     }
 
@@ -97,17 +96,17 @@ public class JwkSetLoader implements Releasable {
     }
 
     // Package private for testing
-    ListenableFuture<JwksAlgs> getFuture() {
+    ListenableFuture<Void> getFuture() {
         for (;;) {
-            final ListenableFuture<JwksAlgs> existingFuture = reloadFutureRef.get();
+            final ListenableFuture<Void> existingFuture = reloadFutureRef.get();
             if (existingFuture != null) {
                 return existingFuture;
             }
 
-            final ListenableFuture<JwksAlgs> newFuture = new ListenableFuture<>();
+            final ListenableFuture<Void> newFuture = new ListenableFuture<>();
             if (reloadFutureRef.compareAndSet(null, newFuture)) {
                 loadInternal(ActionListener.runBefore(newFuture, () -> {
-                    final ListenableFuture<JwksAlgs> oldValue = reloadFutureRef.getAndSet(null);
+                    final ListenableFuture<Void> oldValue = reloadFutureRef.getAndSet(null);
                     assert oldValue == newFuture : "future reference changed unexpectedly";
                 }));
                 return newFuture;
@@ -117,7 +116,7 @@ public class JwkSetLoader implements Releasable {
     }
 
     // Package private for testing
-    void loadInternal(final ActionListener<JwksAlgs> listener) {
+    void loadInternal(final ActionListener<Void> listener) {
         // PKC JWKSet get contents from local file or remote HTTPS URL
         if (httpClient == null) {
             logger.trace("Loading PKC JWKs from path [{}]", jwkSetPath);
@@ -126,7 +125,8 @@ public class JwkSetLoader implements Releasable {
                 jwkSetPath,
                 realmConfig.env()
             );
-            listener.onResponse(handleReloadedContentAndJwksAlgs(reloadedBytes));
+            handleReloadedContentAndJwksAlgs(reloadedBytes);
+            listener.onResponse(null);
         } else {
             logger.trace("Loading PKC JWKs from https URI [{}]", jwkSetPathUri);
             JwtUtil.readUriContents(
@@ -135,13 +135,14 @@ public class JwkSetLoader implements Releasable {
                 httpClient,
                 listener.map(reloadedBytes -> {
                     logger.trace("Loaded bytes [{}] from [{}]", reloadedBytes.length, jwkSetPathUri);
-                    return handleReloadedContentAndJwksAlgs(reloadedBytes);
+                    handleReloadedContentAndJwksAlgs(reloadedBytes);
+                    return null;
                 })
             );
         }
     }
 
-    private JwksAlgs handleReloadedContentAndJwksAlgs(byte[] bytes) {
+    private void handleReloadedContentAndJwksAlgs(byte[] bytes) {
         final ContentAndJwksAlgs newContentAndJwksAlgs = parseContent(bytes);
         assert newContentAndJwksAlgs != null;
         assert contentAndJwksAlgs != null;
@@ -153,7 +154,6 @@ public class JwkSetLoader implements Releasable {
             );
             contentAndJwksAlgs = newContentAndJwksAlgs;
         }
-        return contentAndJwksAlgs.jwksAlgs;
     }
 
     private ContentAndJwksAlgs parseContent(final byte[] jwkSetContentBytesPkc) {

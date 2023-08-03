@@ -114,8 +114,8 @@ public class JwtSignatureValidatorTests extends ESTestCase {
             // count the reload events
             reloadAttemptCounter.getAndIncrement();
             // grab the listener that is passed to reload method and call the onResponse method to simulate a successful reload
-            ActionListener<JwkSetLoader.JwksAlgs> listener = invocation.getArgument(0);
-            listener.onResponse(new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList()));
+            ActionListener<Void> listener = invocation.getArgument(0);
+            listener.onResponse(null);
             return null;
         }).when(jwkSetLoader).reload(any(ActionListener.class));
 
@@ -146,8 +146,8 @@ public class JwtSignatureValidatorTests extends ESTestCase {
             // count the reload events
             reloadAttemptCounter.getAndIncrement();
             // grab the listener that is passed to reload method and call the onResponse method to simulate a successful reload
-            ActionListener<JwkSetLoader.JwksAlgs> listener = invocation.getArgument(0);
-            listener.onResponse(new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList()));
+            ActionListener<Void> listener = invocation.getArgument(0);
+            listener.onResponse(null);
             return null;
         }).when(jwkSetLoader).reload(any(ActionListener.class));
 
@@ -197,8 +197,8 @@ public class JwtSignatureValidatorTests extends ESTestCase {
             reloadAttemptCounter.getAndIncrement();
             safeAwait(reloadBarrier); // block here to ensure both threads have failed once
             // grab the listener that is passed to reload method and call the onResponse method to simulate a successful reload
-            ActionListener<JwkSetLoader.JwksAlgs> listener = invocation.getArgument(0);
-            listener.onResponse(new JwkSetLoader.JwksAlgs(Collections.emptyList(), Collections.emptyList()));
+            ActionListener<Void> listener = invocation.getArgument(0);
+            listener.onResponse(null);
             return null;
         }).when(jwkSetLoader).reload(any(ActionListener.class));
 

@@ -35,8 +35,6 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(OperationModeUpdateTask.class);
     @Nullable
     private final OperationMode ilmMode;
-    @Nullable
-    private final OperationMode slmMode;
 
     public static AckedClusterStateUpdateTask wrap(
         OperationModeUpdateTask task,
@@ -51,18 +49,13 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         };
     }
 
-    private OperationModeUpdateTask(Priority priority, OperationMode ilmMode, OperationMode slmMode) {
+    private OperationModeUpdateTask(Priority priority, OperationMode ilmMode) {
         super(priority);
         this.ilmMode = ilmMode;
-        this.slmMode = slmMode;
     }
 
     public static OperationModeUpdateTask ilmMode(OperationMode mode) {
-        return new OperationModeUpdateTask(getPriority(mode), mode, null);
-    }
-
-    public static OperationModeUpdateTask slmMode(OperationMode mode) {
-        return new OperationModeUpdateTask(getPriority(mode), null, mode);
+        return new OperationModeUpdateTask(getPriority(mode), mode);
     }
 
     private static Priority getPriority(OperationMode mode) {
@@ -77,15 +70,10 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         return ilmMode;
     }
 
-    OperationMode getSLMOperationMode() {
-        return slmMode;
-    }
-
     @Override
     public ClusterState execute(ClusterState currentState) {
         ClusterState newState = currentState;
         newState = updateILMState(newState);
-        newState = updateSLMState(newState);
         return newState;
     }
 
@@ -117,37 +105,9 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             .build();
     }
 
-    private ClusterState updateSLMState(final ClusterState currentState) {
-        if (slmMode == null) {
-            return currentState;
-        }
-
-        final OperationMode currentMode = currentSLMMode(currentState);
-        if (currentMode.equals(slmMode)) {
-            // No need for a new state
-            return currentState;
-        }
-
-        final OperationMode newMode;
-        if (currentMode.isValidChange(slmMode)) {
-            newMode = slmMode;
-        } else {
-            // The transition is invalid, return the current state
-            return currentState;
-        }
-
-        logger.info("updating SLM operation mode to {}", newMode);
-        return ClusterState.builder(currentState)
-            .metadata(
-                Metadata.builder(currentState.metadata())
-                    .putCustom(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(currentILMMode(currentState), newMode))
-            )
-            .build();
-    }
-
     @Override
     public void onFailure(Exception e) {
-        logger.error("unable to update lifecycle metadata with new ilm mode [" + ilmMode + "], slm mode [" + slmMode + "]", e);
+        logger.error("unable to update lifecycle metadata with new ilm mode [" + ilmMode + "]", e);
     }
 
     @Override
@@ -155,14 +115,11 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         if (ilmMode != null) {
             logger.info("ILM operation mode updated to {}", ilmMode);
         }
-        if (slmMode != null) {
-            logger.info("SLM operation mode updated to {}", slmMode);
-        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), ilmMode, slmMode);
+        return Objects.hash(super.hashCode(), ilmMode);
     }
 
     @Override
@@ -174,8 +131,6 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             return false;
         }
         OperationModeUpdateTask other = (OperationModeUpdateTask) obj;
-        return Objects.equals(priority(), other.priority())
-            && Objects.equals(ilmMode, other.ilmMode)
-            && Objects.equals(slmMode, other.slmMode);
+        return Objects.equals(priority(), other.priority()) && Objects.equals(ilmMode, other.ilmMode);
     }
 }

@@ -127,7 +127,6 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             return false;
         }
         OperationModeUpdateTask other = (OperationModeUpdateTask) obj;
-        return Objects.equals(priority(), other.priority())
-            && Objects.equals(slmMode, other.slmMode);
+        return Objects.equals(priority(), other.priority()) && Objects.equals(slmMode, other.slmMode);
     }
 }

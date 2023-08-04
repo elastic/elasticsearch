@@ -21,5 +21,6 @@ dependencies {
   testImplementation project(path: xpackModule('mapper-unsigned-long'))
   testImplementation project(path: xpackModule('mapper-version'))
   testImplementation project(path: xpackModule('ilm'))
+  testImplementation project(path: xpackModule('slm'))
   testImplementation project(':modules:data-streams')
 }

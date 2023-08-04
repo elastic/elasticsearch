@@ -20,6 +20,7 @@ dependencies {
   testImplementation project(path: xpackModule('blob-cache'))
   testImplementation project(path: xpackModule('searchable-snapshots'))
   testImplementation project(path: xpackModule('ilm'))
+  testImplementation project(path: xpackModule('slm'))
 
   testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }

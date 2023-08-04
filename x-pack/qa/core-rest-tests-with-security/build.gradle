@@ -10,6 +10,7 @@ dependencies {
   clusterModules project(':modules:analysis-common')
   clusterModules project(xpackModule('stack'))
   clusterModules project(xpackModule('ilm'))
+  clusterModules project(xpackModule('slm'))
   clusterModules project(xpackModule('mapper-constant-keyword'))
   clusterModules project(xpackModule('wildcard'))
 }

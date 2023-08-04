@@ -23,6 +23,7 @@ dependencies {
   testImplementation project(":modules:analysis-common")
   testImplementation project(xpackModule('watcher'))
   testImplementation project(xpackModule('ilm'))
+  testImplementation project(xpackModule('slm'))
   testImplementation project(':modules:data-streams')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':modules:mapper-extras')

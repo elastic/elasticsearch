@@ -63,6 +63,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -332,6 +333,22 @@ public class StatelessElectionStrategyTests extends ESTestCase {
             var maxTermGranted = sortedTermsBySeqNo.get(sortedTermsBySeqNo.size() - 1);
             assertThat(maxTermGranted, is(greaterThanOrEqualTo((long) numberOfTermsGrantedBeforeStopping)));
         }
+    }
+
+    public void testLeaseOrdering() {
+        final var term = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE - 1);
+        assertThat(
+            new StatelessElectionStrategy.Lease(term, randomLong()),
+            lessThan(new StatelessElectionStrategy.Lease(term + 1, randomLong()))
+        );
+        assertThat(
+            new StatelessElectionStrategy.Lease(term, randomLong()),
+            greaterThan(new StatelessElectionStrategy.Lease(term - 1, randomLong()))
+        );
+
+        final var gen = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE - 1);
+        assertThat(new StatelessElectionStrategy.Lease(term, gen), lessThan(new StatelessElectionStrategy.Lease(term, gen + 1)));
+        assertThat(new StatelessElectionStrategy.Lease(term, gen), greaterThan(new StatelessElectionStrategy.Lease(term, gen - 1)));
     }
 
     static class Node extends Thread {

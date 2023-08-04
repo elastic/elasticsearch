@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
+import org.elasticsearch.cluster.coordination.JoinValidationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -76,25 +77,34 @@ public class StatelessClusterConsistencyServiceIT extends AbstractStatelessInteg
                 removedNode.onResponse(null);
             }
         });
+        try {
+            indexNodeTransportService.addRequestHandlingBehavior(
+                FollowersChecker.FOLLOWER_CHECK_ACTION_NAME,
+                (handler, request, channel, task) -> {
+                    channel.sendResponse(new ElasticsearchException("simulated check failure"));
+                }
+            );
 
-        indexNodeTransportService.addRequestHandlingBehavior(
-            FollowersChecker.FOLLOWER_CHECK_ACTION_NAME,
-            (handler, request, channel, task) -> {
-                channel.sendResponse(new ElasticsearchException("simulated check failure"));
-            }
-        );
+            indexNodeTransportService.addRequestHandlingBehavior(
+                JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
+                (handler, request, channel, task) -> {
+                    channel.sendResponse(new ElasticsearchException("simulated join validation failure"));
+                }
+            );
 
-        removedNode.actionGet();
+            removedNode.actionGet();
 
-        final StatelessClusterConsistencyService consistencyService = internalCluster().getInstance(
-            StatelessClusterConsistencyService.class,
-            indexNode
-        );
+            final StatelessClusterConsistencyService consistencyService = internalCluster().getInstance(
+                StatelessClusterConsistencyService.class,
+                indexNode
+            );
 
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        consistencyService.ensureClusterStateConsistentWithRootBlob(future, TimeValue.timeValueMillis(100));
-
-        expectThrows(ElasticsearchTimeoutException.class, future::actionGet);
+            PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            consistencyService.ensureClusterStateConsistentWithRootBlob(future, TimeValue.timeValueMillis(100));
+            expectThrows(ElasticsearchTimeoutException.class, future::actionGet);
+        } finally {
+            indexNodeTransportService.clearAllRules();
+        }
     }
 
     public void testWaitForNextClusterStatePublish() {

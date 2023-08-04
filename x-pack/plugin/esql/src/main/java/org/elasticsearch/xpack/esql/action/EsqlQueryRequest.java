@@ -14,7 +14,6 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
@@ -159,7 +158,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
             PRAGMA_FIELD
         );
         parser.declareField(EsqlQueryRequest::params, EsqlQueryRequest::parseParams, PARAMS_FIELD, VALUE_ARRAY);
-        parser.declareString((request, localeTag) -> request.locale(LocaleUtils.parse(localeTag)), LOCALE_FIELD);
+        parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
 
         return parser;
     }

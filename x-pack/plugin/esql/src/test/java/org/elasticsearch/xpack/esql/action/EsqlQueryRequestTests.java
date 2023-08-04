@@ -68,13 +68,14 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "locale": "%s",
                 "filter": %s,
                 "params": %s
-            }""", query, columnar, zoneId, randomBoolean() ? locale.toString() : locale.toLanguageTag(), filter, paramsString);
+            }""", query, columnar, zoneId, locale.toLanguageTag(), filter, paramsString);
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json);
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
         assertEquals(zoneId, request.zoneId());
+        assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
 

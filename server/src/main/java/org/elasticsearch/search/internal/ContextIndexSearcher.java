@@ -38,6 +38,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.common.util.concurrent.BoundedExecutor;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.CombinedBitSet;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -383,12 +384,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                             search(Arrays.asList(leaves), weight, collector);
                             if (timeExceeded) {
                                 for (Future<?> future : listTasks) {
-                                    future.cancel(false);
+                                    FutureUtils.cancel(future);
                                 }
                             }
                         } catch (Exception e) {
                             for (Future<?> future : listTasks) {
-                                future.cancel(false);
+                                FutureUtils.cancel(future);
                             }
                             throw e;
                         }

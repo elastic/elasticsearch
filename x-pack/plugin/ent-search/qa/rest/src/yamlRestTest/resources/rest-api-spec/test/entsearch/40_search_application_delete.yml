@@ -12,6 +12,12 @@ setup:
         name: test-search-application-to-delete
         body:
           indices: [ "test-index" ]
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
 
 ---
 teardown:
@@ -23,7 +29,7 @@ teardown:
 ---
 "Delete search application fails for unprivileged user":
   - skip:
-      features: [headers, warnings]
+      features: headers
 
   - do:
       catch: unauthorized
@@ -32,8 +38,6 @@ teardown:
         name: test-search-application-to-delete
 
   - do:
-      warnings:
-        - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
       search_application.get:
         name: test-search-application-to-delete
 

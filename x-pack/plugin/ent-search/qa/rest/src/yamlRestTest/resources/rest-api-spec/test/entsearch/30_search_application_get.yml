@@ -1,4 +1,7 @@
 setup:
+  - skip:
+      features: warnings
+
   - do:
       indices.create:
         index: test-index1
@@ -9,6 +12,7 @@ setup:
               number_of_replicas: 0
 
   - do:
+
       indices.create:
         index: test-index2
         body:
@@ -34,6 +38,8 @@ setup:
                 type: string
 
   - do:
+      warnings:
+        - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
       search_application.put:
         name: test-search-application-2
         body:

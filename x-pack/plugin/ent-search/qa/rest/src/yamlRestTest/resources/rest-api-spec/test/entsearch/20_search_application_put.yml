@@ -188,18 +188,16 @@ teardown:
       features: warnings
 
   - do:
-      search_application.put:
-        name: test-updated-search-application
-        body:
-          indices: [ "test-index1", "test-index2" ]
-          template:
-            script:
-              source:
-                query:
-                  query_string:
-                    query: "{{query_string}}"
+        warnings:
+          - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
+        search_application.put:
+          name: test-updated-search-application
+          body:
+            indices: [ "test-index1", "test-index2" ]
 
   - do:
+      warnings:
+        - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
       search_application.put:
         name: test-updated-search-application
         body:
@@ -266,6 +264,12 @@ teardown:
         create: true
         body:
           indices: [ "test-index1" ]
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
 
   - match: { result: "created" }
 

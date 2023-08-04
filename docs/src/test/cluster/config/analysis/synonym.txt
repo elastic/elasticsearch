@@ -17,7 +17,7 @@ foozball , foosball
 universe , cosmos
 lol, laughing out loud
 
-# If expand==true, in the synonym token filter configuration,
+# If expand==true in the synonym token filter configuration,
 # "ipod, i-pod, i pod" is equivalent to the explicit mapping:
 ipod, i-pod, i pod => ipod, i-pod, i pod
 # If expand==false, "ipod, i-pod, i pod" is equivalent

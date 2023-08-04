@@ -4,7 +4,7 @@
 Synonyms are words or phrases that have the same or similar meaning.
 They are an important aspect of search, as they can improve the search experience and the relevancy of search results.
 
-Synonyms will allow you to:
+Synonyms allow you to:
 
 * Improve search relevance: Synonyms enable users to find relevant documents even if they use different terms to express the same concept.
 * Increase search scope: Using synonyms ensures a wider range of possible terms. Search results are not limited to the specific terms included in your documents, and variations of relevant terms are included in search results.
@@ -22,7 +22,7 @@ In order to use synonyms sets in {es}, you need to:
 
 [discrete]
 [[synonyms-define-synonyms]]
-=== Define your synonyms sets
+=== Define synonyms sets
 
 Synonyms in a synonyms set are defined using *synonym rules*.
 Each synonym rule contains words that are synonyms.
@@ -93,7 +93,7 @@ Changes in your synonyms sets will automatically reload the associated analyzers
 You can store your synonyms set in a file.
 
 A synonyms set file needs to be uploaded to all your cluster nodes, and be located in the configuration directory for your {es} distribution.
-If you're using {ess}, you can upload synonyms fies using {cloud}/ec-custom-bundles.html[custom bundles].
+If you're using {ess}, you can upload synonyms files using {cloud}/ec-custom-bundles.html[custom bundles].
 
 An example synonyms file:
 
@@ -102,10 +102,10 @@ An example synonyms file:
 include::{es-test-dir}/cluster/config/analysis/synonym.txt[]
 --------------------------------------------------
 
-To change an existing synonyms set, you can upload new files to your cluster.
-You will need to keep synonyms set files in sync on every cluster node.
+To update an existing synonyms set, upload new files to your cluster.
+Synonyms set files must be kept in sync on every cluster node.
 
-When doing a change to a file synonyms set, search analyzers that use it need to be refreshed using the <<indices-reload-analyzers,reload search analyzers API>>
+When a synonyms set is updated, search analyzers that use it need to be refreshed using the <<indices-reload-analyzers,reload search analyzers API>>
 
 This manual syncing and reloading makes this approach less flexible than using the <<synonyms-store-synonyms-api,synonyms API>>.
 
@@ -145,7 +145,7 @@ Synonyms sets created via synonyms APIs can be included into synonym token filte
   }
 ----
 
-The path to a synonym file needs to be included as part of your token filter using `synonyms_path` configuration:
+The synonym file path needs to be included as part of your token filter using `synonyms_path` configuration:
 
 [source,JSON]
 ----
@@ -157,7 +157,7 @@ The path to a synonym file needs to be included as part of your token filter usi
   }
 ----
 
-You can directly include your synonyms in your token filter using the `synonyms` configuration:
+Synonyms can be directly included in your token filter using the `synonyms` configuration:
 
 [source,JSON]
 ----

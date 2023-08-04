@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.fleet.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.XContentType;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -24,22 +23,22 @@ public class PostSecretRequestTests extends AbstractWireSerializingTestCase<Post
 
     @Override
     protected PostSecretRequest createTestInstance() {
-        return new PostSecretRequest(randomAlphaOfLengthBetween(10, 100), randomFrom(XContentType.values()));
+        return new PostSecretRequest(randomAlphaOfLengthBetween(10, 100));
     }
 
     @Override
     protected PostSecretRequest mutateInstance(PostSecretRequest instance) {
-        return new PostSecretRequest(instance.source() + randomAlphaOfLength(1), instance.xContentType());
+        return new PostSecretRequest(instance.value() + randomAlphaOfLength(1));
     }
 
     public void testValidateRequest() {
-        PostSecretRequest req = new PostSecretRequest("secret", XContentType.fromFormat("application/json"));
+        PostSecretRequest req = new PostSecretRequest("secret");
         ActionRequestValidationException e = req.validate();
         assertNull(e);
     }
 
     public void testValidateRequestWithoutValue() {
-        PostSecretRequest req = new PostSecretRequest(null, XContentType.fromFormat("application/json"));
+        PostSecretRequest req = new PostSecretRequest((String) null);
         ActionRequestValidationException e = req.validate();
         assertNotNull(e);
         assertThat(e.validationErrors().size(), equalTo(1));

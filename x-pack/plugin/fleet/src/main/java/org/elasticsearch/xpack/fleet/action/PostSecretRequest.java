@@ -11,12 +11,11 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -28,7 +27,7 @@ public class PostSecretRequest extends ActionRequest {
     public static final ConstructingObjectParser<PostSecretRequest, Void> PARSER = new ConstructingObjectParser<>(
         "post_secret_request",
         args -> {
-            return new PostSecretRequest((String) args[0], XContentType.JSON);
+            return new PostSecretRequest((String) args[0]);
         }
     );
 
@@ -45,38 +44,37 @@ public class PostSecretRequest extends ActionRequest {
         return PARSER.parse(parser, null);
     }
 
-    private final String source;
-    private final XContentType xContentType;
+    private final String value;
 
-    public PostSecretRequest(String source, XContentType xContentType) {
-        this.source = source;
-        this.xContentType = xContentType;
+    public PostSecretRequest(String value) {
+        this.value = value;
     }
 
     public PostSecretRequest(StreamInput in) throws IOException {
         super(in);
-        this.source = in.readString();
-        this.xContentType = in.readEnum(XContentType.class);
+        this.value = in.readString();
     }
 
-    public String source() {
-        return source;
+    public String value() {
+        return value;
     }
 
-    public XContentType xContentType() {
-        return xContentType;
+    public XContentBuilder toXContent(XContentBuilder builder) throws IOException {
+        builder.startObject();
+        builder.field(VALUE_FIELD.getPreferredName(), this.value);
+        builder.endObject();
+        return builder;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(source);
-        XContentHelper.writeTo(out, xContentType);
+        out.writeString(value);
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        if (this.source == null) {
+        if (this.value == null) {
             ActionRequestValidationException exception = new ActionRequestValidationException();
             exception.addValidationError("value is missing");
             return exception;
@@ -90,11 +88,11 @@ public class PostSecretRequest extends ActionRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PostSecretRequest that = (PostSecretRequest) o;
-        return Objects.equals(source, that.source) && xContentType == that.xContentType;
+        return Objects.equals(value, that.value);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(source, xContentType);
+        return Objects.hash(value);
     }
 }

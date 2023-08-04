@@ -64,6 +64,9 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.BoundedExecutor;
+import org.elasticsearch.common.util.concurrent.BoundedExecutorTests;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -544,13 +547,8 @@ public class ContextIndexSearcherTests extends ESTestCase {
             int numThreads = randomIntBetween(4, 6);
             int numBusyThreads = randomIntBetween(0, 3);
             int numAvailableThreads = numThreads - numBusyThreads;
-            ThreadPoolExecutor executor = new ThreadPoolExecutor(
-                numThreads,
-                numThreads,
-                0,
-                TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>()
-            );
+            ThreadPoolExecutor executor = EsExecutors.newFixed(BoundedExecutorTests.class.getName(), numThreads, numThreads,
+                EsExecutors.daemonThreadFactory(""), new ThreadContext(Settings.EMPTY), EsExecutors.TaskTrackingConfig.DO_NOT_TRACK);;
             AssertingBoundedExecutor boundedExecutor = new AssertingBoundedExecutor(executor, numBusyThreads);
             try (DirectoryReader directoryReader = DirectoryReader.open(dir)) {
                 Set<LeafReaderContext> throwingLeaves = new HashSet<>();
@@ -685,13 +683,8 @@ public class ContextIndexSearcherTests extends ESTestCase {
             int numThreads = randomIntBetween(4, 6);
             int numBusyThreads = randomIntBetween(0, 3);
             int numAvailableThreads = numThreads - numBusyThreads;
-            ThreadPoolExecutor executor = new ThreadPoolExecutor(
-                numThreads,
-                numThreads,
-                0,
-                TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>()
-            );
+            ThreadPoolExecutor executor = EsExecutors.newFixed(BoundedExecutorTests.class.getName(), numThreads, numThreads,
+                EsExecutors.daemonThreadFactory(""), new ThreadContext(Settings.EMPTY), EsExecutors.TaskTrackingConfig.DO_NOT_TRACK);;
             AssertingBoundedExecutor boundedExecutor = new AssertingBoundedExecutor(executor, numBusyThreads);
             try (DirectoryReader directoryReader = DirectoryReader.open(dir)) {
                 Set<LeafReaderContext> throwingLeaves = new HashSet<>();

@@ -48,6 +48,7 @@ import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -254,6 +255,7 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
                         )
                         .version(latestClusterState.version())
                         .nodes(DiscoveryNodes.builder(latestAcceptedState.nodes()).masterNodeId(null))
+                        .transportVersions(getTransportVersions(latestAcceptedState))
                         .build()
                 )
             );
@@ -262,6 +264,11 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
         }));
 
         getLatestStoredClusterStateMetadataForTerm(term - 1, getLatestTermAndVersionStep);
+    }
+
+    @SuppressForbidden(reason = "copying ClusterState#transportVersions requires reading them")
+    private static Map<String, TransportVersion> getTransportVersions(ClusterState clusterState) {
+        return clusterState.transportVersions();
     }
 
     private boolean isLatestAcceptedStateStale(PersistedClusterStateMetadata latestStoredClusterState) {

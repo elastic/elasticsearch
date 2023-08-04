@@ -10,37 +10,16 @@ package org.elasticsearch.xpack.slm.history;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xpack.core.ilm.AllocateAction;
-import org.elasticsearch.xpack.core.ilm.DeleteAction;
-import org.elasticsearch.xpack.core.ilm.DownsampleAction;
-import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
-import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
-import org.elasticsearch.xpack.core.ilm.LifecycleType;
-import org.elasticsearch.xpack.core.ilm.MigrateAction;
-import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
-import org.elasticsearch.xpack.core.ilm.RolloverAction;
-import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
-import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
-import org.elasticsearch.xpack.core.ilm.ShrinkAction;
-import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
-import org.elasticsearch.xpack.core.ilm.UnfollowAction;
-import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
-import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -99,68 +78,21 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
         return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
     }
 
-    private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
-        new LifecyclePolicyConfig(SLM_POLICY_NAME, "/slm-history-ilm-policy.json").load(
-            new NamedXContentRegistry(xContentEntries())
-        )
+    private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
+        new LifecyclePolicyConfig(SLM_POLICY_NAME, "/slm-history-ilm-policy.json")
     );
 
-    private static List<NamedXContentRegistry.Entry> xContentEntries() {
-        return Arrays.asList(
-            // Custom Metadata
-            new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
-                new ParseField(IndexLifecycleMetadata.TYPE),
-                parser -> IndexLifecycleMetadata.PARSER.parse(parser, null)
-            ),
-            new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
-                new ParseField(SnapshotLifecycleMetadata.TYPE),
-                parser -> SnapshotLifecycleMetadata.PARSER.parse(parser, null)
-            ),
-            new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
-                new ParseField(LifecycleOperationMetadata.TYPE),
-                parser -> LifecycleOperationMetadata.PARSER.parse(parser, null)
-            ),
-            // Lifecycle Types
-            new NamedXContentRegistry.Entry(
-                LifecycleType.class,
-                new ParseField(TimeseriesLifecycleType.TYPE),
-                (p, c) -> TimeseriesLifecycleType.INSTANCE
-            ),
-            // Lifecycle Actions
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse),
-            new NamedXContentRegistry.Entry(
-                LifecycleAction.class,
-                new ParseField(WaitForSnapshotAction.NAME),
-                WaitForSnapshotAction::parse
-            ),
-            new NamedXContentRegistry.Entry(
-                LifecycleAction.class,
-                new ParseField(SearchableSnapshotAction.NAME),
-                SearchableSnapshotAction::parse
-            ),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MigrateAction.NAME), MigrateAction::parse),
-            // TSDB Downsampling
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DownsampleAction.NAME), DownsampleAction::parse)
-        );
-    }
-
     @Override
-    protected List<LifecyclePolicy> getPolicyConfigs() {
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
         if (slmHistoryEnabled == false) {
             return Collections.emptyList();
         }
-        return LIFECYCLE_POLICIES;
+        return lifecyclePolicies;
+    }
+
+    @Override
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return LIFECYCLE_POLICY_CONFIGS;
     }
 
     @Override
@@ -176,7 +108,7 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
         Optional<Map<String, LifecyclePolicy>> maybePolicies = Optional.<IndexLifecycleMetadata>ofNullable(
             state.metadata().custom(IndexLifecycleMetadata.TYPE)
         ).map(IndexLifecycleMetadata::getPolicies);
-        Set<String> policyNames = getPolicyConfigs().stream().map(LifecyclePolicy::getName).collect(Collectors.toSet());
+        Set<String> policyNames = getLifecyclePolicies().stream().map(LifecyclePolicy::getName).collect(Collectors.toSet());
 
         boolean allPoliciesPresent = maybePolicies.map(policies -> policies.keySet().containsAll(policyNames)).orElse(false);
         return allTemplatesPresent && allPoliciesPresent;

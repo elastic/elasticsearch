@@ -25,6 +25,8 @@ public abstract class NumericUtils {
     public static final long ONE_AS_UNSIGNED_LONG = asLongUnsigned(BigInteger.ONE);
     public static final long ZERO_AS_UNSIGNED_LONG = asLongUnsigned(BigInteger.ZERO);
 
+    private static final String UNSIGNED_LONG_OVERFLOW = "unsigned_long overflow";
+
     public static boolean isUnsignedLong(BigInteger bi) {
         return bi.signum() >= 0 && bi.compareTo(UNSIGNED_LONG_MAX) <= 0;
     }
@@ -39,7 +41,7 @@ public abstract class NumericUtils {
 
     public static BigInteger asUnsignedLong(BigInteger bi) {
         if (isUnsignedLong(bi) == false) {
-            throw new ArithmeticException("unsigned_long overflow");
+            throw new ArithmeticException(UNSIGNED_LONG_OVERFLOW);
         }
         return bi;
     }
@@ -92,6 +94,39 @@ public abstract class NumericUtils {
 
     public static double unsignedLongToDouble(long l) {
         return l < 0 ? twosComplement(l) : LONG_MAX_PLUS_ONE_AS_DOUBLE + l;
+    }
+
+    public static long unsignedLongAddExact(long x, long y) {
+        long s;
+        if (
+        // both operands are positive, so the UL equivalents are >= Long.MAX_VALUE + 1, so sum will be above UNSIGNED_LONG_MAX
+        (x | y) >= 0
+            // if operands have opposing signs, the UL corresponding to the positive one is >= Long.MAX_VALUE + 1 and
+            // the UL corresponding to the negative one between [0, Long.MAX_VALUE] ==> non-negative sum means value wrap, i.e. overflow
+            || ((s = (x + y)) >= 0 && (x ^ y) < 0)) {
+            throw new ArithmeticException(UNSIGNED_LONG_OVERFLOW);
+        }
+        return asLongUnsigned(s);
+    }
+
+    public static long unsignedLongSubtractExact(long x, long y) {
+        if (x < y) { // UL keeps the ordering after shifting to fit into long range
+            throw new ArithmeticException(UNSIGNED_LONG_OVERFLOW);
+        }
+        return asLongUnsigned(x - y);
+    }
+
+    public static long unsignedLongMultiplyExact(long x, long y) {
+        long ux = asLongUnsigned(x);
+        long uy = asLongUnsigned(y);
+        if (unsignedLongMultiplyHigh(ux, uy) != 0) { // TODO: replace with Math#unsignedMultiplyHigh() in JDK 18 when available
+            throw new ArithmeticException(UNSIGNED_LONG_OVERFLOW);
+        }
+        return asLongUnsigned(ux * uy);
+    }
+
+    public static long unsignedLongMultiplyHigh(long x, long y) {
+        return Math.multiplyHigh(x, y) + (y & (x >> 63)) + (x & (y >> 63));
     }
 
     private static long twosComplement(long l) {

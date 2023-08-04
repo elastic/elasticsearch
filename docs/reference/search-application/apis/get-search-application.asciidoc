@@ -43,6 +43,27 @@ No Search Application matching `name` could be found.
 
 The following example gets the Search Application named `my-app`:
 
+////
+
+[source,console]
+--------------------------------------------------
+PUT index1
+
+PUT _application/search_application/my-app
+{
+  "indices": [ "index1" ]
+}
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _application/search_application/my-app
+--------------------------------------------------
+// TEARDOWN
+
+////
+
 [source,console]
 ----
 GET _application/search_application/my-app/

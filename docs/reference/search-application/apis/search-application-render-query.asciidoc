@@ -41,6 +41,47 @@ Search Application `<name>` does not exist.
 The following example renders a query for a search application called `my-app`. In this case, the `from` and `size`
 parameters are not specified, so default values are pulled from the search application template.
 
+////
+[source,console]
+----
+PUT /index1
+
+PUT _application/search_application/my-app
+{
+  "indices": ["index1"],
+  "template": {
+    "script": {
+      "lang": "mustache",
+      "source": """
+      {
+        "query": {
+          "multi_match": {
+            "query": "{{query_string}}",
+            "fields": [{{#text_fields}}"{{name}}^{{boost}}",{{/text_fields}}]
+          }
+        },
+        "explain": "{{explain}}",
+        "from": "{{from}}",
+        "size": "{{size}}"
+      }
+      """,
+      "params": {
+        "query_string": "*",
+        "text_fields": [
+          {"name": "title", "boost": 10},
+          {"name": "description", "boost": 5}
+        ],
+        "explain": false,
+        "from": 0,
+        "size": 10
+      }
+    }
+  }
+}
+----
+// TESTSETUP
+////
+
 [source,console]
 ----
 POST _application/search_application/my-app/_render_query
@@ -60,7 +101,6 @@ POST _application/search_application/my-app/_render_query
   }
 }
 ----
-// TEST[skip:TBD]
 
 A sample response:
 
@@ -79,7 +119,6 @@ A sample response:
         }
     }
 }
-
 ----
-
+// TEST[continued]
 

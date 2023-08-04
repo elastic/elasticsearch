@@ -49,7 +49,7 @@ PUT _query_rules/ruleset-1
                 {
                     "type": "exact",
                     "metadata": "query_string",
-                    "values": [ "marvel" ]
+                    "values": [ "puggles" ]
                 }
             ],
             "actions": {
@@ -58,14 +58,90 @@ PUT _query_rules/ruleset-1
         }
     ]
 }
+
+PUT _query_rules/ruleset-2
+{
+    "rules": [
+        {
+            "rule_id": "rule-1",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "exact",
+                    "metadata": "query_string",
+                    "values": [ "puggles" ]
+                }
+            ],
+            "actions": {
+                "ids": ["id1"]
+            }
+        },
+        {
+            "rule_id": "rule-2",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "fuzzy",
+                    "metadata": "query_string",
+                    "values": [ "pugs" ]
+                }
+            ],
+            "actions": {
+                "ids": ["id2"]
+            }
+        }
+    ]
+}
+
+PUT _query_rules/ruleset-3
+{
+    "rules": [
+        {
+            "rule_id": "rule-1",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "exact",
+                    "metadata": "query_string",
+                    "values": [ "puggles" ]
+                }
+            ],
+            "actions": {
+                "ids": ["id1"]
+            }
+        },
+        {
+            "rule_id": "rule-2",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "fuzzy",
+                    "metadata": "query_string",
+                    "values": [ "pugs" ]
+                }
+            ],
+            "actions": {
+                "ids": ["id2"]
+            }
+        },
+        {
+            "rule_id": "rule-3",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "fuzzy",
+                    "metadata": "query_string",
+                    "values": [ "beagles" ]
+                }
+            ],
+            "actions": {
+                "ids": ["id2"]
+            }
+        }
+    ]
+}
 --------------------------------------------------
 // TESTSETUP
-
-[source,console]
---------------------------------------------------
-DELETE _query_rules/my-ruleset
---------------------------------------------------
-// TEARDOWN
 
 ////
 
@@ -73,7 +149,6 @@ DELETE _query_rules/my-ruleset
 ----
 GET _query_rules/
 ----
-
 
 The following example lists the first three query rulesets:
 
@@ -118,7 +193,13 @@ A sample response:
     ]
 }
 ----
-// TEST[skip:TBD]
+// TESTRESPONSE[s/"count": 4/"value": $body.count/]
+// TESTRESPONSE[s/"ruleset_id": "ruleset-1"/"value": $body.results.0.ruleset_id.value/]
+// TESTRESPONSE[s/"rules_count": 10/"value": $body.results.0.rules_count.value/]
+// TESTRESPONSE[s/"ruleset_id": "ruleset-2"/"value": $body.results.0.ruleset_id.value/]
+// TESTRESPONSE[s/"rules_count": 15/"value": $body.results.0.rules_count.value/]
+// TESTRESPONSE[s/"ruleset_id": "ruleset-3"/"value": $body.results.0.ruleset_id.value/]
+// TESTRESPONSE[s/"rules_count": 5/"value": $body.results.0.rules_count.value/]
 
 [NOTE]
 The counts in `rule_criteria_types_counts` may be larger than the value of `rule_total_count`, because a rule may have multiple criteria.

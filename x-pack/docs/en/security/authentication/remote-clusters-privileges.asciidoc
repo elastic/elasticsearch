@@ -104,7 +104,7 @@ POST /_security/role/remote-replication
 
 After creating the `remote-replication` role on each cluster, use the
 <<security-api-put-user,create or update users API>> to create a user on
-the local cluster and assign the `remote-replication` role. For
+the local cluster cluster and assign the `remote-replication` role. For
 example, the following request assigns the `remote-replication` role to a user
 named `cross-cluster-user`:
 

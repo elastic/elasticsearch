@@ -19,7 +19,6 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
@@ -75,10 +74,10 @@ public class JwkSetLoader implements Releasable {
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             reload(future);
             // ASSUME: Blocking read operations are OK during startup
-            future.actionGet(TimeValue.timeValueMinutes(1));
-        } catch (Exception e) {
-            logger.debug("Could not load JWT realm's JWK sets within [1] minute during startup. Will lazy retry if necessary.", e);
+            future.actionGet();
+        } catch (Throwable t) {
             close();
+            throw t;
         }
     }
 
@@ -182,7 +181,7 @@ public class JwkSetLoader implements Releasable {
             try {
                 httpClient.close();
             } catch (IOException e) {
-                logger.debug(() -> "Exception closing HTTPS client for realm [" + realmConfig.name() + "]", e);
+                logger.warn(() -> "Exception closing HTTPS client for realm [" + realmConfig.name() + "]", e);
             }
         }
     }

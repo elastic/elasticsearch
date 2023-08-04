@@ -63,7 +63,7 @@ https://wordnet.princeton.edu/[WordNet] defines synonyms sets spanning multiple 
 
 The following example defines a synonym set for the words "come", "advance" and "approach":
 
-[source]
+[source,synonyms]
 ----
 s(100000002,1,'come',v,1,0).
 s(100000002,2,'advance',v,1,0).

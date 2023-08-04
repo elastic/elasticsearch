@@ -1131,6 +1131,32 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(rqb.from(), is(60_000));
     }
 
+    // `where "Pettey" in (last_name, "Simmel") or last_name == "Parto"` --> `where last_name in ("Pettey", "Parto")`
+    // LimitExec[10000[INTEGER]]
+    // \_ExchangeExec[]
+    // \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, languages{f}#6, last_name{f}#7, salary{f}#8]]
+    // \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+    // \_EsQueryExec[test],
+    // query[{"esql_single_value":{"field":"last_name","next":{"terms":{"last_name":["Pettey","Parto"],"boost":1.0}}}}][_doc{f}#10],
+    // limit[10000], sort[]
+    public void testPushDownRecombinedIn() {
+        var plan = physicalPlan("""
+            from test
+            | where "Pettey" in (last_name, "Simmel") or last_name == "Parto"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        var tqb = as(sv(source.query(), "last_name"), TermsQueryBuilder.class);
+        assertThat(tqb.fieldName(), is("last_name"));
+        assertThat(tqb.values(), is(List.of("Pettey", "Parto")));
+    }
+
     /**
      * Expected:
      *  LimitExec[10000[INTEGER]]
@@ -1139,7 +1165,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *      \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, !gender, languages{f}#6, last_name{f}#7, salary{f}#8]]
      *        \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, !ge..]
      *          \_EsQueryExec[test], query[sv(not(emp_no IN (10010, 10011)))][_doc{f}#10],
-     (                                   limit[10000], sort[]
+     *                                   limit[10000], sort[]
      */
     public void testPushDownNegatedDisjunction() {
         var plan = physicalPlan("""

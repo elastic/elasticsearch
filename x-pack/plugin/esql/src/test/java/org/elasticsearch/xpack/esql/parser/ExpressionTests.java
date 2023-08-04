@@ -558,6 +558,35 @@ public class ExpressionTests extends ESTestCase {
         );
     }
 
+    public void testSimplifyInWithSingleElementList() {
+        Expression e = whereExpression("a IN (1)");
+        assertThat(e, instanceOf(Equals.class));
+        Equals eq = (Equals) e;
+        assertThat(eq.left(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) eq.left()).name(), equalTo("a"));
+        assertThat(eq.right(), instanceOf(Literal.class));
+        assertThat(eq.right().fold(), equalTo(1));
+
+        e = whereExpression("1 IN (a)");
+        assertThat(e, instanceOf(Equals.class));
+        eq = (Equals) e;
+        assertThat(eq.right(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) eq.right()).name(), equalTo("a"));
+        assertThat(eq.left(), instanceOf(Literal.class));
+        assertThat(eq.left().fold(), equalTo(1));
+
+        e = whereExpression("1 NOT IN (a)");
+        assertThat(e, instanceOf(Not.class));
+        e = e.children().get(0);
+        assertThat(e, instanceOf(Equals.class));
+        eq = (Equals) e;
+        assertThat(eq.right(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) eq.right()).name(), equalTo("a"));
+        assertThat(eq.left(), instanceOf(Literal.class));
+        assertThat(eq.left().fold(), equalTo(1));
+
+    }
+
     private Expression whereExpression(String e) {
         return ((Filter) parse("from a | where " + e)).condition();
     }

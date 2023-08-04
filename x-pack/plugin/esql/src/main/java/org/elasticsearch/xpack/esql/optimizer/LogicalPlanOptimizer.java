@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
@@ -87,6 +88,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new PropagateEmptyRelation(),
             new ConvertStringToByteRef(),
             new FoldNull(),
+            new SplitInWithFoldableValue(),
             new ConstantFolding(),
             // boolean
             new BooleanSimplification(),
@@ -340,6 +342,35 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 }
             }
             return null;
+        }
+    }
+
+    // 3 in (field, 4, 5) --> 3 in (field) or 3 in (4, 5)
+    public static class SplitInWithFoldableValue extends OptimizerRules.OptimizerExpressionRule<In> {
+
+        SplitInWithFoldableValue() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected Expression rule(In in) {
+            if (in.value().foldable()) {
+                List<Expression> foldables = new ArrayList<>(in.list().size());
+                List<Expression> nonFoldables = new ArrayList<>(in.list().size());
+                in.list().forEach(e -> {
+                    if (e.foldable() && Expressions.isNull(e) == false) { // keep `null`s, needed for the 3VL
+                        foldables.add(e);
+                    } else {
+                        nonFoldables.add(e);
+                    }
+                });
+                if (foldables.size() > 0 && nonFoldables.size() > 0) {
+                    In withFoldables = new In(in.source(), in.value(), foldables);
+                    In withoutFoldables = new In(in.source(), in.value(), nonFoldables);
+                    return new Or(in.source(), withFoldables, withoutFoldables);
+                }
+            }
+            return in;
         }
     }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -113,7 +114,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static Analyzer analyzer;
     private static LogicalPlanOptimizer logicalOptimizer;
     private static Map<String, EsField> mapping;
-    private static Map<String, EsField> languagesMapping;
 
     @BeforeClass
     public static void init() {
@@ -1260,6 +1260,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat((int) QuantileStates.MEDIAN, is(literal.fold()));
 
         assertThat(Expressions.names(agg.groupings()), contains("last_name"));
+    }
+
+    public void testSplittingInWithFoldableValue() {
+        FieldAttribute fa = getFieldAttribute("foo");
+        In in = new In(EMPTY, ONE, List.of(TWO, THREE, fa, L(null)));
+        Or expected = new Or(EMPTY, new In(EMPTY, ONE, List.of(TWO, THREE)), new In(EMPTY, ONE, List.of(fa, L(null))));
+        assertThat(new LogicalPlanOptimizer.SplitInWithFoldableValue().rule(in), equalTo(expected));
     }
 
     private LogicalPlan optimizedPlan(String query) {

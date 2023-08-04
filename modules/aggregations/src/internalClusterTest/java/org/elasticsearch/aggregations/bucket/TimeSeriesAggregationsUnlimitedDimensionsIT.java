@@ -8,6 +8,7 @@
 
 package org.elasticsearch.aggregations.bucket;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -29,9 +30,9 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -41,25 +42,25 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 3, numClientNodes = 1, supportsDedicatedMasters = true)
-@ESIntegTestCase.SuiteScopeTestCase
+import static org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TSID_HASH_PREFIX;
+
 public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationIntegTestCase {
     private static int numberOfDimensions;
-    private static int numberOfDocs;
+    private static int numberOfDocuments;
 
-    @Override
-    public void setupSuiteScopeCluster() throws Exception {
+    @Before
+    public void setup() throws Exception {
         numberOfDimensions = randomIntBetween(25, 99);
         final XContentBuilder mapping = timeSeriesIndexMapping();
         long startMillis = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         long endMillis = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-02T00:00:00Z");
-        numberOfDocs = randomIntBetween(1000, 2000);
-        final Iterator<Long> timestamps = getTimestamps(startMillis, endMillis, numberOfDocs);
+        numberOfDocuments = randomIntBetween(1000, 2000);
+        final Iterator<Long> timestamps = getTimestamps(startMillis, endMillis, numberOfDocuments);
         // NOTE: use also the last (changing) dimension so to make sure documents are not indexed all in the same shard.
         final String[] routingDimensions = new String[] { "dim_1", "dim_" + (numberOfDimensions - 1) };
         assertTrue(prepareTimeSeriesIndex(mapping, startMillis, endMillis, routingDimensions).isAcknowledged());
 
-        logger.info("Dimensions: " + numberOfDimensions + " docs: " + numberOfDocs + " start: " + startMillis + " end: " + endMillis);
+        logger.info("Dimensions: " + numberOfDimensions + " docs: " + numberOfDocuments + " start: " + startMillis + " end: " + endMillis);
 
         // NOTE: we need the tsid to be larger than 32 Kb
         final String fooDimValue = "foo_" + randomAlphaOfLengthBetween(2048, 2048 + 128);
@@ -67,7 +68,7 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
         final String bazDimValue = "baz_" + randomAlphaOfLengthBetween(2048, 2048 + 512);
 
         final BulkRequestBuilder bulkIndexRequest = client().prepareBulk();
-        for (int docId = 0; docId < numberOfDocs; docId++) {
+        for (int docId = 0; docId < numberOfDocuments; docId++) {
             final XContentBuilder document = timeSeriesDocument(fooDimValue, barDimValue, bazDimValue, docId, timestamps::next);
             bulkIndexRequest.add(client().prepareIndex("index").setOpType(DocWriteRequest.OpType.CREATE).setSource(document));
         }
@@ -161,7 +162,7 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
             new SumAggregationBuilder("sum").field("gauge_metric")
         );
         final SearchResponse searchResponse = client().prepareSearch("index").setQuery(new MatchAllQueryBuilder()).get();
-        assertNotEquals(numberOfDocs, searchResponse.getHits().getHits().length);
+        assertNotEquals(numberOfDocuments, searchResponse.getHits().getHits().length);
         final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
         final InternalTimeSeries ts = (InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0);
         assertTimeSeriesAggregation(ts);
@@ -187,18 +188,13 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
 
     public void testCardinalityByTsid() {
         final TimeSeriesAggregationBuilder timeSeries = new TimeSeriesAggregationBuilder("ts").subAggregation(
-            new CardinalityAggregationBuilder("cardinality").field("dim_" + (numberOfDimensions - 1))
+            new CardinalityAggregationBuilder("dim_n_cardinality").field("dim_" + (numberOfDimensions - 1))
         );
         final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
-        final InternalTimeSeries ts = (InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0);
-        assertTimeSeriesAggregation(ts);
-        assertTrue(
-            ts.getBuckets()
-                .stream()
-                .map(bucket -> (InternalCardinality) bucket.getAggregations().get("cardinality"))
-                .map(InternalCardinality::getValue)
-                .allMatch(value -> value.equals(1L))
-        );
+        assertTimeSeriesAggregation(aggregationResponse.getAggregations().get("counter_cardinality"));
+        ((InternalTimeSeries) aggregationResponse.getAggregations().get("ts")).getBuckets().forEach(bucket -> {
+            assertCardinality(bucket.getAggregations().get("dim_n_cardinality"), 2);
+        });
     }
 
     private static void assertTimeSeriesAggregation(final InternalTimeSeries timeSeriesAggregation) {
@@ -219,5 +215,10 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
     private static void assertTsid(final Map<String, Object> timeSeries) {
         final Map.Entry<String, Object> tsidEntry = timeSeries.entrySet().stream().toList().get(0);
         assertEquals(TimeSeriesIdFieldMapper.NAME, tsidEntry.getKey());
+        assertTrue(((BytesRef) tsidEntry.getValue()).utf8ToString().startsWith(TSID_HASH_PREFIX));
+    }
+
+    private static void assertCardinality(final InternalCardinality cardinalityAggregation, int expectedCardinality) {
+        assertEquals(expectedCardinality, cardinalityAggregation.getValue());
     }
 }

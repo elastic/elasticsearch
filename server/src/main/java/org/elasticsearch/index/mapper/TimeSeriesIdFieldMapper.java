@@ -63,7 +63,6 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
      * hundred bytes each, but we're being paranoid here.
      */
     public static final int TSID_HASH_SENTINEL = 0xBAADCAFE;
-    private static final Base64.Encoder TSID_BASE64_ENCODER = Base64.getUrlEncoder().withoutPadding();
     public static final String TSID_HASH_PREFIX = "hash-";
 
     @Override
@@ -164,7 +163,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         try {
             int sizeOrTsidHashSentinel = in.readVInt();
             if (sizeOrTsidHashSentinel == TSID_HASH_SENTINEL) {
-                return Collections.singletonMap(TimeSeriesIdFieldMapper.NAME, in.readBytesRef());
+                return Collections.emptyMap();
             }
             Map<String, Object> result = new LinkedHashMap<>(sizeOrTsidHashSentinel);
 
@@ -226,7 +225,8 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                         final byte[] buffer = new byte[16];
                         hashOut.writeVInt(TSID_HASH_SENTINEL);
                         TsidExtractingIdFieldMapper.hashTsid(timeSeriesId.toBytesRef(), buffer);
-                        hashOut.writeBytesRef(new BytesRef(TSID_HASH_PREFIX + TSID_BASE64_ENCODER.encodeToString(buffer)));
+                        final BytesRef encoded = new BytesRef(Base64.getUrlEncoder().withoutPadding().encodeToString(buffer));
+                        hashOut.writeBytesRef(encoded);
                         return hashOut.bytes();
                     }
                 }

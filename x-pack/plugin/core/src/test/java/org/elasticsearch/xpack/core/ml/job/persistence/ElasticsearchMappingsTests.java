@@ -189,7 +189,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 Collections.singletonMap("version_newer", Version.CURRENT),
                 Collections.singletonMap(SystemIndexDescriptor.VERSION_META_KEY, 1)
             );
-            String[] indices = new String[]{"version_newer"};
+            String[] indices = new String[] { "version_newer" };
             assertArrayEquals(new String[] {}, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousVersion()));
         }
     }
@@ -197,11 +197,8 @@ public class ElasticsearchMappingsTests extends ESTestCase {
     public void testMappingRequiresUpdateNewerMappingVersionMinor() {
         {
             ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("version_newer_minor", Version.CURRENT));
-            String[] indices = new String[]{"version_newer_minor"};
-            assertArrayEquals(
-                indices,
-                ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion())
-            );
+            String[] indices = new String[] { "version_newer_minor" };
+            assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion()));
         }
         {
             ClusterState cs = getClusterStateWithMappingsWithMetadata(

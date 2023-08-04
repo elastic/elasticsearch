@@ -2154,4 +2154,10 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             return this;
         }
     }
+
+    public void testSearch() {
+        client().prepareIndex("test").setSource("field", "value").setId("id").get();
+
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(new TermQueryBuilder("field", "value")).get();
+    }
 }

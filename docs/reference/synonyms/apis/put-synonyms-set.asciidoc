@@ -45,7 +45,7 @@ In case a synonym rule id is not specified, an identifier will be created automa
 
 `synonyms`::
 (Required, string)
-The synonym rule. This needs to be in <<_solr_synonyms>> format.
+The synonym rule. This needs to be in <<synonyms-define-synonyms-solr,Solr>> format.
 Some examples are:
 * "i-pod, i pod => ipod",
 * "universe, cosmos"

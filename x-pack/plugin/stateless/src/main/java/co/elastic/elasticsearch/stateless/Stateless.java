@@ -62,10 +62,14 @@ import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsActio
 import co.elastic.elasticsearch.stateless.metering.action.TransportGetBlobStoreStatsAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import co.elastic.elasticsearch.stateless.upgrade.StatelessUpgrader;
+import co.elastic.elasticsearch.stateless.xpack.DummyMonitoringInfoTransportAction;
+import co.elastic.elasticsearch.stateless.xpack.DummyMonitoringUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummySearchableSnapshotsInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummySearchableSnapshotsUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyVotingOnlyInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyVotingOnlyUsageTransportAction;
+import co.elastic.elasticsearch.stateless.xpack.DummyWatcherInfoTransportAction;
+import co.elastic.elasticsearch.stateless.xpack.DummyWatcherUsageTransportAction;
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -212,8 +216,12 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionHandler<>(TransportNewCommitNotificationAction.TYPE, TransportNewCommitNotificationAction.class),
+            new ActionHandler<>(XPackInfoFeatureAction.MONITORING, DummyMonitoringInfoTransportAction.class),
+            new ActionHandler<>(XPackUsageFeatureAction.MONITORING, DummyMonitoringUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsInfoTransportAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsUsageTransportAction.class),
+            new ActionHandler<>(XPackInfoFeatureAction.WATCHER, DummyWatcherInfoTransportAction.class),
+            new ActionHandler<>(XPackUsageFeatureAction.WATCHER, DummyWatcherUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.VOTING_ONLY, DummyVotingOnlyInfoTransportAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.VOTING_ONLY, DummyVotingOnlyUsageTransportAction.class),
             new ActionHandler<>(PublishNodeIngestLoadAction.INSTANCE, TransportPublishNodeIngestLoadMetric.class),

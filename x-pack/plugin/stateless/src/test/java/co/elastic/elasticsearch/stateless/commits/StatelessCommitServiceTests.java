@@ -67,7 +67,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class StatelessCommitServiceTests extends ESTestCase {
@@ -106,6 +109,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 PlainActionFuture<Void> future = PlainActionFuture.newFuture();
                 testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commitRef.getGeneration(), future);
                 future.actionGet();
+            }
+            for (StatelessCommitRef commitRef : commitRefs) {
+                var generationalFiles = commitRef.getCommitFiles().stream().filter(StatelessCommitService::isGenerationalFile).toList();
+                var internalFiles = returnInternalFiles(testHarness, List.of(StatelessCompoundCommit.NAME + commitRef.getGeneration()));
+                assertThat(generationalFiles, everyItem(is(in(internalFiles))));
             }
 
             ArrayList<String> uploadedFiles = new ArrayList<>();

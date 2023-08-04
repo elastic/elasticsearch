@@ -454,3 +454,17 @@ min(salary):integer | max(salary):integer | salary_change.int:integer
 25324               | 69904               | 12
 28336               | 56760               | 11
 ;
+
+aggsWithoutGroupingCount
+from employees | stats count(salary);
+
+count(salary):l
+100
+;
+
+aggsWithoutGroupingMinMax
+from employees | stats min(salary), max(salary), c = count(salary);
+
+min(salary):i | max(salary):i | c:l
+25324         | 74999         | 100
+;

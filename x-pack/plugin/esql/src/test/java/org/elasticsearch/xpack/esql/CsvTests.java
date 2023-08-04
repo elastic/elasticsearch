@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
@@ -65,6 +66,7 @@ import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
@@ -412,8 +414,10 @@ public class CsvTests extends ESTestCase {
     ) {
         final Mapper mapper = new Mapper(true);
 
+        var localOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, new DisabledSearchStats()));
+
         var localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
-            var optimizedFragment = new LocalLogicalPlanOptimizer().localOptimize(f.fragment());
+            var optimizedFragment = localOptimizer.localOptimize(f.fragment());
             var physicalFragment = mapper.map(optimizedFragment);
             return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), physicalFragment);
         });

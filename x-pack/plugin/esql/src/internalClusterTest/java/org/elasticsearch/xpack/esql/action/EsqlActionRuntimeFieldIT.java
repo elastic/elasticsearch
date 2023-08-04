@@ -41,6 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
  * unreasonably small breaker and tripping it.
  */
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
     private final int SIZE = between(10, 100);
 

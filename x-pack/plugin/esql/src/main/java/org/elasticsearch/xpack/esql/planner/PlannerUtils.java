@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.util.Holder;
@@ -78,11 +80,17 @@ public class PlannerUtils {
     }
 
     public static PhysicalPlan localPlan(List<SearchContext> searchContexts, EsqlConfiguration configuration, PhysicalPlan plan) {
+        return localPlan(configuration, plan, new SearchStats(searchContexts));
+    }
+
+    public static PhysicalPlan localPlan(EsqlConfiguration configuration, PhysicalPlan plan, SearchStats searchStats) {
         var isCoordPlan = new Holder<>(Boolean.TRUE);
+
+        final var localOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, searchStats));
 
         var localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
             isCoordPlan.set(Boolean.FALSE);
-            var optimizedFragment = new LocalLogicalPlanOptimizer().localOptimize(f.fragment());
+            var optimizedFragment = localOptimizer.localOptimize(f.fragment());
             var physicalFragment = mapper.map(optimizedFragment);
             var filter = f.esFilter();
             if (filter != null) {

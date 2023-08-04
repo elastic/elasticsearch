@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
+import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.ExpressionSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -64,6 +65,8 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.FoldNull;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 
@@ -79,7 +82,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
     }
 
     protected static List<Batch<LogicalPlan>> rules() {
-        var substitutions = new Batch<>("Substitutions", Limiter.ONCE, new SubstituteSurrogates());
+        var substitutions = new Batch<>("Substitutions", Limiter.ONCE, new SubstituteSurrogates(), new ReplaceRegexMatch());
 
         var operators = new Batch<>(
             "Operator Optimization",
@@ -94,8 +97,10 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
             new BinaryComparisonSimplification(),
+            // needs to occur before BinaryComparison combinations (see class)
+            new PropagateEquals(),
+            new PropagateNullable(),
             new BooleanFunctionEqualsElimination(),
-            new ReplaceRegexMatch(),
             new CombineDisjunctionsToIn(),
             new SimplifyComparisonsArithmetics(EsqlDataTypes::areCompatible),
             // prune/elimination
@@ -470,22 +475,16 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 );
             } else if (child instanceof Eval eval) {
                 // Don't push if Filter (still) contains references of Eval's fields.
-                List<Attribute> attributes = new ArrayList<>(eval.fields().size());
-                for (NamedExpression ne : eval.fields()) {
-                    attributes.add(ne.toAttribute());
-                }
-                plan = maybePushDownPastUnary(filter, eval, e -> e instanceof Attribute && attributes.contains(e));
+                var attributes = new AttributeSet(Expressions.asAttributes(eval.fields()));
+                plan = maybePushDownPastUnary(filter, eval, attributes::contains);
             } else if (child instanceof RegexExtract re) {
                 // Push down filters that do not rely on attributes created by RegexExtract
-                List<Attribute> attributes = new ArrayList<>(re.extractedFields().size());
-                for (Attribute ne : re.extractedFields()) {
-                    attributes.add(ne.toAttribute());
-                }
-                plan = maybePushDownPastUnary(filter, re, e -> e instanceof Attribute && attributes.contains(e));
+                var attributes = new AttributeSet(Expressions.asAttributes(re.extractedFields()));
+                plan = maybePushDownPastUnary(filter, re, attributes::contains);
             } else if (child instanceof Enrich enrich) {
                 // Push down filters that do not rely on attributes created by Enrich
-                List<NamedExpression> attributes = new ArrayList<>(enrich.enrichFields());
-                plan = maybePushDownPastUnary(filter, enrich, e -> attributes.contains(e));
+                var attributes = new AttributeSet(Expressions.asAttributes(enrich.enrichFields()));
+                plan = maybePushDownPastUnary(filter, enrich, attributes::contains);
             } else if (child instanceof Project) {
                 return pushDownPastProject(filter);
             } else if (child instanceof OrderBy orderBy) {

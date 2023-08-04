@@ -431,22 +431,6 @@ The API returns the following response:
 --------------------------------------------------
 // TEST[skip: terminated_early is absent from final results so is hard to reproduce here]
 
-x // TESTRESPONSE[s/FklQYndoTDJ2VEFlMEVBTzFJMGhJVFEaLVlKYndBWWZSMUdicUc4WVlEaFl4ZzoxNTU=/$body.id/]
-x // TESTRESPONSE[s/"is_partial": true/"is_partial": $body.is_partial/]
-x // TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
-x // TESTRESPONSE[s/1685563581380/$body.start_time_in_millis/]
-x // TESTRESPONSE[s/1685995581380/$body.expiration_time_in_millis/]
-x // TESTRESPONSE[s/"response"/"completion_time_in_millis": $body.completion_time_in_millis,\n  "response"/]
-x // TESTRESPONSE[s/"num_reduce_phases": 0/"num_reduce_phases": "$body.response.num_reduce_phases"/]
-x // TESTRESPONSE[s/"took": 1020/"took": "$body.response.took"/]
-x // TESTRESPONSE[s/"total": 8/"total": $body.response._shards.total/]
-x // TESTRESPONSE[s/"successful": 0/"successful": $body.response._shards.successful/]
-x // TESTRESPONSE[s/"successful" : 0/"successful": $body.response._clusters.successful/]
-x // TESTRESPONSE[s/"value": 0/"value": "$body.response.hits.total.value"/]
-x // TESTRESPONSE[s/"max_score": null/"max_score": "$body.response.hits.max_score"/]
-x // TESTRESPONSE[s/"hits": \[\]/"hits": $body.response.hits.hits/]
-
-
 <1> The async search id.
 <2> When `ccs_minimize_roundtrips` = `true` and searches on the remote clusters
 are still running, this section indicates the number of shards in scope for the

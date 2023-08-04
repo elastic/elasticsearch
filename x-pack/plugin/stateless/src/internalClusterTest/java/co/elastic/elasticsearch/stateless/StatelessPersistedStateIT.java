@@ -143,4 +143,23 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
         internalCluster().stopNode(randomFrom(node0, node1));
         assertTransportVersionConsistency();
     }
+
+    public void testNodeLeftGeneration() throws Exception {
+        // workaround for ES-6481 and/or https://github.com/elastic/elasticsearch/issues/98055
+        final var fastElectionSetting = Settings.builder().put(HEARTBEAT_FREQUENCY.getKey(), "1s").build();
+
+        final var node0 = startMasterOnlyNode();
+        final var node1 = startMasterOnlyNode();
+        internalCluster().restartNode(node1);
+        internalCluster().restartNode(node1);
+
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return fastElectionSetting;
+            }
+        });
+
+        internalCluster().restartNode(randomFrom(node0, node1));
+    }
 }

@@ -96,24 +96,21 @@ public class StatelessElectionStrategy extends ElectionStrategy {
 
     @Override
     public void onNewElection(DiscoveryNode candidateMasterNode, long proposedTerm, ActionListener<StartJoinRequest> listener) {
-        readLease(listener.delegateFailure((delegate, currentLeaseTermOpt) -> {
-            final Lease currentLeaseTerm = currentLeaseTermOpt.orElse(Lease.ZERO);
-            final Lease electionTerm = new Lease(
-                Math.max(proposedTerm, currentLeaseTerm.currentTerm + 1),
-                currentLeaseTerm.nodeLeftGeneration
-            );
+        readLease(listener.delegateFailure((delegate, currentLeaseOpt) -> {
+            final Lease currentLease = currentLeaseOpt.orElse(Lease.ZERO);
+            final Lease newLease = new Lease(Math.max(proposedTerm, currentLease.currentTerm + 1), 0);
 
             blobContainer().compareAndSetRegister(
                 LEASE_BLOB,
-                currentLeaseTerm.asBytes(),
-                electionTerm.asBytes(),
+                currentLease.asBytes(),
+                newLease.asBytes(),
                 delegate.delegateFailure((delegate2, termGranted) -> {
                     if (termGranted) {
-                        delegate2.onResponse(new StartJoinRequest(candidateMasterNode, electionTerm.currentTerm));
+                        delegate2.onResponse(new StartJoinRequest(candidateMasterNode, newLease.currentTerm));
                     } else {
                         delegate2.onFailure(
                             new CoordinationStateRejectedException(
-                                Strings.format("term [%d] already claimed by a different node", electionTerm.currentTerm)
+                                Strings.format("term [%d] already claimed by a different node", newLease.currentTerm)
                             )
                         );
                     }
@@ -124,27 +121,27 @@ public class StatelessElectionStrategy extends ElectionStrategy {
 
     public void onNodeLeft(long expectedTerm, long nodeLeftGeneration) {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        readLease(future.delegateFailureAndWrap((delegate, currentLeaseTermOpt) -> {
-            final Lease currentLeaseTerm = currentLeaseTermOpt.orElse(Lease.ZERO);
-            if (currentLeaseTerm.currentTerm != expectedTerm) {
+        readLease(future.delegateFailureAndWrap((delegate, currentLeaseOpt) -> {
+            final Lease currentLease = currentLeaseOpt.orElse(Lease.ZERO);
+            if (currentLease.currentTerm != expectedTerm) {
                 delegate.onFailure(
                     new CoordinationStateRejectedException(
-                        "expected term [" + expectedTerm + "] but saw [" + currentLeaseTerm.currentTerm + "]"
+                        "expected term [" + expectedTerm + "] but saw [" + currentLease.currentTerm + "]"
                     )
                 );
                 return;
             }
-            final Lease electionTerm = new Lease(currentLeaseTerm.currentTerm, nodeLeftGeneration);
-            if (nodeLeftGeneration <= currentLeaseTerm.nodeLeftGeneration) {
-                assert nodeLeftGeneration == currentLeaseTerm.nodeLeftGeneration
-                    : "tried to set [" + electionTerm + "] after [" + currentLeaseTerm + "]";
+            final Lease newLease = new Lease(currentLease.currentTerm, nodeLeftGeneration);
+            if (nodeLeftGeneration <= currentLease.nodeLeftGeneration) {
+                assert nodeLeftGeneration == currentLease.nodeLeftGeneration
+                    : "tried to set [" + newLease + "] after [" + currentLease + "]";
                 delegate.onResponse(null);
                 return;
             }
             blobContainer().compareAndSetRegister(
                 LEASE_BLOB,
-                currentLeaseTerm.asBytes(),
-                electionTerm.asBytes(),
+                currentLease.asBytes(),
+                newLease.asBytes(),
                 delegate.delegateFailure((delegate2, updated) -> {
                     if (updated) {
                         delegate2.onResponse(null);
@@ -244,7 +241,7 @@ public class StatelessElectionStrategy extends ElectionStrategy {
         return Objects.requireNonNull(blobContainerSupplier.get());
     }
 
-    public record Lease(long currentTerm, long nodeLeftGeneration) {
+    public record Lease(long currentTerm, long nodeLeftGeneration) implements Comparable<Lease> {
         private static final long UNSUPPORTED = -1L;
 
         private static final Lease ZERO = new Lease(0, 0);
@@ -268,5 +265,13 @@ public class StatelessElectionStrategy extends ElectionStrategy {
             return new BytesArray(bytes);
         }
 
+        @Override
+        public int compareTo(Lease that) {
+            int result = Long.compare(this.currentTerm, that.currentTerm);
+            if (result == 0) {
+                result = Long.compare(this.nodeLeftGeneration, that.nodeLeftGeneration);
+            }
+            return result;
+        }
     }
 }

@@ -1994,7 +1994,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             SearchShardTask task = new SearchShardTask(0, "type", "action", "description", null, emptyMap());
             SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, true);
             BoundedExecutor boundedExecutor = (BoundedExecutor) searchContext.searcher().getExecutor();
-            ThreadPoolExecutor executor = (ThreadPoolExecutor) indexService.getThreadPool().executor(ThreadPool.Names.SEARCH_CONCURRENT);
+            ThreadPoolExecutor executor = (ThreadPoolExecutor) indexService.getThreadPool().executor(ThreadPool.Names.SEARCH_WORKER);
             assertEquals(executor.getMaximumPoolSize(), boundedExecutor.getBound());
         }
     }

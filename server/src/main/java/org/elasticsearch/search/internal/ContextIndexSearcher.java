@@ -164,7 +164,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 this.leafSlices = new LeafSlice[] { new LeafSlice(new ArrayList<>(getLeafContexts())) };
             } else {
                 this.leafSlices = computeSlices(getLeafContexts(), executor.getBound(), minimumDocsPerSlice);
-                assert (this.leafSlices.length <= executor.getBound());
+                assert this.leafSlices.length <= executor.getBound() : "more slices than threads";
             }
         }
     }

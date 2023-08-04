@@ -119,7 +119,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         entry(Names.ANALYZE, ThreadPoolType.FIXED),
         entry(Names.WRITE, ThreadPoolType.FIXED),
         entry(Names.SEARCH, ThreadPoolType.FIXED),
-        entry(Names.SEARCH_CONCURRENT, ThreadPoolType.FIXED),
+        entry(Names.SEARCH_WORKER, ThreadPoolType.FIXED),
         entry(Names.SEARCH_COORDINATION, ThreadPoolType.FIXED),
         entry(Names.MANAGEMENT, ThreadPoolType.SCALING),
         entry(Names.FLUSH, ThreadPoolType.SCALING),
@@ -206,10 +206,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             new FixedExecutorBuilder(settings, Names.SEARCH, searchOrGetThreadPoolSize, 1000, TaskTrackingConfig.DEFAULT)
         );
         builders.put(
-            Names.SEARCH_CONCURRENT,
+            Names.SEARCH_WORKER,
             new FixedExecutorBuilder(
                 settings,
-                Names.SEARCH_CONCURRENT,
+                Names.SEARCH_WORKER,
                 searchOrGetThreadPoolSize,
                 // TODO the queue is only needed as overflow because we may release permits before the executor updated its internal state.
                 // Queue size equal to the bound (max pool size) should be enough to ensure no rejection, but it could also be unbounded.

@@ -351,7 +351,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         enableConcurrentCollection = SEARCH_CONCURRENCY_ENABLED.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_CONCURRENCY_ENABLED, this::setEnableConcurrentCollection);
 
-        concurrentSearchExecutor = new BoundedExecutor((ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH_CONCURRENT));
+        concurrentSearchExecutor = new BoundedExecutor((ThreadPoolExecutor) threadPool.executor(Names.SEARCH_WORKER));
     }
 
     private void setEnableConcurrentCollection(boolean concurrentCollection) {

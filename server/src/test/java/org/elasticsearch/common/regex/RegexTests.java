@@ -79,11 +79,25 @@ public class RegexTests extends ESTestCase {
     }
 
     public void testArbitraryWildcardMatch() {
-        String prefix = randomBoolean() ? randomAlphaOfLengthBetween(1, 20) : "";
-        String suffix = randomBoolean() ? randomAlphaOfLengthBetween(1, 20) : "";
-        String pattern = prefix + "*".repeat(randomIntBetween(1, 1000)) + suffix;
-        String matchingString = prefix + randomAlphaOfLengthBetween(10, 20) + suffix;
-        assertTrue(Regex.simpleMatch(pattern, matchingString, randomBoolean()));
+        final String prefix = randomAlphaOfLengthBetween(1, 20);
+        final String suffix = randomAlphaOfLengthBetween(1, 20);
+        final String pattern1 = "*".repeat(randomIntBetween(1, 1000));
+        // dd***
+        assertTrue(Regex.simpleMatch(prefix + pattern1, prefix + randomAlphaOfLengthBetween(10, 20), randomBoolean()));
+        // ***dd
+        assertTrue(Regex.simpleMatch(pattern1 + suffix, randomAlphaOfLengthBetween(10, 20) + suffix, randomBoolean()));
+        // dd***dd
+        assertTrue(Regex.simpleMatch(prefix + pattern1 + suffix, prefix + randomAlphaOfLengthBetween(10, 20) + suffix, randomBoolean()));
+        // dd***dd***dd
+        final String middle = randomAlphaOfLengthBetween(1, 20);
+        final String pattern2 = "*".repeat(randomIntBetween(1, 1000));
+        assertTrue(
+            Regex.simpleMatch(
+                prefix + pattern1 + middle + pattern2 + suffix,
+                prefix + randomAlphaOfLengthBetween(10, 20) + middle + randomAlphaOfLengthBetween(10, 20) + suffix,
+                randomBoolean()
+            )
+        );
     }
 
     public void testSimpleMatch() {

@@ -541,7 +541,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
 
     private void addIndexLifecyclePoliciesIfMissing(ClusterState state) {
         if (isDataStreamsLifecycleOnlyMode(state.getMetadata().settings())) {
-            logger.debug("running in data stream lifecycle only mode. skipping the installation of ILM policies.");
+            logger.trace("running in data stream lifecycle only mode. skipping the installation of ILM policies.");
             return;
         }
         IndexLifecycleMetadata metadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);

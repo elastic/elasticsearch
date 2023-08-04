@@ -146,10 +146,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-//            .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
-            .put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED, false)
-            .build();
+        return Settings.builder().put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED, false).build();
     }
 
     private void assertMasterNode(Client client, String node) {
@@ -330,9 +327,9 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         assertTrue(
             reservedState.handlers().get(ReservedClusterSettingsAction.NAME) == null
                 || reservedState.handlers()
-                .get(ReservedClusterSettingsAction.NAME)
-                .keys()
-                .contains("search.allow_expensive_queries") == false
+                    .get(ReservedClusterSettingsAction.NAME)
+                    .keys()
+                    .contains("search.allow_expensive_queries") == false
         );
 
         // This should succeed, nothing was reserved

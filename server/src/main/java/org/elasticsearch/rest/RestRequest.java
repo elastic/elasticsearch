@@ -126,7 +126,7 @@ public class RestRequest implements ToXContent.Params {
     }
 
     protected RestRequest(RestRequest other) {
-        assert other.parserConfig.restApiVersion().equals(other.restApiVersion);
+        assert other.parserConfig.restApiVersion().equals(other.getRestApiVersion());
         this.parsedAccept = other.parsedAccept;
         this.parsedContentType = other.parsedContentType;
         if (other.xContentType.get() != null) {

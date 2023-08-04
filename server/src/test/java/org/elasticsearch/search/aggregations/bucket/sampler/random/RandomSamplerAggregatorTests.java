@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
 import org.apache.commons.math3.distribution.*;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+import org.apache.commons.math3.util.FastMath;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -186,6 +187,8 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
             Gaussian("gaussian_30_70_10M", () -> new NormalDistribution(randomIntBetween(30, 70), 25), true),
             Gamma("gamma_20_40_10M", () -> getGammaDistribution(), true);
 
+            static final long INPUT_SIZE = 10_000_000;
+
             private static AbstractRealDistribution getGammaDistribution() {
                 double r = randomDoubleBetween(4, 8, true);
                 return new GammaDistribution(r, r - 2);
@@ -195,7 +198,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                 return new UniformRealDistribution(INPUT_SIZE, INPUT_SIZE * INPUT_SIZE);
             }
 
-            private DistributionType(String name, Supplier<AbstractRealDistribution> internalDistribution, boolean isPercent) {
+            DistributionType(String name, Supplier<AbstractRealDistribution> internalDistribution, boolean isPercent) {
                 this.name = name;
                 this.internalDistribution = internalDistribution;
                 this.isPercent = isPercent;
@@ -220,8 +223,6 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
             private final String name;
             private final Supplier<AbstractRealDistribution> internalDistribution;
             private final boolean isPercent;
-
-            static final long INPUT_SIZE = 1_000_000_000;
         }
 
         class SampleBuilder implements AutoCloseable {
@@ -318,7 +319,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                 }
             }
 
-            void calculateConfidenceIntervals(double alpha, Map<String, Double> sampledResults) {
+            void calculateConfidenceIntervals(Map<String, Double> sampledResults) {
                 for (var entry : bootstrapsPerName.entrySet()) {
                     DescriptiveStatistics stats = new DescriptiveStatistics();
                     for (int i = 0; i < BOOTSTRAP_COUNT; i++) {
@@ -326,15 +327,16 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                     }
 
                     double mean = stats.getMean();
-                    double std = stats.getStandardDeviation();
+                    double std = FastMath.sqrt(stats.getPopulationVariance());
                     double a = stats.getSkewness() / 6;
 
                     NormalDistribution normalZero = new NormalDistribution();
                     NormalDistribution normalFitted = new NormalDistribution(mean, std);
 
                     double count = entry.getValue().get(0).count();
-                    TDistribution tDistribution = new TDistribution(count - 1);
-                    alpha = (1 - alpha) / 4;
+                    // TDistribution tDistribution = new TDistribution(count - 1);
+                    double alpha = 0.67;
+                    alpha = (1 - alpha) / 2;
 //                    alpha = normalZero.cumulativeProbability(
 //                        Math.sqrt(count / (count - 1)) * tDistribution.inverseCumulativeProbability((1 - alpha) / 2)
 //                    );
@@ -348,6 +350,18 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                     double pu = normalZero.cumulativeProbability(z + (z + zu) / (1 - a * (z + zu)));
                     lower.put(entry.getKey(), normalFitted.inverseCumulativeProbability(pl));
                     upper.put(entry.getKey(), normalFitted.inverseCumulativeProbability(pu));
+                    if (entry.getKey().equals("")) {  // set to 0
+                        System.out.println("Mean: " + Double.toString(mean));
+                        System.out.println("STD: " + Double.toString(std));
+                        System.out.println("z0: " + Double.toString(z));
+                        System.out.println("Skew: " + Double.toString(a));
+                        System.out.println("ZL: " + Double.toString(zl));
+                        System.out.println("ZU: " + Double.toString(zu));
+                        System.out.println("PL: " + Double.toString(pl));
+                        System.out.println("PU: " + Double.toString(pu));
+                        System.out.println("Lower: " + Double.toString(lower.get(entry.getKey())));
+                        System.out.println("Upper: " + Double.toString(upper.get(entry.getKey())));
+                    }
                 }
             }
 
@@ -369,7 +383,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
         final int GROUP_SIZE = 20;
 
         assert TIER_SAMPLING.length == TIER_PATHS.length;
-        for (int iteration = 0; iteration < 1; iteration++) {
+        for (int iteration = 0; iteration < 100; iteration++) {
             String tempDate = null;
             String tempName = null;
 
@@ -465,7 +479,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
             BootstrapAggregation bootstrapAggregation = new BootstrapAggregation(names, BASE_PATH + TIER_PATHS[TIER_PATHS.length - 1]);
             System.out.println("Bootstrap creation took " + (System.currentTimeMillis() - start));
             start = System.currentTimeMillis();
-            bootstrapAggregation.calculateConfidenceIntervals(0.67, results.get(results.size() - 1));
+            bootstrapAggregation.calculateConfidenceIntervals(results.get(results.size() - 1));
             System.out.println("Bootstrap calculation took " + (System.currentTimeMillis() - start));
 
             double[] sampled = new double[results.size()];
@@ -501,7 +515,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
 
     public void testProcessResults() throws IOException {
         final String BASE_DIR = "/Users/kkrik/IdeaProjects/elasticsearch/server/build/testrun/test/temp/";
-        String RESULT_DIR = BASE_DIR + "gamma_20_40_1B_results/";
+        String RESULT_DIR = BASE_DIR + "container_cpu_usage_24h_results/independent/";
 
         Map<String, Double> actualValues = new TreeMap<>();
         Map<String, List<DescriptiveStatistics>> errorStatsPerValue = new TreeMap<>();
@@ -509,6 +523,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
         Map<String, List<Integer>> matchCountPerValue = new TreeMap<>();
 
         List<Path> files = Files.list(Path.of(RESULT_DIR)).toList();
+        assert files.isEmpty() == false;
         for (Path file : files) {
             if (file.toString().contains("summary")) {
                 continue;

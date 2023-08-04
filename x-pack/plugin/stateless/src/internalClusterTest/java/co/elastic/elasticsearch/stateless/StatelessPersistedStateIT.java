@@ -17,14 +17,19 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.test.InternalTestCluster;
 import org.hamcrest.Matcher;
 
 import java.io.InputStream;
 import java.util.List;
 
+import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -109,5 +114,33 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
             input.readLong();
             assertThat(input.readLong(), nodeLeftGenerationMatcher);
         }
+    }
+
+    private static void assertTransportVersionConsistency() {
+        final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        assertEquals(TransportVersion.current(), clusterService.state().getMinTransportVersion());
+        assertEquals(clusterService.state().nodes().getNodes().keySet(), clusterService.state().transportVersions().keySet());
+    }
+
+    public void testTransportVersions() throws Exception {
+        // workaround for ES-6481 and/or https://github.com/elastic/elasticsearch/issues/98055
+        final var fastElectionSetting = Settings.builder().put(HEARTBEAT_FREQUENCY.getKey(), "1s").build();
+
+        final var node0 = startMasterOnlyNode();
+        assertTransportVersionConsistency();
+
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return fastElectionSetting;
+            }
+        });
+        assertTransportVersionConsistency();
+
+        final var node1 = startMasterOnlyNode(fastElectionSetting);
+        assertTransportVersionConsistency();
+
+        internalCluster().stopNode(randomFrom(node0, node1));
+        assertTransportVersionConsistency();
     }
 }

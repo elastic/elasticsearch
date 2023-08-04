@@ -505,6 +505,33 @@ ROW a=[3, 5, 1, 6]
 // end::mv_avg-result[]
 ;
 
+mvAvgIntsOverflow
+ROW ints = [0, 1, 2147483647]
+| EVAL mvavg = mv_avg(ints)
+| KEEP mvavg;
+
+mvavg:double
+7.158278826666666E8
+;
+
+mvAvgLongsOverflow
+ROW longs = [0, 1, 9223372036854775807]
+| EVAL mvavg = mv_avg(longs)
+| KEEP mvavg;
+
+mvavg:double
+3.0744573456182584E18
+;
+
+mvAvgUnsignedLongsOverflow
+ROW ulongs = [0, 1, 18446744073709551615]
+| EVAL mvavg = mv_avg(ulongs)
+| KEEP mvavg;
+
+mvavg:double
+6.148914691236517E18
+;
+
 mvCount
 ROW a=[3, 5, 1, 6]
 | EVAL count_a = MV_COUNT(a)
@@ -827,7 +854,7 @@ ulMvSum
 row ul = [1, 9223372036854775806, 9223372036854775808] | eval mv_sum(ul), mv_avg(ul) | drop ul;
 
      mv_sum(ul):ul  | mv_avg(ul):double
-18446744073709551615|6.148914691236517205E18
+18446744073709551615|6.148914691236517E18
 ;
 
 ulMedianEvenCount

@@ -191,7 +191,7 @@ public class MvEvaluatorImplementer {
             builder.addStatement("$T[] values = new $T[positionCount]", resultType, resultType);
         }
 
-        if (false == workType.equals(fieldType)) {
+        if (false == workType.equals(fieldType) && workType.isPrimitive() == false) {
             builder.addStatement("$T work = new $T()", workType, workType);
         }
         if (fieldType.equals(BYTES_REF)) {
@@ -240,7 +240,7 @@ public class MvEvaluatorImplementer {
 
             if (singleValueFunction != null) {
                 builder.beginControlFlow("if (valueCount == 1)");
-                fetch(builder, "value", "first", workType.equals(fieldType) ? "firstScratch" : "valueScratch");
+                fetch(builder, "value", fieldType, "first", workType.equals(fieldType) ? "firstScratch" : "valueScratch");
                 singleValueFunction.call(builder);
                 writeResult(builder, nullable);
                 builder.addStatement("continue");
@@ -248,15 +248,16 @@ public class MvEvaluatorImplementer {
             }
 
             builder.addStatement("int end = first + valueCount");
-            if (workType.equals(fieldType)) {
+            if (workType.equals(fieldType) || workType.isPrimitive()) {
                 // process function evaluates pairwise
-                fetch(builder, "value", "first", "firstScratch");
+                fetch(builder, "value", workType, "first", "firstScratch");
                 builder.beginControlFlow("for (int i = first + 1; i < end; i++)");
                 {
-                    fetch(builder, "next", "i", "nextScratch");
                     if (fieldType.equals(BYTES_REF)) {
+                        fetch(builder, "next", workType, "i", "nextScratch");
                         builder.addStatement("$T.$L(value, next)", declarationType, processFunction.getSimpleName());
                     } else {
+                        fetch(builder, "next", fieldType, "i", "nextScratch");
                         builder.addStatement("value = $T.$L(value, next)", declarationType, processFunction.getSimpleName());
                     }
                 }
@@ -269,7 +270,7 @@ public class MvEvaluatorImplementer {
             } else {
                 builder.beginControlFlow("for (int i = first; i < end; i++)");
                 {
-                    fetch(builder, "value", "i", "valueScratch");
+                    fetch(builder, "value", fieldType, "i", "valueScratch");
                     builder.addStatement("$T.$L(work, value)", declarationType, processFunction.getSimpleName());
                 }
                 builder.endControlFlow();
@@ -283,17 +284,19 @@ public class MvEvaluatorImplementer {
         return evalShell(name, nullable, builder -> {
             builder.addStatement("assert valueCount == 1");
             builder.addStatement("int first = v.getFirstValueIndex(p)");
-            fetch(builder, "value", "first", workType.equals(fieldType) ? "firstScratch" : "valueScratch");
+            fetch(builder, "value", fieldType, "first", workType.equals(fieldType) ? "firstScratch" : "valueScratch");
             singleValueFunction.call(builder);
             writeResult(builder, nullable);
         });
     }
 
-    private void fetch(MethodSpec.Builder builder, String into, String index, String scratchName) {
-        if (fieldType.equals(BYTES_REF)) {
-            builder.addStatement("$T $L = v.getBytesRef($L, $L)", fieldType, into, index, scratchName);
+    private void fetch(MethodSpec.Builder builder, String into, TypeName intoType, String index, String scratchName) {
+        if (intoType.equals(BYTES_REF)) {
+            builder.addStatement("$T $L = v.getBytesRef($L, $L)", intoType, into, index, scratchName);
+        } else if (intoType.equals(fieldType) == false && intoType.isPrimitive()) {
+            builder.addStatement("$T $L = ($T) v.$L($L)", intoType, into, intoType, getMethod(fieldType), index);
         } else {
-            builder.addStatement("$T $L = v.$L($L)", fieldType, into, getMethod(fieldType), index);
+            builder.addStatement("$T $L = v.$L($L)", intoType, into, getMethod(fieldType), index);
         }
     }
 

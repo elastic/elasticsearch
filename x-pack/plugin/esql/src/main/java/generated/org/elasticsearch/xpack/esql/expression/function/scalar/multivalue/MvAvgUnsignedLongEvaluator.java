@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvAvg}.
@@ -32,6 +33,7 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
     DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
+    CompensatedSum work = new CompensatedSum();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       if (valueCount == 0) {
@@ -46,12 +48,11 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
         continue;
       }
       int end = first + valueCount;
-      long value = v.getLong(first);
-      for (int i = first + 1; i < end; i++) {
-        long next = v.getLong(i);
-        value = MvAvg.processUnsignedLong(value, next);
+      for (int i = first; i < end; i++) {
+        long value = v.getLong(i);
+        MvAvg.processUnsignedLong(work, value);
       }
-      double result = MvAvg.finishUnsignedLong(value, valueCount);
+      double result = MvAvg.finish(work, valueCount);
       builder.appendDouble(result);
     }
     return builder.build();
@@ -62,6 +63,7 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
     double[] values = new double[positionCount];
+    CompensatedSum work = new CompensatedSum();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       int first = v.getFirstValueIndex(p);
@@ -72,12 +74,11 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
         continue;
       }
       int end = first + valueCount;
-      long value = v.getLong(first);
-      for (int i = first + 1; i < end; i++) {
-        long next = v.getLong(i);
-        value = MvAvg.processUnsignedLong(value, next);
+      for (int i = first; i < end; i++) {
+        long value = v.getLong(i);
+        MvAvg.processUnsignedLong(work, value);
       }
-      double result = MvAvg.finishUnsignedLong(value, valueCount);
+      double result = MvAvg.finish(work, valueCount);
       values[p] = result;
     }
     return new DoubleArrayVector(values, positionCount);
@@ -88,6 +89,7 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
     DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
+    CompensatedSum work = new CompensatedSum();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       if (valueCount == 0) {
@@ -108,6 +110,7 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
     double[] values = new double[positionCount];
+    CompensatedSum work = new CompensatedSum();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       assert valueCount == 1;

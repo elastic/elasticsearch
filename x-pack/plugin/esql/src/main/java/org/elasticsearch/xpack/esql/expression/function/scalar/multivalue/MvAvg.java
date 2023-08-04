@@ -22,7 +22,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongToDouble;
 
 /**
@@ -78,12 +77,8 @@ public class MvAvg extends AbstractMultivalueFunction {
     }
 
     @MvEvaluator(extraName = "Int", finish = "finish", single = "single")
-    static int process(int current, int v) {
-        return current + v;
-    }
-
-    static double finish(int sum, int valueCount) {
-        return ((double) sum) / valueCount;
+    static void process(CompensatedSum sum, int v) {
+        sum.add(v);
     }
 
     static double single(int value) {
@@ -91,25 +86,17 @@ public class MvAvg extends AbstractMultivalueFunction {
     }
 
     @MvEvaluator(extraName = "Long", finish = "finish", single = "single")
-    static long process(long current, long v) {
-        return current + v;
-    }
-
-    static double finish(long sum, int valueCount) {
-        return ((double) sum) / valueCount;
+    static void process(CompensatedSum sum, long v) {
+        sum.add(v);
     }
 
     static double single(long value) {
         return value;
     }
 
-    @MvEvaluator(extraName = "UnsignedLong", finish = "finishUnsignedLong", single = "singleUnsignedLong")
-    static long processUnsignedLong(long current, long v) {
-        return asLongUnsigned(current + v);
-    }
-
-    public static double finishUnsignedLong(long sum, int valueCount) {
-        return unsignedLongToDouble(sum) / valueCount;
+    @MvEvaluator(extraName = "UnsignedLong", finish = "finish", single = "singleUnsignedLong")
+    static void processUnsignedLong(CompensatedSum sum, long v) {
+        sum.add(unsignedLongToDouble(v));
     }
 
     static double singleUnsignedLong(long value) {

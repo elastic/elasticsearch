@@ -99,7 +99,7 @@ public interface ClusterHandle extends Closeable {
      *
      * @return cluster node remote cluster server endpoints
      */
-    String getRemoteClusterServerEndpoint();
+    String getRemoteClusterServerEndpoints();
 
     /**
      * Returns the remote cluster server endpoint for the node at the given index. If this method is called on an unstarted cluster,

@@ -125,7 +125,7 @@ final class RemoteClusterConnection implements Closeable {
                     transportService.sendRequest(
                         connection,
                         RemoteClusterNodesAction.NAME,
-                        RemoteClusterNodesAction.Request.INSTANCE,
+                        new RemoteClusterNodesAction.Request(),
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(contextPreservingActionListener.map(response -> {
                             final Map<String, DiscoveryNode> nodeLookup = response.getNodes()

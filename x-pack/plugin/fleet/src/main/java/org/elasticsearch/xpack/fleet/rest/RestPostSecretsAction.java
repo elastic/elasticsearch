@@ -36,11 +36,8 @@ public class RestPostSecretsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            return restChannel -> client.execute(
-                PostSecretAction.INSTANCE,
-                PostSecretRequest.fromXContent(parser),
-                new RestToXContentListener<>(restChannel)
-            );
+            PostSecretRequest postSecretRequest = PostSecretRequest.fromXContent(parser);
+            return restChannel -> client.execute(PostSecretAction.INSTANCE, postSecretRequest, new RestToXContentListener<>(restChannel));
         }
     }
 }

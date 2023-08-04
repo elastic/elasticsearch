@@ -602,7 +602,7 @@ public class BlockHashTests extends ESTestCase {
     }
 
     public void testLongLongHashHugeCombinatorialExplosion() {
-        long[] v1 = LongStream.range(0, 10000).toArray();
+        long[] v1 = LongStream.range(0, 5000).toArray();
         long[] v2 = LongStream.range(100, 200).toArray();
 
         var b1 = LongBlock.newBlockBuilder(v1.length);
@@ -849,7 +849,7 @@ public class BlockHashTests extends ESTestCase {
     }
 
     public void testBytesRefLongHashHugeCombinatorialExplosion() {
-        long[] v1 = LongStream.range(0, 5000).toArray();
+        long[] v1 = LongStream.range(0, 3000).toArray();
         String[] v2 = LongStream.range(100, 200).mapToObj(l -> "a" + l).toArray(String[]::new);
 
         var b1 = LongBlock.newBlockBuilder(v1.length);

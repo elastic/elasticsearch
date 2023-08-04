@@ -50,8 +50,11 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
-import static org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage.RULE_TYPE_COUNT_PREFIX;
-import static org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage.RULE_TYPE_COUNT_SUFFIX;
+import static org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage.MAX_RULE_COUNT;
+import static org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage.MIN_RULE_COUNT;
+import static org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage.RULE_CRITERIA_TOTAL_COUNTS;
+import static org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage.TOTAL_COUNT;
+import static org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage.TOTAL_RULE_COUNT;
 
 public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTransportAction {
     private static final Logger logger = LogManager.getLogger(EnterpriseSearchUsageTransportAction.class);
@@ -223,15 +226,15 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
             .flatMap(result -> result.criteriaTypeToCountMap().entrySet().stream())
             .forEach(entry -> criteriaTypeCountMap.merge(entry.getKey(), entry.getValue(), Integer::sum));
 
-        queryRulesUsage.put(EnterpriseSearchFeatureSetUsage.TOTAL_COUNT, response.queryPage().count());
-        queryRulesUsage.put(EnterpriseSearchFeatureSetUsage.TOTAL_RULE_COUNT, ruleStats.getSum());
-        queryRulesUsage.put(EnterpriseSearchFeatureSetUsage.MIN_RULE_COUNT, results.isEmpty() ? 0 : ruleStats.getMin());
-        queryRulesUsage.put(EnterpriseSearchFeatureSetUsage.MAX_RULE_COUNT, results.isEmpty() ? 0 : ruleStats.getMax());
-        criteriaTypeCountMap.forEach(
-            (criteriaType, count) -> queryRulesUsage.put(
-                RULE_TYPE_COUNT_PREFIX + criteriaType.name().toLowerCase(Locale.ROOT) + RULE_TYPE_COUNT_SUFFIX,
-                count
-            )
-        );
+        Map<String, Object> rulesTypeCountMap = new HashMap<>();
+        criteriaTypeCountMap.forEach((criteriaType, count) -> rulesTypeCountMap.put(criteriaType.name().toLowerCase(Locale.ROOT), count));
+
+        queryRulesUsage.put(TOTAL_COUNT, response.queryPage().count());
+        queryRulesUsage.put(TOTAL_RULE_COUNT, ruleStats.getSum());
+        queryRulesUsage.put(MIN_RULE_COUNT, results.isEmpty() ? 0 : ruleStats.getMin());
+        queryRulesUsage.put(MAX_RULE_COUNT, results.isEmpty() ? 0 : ruleStats.getMax());
+        if (rulesTypeCountMap.isEmpty() == false) {
+            queryRulesUsage.put(RULE_CRITERIA_TOTAL_COUNTS, rulesTypeCountMap);
+        }
     }
 }

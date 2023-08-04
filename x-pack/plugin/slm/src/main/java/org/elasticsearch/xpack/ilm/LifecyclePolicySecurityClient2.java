@@ -27,13 +27,13 @@ import java.util.Map;
  * the intent is that the wrapped client is shared between multiple instances of
  * this class.
  */
-public class LifecyclePolicySecurityClient extends AbstractClient {
+public class LifecyclePolicySecurityClient2 extends AbstractClient {
 
     private Client client;
     private Map<String, String> headers;
     private String origin;
 
-    public LifecyclePolicySecurityClient(Client client, String origin, Map<String, String> headers) {
+    public LifecyclePolicySecurityClient2(Client client, String origin, Map<String, String> headers) {
         super(client.settings(), client.threadPool());
         this.client = client;
         this.origin = origin;

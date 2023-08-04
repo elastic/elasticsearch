@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
-import org.elasticsearch.xpack.ilm.OperationModeUpdateTask;
+import org.elasticsearch.xpack.ilm.OperationModeUpdateTask2;
 
 import java.io.Closeable;
 import java.time.Clock;
@@ -98,7 +98,7 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
                     cancelSnapshotJobs();
                 }
                 if (slmStopping(state)) {
-                    submitUnbatchedTask("slm_operation_mode_update[stopped]", OperationModeUpdateTask.slmMode(OperationMode.STOPPED));
+                    submitUnbatchedTask("slm_operation_mode_update[stopped]", OperationModeUpdateTask2.slmMode(OperationMode.STOPPED));
                 }
                 return;
             }

@@ -31,15 +31,15 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.curren
  * As stopping ILM proved to be an action we want to sometimes take in order to allow clusters to stabilise when under heavy load this
  * task might run at {@link Priority#IMMEDIATE} priority so please make sure to keep this task as lightweight as possible.
  */
-public class OperationModeUpdateTask extends ClusterStateUpdateTask {
-    private static final Logger logger = LogManager.getLogger(OperationModeUpdateTask.class);
+public class OperationModeUpdateTask2 extends ClusterStateUpdateTask {
+    private static final Logger logger = LogManager.getLogger(OperationModeUpdateTask2.class);
     @Nullable
     private final OperationMode ilmMode;
     @Nullable
     private final OperationMode slmMode;
 
     public static AckedClusterStateUpdateTask wrap(
-        OperationModeUpdateTask task,
+        OperationModeUpdateTask2 task,
         AckedRequest request,
         ActionListener<AcknowledgedResponse> listener
     ) {
@@ -51,18 +51,18 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         };
     }
 
-    private OperationModeUpdateTask(Priority priority, OperationMode ilmMode, OperationMode slmMode) {
+    private OperationModeUpdateTask2(Priority priority, OperationMode ilmMode, OperationMode slmMode) {
         super(priority);
         this.ilmMode = ilmMode;
         this.slmMode = slmMode;
     }
 
-    public static OperationModeUpdateTask ilmMode(OperationMode mode) {
-        return new OperationModeUpdateTask(getPriority(mode), mode, null);
+    public static OperationModeUpdateTask2 ilmMode(OperationMode mode) {
+        return new OperationModeUpdateTask2(getPriority(mode), mode, null);
     }
 
-    public static OperationModeUpdateTask slmMode(OperationMode mode) {
-        return new OperationModeUpdateTask(getPriority(mode), null, mode);
+    public static OperationModeUpdateTask2 slmMode(OperationMode mode) {
+        return new OperationModeUpdateTask2(getPriority(mode), null, mode);
     }
 
     private static Priority getPriority(OperationMode mode) {
@@ -173,7 +173,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         if (obj.getClass() != getClass()) {
             return false;
         }
-        OperationModeUpdateTask other = (OperationModeUpdateTask) obj;
+        OperationModeUpdateTask2 other = (OperationModeUpdateTask2) obj;
         return Objects.equals(priority(), other.priority())
             && Objects.equals(ilmMode, other.ilmMode)
             && Objects.equals(slmMode, other.slmMode);

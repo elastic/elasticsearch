@@ -582,7 +582,7 @@ public class ActionModule extends AbstractModule {
             if (plugin instanceof RestServerActionPlugin restPlugin) {
                 var newInstance = function.apply(restPlugin);
                 if (newInstance != null) {
-                    logger.debug("Using custom {}} from plugin {}", type, plugin.getClass().getName());
+                    logger.debug("Using custom {} from plugin {}", type, plugin.getClass().getName());
                     if (isInternalPlugin(plugin) == false) {
                         throw new IllegalArgumentException(
                             "The "

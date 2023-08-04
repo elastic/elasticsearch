@@ -18,9 +18,6 @@ and prevent them from operating normally.
 Before upgrading to 8.9, review these changes and take the described steps
 to mitigate the impact.
 
-// NOTE: The notable-breaking-changes tagged regions are re-used in the
-// Installation and Upgrade Guide
-// tag::notable-breaking-changes[]
 [discrete]
 [[breaking_89_rest_api_changes]]
 ==== REST API changes
@@ -35,5 +32,4 @@ The default implementation for TDigest in percentile calculations switches to a 
 *Impact* +
 This change leads to generating slightly different results in percentile calculations. If the highest possible accuracy is desired, or it's crucial to produce exactly the same results as in previous versions, one can either set `execution_hint` to `high_accuracy` in the `tdigest` spec of a given percentile calculation, or set `search.aggs.tdigest_execution_hint` to `high_accuracy` in cluster settings to apply to all percentile queries.
 ====
-// end::notable-breaking-changes[]
 

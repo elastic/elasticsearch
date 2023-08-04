@@ -51,6 +51,11 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
         return List.of(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, SnapshotLifecycle.class);
     }
 
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(super.nodeSettings()).put("slm.history_index_enabled", false).build();
+    }
+
     public void testModeSnapshotRestore() throws Exception {
         clusterAdmin().preparePutRepository("repo").setType("fs").setSettings(Settings.builder().put("location", "repo").build()).get();
 

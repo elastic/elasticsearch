@@ -27,7 +27,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -245,22 +244,10 @@ public class StatelessCommitService {
         private void executeUpload(ActionListener<StatelessCompoundCommit> listener) {
             try {
                 ActionListener<Void> uploadReadyListener = listener.delegateFailure((l, v) -> uploadStatelessCommitFile(l));
-                ActionListener<Void> generationalListener = uploadReadyListener.delegateFailure((l, v) -> checkReadyToUpload(l, listener));
-                uploadGenerationalFiles(generationalListener);
+                checkReadyToUpload(uploadReadyListener, listener);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
-        }
-
-        private void uploadGenerationalFiles(ActionListener<Void> listener) {
-            final Collection<String> generationalFiles = reference.getAdditionalFiles()
-                .stream()
-                .filter(StatelessCommitRef::isGenerationalFile)
-                .collect(Collectors.toList());
-
-            logger.trace("{} uploading [{}] generational files for commit [{}]", shardId, generationalFiles.size(), generation);
-
-            uploadFiles(generationalFiles, listener);
         }
 
         private void checkReadyToUpload(ActionListener<Void> readyListener, ActionListener<StatelessCompoundCommit> notReadyListener) {
@@ -279,10 +266,7 @@ public class StatelessCommitService {
 
         private void uploadStatelessCommitFile(ActionListener<StatelessCompoundCommit> listener) {
             String commitFileName = StatelessCompoundCommit.NAME + generation;
-            Set<String> internalFiles = reference.getAdditionalFiles()
-                .stream()
-                .filter(file -> StatelessCommitRef.isGenerationalFile(file) == false)
-                .collect(Collectors.toSet());
+            Set<String> internalFiles = reference.getAdditionalFiles();
             StatelessCompoundCommit.Writer pendingCommit = shardCommitState.returnPendingCompoundCommit(
                 shardId,
                 generation,
@@ -322,27 +306,6 @@ public class StatelessCommitService {
                     l.onResponse(commit);
                 })
             );
-
-        }
-
-        private void uploadFiles(Collection<String> files, ActionListener<Void> listener) {
-            try (var listeners = new RefCountingListener(ActionListener.wrap(listener))) {
-                files.forEach(
-                    file -> objectStoreService.uploadCommitFile(
-                        shardId,
-                        reference.getPrimaryTerm(),
-                        generation,
-                        reference.getDirectory(),
-                        file,
-                        startNanos,
-                        listeners.acquire(location -> {
-                            uploadedFileCount.getAndIncrement();
-                            uploadedFileBytes.getAndAdd(commitFilesToLength.get().get(file));
-                            shardCommitState.markFileUploaded(file, location);
-                        })
-                    )
-                );
-            }
 
         }
 

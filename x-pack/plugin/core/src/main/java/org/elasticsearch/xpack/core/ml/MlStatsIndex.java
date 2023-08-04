@@ -26,7 +26,7 @@ public class MlStatsIndex {
     public static final String TEMPLATE_NAME = ".ml-stats";
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
-    private static final int STATS_INDEX_MAPPINGS_VERSION = 1;
+    public static final int STATS_INDEX_MAPPINGS_VERSION = 1;
 
     private MlStatsIndex() {}
 

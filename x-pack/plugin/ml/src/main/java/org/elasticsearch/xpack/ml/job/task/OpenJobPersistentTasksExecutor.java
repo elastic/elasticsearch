@@ -276,7 +276,8 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             client,
             clusterState,
             PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
-            resultsMappingUpdateHandler
+            resultsMappingUpdateHandler,
+            AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
         );
     }
 

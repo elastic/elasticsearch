@@ -104,7 +104,8 @@ public class AnnotationIndex {
                 client,
                 state,
                 masterNodeTimeout,
-                finalListener
+                finalListener,
+                ANNOTATION_INDEX_MAPPINGS_VERSION
             ),
             finalListener::onFailure
         );

@@ -282,7 +282,8 @@ public class JobManager {
                 client,
                 state,
                 request.masterNodeTimeout(),
-                putJobListener
+                putJobListener,
+                MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
             ),
             putJobListener::onFailure
         );
@@ -353,7 +354,8 @@ public class JobManager {
             client,
             clusterService.state(),
             request.masterNodeTimeout(),
-            ActionListener.wrap(bool -> doUpdate.run(), actionListener::onFailure)
+            ActionListener.wrap(bool -> doUpdate.run(), actionListener::onFailure),
+            MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
         );
 
         if (request.getJobUpdate().getGroups() != null && request.getJobUpdate().getGroups().isEmpty() == false) {

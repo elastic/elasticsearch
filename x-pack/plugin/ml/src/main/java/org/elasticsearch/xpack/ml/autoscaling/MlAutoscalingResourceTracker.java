@@ -77,12 +77,11 @@ public final class MlAutoscalingResourceTracker {
             .map(DiscoveryNode::getId)
             .toArray(String[]::new);
 
-        // this value is only used iff > 0 and iff all nodes have the same container size
+        // the next 2 values are only used iff > 0 and iff all nodes have the same container size
         long modelMemoryAvailableFirstNode = mlNodes.length > 0
             ? NativeMemoryCalculator.allowedBytesForMl(clusterState.nodes().get(mlNodes[0]), settings).orElse(0L)
             : 0L;
-
-        int processorsAvailableFirstNode = MlProcessors.get(clusterState.nodes().get(mlNodes[0])).roundDown();
+        int processorsAvailableFirstNode = mlNodes.length > 0 ? MlProcessors.get(clusterState.nodes().get(mlNodes[0])).roundDown() : 0;
 
         // Todo: MAX_LOW_PRIORITY_MODELS_PER_NODE not checked yet
         int maxOpenJobsPerNode = MAX_OPEN_JOBS_PER_NODE.get(settings);

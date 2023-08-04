@@ -20,7 +20,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.search.SearchApplication;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
-import org.elasticsearch.xpack.application.search.SearchApplicationTemplate;
 
 public class TransportGetSearchApplicationAction extends HandledTransportAction<
     GetSearchApplicationAction.Request,
@@ -61,7 +60,7 @@ public class TransportGetSearchApplicationAction extends HandledTransportAction<
                             searchApplication.indices(),
                             searchApplication.analyticsCollectionName(),
                             searchApplication.updatedAtMillis(),
-                            SearchApplicationTemplate.DEFAULT_TEMPLATE
+                            searchApplication.searchApplicationTemplateOrDefault()
                         );
                     }
                     return new GetSearchApplicationAction.Response(searchApplication);

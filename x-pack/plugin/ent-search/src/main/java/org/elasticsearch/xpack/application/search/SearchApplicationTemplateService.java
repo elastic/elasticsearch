@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.search;
 
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -44,11 +43,6 @@ public class SearchApplicationTemplateService {
         template.validateTemplateParams(templateParams);
         final Map<String, Object> renderedTemplateParams = renderTemplateParams(template, templateParams);
         final Script script = template.script();
-
-        if (searchApplication.hasStoredTemplate() == false) {
-            HeaderWarning.addWarning(SearchApplication.NO_TEMPLATE_STORED_WARNING);
-        }
-
         TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(renderedTemplateParams);
         final String requestSource = SearchTemplateHelper.stripTrailingComma(compiledTemplate.execute());
         XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
@@ -71,11 +65,6 @@ public class SearchApplicationTemplateService {
     public Map<String, Object> renderTemplate(SearchApplication searchApplication, Map<String, Object> queryParams)
         throws ValidationException {
         final SearchApplicationTemplate template = searchApplication.searchApplicationTemplateOrDefault();
-
-        if (searchApplication.hasStoredTemplate() == false) {
-            HeaderWarning.addWarning(SearchApplication.NO_TEMPLATE_STORED_WARNING);
-        }
-
         return renderTemplateParams(template, queryParams);
     }
 

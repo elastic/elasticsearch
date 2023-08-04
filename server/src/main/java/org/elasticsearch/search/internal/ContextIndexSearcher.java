@@ -161,7 +161,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             if (forceSequentialCollection) {
                 // we offload to the executor unconditionally, including requests that don't support concurrency
                 // TODO are we good offloading aggs that don't support concurrency to the concurrent executor or is postCollect an issue?
-                this.leafSlices = new LeafSlice[]{new LeafSlice(new ArrayList<>(getLeafContexts()))};
+                this.leafSlices = new LeafSlice[] { new LeafSlice(new ArrayList<>(getLeafContexts())) };
             } else {
                 this.leafSlices = computeSlices(getLeafContexts(), executor.getBound(), minimumDocsPerSlice);
                 assert (this.leafSlices.length <= executor.getBound());

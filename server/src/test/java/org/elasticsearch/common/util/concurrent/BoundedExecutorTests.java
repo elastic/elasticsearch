@@ -15,12 +15,8 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class BoundedExecutorTests extends ESTestCase {
@@ -34,8 +30,14 @@ public class BoundedExecutorTests extends ESTestCase {
         int numThreads = randomIntBetween(1, 10);
         ThreadPoolExecutor executor = null;
         try {
-            executor = EsExecutors.newFixed(BoundedExecutorTests.class.getName(), numThreads, numThreads,
-                EsExecutors.daemonThreadFactory(""), new ThreadContext(Settings.EMPTY), EsExecutors.TaskTrackingConfig.DO_NOT_TRACK);
+            executor = EsExecutors.newFixed(
+                BoundedExecutorTests.class.getName(),
+                numThreads,
+                numThreads,
+                EsExecutors.daemonThreadFactory(""),
+                new ThreadContext(Settings.EMPTY),
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            );
             BoundedExecutor boundedExecutor = new BoundedExecutor(executor);
             assertEquals(numThreads, boundedExecutor.getBound());
         } finally {
@@ -46,8 +48,14 @@ public class BoundedExecutorTests extends ESTestCase {
     public void testExecute() throws Exception {
         int numThreads = randomIntBetween(1, 10);
         int numTasks = randomIntBetween(500, 1000);
-        ThreadPoolExecutor executor = EsExecutors.newFixed(BoundedExecutorTests.class.getName(), numThreads, numThreads,
-            EsExecutors.daemonThreadFactory(""), new ThreadContext(Settings.EMPTY), EsExecutors.TaskTrackingConfig.DO_NOT_TRACK);
+        ThreadPoolExecutor executor = EsExecutors.newFixed(
+            BoundedExecutorTests.class.getName(),
+            numThreads,
+            numThreads,
+            EsExecutors.daemonThreadFactory(""),
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+        );
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         try {
             BoundedExecutor boundedExecutor = new BoundedExecutor(executor);

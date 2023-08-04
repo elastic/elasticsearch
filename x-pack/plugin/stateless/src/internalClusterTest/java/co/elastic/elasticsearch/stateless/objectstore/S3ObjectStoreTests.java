@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
@@ -63,8 +64,21 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     @Override
     protected void assertRepositoryStats(RepositoryStats repositoryStats) {
-        final Set<String> expectedRequestNames = Set.of("GetObject", "ListObjects", "PutObject", "PutMultipartObject");
+        final Set<String> expectedRequestNames = Set.of(
+            "GetObject",
+            "ListObjects",
+            "PutObject",
+            "PutMultipartObject",
+            "DeleteObjects",
+            "AbortMultipartObject"
+        );
         assertEquals(expectedRequestNames, repositoryStats.requestCounts.keySet());
-        repositoryStats.requestCounts.values().forEach(count -> assertThat(count, greaterThan(0L)));
+        repositoryStats.requestCounts.forEach((metricName, count) -> {
+            if ("AbortMultipartObject".equals(metricName)) {
+                assertThat(metricName + "=" + count, count, equalTo(0L));
+            } else {
+                assertThat(metricName + "=" + count, count, greaterThan(0L));
+            }
+        });
     }
 }

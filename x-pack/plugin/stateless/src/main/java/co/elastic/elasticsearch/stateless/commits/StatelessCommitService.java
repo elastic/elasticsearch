@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -34,6 +35,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -58,6 +60,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -267,6 +270,14 @@ public class StatelessCommitService {
         private void uploadStatelessCommitFile(ActionListener<StatelessCompoundCommit> listener) {
             String commitFileName = StatelessCompoundCommit.NAME + generation;
             Set<String> internalFiles = reference.getAdditionalFiles();
+            Set<String> referencedGenerationalFiles = reference.getCommitFiles()
+                .stream()
+                .filter(StatelessCommitService::isGenerationalFile)
+                .filter(Predicate.not(internalFiles::contains))
+                .collect(Collectors.toSet());
+            if (referencedGenerationalFiles.isEmpty() == false) {
+                internalFiles = Sets.union(internalFiles, referencedGenerationalFiles);
+            }
             StatelessCompoundCommit.Writer pendingCommit = shardCommitState.returnPendingCompoundCommit(
                 shardId,
                 generation,
@@ -585,5 +596,9 @@ public class StatelessCommitService {
     public void unregisterNewCommitSuccessListener(ShardId shardId) {
         var removed = commitNotificationSuccessListeners.remove(shardId);
         assert removed != null;
+    }
+
+    public static boolean isGenerationalFile(String file) {
+        return file.startsWith("_") && IndexFileNames.parseGeneration(file) > 0L;
     }
 }

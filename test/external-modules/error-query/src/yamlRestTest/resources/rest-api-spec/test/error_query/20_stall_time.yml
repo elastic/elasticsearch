@@ -2,7 +2,11 @@
 #
 
 ---
-"Error query":
+"Error query with stall time":
+  - skip:
+      version: " - 8.9.99"
+      reason: stall_time_seconds error_query field added in 8.10
+
   - do:
       indices.create:
         index: test_exception

@@ -115,7 +115,11 @@ This manual syncing and reloading makes this approach less flexible than using t
 
 For testing out your synonyms, you can directly inline them in your token filter definition.
 
-This is not recommended for production usage, as a large number of inline synonyms increases cluster size unnecessarily and can lead to performance issues.
+[WARNING]
+======
+This is not recommended for production usage.
+A large number of inline synonyms increases cluster size unnecessarily and can lead to performance issues.
+======
 
 [discrete]
 [[synonyms-synonym-analyzers]]

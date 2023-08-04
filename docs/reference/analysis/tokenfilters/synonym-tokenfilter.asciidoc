@@ -8,7 +8,7 @@ The `synonym` token filter allows to easily handle <<analysis-synonyms,synonyms>
 analysis process. Synonyms are configured using a configuration file.
 
 Synonyms can be configured using the <<synonyms-store-synonyms-api,synonyms API>>, a <<synonyms-store-synonyms-file,synonyms file>>, or directly <<synonyms-store-synonyms-inline,inlined>> in the token filter configuration.
-Check the <<synonyms-store-synonyms,store your synonyms set>> section for more details on each option.
+See <<synonyms-store-synonyms,store your synonyms set>> for more details on each option.
 
 An example synonyms file configuration:
 
@@ -100,4 +100,4 @@ The `tokenizer` parameter controls the tokenizers that will be used to
 tokenize the synonym, this parameter is for backwards compatibility for indices that created before 6.0.
 The `ignore_case` parameter works with `tokenizer` parameter only.
 
-Check the <<synonyms-define-synonyms,define your synonyms>> documentation for the available formats to define synonyms.
+See <<synonyms-define-synonyms,define your synonyms>> for the available formats to define synonyms.

@@ -15,5 +15,6 @@ testClusters.configureEach {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   extraConfigFile 'roles.yml', file('roles.yml')
+  user username: 'elastic_admin', password: 'admin-password'
   user username: 'fleet_unprivileged_secrets', password: 'password', role: 'unprivileged_secrets'
 }

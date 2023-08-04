@@ -92,7 +92,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         String snapshotName = maybeMetadata.map(policyMetadata -> {
             // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
             CreateSnapshotRequest request = policyMetadata.getPolicy().toRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
-            final ClientWithHeaders clientWithHeaders = new ClientWithHeaders(
+            final LifecyclePolicySecurityClient clientWithHeaders = new LifecyclePolicySecurityClient(
                 client,
                 ClientHelper.INDEX_LIFECYCLE_ORIGIN,
                 policyMetadata.getHeaders()

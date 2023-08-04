@@ -85,7 +85,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "manage_rollup",
     "manage_saml",
     "manage_search_application",
-    "manage_query_rules",
+    "manage_search_query_rules",
     "manage_security",
     "manage_service_account",
     "manage_slm",

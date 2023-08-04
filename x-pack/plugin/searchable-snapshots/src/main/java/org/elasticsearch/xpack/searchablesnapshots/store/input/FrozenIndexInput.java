@@ -171,11 +171,6 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
-    public FrozenIndexInput clone() {
-        return (FrozenIndexInput) super.clone();
-    }
-
-    @Override
     protected MetadataCachingIndexInput doSlice(
         String sliceName,
         long sliceOffset,
@@ -190,7 +185,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             fileInfo,
             context,
             stats,
-            this.offset + sliceOffset,
+            sliceOffset,
             sliceCompoundFileOffset,
             sliceLength,
             cacheFileReference,

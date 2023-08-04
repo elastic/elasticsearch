@@ -246,7 +246,8 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             ".fleet-policies-leader" + randomAlphaOfLengthBetween(1, 20),
             ".fleet-servers" + randomAlphaOfLengthBetween(1, 20),
             ".fleet-artifacts" + randomAlphaOfLengthBetween(1, 20),
-            ".fleet-actions-results" + randomAlphaOfLengthBetween(1, 20)
+            ".fleet-actions-results" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-fileds" + randomAlphaOfLengthBetween(1, 20)
         ).forEach(index -> {
             final IndexAbstraction dotFleetIndex = mockIndexAbstraction(index);
             assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(dotFleetIndex), is(true));
@@ -276,6 +277,11 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(dotFleetSecretsIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotFleetSecretsIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(dotFleetSecretsIndex), is(false));
+
+        final TransportRequest request = mock(TransportRequest.class);
+        assertThat(role.cluster().check("cluster:admin/fleet/secrets/get", request, authentication), is(true));
+        assertThat(role.cluster().check("cluster:admin/fleet/secrets/post", request, authentication), is(false));
+        assertThat(role.cluster().check("cluster:admin/fleet/secrets/delete", request, authentication), is(false));
 
         final IndexAbstraction apmSampledTracesIndex = mockIndexAbstraction("traces-apm.sampled-" + randomAlphaOfLengthBetween(1, 20));
         assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(apmSampledTracesIndex), is(true));

@@ -1,61 +1,57 @@
-[[synonyms]]
+[[analysis-synonyms]]
 == Synonyms
-++++
-<titleabbrev>Synonyms</titleabbrev>
-++++
 
 Synonyms are words or phrases that have the same or similar meaning.
-They are part of our everyday speech, and we are used to naturally use them and understand when we are referring to the same meaning using a different word.
+They are part of our everyday speech, and we naturally understand when we are referring to the same meaning using a different word.
 
-Synonyms are an important aspect for searching.
+Synonyms are an important aspect of search.
 They can improve the search experience and the relevancy of search results.
 
 Synonyms will allow you to:
 
-* Improve search relevance: Synonyms enable users to find relevant documents even if they use different terms to express the same concept. Documents that containing different terms but related meanings can be retrieved, making your search more flexible and inclusive.
+* Improve search relevance: Synonyms enable users to find relevant documents even if they use different terms to express the same concept.
 * Increase search scope: Using synonyms ensures a wider range of possible terms. Search results are not limited to the specific terms included in your documents, and variations of relevant terms are included in search results.
 * Domain-specific vocabulary: Certain domains use specific terms that users are not familiar with. Using synonyms allow search to become more user-friendly, as users can search terms they are familiar with and search results will not be limited to the specific domain vocabulary.
 * Handling common misspellings and typos: Synonyms can be used to make sure that frequent or specific misspellings are correctly handled.
-
-[discrete]
-[[synonyms-in-elasticsearch]]
-=== Synonyms in {es}
 
 {es} uses synonyms as part of the <<analysis-overview,analysis process>>.
 Analyzers can be applied at <<analysis-index-search-time,index time or search time>>.
 
 [discrete]
 [[synonyms-store-synonyms]]
-==== Store your synonyms set
+=== Store your synonyms set
 
 Synonyms are grouped together using *synonyms sets*.
 You can have as many synonyms sets as you need.
 
 Your synonyms sets need to be stored in {es} so your analyzers can refer to them.
-There are three ways to include your synonyms sets in {es}:
+There are three ways to include your synonyms sets:
 
 [discrete]
 [[synonyms-store-synonyms-api]]
-===== Synonyms API
-You can use <<synonyms-apis,synonyms APIs>> to manage synonyms sets.
+==== Synonyms API
+
+You can use the <<synonyms-apis,synonyms APIs>> to manage synonyms sets.
 This is the most flexible approach, as it allows to dynamically define and modify synonyms sets.
 
-Synonyms sets created via synonyms APIs can be included into synonyms token filters using `synonyms_set` configuration:
+Synonyms sets created via synonyms APIs can be included into synonym token filters using `synonyms_set` configuration:
 
-```
+[source,JSON]
+----
   "filter": {
     "synonyms_filter": {
       "type": "synonym_graph",
       "synonyms_set": "my-synonym-set"
     }
   }
-```
+----
 
 Changes in your synonyms sets will automatically reload the associated analyzers.
 
 [discrete]
 [[synonyms-store-synonyms-file]]
-===== Synonyms File
+==== Synonyms File
+
 You can store your synonyms set in a file.
 
 A synonyms set file needs to be uploaded to all your cluster nodes, and be located in the configuration directory for your {es} distribution.
@@ -63,52 +59,56 @@ If you're using {ess}, you can upload synonyms fies using {cloud}/ec-custom-bund
 
 The path to the file needs to be included as part of your token filter using `synonyms_path` configuration:
 
-```
+[source,JSON]
+----
   "filter": {
     "synonyms_filter": {
       "type": "synonym_graph",
       "synonyms_path": "analysis/synonym-set.txt"
     }
   }
-```
+----
 
-Keep in mind that using files implies that your synonyms sets fies need to be uploaded and kept in sync on all nodes in your cluster.
-This is a less flexible approach than using the <<synonyms-synonyms-api,synonyms API>>.
+Using files implies that your synonyms sets fies need to be uploaded and kept in sync on all nodes in your cluster.
+This is a less flexible approach than using the <<synonyms-store-synonyms-api,synonyms API>>.
 
 [discrete]
 [[synonyms-store-synonyms-inline]]
-===== Inline
-For testing out your synonyms, you can directly inline your synonyms in your token filter definition.
+==== Inline
+
+For testing out your synonyms, you can directly inline them in your token filter definition.
 
 Include your synonyms in your token filter using the `synonyms` configuration:
 
-```
+[source,JSON]
+----
   "filter": {
     "synonyms_filter": {
       "type": "synonym_graph",
       "synonyms": ["pc => personal computer", "computer, pc, laptop"]
     }
   }
-```
+----
 
 This is not recommended for production usage, as a large number of inline synonyms impacts index mapping size and can lead to performance issues.
 
 [discrete]
 [[synonyms-define-synonym]]
-==== Define your synonyms
+=== Define your synonyms
 
-Synonyms are defined using *synonym rules*.
+Synonyms are defined using synonym rules.
 Each synonym rule contains words that are synonyms.
 
 You can use two formats to define synonyms: Solr and WordNet.
 
-===== Solr format
+=== Solr format
 
 This format uses two different definitions:
 
 * Equivalent synonyms: Define groups of words that are equivalent. Words are separated by commas.
 
 Example:
+
 * ipod, i-pod, i pod
 * computer, pc, laptop
 
@@ -118,9 +118,10 @@ Example:
 * personal computer => pc
 * sea biscuit, sea biscit => seabiscuit
 
-===== WordNet format
+=== WordNet format
 
 https://wordnet.princeton.edu/[WordNet] defines synonyms sets spanning multiple lines. Each line contains the following information:
+
 * Synonyms set numeric identifier
 * Ordinal of the synonym in the synonyms set
 * Synonym word
@@ -129,10 +130,12 @@ https://wordnet.princeton.edu/[WordNet] defines synonyms sets spanning multiple 
 
 The following example defines a synonym set for the words "come", "advance" and "approach":
 
-``s(100000002,1,'come',v,1,0).
+```
+s(100000002,1,'come',v,1,0).
 s(100000002,2,'advance',v,1,0).
 s(100000002,3,'approach',v,1,0).""";
-``
+```
+
 Synonyms sets are applied to your <<mappings,field mappings>> via analyzers.
 
 [discrete]
@@ -159,7 +162,7 @@ You need to decide when to apply your synonyms:
 
 You can specify the analyzer that contains your synonyms set as a <<specify-search-analyzer,search time analyzer>> or as an <<specify-index-time-analyzer,index time analyzer>>.
 
-Synonyms sets based on <<synonyms-synonyms-api,synonyms API>> can only be used at search time.
+Synonyms sets created using <<synonyms-store-synonyms-api,synonyms API>> can only be used at search time.
 
 === Putting it all together
 

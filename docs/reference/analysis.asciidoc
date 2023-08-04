@@ -42,6 +42,7 @@ analysis configuration if you're using {es} to:
 * <<analysis-tokenfilters>>
 * <<analysis-charfilters>>
 * <<analysis-normalizers>>
+* <<analysis-synonyms>>
 
 --
 
@@ -60,3 +61,5 @@ include::analysis/tokenfilters.asciidoc[]
 include::analysis/charfilters.asciidoc[]
 
 include::analysis/normalizers.asciidoc[]
+
+include::analysis/synonyms.asciidoc[]

@@ -42,7 +42,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -52,6 +51,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -212,9 +212,9 @@ public class WildcardFieldMapper extends FieldMapper {
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        final Version indexVersionCreated;
+        final IndexVersion indexVersionCreated;
 
-        public Builder(String name, Version indexVersionCreated) {
+        public Builder(String name, IndexVersion indexVersionCreated) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
         }
@@ -263,9 +263,9 @@ public class WildcardFieldMapper extends FieldMapper {
         private final int ignoreAbove;
         private final NamedAnalyzer analyzer;
 
-        private WildcardFieldType(String name, String nullValue, int ignoreAbove, Version version, Map<String, String> meta) {
+        private WildcardFieldType(String name, String nullValue, int ignoreAbove, IndexVersion version, Map<String, String> meta) {
             super(name, true, false, true, Defaults.TEXT_SEARCH_INFO, meta);
-            if (version.onOrAfter(Version.V_7_10_0)) {
+            if (version.onOrAfter(IndexVersion.V_7_10_0)) {
                 this.analyzer = WILDCARD_ANALYZER_7_10;
             } else {
                 this.analyzer = WILDCARD_ANALYZER_7_9;
@@ -342,7 +342,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 clauseCount++;
             }
             Automaton automaton = caseInsensitive
-                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name(), wildcardPattern), Integer.MAX_VALUE)
+                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name(), wildcardPattern))
                 : WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
             if (clauseCount > 0) {
                 // We can accelerate execution with the ngram query
@@ -882,7 +882,7 @@ public class WildcardFieldMapper extends FieldMapper {
     private final int ignoreAbove;
     private final String nullValue;
     private final FieldType ngramFieldType;
-    private final Version indexVersionCreated;
+    private final IndexVersion indexVersionCreated;
     private final boolean storeIgnored;
 
     private WildcardFieldMapper(
@@ -893,7 +893,7 @@ public class WildcardFieldMapper extends FieldMapper {
         MultiFields multiFields,
         CopyTo copyTo,
         String nullValue,
-        Version indexVersionCreated
+        IndexVersion indexVersionCreated
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.nullValue = nullValue;

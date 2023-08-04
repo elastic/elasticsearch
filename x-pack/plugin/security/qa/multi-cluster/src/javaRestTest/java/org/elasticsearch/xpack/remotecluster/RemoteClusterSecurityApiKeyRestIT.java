@@ -59,15 +59,11 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
                         {
-                          "role": {
-                            "cluster": ["cross_cluster_access"],
-                            "index": [
+                            "search": [
                               {
-                                "names": ["index*", "not_found_index"],
-                                "privileges": ["read", "read_cross_cluster"]
+                                "names": ["index*", "not_found_index"]
                               }
                             ]
-                          }
                         }""");
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }

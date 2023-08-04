@@ -51,6 +51,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
+import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -929,14 +930,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private class FailedShardHandler implements Consumer<IndexShard.ShardFailure> {
         @Override
         public void accept(final IndexShard.ShardFailure shardFailure) {
-            final ShardRouting shardRouting = shardFailure.routing;
+            final ShardRouting shardRouting = shardFailure.routing();
             threadPool.generic().execute(() -> {
                 synchronized (IndicesClusterStateService.this) {
                     failAndRemoveShard(
                         shardRouting,
                         true,
-                        "shard failure, reason [" + shardFailure.reason + "]",
-                        shardFailure.cause,
+                        "shard failure, reason [" + shardFailure.reason() + "]",
+                        shardFailure.cause(),
                         clusterService.state()
                     );
                 }
@@ -1097,7 +1098,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             PeerRecoveryTargetService.RecoveryListener recoveryListener,
             RepositoriesService repositoriesService,
             Consumer<IndexShard.ShardFailure> onShardFailure,
-            Consumer<ShardId> globalCheckpointSyncer,
+            GlobalCheckpointSyncer globalCheckpointSyncer,
             RetentionLeaseSyncer retentionLeaseSyncer,
             DiscoveryNode targetNode,
             @Nullable DiscoveryNode sourceNode

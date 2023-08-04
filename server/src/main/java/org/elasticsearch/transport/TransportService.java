@@ -30,8 +30,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -55,6 +57,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -71,6 +74,19 @@ public class TransportService extends AbstractLifecycleComponent
         TransportConnectionListener {
 
     private static final Logger logger = LogManager.getLogger(TransportService.class);
+
+    /**
+     * A feature flag enabling transport upgrades for serverless.
+     */
+    private static final String SERVERLESS_TRANSPORT_SYSTEM_PROPERTY = "es.serverless_transport";
+    private static final boolean SERVERLESS_TRANSPORT_FEATURE_FLAG;
+    static {
+        final boolean serverlessFlag = Booleans.parseBoolean(System.getProperty(SERVERLESS_TRANSPORT_SYSTEM_PROPERTY), false);
+        if (serverlessFlag && Build.current().isSnapshot() == false) {
+            throw new IllegalArgumentException("Enabling serverless transport is only supported in snapshot builds");
+        }
+        SERVERLESS_TRANSPORT_FEATURE_FLAG = serverlessFlag;
+    }
 
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
@@ -122,7 +138,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public TransportVersion getTransportVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
 
         @Override
@@ -282,7 +298,7 @@ public class TransportService extends AbstractLifecycleComponent
             false,
             HandshakeRequest::new,
             (request, channel, task) -> channel.sendResponse(
-                new HandshakeResponse(localNode.getVersion(), Build.CURRENT.hash(), localNode, clusterName)
+                new HandshakeResponse(localNode.getVersion(), Build.current().hash(), localNode, clusterName)
             )
         );
     }
@@ -364,11 +380,11 @@ public class TransportService extends AbstractLifecycleComponent
                         holderToNotify.action(),
                         new NodeClosedException(localNode)
                     );
-                    final var executor = handler.executor();
-                    if (executor.equals(ThreadPool.Names.SAME)) {
+                    final var executor = handler.executor(threadPool);
+                    if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                         handler.handleException(exception);
                     } else {
-                        threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, exception) {
+                        executor.execute(new ForkingResponseHandlerRunnable(handler, exception, threadPool) {
                             @Override
                             protected void doRun() {
                                 handler.handleException(exception);
@@ -583,7 +599,7 @@ public class TransportService extends AbstractLifecycleComponent
                 } else {
                     l.onResponse(response);
                 }
-            }), HandshakeResponse::new, ThreadPool.Names.GENERIC)
+            }), HandshakeResponse::new, threadPool.generic())
         );
     }
 
@@ -644,7 +660,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         private void maybeThrowOnIncompatibleBuild(@Nullable DiscoveryNode node, @Nullable Exception e) {
-            if (DiscoveryNode.isServerless() == false && isIncompatibleBuild(version, buildHash)) {
+            if (SERVERLESS_TRANSPORT_FEATURE_FLAG == false && isIncompatibleBuild(version, buildHash)) {
                 throwOnIncompatibleBuild(node, e);
             }
         }
@@ -658,7 +674,7 @@ public class TransportService extends AbstractLifecycleComponent
                     + "] of version ["
                     + version
                     + "] but this node is build ["
-                    + Build.CURRENT.hash()
+                    + Build.current().hash()
                     + "] of version ["
                     + Version.CURRENT
                     + "] which has an incompatible wire format",
@@ -691,7 +707,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         private static boolean isIncompatibleBuild(Version version, String buildHash) {
-            return version == Version.CURRENT && Build.CURRENT.hash().equals(buildHash) == false;
+            return version == Version.CURRENT && Build.current().hash().equals(buildHash) == false;
         }
     }
 
@@ -1407,8 +1423,8 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public String executor() {
-            return delegate.executor();
+        public Executor executor(ThreadPool threadPool) {
+            return delegate.executor(threadPool);
         }
 
         @Override
@@ -1460,12 +1476,12 @@ public class TransportService extends AbstractLifecycleComponent
                         // handler already completed, likely by a timeout which is logged elsewhere
                         return;
                     }
-                    final String executor = handler.executor();
-                    if (ThreadPool.Names.SAME.equals(executor)) {
+                    final var executor = handler.executor(threadPool);
+                    if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                         processResponse(handler, response);
                     } else {
                         response.incRef();
-                        threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, null) {
+                        executor.execute(new ForkingResponseHandlerRunnable(handler, null, threadPool) {
                             @Override
                             protected void doRun() {
                                 processResponse(handler, response);
@@ -1511,11 +1527,11 @@ public class TransportService extends AbstractLifecycleComponent
                     return;
                 }
                 final RemoteTransportException rtx = wrapInRemote(exception);
-                final String executor = handler.executor();
-                if (ThreadPool.Names.SAME.equals(executor)) {
+                final var executor = handler.executor(threadPool);
+                if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                     processException(handler, rtx);
                 } else {
-                    threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, rtx) {
+                    executor.execute(new ForkingResponseHandlerRunnable(handler, rtx, threadPool) {
                         @Override
                         protected void doRun() {
                             processException(handler, rtx);
@@ -1689,8 +1705,8 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public String executor() {
-            return handler.executor();
+        public Executor executor(ThreadPool threadPool) {
+            return handler.executor(threadPool);
         }
 
         @Override

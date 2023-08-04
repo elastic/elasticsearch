@@ -10,11 +10,11 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
@@ -110,14 +110,14 @@ public class NodeLeftExecutorTests extends ESTestCase {
         );
         final var executor = new NodeLeftExecutor(allocationService);
 
-        final DiscoveryNode masterNode = new DiscoveryNode("master", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode masterNode = DiscoveryNodeUtils.create("master");
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
                 DiscoveryNodes.builder()
                     .add(masterNode)
                     .localNodeId("master")
                     .masterNodeId("master")
-                    .add(new DiscoveryNode("other", buildNewFakeTransportAddress(), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("other"))
             )
             .build();
 
@@ -150,7 +150,7 @@ public class NodeLeftExecutorTests extends ESTestCase {
     }
 
     private static DiscoveryNode node(final int id) {
-        return new DiscoveryNode(Integer.toString(id), buildNewFakeTransportAddress(), Version.CURRENT);
+        return DiscoveryNodeUtils.create(Integer.toString(id));
     }
 
     // Hard-coding the class name here because it is also mentioned in the troubleshooting docs, so should not be renamed without care.

@@ -1,0 +1,15 @@
+{
+  "index_patterns": [
+    "profiling-hosts*"
+  ],
+  "data_stream": {},
+  "composed_of": [
+    "profiling-hosts",
+    "profiling-ilm"
+  ],
+  "priority": 100,
+  "_meta": {
+    "description": "Template for profiling-hosts"
+  },
+  "version": ${xpack.profiling.template.version}
+}

@@ -1,5 +1,0 @@
-pr: 94553
-summary: Catch deprecations as `Exception` rather than `IOException`
-area: Transform
-type: bug
-issues: []

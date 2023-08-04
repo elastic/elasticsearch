@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -136,7 +137,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
         request.setNodes(taskNodes.toArray(String[]::new));
         request.setExpandedIds(matchedIds);
 
-        ActionListener<GetDeploymentStatsAction.Response> addFailedListener = listener.delegateFailure((l, response) -> {
+        ActionListener<GetDeploymentStatsAction.Response> addFailedListener = listener.safeMap(response -> {
             var updatedResponse = addFailedRoutes(response, assignmentNonStartedRoutes, clusterState.nodes());
             // Set the allocation state and reason if we have it
             for (AssignmentStats stats : updatedResponse.getStats().results()) {
@@ -158,7 +159,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                     }
                 }
             }
-            l.onResponse(updatedResponse);
+            return updatedResponse;
         });
 
         super.doExecute(task, request, addFailedListener);
@@ -299,7 +300,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         GetDeploymentStatsAction.Request request,
         TrainedModelDeploymentTask task,
         ActionListener<AssignmentStats> listener

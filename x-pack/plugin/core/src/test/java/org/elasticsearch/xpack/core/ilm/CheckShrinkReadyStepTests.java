@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
@@ -462,6 +463,9 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
 
             final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
+            final TimeValue grace = type == SingleNodeShutdownMetadata.Type.SIGTERM
+                ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
+                : null;
             ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
                 .metadata(
                     Metadata.builder()
@@ -477,6 +481,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                                         .setReason("test")
                                         .setNodeId("node1")
                                         .setTargetNodeName(targetNodeName)
+                                        .setGracePeriod(grace)
                                         .build()
                                 )
                             )
@@ -537,6 +542,9 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
 
             final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
+            final TimeValue grace = type == SingleNodeShutdownMetadata.Type.SIGTERM
+                ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
+                : null;
             ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
                 .metadata(
                     Metadata.builder()
@@ -552,6 +560,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                                         .setReason("test")
                                         .setNodeId("node1")
                                         .setTargetNodeName(targetNodeName)
+                                        .setGracePeriod(grace)
                                         .build()
                                 )
                             )

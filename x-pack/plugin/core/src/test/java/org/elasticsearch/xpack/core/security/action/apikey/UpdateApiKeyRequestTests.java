@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -21,6 +22,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class UpdateApiKeyRequestTests extends ESTestCase {
 
@@ -45,6 +47,7 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
         final var id = randomAlphaOfLength(10);
         final var metadata = ApiKeyTests.randomMetadata();
         final var request = new UpdateApiKeyRequest(id, descriptorList, metadata);
+        assertThat(request.getType(), is(ApiKey.Type.REST));
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
@@ -52,7 +55,8 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
                 final var serialized = new UpdateApiKeyRequest(in);
                 assertEquals(id, serialized.getId());
                 assertEquals(descriptorList, serialized.getRoleDescriptors());
-                assertEquals(metadata, request.getMetadata());
+                assertEquals(metadata, serialized.getMetadata());
+                assertEquals(request.getType(), serialized.getType());
             }
         }
     }
@@ -68,6 +72,10 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
     }
 
     public void testRoleDescriptorValidation() {
+        final List<String> unknownWorkflows = randomList(1, 2, () -> randomAlphaOfLengthBetween(4, 10));
+        final List<String> workflows = new ArrayList<>(unknownWorkflows.size() + 1);
+        workflows.addAll(unknownWorkflows);
+        workflows.add(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name());
         final var request1 = new UpdateApiKeyRequest(
             randomAlphaOfLength(10),
             List.of(
@@ -85,7 +93,9 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
                     null,
                     null,
                     Map.of("_key", "value"),
-                    null
+                    null,
+                    null,
+                    new RoleDescriptor.Restriction(workflows.toArray(String[]::new))
                 )
             ),
             null
@@ -97,5 +107,8 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
         assertThat(ve1.validationErrors().get(2), containsStringIgnoringCase("application name"));
         assertThat(ve1.validationErrors().get(3), containsStringIgnoringCase("Application privilege names"));
         assertThat(ve1.validationErrors().get(4), containsStringIgnoringCase("role descriptor metadata keys may not start with "));
+        for (int i = 0; i < unknownWorkflows.size(); i++) {
+            assertThat(ve1.validationErrors().get(5 + i), containsStringIgnoringCase("unknown workflow [" + unknownWorkflows.get(i) + "]"));
+        }
     }
 }

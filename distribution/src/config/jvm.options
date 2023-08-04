@@ -54,6 +54,10 @@
 ## JVM temporary directory
 -Djava.io.tmpdir=${ES_TMPDIR}
 
+# Leverages accelerated vector hardware instructions; removing this may
+# result in less optimal vector performance
+20:--add-modules=jdk.incubator.vector
+
 ## heap dumps
 
 # generate a heap dump when an allocation from the Java heap fails; heap dumps

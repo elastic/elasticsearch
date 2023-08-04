@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -67,8 +67,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     private static final Logger logger = LogManager.getLogger(TrainedModelAssignmentClusterService.class);
 
-    private static final Version RENAME_ALLOCATION_TO_ASSIGNMENT_VERSION = Version.V_8_3_0;
-    public static final Version DISTRIBUTED_MODEL_ALLOCATION_VERSION = Version.V_8_4_0;
+    private static final TransportVersion RENAME_ALLOCATION_TO_ASSIGNMENT_TRANSPORT_VERSION = TransportVersion.V_8_3_0;
+    public static final TransportVersion DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION = TransportVersion.V_8_4_0;
 
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -146,7 +146,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             return;
         }
 
-        if (event.state().nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
+        if (event.state().getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
             // we should not try to rebalance assignments while there may be nodes running on a version
             // prior to introducing distributed model allocation.
             // But we should remove routing to removed or shutting down nodes.
@@ -276,14 +276,13 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         StartTrainedModelDeploymentAction.TaskParams params,
         ActionListener<TrainedModelAssignment> listener
     ) {
-        if (clusterService.state().nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
+        if (clusterService.state().getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "cannot create new assignment [{}] for model [{}] while there are nodes older than version [{}]",
+                    "cannot create new assignment [{}] for model [{}] while cluster upgrade is in progress",
                     RestStatus.CONFLICT,
                     params.getDeploymentId(),
-                    params.getModelId(),
-                    DISTRIBUTED_MODEL_ALLOCATION_VERSION
+                    params.getModelId()
                 )
             );
             return;
@@ -400,7 +399,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private static ClusterState forceUpdate(ClusterState currentState, TrainedModelAssignmentMetadata.Builder modelAssignments) {
         logger.debug(() -> format("updated assignments: %s", modelAssignments.build()));
         Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-        if (currentState.getNodes().getMinNodeVersion().onOrAfter(RENAME_ALLOCATION_TO_ASSIGNMENT_VERSION)) {
+        if (currentState.getMinTransportVersion().onOrAfter(RENAME_ALLOCATION_TO_ASSIGNMENT_TRANSPORT_VERSION)) {
             metadata.putCustom(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
                 .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME);
         } else {
@@ -589,13 +588,12 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             );
             return;
         }
-        if (clusterState.nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
+        if (clusterState.getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "cannot update number_of_allocations for deployment with model id [{}] while there are nodes older than version [{}]",
+                    "cannot update number_of_allocations for deployment with model id [{}] while cluster upgrade is in progress.",
                     RestStatus.CONFLICT,
-                    deploymentId,
-                    DISTRIBUTED_MODEL_ALLOCATION_VERSION
+                    deploymentId
                 )
             );
             return;
@@ -939,9 +937,6 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
      * Returns the set of nodes that are currently shutting down
      */
     static Set<String> nodesShuttingDown(final ClusterState state) {
-        return NodesShutdownMetadata.getShutdowns(state)
-            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .map(Map::keySet)
-            .orElse(Collections.emptySet());
+        return state.metadata().nodeShutdowns().getAllNodeIds();
     }
 }

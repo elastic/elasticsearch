@@ -50,10 +50,10 @@ public class TransportHandshakerTests extends ESTestCase {
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Collections.emptySet(),
-            Version.CURRENT
+            null
         );
         threadPool = new TestThreadPool("thread-poll");
-        handshaker = new TransportHandshaker(TransportVersion.CURRENT, threadPool, requestSender, false);
+        handshaker = new TransportHandshaker(TransportVersion.current(), threadPool, requestSender, false);
     }
 
     @Override
@@ -71,7 +71,7 @@ public class TransportHandshakerTests extends ESTestCase {
 
         assertFalse(versionFuture.isDone());
 
-        TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(TransportVersion.CURRENT);
+        TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(TransportVersion.current());
         BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
         handshakeRequest.writeTo(bytesStreamOutput);
         StreamInput input = bytesStreamOutput.bytes().streamInput();
@@ -83,7 +83,7 @@ public class TransportHandshakerTests extends ESTestCase {
         handler.handleResponse((TransportHandshaker.HandshakeResponse) responseFuture.actionGet());
 
         assertTrue(versionFuture.isDone());
-        assertEquals(TransportVersion.CURRENT, versionFuture.actionGet());
+        assertEquals(TransportVersion.current(), versionFuture.actionGet());
     }
 
     public void testHandshakeRequestFutureVersionsCompatibility() throws IOException {
@@ -92,7 +92,7 @@ public class TransportHandshakerTests extends ESTestCase {
 
         verify(requestSender).sendRequest(node, channel, reqId, TransportHandshaker.REQUEST_HANDSHAKE_VERSION);
 
-        TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(TransportVersion.CURRENT);
+        TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(TransportVersion.current());
         BytesStreamOutput currentHandshakeBytes = new BytesStreamOutput();
         handshakeRequest.writeTo(currentHandshakeBytes);
 
@@ -118,7 +118,7 @@ public class TransportHandshakerTests extends ESTestCase {
 
         TransportHandshaker.HandshakeResponse response = (TransportHandshaker.HandshakeResponse) responseFuture.actionGet();
 
-        assertEquals(TransportVersion.CURRENT, response.getResponseVersion());
+        assertEquals(TransportVersion.current(), response.getResponseVersion());
     }
 
     public void testHandshakeError() throws IOException {

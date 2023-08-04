@@ -90,6 +90,7 @@ public class AllocationDeciders {
     }
 
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+        assert shardRouting.started() : "Only started shard could be rebalanced: " + shardRouting;
         return withDeciders(
             allocation,
             decider -> decider.canRebalance(shardRouting, allocation),

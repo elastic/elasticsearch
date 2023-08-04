@@ -49,6 +49,7 @@ fix problems that an {es} deployment might encounter.
 [discrete]
 [[troubleshooting-others]]
 === Others
+* <<cluster-fault-detection-troubleshooting,Troubleshooting an unstable cluster>>
 * <<discovery-troubleshooting,Troubleshooting discovery>>
 * <<monitoring-troubleshooting,Troubleshooting monitoring>>
 * <<transform-troubleshooting,Troubleshooting transforms>>

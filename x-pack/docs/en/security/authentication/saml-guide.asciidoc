@@ -231,7 +231,7 @@ The recommended steps for configuring these SAML attributes are as follows:
   This varies greatly between providers, but you should be able to obtain a list
   from the documentation, or from your local admin.
 
-. Read through the list of <<saml-user-properties, user properties>> that {es}
+. Read through the list of <<saml-es-user-properties, user properties>> that {es}
   supports, and decide which of them are useful to you, and can be provided by
   your IdP. At a _minimum_, the `principal` attribute is required.
 
@@ -244,7 +244,7 @@ The recommended steps for configuring these SAML attributes are as follows:
   URIs are used.
 
 . Configure the SAML realm in {es} to associate the {es} user properties (see
-  <<saml-user-properties, the listing>> below), to the URIs that you configured
+  <<saml-es-user-properties, the listing>> below), to the URIs that you configured
   in your IdP. In the example above, we have configured the `principal` and
   `groups` attributes.
 
@@ -281,7 +281,7 @@ NOTE: Identity Providers can be either statically configured to release a `NameI
 with a specific format, or they can be configured to try to conform with the
 requirements of the SP. The SP declares its requirements as part of the
 Authentication Request, using an element which is called the `NameIDPolicy`. If
-this is needed, you can set the relevant <<saml-settings, settings>> named
+this is needed, you can set the relevant <<ref-saml-settings, settings>> named
 `nameid_format` in order to request that the IdP releases a `NameID` with a
 specific format.
 
@@ -925,7 +925,7 @@ access tokens after the current one expires.
 ==== SAML realm
 
 You must create a SAML realm and configure it accordingly
-in {es}. See <<saml-guide-authentication>>
+in {es}. See <<saml-elasticsearch-authentication>>
 
 [[saml-no-kibana-user]]
 ==== Service Account user for accessing the APIs

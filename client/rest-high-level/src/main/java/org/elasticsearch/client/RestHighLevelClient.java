@@ -300,6 +300,10 @@ public class RestHighLevelClient implements Closeable {
         return client;
     }
 
+    public final XContentParserConfiguration getParserConfig() {
+        return parserConfig;
+    }
+
     @Override
     public final void close() throws IOException {
         doClose.accept(client);

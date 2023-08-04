@@ -1,5 +1,0 @@
-pr: 94890
-summary: Stop sorting indices in get-snapshots API
-area: Snapshot/Restore
-type: bug
-issues: []

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -68,21 +68,19 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(
-                new DiscoveryNode(
+                DiscoveryNodeUtils.create(
                     "node-1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                     Map.of(),
-                    Set.of(MASTER_ROLE, DATA_ROLE, ML_ROLE),
-                    Version.CURRENT
+                    Set.of(MASTER_ROLE, DATA_ROLE, ML_ROLE)
                 )
             )
             .add(
-                new DiscoveryNode(
+                DiscoveryNodeUtils.create(
                     "node-2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
                     Map.of(),
-                    Set.of(MASTER_ROLE, DATA_ROLE, ML_ROLE),
-                    Version.CURRENT
+                    Set.of(MASTER_ROLE, DATA_ROLE, ML_ROLE)
                 )
             )
             .build();
@@ -112,31 +110,28 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
             Set.of(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING)
         );
 
-        DiscoveryNode mlNode = new DiscoveryNode(
+        DiscoveryNode mlNode = DiscoveryNodeUtils.create(
             "node-1",
             new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
             Map.of(),
-            Set.of(ML_ROLE),
-            Version.CURRENT
+            Set.of(ML_ROLE)
         );
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(mlNode)
             .add(
-                new DiscoveryNode(
+                DiscoveryNodeUtils.create(
                     "node-2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
                     Map.of(),
-                    Set.of(MASTER_ROLE),
-                    Version.CURRENT
+                    Set.of(MASTER_ROLE)
                 )
             )
             .add(
-                new DiscoveryNode(
+                DiscoveryNodeUtils.create(
                     "node-3",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9202),
                     Map.of(),
-                    Set.of(DATA_ROLE),
-                    Version.CURRENT
+                    Set.of(DATA_ROLE)
                 )
             )
             .build();
@@ -173,12 +168,11 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
         int numZones = randomIntBetween(1, Math.min(numNodes, 3));
         for (int nodeNum = 1; nodeNum <= numNodes; ++nodeNum) {
             discoveryNodesBuilder.add(
-                new DiscoveryNode(
+                DiscoveryNodeUtils.create(
                     "node-" + nodeNum,
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9299 + nodeNum),
                     Map.of("region", "unknown-region", "logical_availability_zone", "zone-" + (nodeNum % numZones)),
-                    Set.of(MASTER_ROLE, DATA_ROLE, ML_ROLE),
-                    Version.CURRENT
+                    Set.of(MASTER_ROLE, DATA_ROLE, ML_ROLE)
                 )
             );
         }
@@ -239,12 +233,11 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
         for (int nodeNum = 1; nodeNum <= numNodes; ++nodeNum) {
             int zone = nodeNum % numZones;
             DiscoveryNodeRole role = (zone < numMlZones) ? randomFrom(MASTER_ROLE, DATA_ROLE, ML_ROLE) : randomFrom(MASTER_ROLE, DATA_ROLE);
-            DiscoveryNode node = new DiscoveryNode(
+            DiscoveryNode node = DiscoveryNodeUtils.create(
                 "node-" + nodeNum,
                 new TransportAddress(InetAddress.getLoopbackAddress(), 9199 + nodeNum),
                 Map.of("region", "unknown-region", "logical_availability_zone", "zone-" + zone),
-                Set.of(role),
-                Version.CURRENT
+                Set.of(role)
             );
             if (role == ML_ROLE) {
                 mlNodes.add(node);

@@ -50,7 +50,7 @@ https://github.com/mapbox/vector-tile-spec[Mapbox vector tile specification].
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or alias. For cross-cluster search, see <<cross-cluster-configuring>>.
+or alias. For cross-cluster search, see <<remote-clusters-security>>.
 
 [[search-vector-tile-api-path-params]]
 ==== {api-path-parms-title}
@@ -222,13 +222,10 @@ Defaults to `5`.
 [%collapsible%open]
 ====
 `geotile` (Default)::
-<<search-aggregations-bucket-geotilegrid-aggregation,`geotile_grid`>>
-aggregation.
+<<search-aggregations-bucket-geotilegrid-aggregation,`geotile_grid`>> aggregation.
 
 `geohex`::
 <<search-aggregations-bucket-geohexgrid-aggregation,`geohex_grid`>> aggregation.
-If you specify this value, the `<field>` must be a <<geo-point,`geo_point`>>
-field.
 ====
 // end::grid-agg[]
 

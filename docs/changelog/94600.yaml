@@ -1,5 +1,0 @@
-pr: 94600
-summary: Upgrade bundled JDK to Java 20
-area: Packaging
-type: upgrade
-issues: []

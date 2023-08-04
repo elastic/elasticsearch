@@ -75,9 +75,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()));
         }
 
-        final List<String> nodeIds = client().admin()
-            .cluster()
-            .prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState()
             .get()
             .getState()
             .getRoutingNodes()
@@ -155,9 +153,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()));
         }
 
-        final List<String> nodeIds = client().admin()
-            .cluster()
-            .prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState()
             .get()
             .getState()
             .getRoutingNodes()
@@ -218,7 +214,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             )
         );
 
-        assertFalse(client().admin().cluster().prepareHealth("test").setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth("test").setWaitForEvents(Priority.LANGUID).get().isTimedOut());
 
         // Cannot add further documents
         assertBlocked(
@@ -275,9 +271,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "0ms")
         );
 
-        final List<String> nodeIds = client().admin()
-            .cluster()
-            .prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState()
             .get()
             .getState()
             .getRoutingNodes()
@@ -334,9 +328,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
 
-        final List<String> nodeIds = client().admin()
-            .cluster()
-            .prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState()
             .get()
             .getState()
             .getRoutingNodes()
@@ -410,7 +402,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             twoPathSettings.putList(Environment.PATH_DATA_SETTING.getKey(), pathOverWatermark.toString(), createTempDir().toString());
         }
         internalCluster().startNode(twoPathSettings);
-        final String nodeWithTwoPaths = client().admin().cluster().prepareNodesInfo().get().getNodes().get(0).getNode().getId();
+        final String nodeWithTwoPaths = clusterAdmin().prepareNodesInfo().get().getNodes().get(0).getNode().getId();
 
         // other two nodes have one data path each
         internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()));
@@ -432,9 +424,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "0ms")
         );
 
-        final List<String> nodeIds = client().admin()
-            .cluster()
-            .prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState()
             .get()
             .getState()
             .getRoutingNodes()
@@ -453,7 +443,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             assertThat("node2 has 2 shards", shardCountByNodeId.get(nodeIds.get(2)), equalTo(2));
         }
 
-        final long shardsOnGoodPath = Arrays.stream(client().admin().indices().prepareStats("test").get().getShards())
+        final long shardsOnGoodPath = Arrays.stream(indicesAdmin().prepareStats("test").get().getShards())
             .filter(
                 shardStats -> shardStats.getShardRouting().currentNodeId().equals(nodeWithTwoPaths)
                     && shardStats.getDataPath().startsWith(pathOverWatermark.toString()) == false
@@ -478,20 +468,20 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         logger.info("--> waiting for shards to relocate off path [{}]", pathOverWatermark);
 
         assertBusy(() -> {
-            for (final ShardStats shardStats : client().admin().indices().prepareStats("test").get().getShards()) {
+            for (final ShardStats shardStats : indicesAdmin().prepareStats("test").get().getShards()) {
                 assertThat(shardStats.getDataPath(), not(startsWith(pathOverWatermark.toString())));
             }
         });
 
         ensureGreen("test");
 
-        for (final ShardStats shardStats : client().admin().indices().prepareStats("test").get().getShards()) {
+        for (final ShardStats shardStats : indicesAdmin().prepareStats("test").get().getShards()) {
             assertThat(shardStats.getDataPath(), not(startsWith(pathOverWatermark.toString())));
         }
 
         assertThat(
             "should not have moved any shards off of the path that wasn't too full",
-            Arrays.stream(client().admin().indices().prepareStats("test").get().getShards())
+            Arrays.stream(indicesAdmin().prepareStats("test").get().getShards())
                 .filter(
                     shardStats -> shardStats.getShardRouting().currentNodeId().equals(nodeWithTwoPaths)
                         && shardStats.getDataPath().startsWith(pathOverWatermark.toString()) == false
@@ -503,7 +493,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
     private Map<String, Integer> getShardCountByNodeId() {
         final Map<String, Integer> shardCountByNodeId = new HashMap<>();
-        final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         for (final RoutingNode node : clusterState.getRoutingNodes()) {
             logger.info(
                 "----> node {} has {} shards",

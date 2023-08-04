@@ -41,20 +41,20 @@ public class StoredScriptsIT extends ESIntegTestCase {
     }
 
     public void testBasics() {
-        assertAcked(client().admin().cluster().preparePutStoredScript().setId("foobar").setContent(new BytesArray(Strings.format("""
+        assertAcked(clusterAdmin().preparePutStoredScript().setId("foobar").setContent(new BytesArray(Strings.format("""
             {"script": {"lang": "%s", "source": "1"} }
             """, LANG)), XContentType.JSON));
-        String script = client().admin().cluster().prepareGetStoredScript("foobar").get().getSource().getSource();
+        String script = clusterAdmin().prepareGetStoredScript("foobar").get().getSource().getSource();
         assertNotNull(script);
         assertEquals("1", script);
 
-        assertAcked(client().admin().cluster().prepareDeleteStoredScript("foobar"));
-        StoredScriptSource source = client().admin().cluster().prepareGetStoredScript("foobar").get().getSource();
+        assertAcked(clusterAdmin().prepareDeleteStoredScript("foobar"));
+        StoredScriptSource source = clusterAdmin().prepareGetStoredScript("foobar").get().getSource();
         assertNull(source);
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> { client().admin().cluster().preparePutStoredScript().setId("id#").setContent(new BytesArray(Strings.format("""
+            () -> { clusterAdmin().preparePutStoredScript().setId("id#").setContent(new BytesArray(Strings.format("""
                 {"script": {"lang": "%s", "source": "1"} }
                 """, LANG)), XContentType.JSON).get(); }
         );
@@ -64,7 +64,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
     public void testMaxScriptSize() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> { client().admin().cluster().preparePutStoredScript().setId("foobar").setContent(new BytesArray(Strings.format("""
+            () -> { clusterAdmin().preparePutStoredScript().setId("foobar").setContent(new BytesArray(Strings.format("""
                 {"script": { "lang": "%s", "source":"0123456789abcdef"} }\
                 """, LANG)), XContentType.JSON).get(); }
         );

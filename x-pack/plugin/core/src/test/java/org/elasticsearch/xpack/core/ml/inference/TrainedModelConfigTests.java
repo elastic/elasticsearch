@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -24,6 +23,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocationTests;
@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -93,7 +94,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             .setInput(TrainedModelInputTests.createRandomInput())
             .setMetadata(randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)))
             .setCreateTime(Instant.ofEpochMilli(randomLongBetween(Instant.MIN.getEpochSecond(), Instant.MAX.getEpochSecond())))
-            .setVersion(Version.CURRENT)
+            .setVersion(MlConfigVersion.CURRENT)
             .setModelId(modelId)
             .setModelType(randomFrom(TrainedModelType.values()))
             .setCreatedBy(randomAlphaOfLength(10))
@@ -173,7 +174,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             randomAlphaOfLength(10),
             TrainedModelType.TREE_ENSEMBLE,
             randomAlphaOfLength(10),
-            Version.CURRENT,
+            MlConfigVersion.CURRENT,
             randomBoolean() ? null : randomAlphaOfLength(100),
             Instant.ofEpochMilli(randomNonNegativeLong()),
             lazyModelDefinition,
@@ -223,7 +224,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             randomAlphaOfLength(10),
             TrainedModelType.TREE_ENSEMBLE,
             randomAlphaOfLength(10),
-            Version.CURRENT,
+            MlConfigVersion.CURRENT,
             randomBoolean() ? null : randomAlphaOfLength(100),
             Instant.ofEpochMilli(randomNonNegativeLong()),
             lazyModelDefinition,
@@ -325,7 +326,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             ActionRequestValidationException.class,
             () -> TrainedModelConfig.builder()
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
-                .setVersion(Version.CURRENT)
+                .setVersion(MlConfigVersion.CURRENT)
                 .setModelId(modelId)
                 .validate(true)
         );
@@ -400,7 +401,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
     }
 
     public void testValidatePackagedModelRequiredFields() {
-        String modelId = "." + randomAlphaOfLength(20);
+        String modelId = "." + randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
 
         TrainedModelConfig.Builder builder = TrainedModelConfig.builder().setModelId(modelId);
 

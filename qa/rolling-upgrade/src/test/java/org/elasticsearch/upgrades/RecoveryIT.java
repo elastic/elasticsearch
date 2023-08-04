@@ -480,40 +480,31 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 indexName,
                 Settings.builder()
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                     .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-                    .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "120s")
+                    .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "24h")
                     .put("index.routing.allocation.include._name", CLUSTER_NAME + "-0")
                     .build()
             );
+            ensureGreen(indexName);
             indexDocs(indexName, 0, randomInt(10));
-            // allocate replica to node-2
             updateIndexSettings(
                 indexName,
                 Settings.builder()
-                    .put("index.routing.allocation.include._name", CLUSTER_NAME + "-0," + CLUSTER_NAME + "-2," + CLUSTER_NAME + "-*")
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    .putNull("index.routing.allocation.include._name")
             );
             ensureGreen(indexName);
             closeIndex(indexName);
         }
 
-        final Version indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(Version.V_7_2_0)) {
-            // index was created on a version that supports the replication of closed indices,
-            // so we expect the index to be closed and replicated
+        if (indexVersionCreated(indexName).onOrAfter(Version.V_7_2_0)) {
+            // index was created on a version that supports the replication of closed indices, so we expect it to be closed and replicated
+            assertTrue(minimumNodeVersion().onOrAfter(Version.V_7_2_0));
             ensureGreen(indexName);
             assertClosedIndex(indexName, true);
-            if (minimumNodeVersion().onOrAfter(Version.V_7_2_0)) {
-                switch (CLUSTER_TYPE) {
-                    case OLD:
-                        break;
-                    case MIXED:
-                        assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME + "-0"));
-                        break;
-                    case UPGRADED:
-                        assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME));
-                        break;
-                }
+            if (CLUSTER_TYPE != ClusterType.OLD) {
+                assertNoopRecoveries(indexName, s -> CLUSTER_TYPE == ClusterType.UPGRADED || s.startsWith(CLUSTER_NAME + "-0"));
             }
         } else {
             assertClosedIndex(indexName, false);

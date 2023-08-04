@@ -10,6 +10,7 @@ package org.elasticsearch.client.asyncsearch;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -133,7 +134,7 @@ public class AsyncSearchResponse implements ToXContentObject {
 
         if (searchResponse != null) {
             builder.field("response");
-            searchResponse.toXContent(builder, params);
+            ChunkedToXContent.wrapAsToXContent(searchResponse).toXContent(builder, params);
         }
         if (error != null) {
             builder.startObject("error");

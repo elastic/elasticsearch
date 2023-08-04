@@ -62,7 +62,7 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
         assertBusy(() -> {
             // Wait for the task to start
             assertThat(
-                client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
+                clusterAdmin().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
                 greaterThan(0)
             );
         });
@@ -83,7 +83,7 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
         assertBusy(() -> {
             // Wait for all tasks to start
             assertThat(
-                client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
+                clusterAdmin().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
                 equalTo(numberOfTasks)
             );
         });

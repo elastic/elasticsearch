@@ -21,21 +21,27 @@ import java.util.List;
  * - collect()
  * - doSetNextReader()
  * - needsScores()
- *
+ * <p>
  * InternalProfiler facilitates the linking of the Collector graph
  */
 public class InternalProfileCollector extends ProfilerCollector {
 
     private final InternalProfileCollector[] children;
+    private final Collector wrappedCollector;
 
     public InternalProfileCollector(Collector collector, String reason, InternalProfileCollector... children) {
         super(collector, reason, Arrays.asList(children));
+        this.wrappedCollector = collector;
         this.children = children;
+    }
+
+    public Collector getWrappedCollector() {
+        return wrappedCollector;
     }
 
     /**
      * Creates a human-friendly representation of the Collector name.
-     *
+     * <p>
      * InternalBucket Collectors use the aggregation name in their toString() method,
      * which makes the profiled output a bit nicer.
      *
@@ -46,7 +52,7 @@ public class InternalProfileCollector extends ProfilerCollector {
     protected String deriveCollectorName(Collector c) {
         String s = c.getClass().getSimpleName();
 
-        // MutiCollector which wraps multiple BucketCollectors is generated
+        // MultiCollector which wraps multiple BucketCollectors is generated
         // via an anonymous class, so this corrects the lack of a name by
         // asking the enclosingClass
         if (s.equals("")) {

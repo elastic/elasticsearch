@@ -1,0 +1,240 @@
+[role="xpack"]
+[[security-api-create-cross-cluster-api-key]]
+=== Create Cross-Cluster API key API
+
+++++
+<titleabbrev>Create Cross-Cluster API key API</titleabbrev>
+++++
+
+Creates an API key of the `cross_cluster` type for the API key based remote cluster access.
+A `cross_cluster` API key cannot be used to authenticate through the REST interface.
+On the contrary, a <<security-api-create-api-key,REST API key>> is meant to be used through the REST interface
+and cannot be used for the API key based remote cluster access.
+
+[[security-api-create-cross-cluster-api-key-request]]
+==== {api-request-title}
+
+`POST /_security/cross_cluster/api_key`
+
+[[security-api-create-cross-cluster-api-key-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_security` cluster privilege.
+
+IMPORTANT: To authenticate this request you must use a credential that is *not* an API key. Even if you use an API key that has the required privilege, the API returns an error.
+
+[[security-api-create-cross-cluster-api-key-desc]]
+==== {api-description-title}
+
+Cross-cluster API keys are created by the {es} API key service, which is automatically enabled.
+For instructions on disabling the API key service, refer to <<api-key-service-settings>>.
+
+A successful request returns a JSON structure that contains the
+API key, its unique ID, and its name. If applicable, it also returns expiration
+information for the API key in milliseconds.
+
+NOTE: By default, API keys never expire. You can specify expiration information
+when you create the API keys.
+
+Refer to <<api-key-service-settings>> for configuration settings related to API key
+service.
+
+Cross-cluster API keys can only be updated with the
+<<security-api-update-cross-cluster-api-key,Update Cross-Cluster API key API>>.
+Attempting to update them with the <<security-api-update-api-key,Update REST API key API>>
+or the <<security-api-bulk-update-api-keys,Bulk Update REST API Keys API>> will result
+into an error. They can be retrieved and invalidated using
+<<security-api-get-api-key,Get API keys API>>, <<security-api-query-api-key,Query API keys API>>
+and <<security-api-invalidate-api-key,Invalidate API keys API>>.
+
+
+[[security-api-create-cross-cluster-api-key-request-body]]
+==== {api-request-body-title}
+
+The following parameters can be specified in the body of a POST request:
+
+`name`::
+(Required, string) Specifies the name for this API key.
+
+[[cross-cluster-api-key-access]]
+`access`::
+(required, object) The access to be granted to this API key. The access is
+composed of permissions for cross-cluster search and cross-cluster replication.
+At least one of them must be specified.
+`search`::: (optional, list) A list of indices permission entries for cross-cluster search.
+`names`:::: (required, list) A list of indices or name patterns to which the
+permissions in this entry apply.
+`field_security`:::: (optional, object) The document fields that the owners of the role have
+read access to. For more information, check <<field-and-document-access-control>>.
+`query`:::: (optional) A search query that defines the documents the owners of the role have
+read access to. A document within the specified indices must match this query to be accessible by the owners of the role. For more information, check
+<<field-and-document-access-control>>.
+`allow_restricted_indices`:::: (optional, boolean) This needs to be set to `true` (default
+is `false`) if the patterns in the `names` field should cover <<system-indices,system indices>>.
+`replication`::: (optional, list) A list of indices permission entries for cross-cluster replication.
+`names`:::: (required, list) A list of indices or name patterns to which the
+permissions in this entry apply.
+
+NOTE: No explicit <<security-privileges,privileges>> should be specified for either search
+or replication access. The creation process automatically converts the `access` specification
+to a role descriptor which has relevant privileges assigned accordingly.
+
+NOTE: Unlike <<api-key-role-descriptors,REST API keys>>, a cross-cluster API key
+does not capture permissions of the authenticated user. The API key's effective
+permission is exactly as specified with the `access` parameter.
+
+`expiration`::
+(optional, string) Expiration time for the API key. By default, API keys never
+expire.
+
+`metadata`::
+(optional, object) Arbitrary metadata that you want to associate with the API key.
+It supports nested data structure.
+Within the `metadata` object, keys beginning with `_` are reserved for
+system usage.
+
+[[security-api-create-cross-cluster-api-key-example]]
+==== {api-examples-title}
+
+The following example creates a cross-cluster API key:
+
+[source,console]
+----
+POST /_security/cross_cluster/api_key
+{
+  "name": "my-cross-cluster-api-key",
+  "expiration": "1d",   <1>
+  "access": {
+    "search": [  <2>
+      {
+        "names": ["logs*"]
+      }
+    ],
+    "replication": [  <3>
+      {
+        "names": ["archive*"]
+      }
+    ]
+  },
+  "metadata": {
+    "description": "phase one",
+    "environment": {
+       "level": 1,
+       "trusted": true,
+       "tags": ["dev", "staging"]
+    }
+  }
+}
+----
+<1> Optional expiration for the API key being generated. If expiration is not
+provided then the API key does not expire.
+<2> Cross-cluster search access to be granted to the API key.
+<3> Cross-cluster replication access to be granted to the API key.
+
+A successful call returns a JSON structure that provides API key information.
+
+[source,console-result]
+----
+{
+  "id": "VuaCfGcBCdbkQm-e5aOx",        <1>
+  "name": "my-cross-cluster-api-key",
+  "expiration": 1544068612110,         <2>
+  "api_key": "ui2lp2axTNmsyakw9tvNnw", <3>
+  "encoded": "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw=="  <4>
+}
+----
+// TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
+// TESTRESPONSE[s/1544068612110/$body.expiration/]
+// TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
+// TESTRESPONSE[s/VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==/$body.encoded/]
+<1> Unique `id` for this API key
+<2> Optional expiration in milliseconds for this API key
+<3> Generated API key secret
+<4> API key credentials which is the Base64-encoding of the UTF-8
+representation of the `id` and `api_key` joined by a colon (`:`)
+
+The API key information can be retrieved with the <<security-api-get-api-key,Get API key API>>.
+
+[source,console]
+--------------------------------------------------
+GET /_security/api_key?id=VuaCfGcBCdbkQm-e5aOx
+--------------------------------------------------
+// TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
+// TEST[continued]
+
+A successful call returns a JSON structure that contains the information of the API key:
+
+[source,js]
+--------------------------------------------------
+{
+  "api_keys": [
+    {
+      "id": "VuaCfGcBCdbkQm-e5aOx", <1>
+      "name": "my-cross-cluster-api-key", <2>
+      "type": "cross_cluster", <3>
+      "creation": 1548550550158,
+      "expiration": 1548551550158,
+      "invalidated": false,
+      "username": "myuser",
+      "realm": "native1",
+      "metadata": {
+        "description": "phase one",
+          "environment": {
+             "level": 1,
+             "trusted": true,
+             "tags": ["dev", "staging"]
+          }
+      },
+      "role_descriptors": {  <4>
+        "cross_cluster": {
+          "cluster": [  <5>
+              "cross_cluster_search", "cross_cluster_replication"
+          ],
+          "indices": [
+            {  <6>
+              "names": [
+                "logs*"
+              ],
+              "privileges": [
+                "read", "read_cross_cluster", "view_index_metadata"
+              ],
+              "allow_restricted_indices": false
+            },
+            {  <7>
+              "names": [
+                "archive*"
+              ],
+              "privileges": [
+                "cross_cluster_replication", "cross_cluster_replication_internal"
+              ],
+              "allow_restricted_indices": false
+            }
+          ],
+          "applications": [ ],
+          "run_as": [ ],
+          "metadata": { },
+          "transient_metadata": {
+            "enabled": true
+          }
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> ID for the API key
+<2> Name of the API key
+<3> Type of the API key
+<4> The role descriptors generated for the cross-cluster API key. It always
+contains exactly one role descriptor named `cross_cluster`.
+A cross-cluster API key has no limited-by role descriptors.
+<5> The cluster privileges necessary for the required cross-cluster access.
+The value is `cross_cluster_search` if only cross-cluster search is required.
+It is `cross_cluster_replication` if only cross-cluster replication is required.
+Or both, if search and replication are required.
+<6> The indices privileges corresponding to the required cross-cluster search access.
+<7> The indices privileges corresponding to the required cross-cluster replication access.
+
+
+To use the generated API key, configure it as the cluster credential as part of an API key based remote cluster configuration.

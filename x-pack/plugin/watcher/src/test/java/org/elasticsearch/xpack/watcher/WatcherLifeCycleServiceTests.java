@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
@@ -109,13 +111,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
     public void testStartWithStateNotRecoveredBlock() {
         DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().add(
-            new DiscoveryNode(
-                "id1",
-                ESTestCase.buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                new HashSet<>(DiscoveryNodeRole.roles()),
-                Version.CURRENT
-            )
+            DiscoveryNodeUtils.builder("id1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build()
         ).masterNodeId("id1").localNodeId("id1");
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
@@ -151,7 +147,8 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             TestShardRouting.newShardRouting(new ShardId(index, 0), "node_1", true, ShardRoutingState.STARTED)
         );
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(Watch.INDEX)
-            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)) // the internal index format, required
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)) // the internal index format,
+                                                                                                            // required
             .numberOfShards(1)
             .numberOfReplicas(0);
         Metadata.Builder metadataBuilder = Metadata.builder()
@@ -208,7 +205,8 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             TestShardRouting.newShardRouting(new ShardId(index, 0), "node_1", true, ShardRoutingState.STARTED)
         );
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(Watch.INDEX)
-            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)) // the internal index format, required
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)) // the internal index format,
+                                                                                                            // required
             .numberOfShards(1)
             .numberOfReplicas(0);
         Metadata.Builder metadataBuilder = Metadata.builder()
@@ -270,7 +268,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .add(newNode("node_2"))
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder(Watch.INDEX)
-            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6))
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6))
             .build();
 
         IndexRoutingTable watchRoutingTable = IndexRoutingTable.builder(watchIndex)
@@ -339,7 +337,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .build();
 
         IndexMetadata indexMetadata = IndexMetadata.builder(Watch.INDEX)
-            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6))
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6))
             .build();
 
         ClusterState stateWithPrimaryShard = ClusterState.builder(new ClusterName("my-cluster"))
@@ -398,31 +396,16 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "node2", true, STARTED);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting);
 
-        DiscoveryNode node1 = new DiscoveryNode(
-            "node_1",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(asList(randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE))),
-            Version.CURRENT
-        );
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1")
+            .roles(new HashSet<>(asList(randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE))))
+            .build();
 
-        DiscoveryNode node2 = new DiscoveryNode(
-            "node_2",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE)),
-            Version.CURRENT
-        );
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2").roles(new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE))).build();
 
-        DiscoveryNode node3 = new DiscoveryNode(
-            "node_3",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE)),
-            Version.CURRENT
-        );
+        DiscoveryNode node3 = DiscoveryNodeUtils.builder("node_3").roles(new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE))).build();
 
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(Watch.INDEX).settings(indexSettings(Version.CURRENT, 1, 0));
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(Watch.INDEX)
+            .settings(indexSettings(IndexVersion.current(), 1, 0));
 
         ClusterState previousState = ClusterState.builder(new ClusterName("my-cluster"))
             .metadata(Metadata.builder().put(indexMetadataBuilder))
@@ -430,7 +413,8 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
             .build();
 
-        IndexMetadata.Builder newIndexMetadataBuilder = IndexMetadata.builder(Watch.INDEX).settings(indexSettings(Version.CURRENT, 1, 1));
+        IndexMetadata.Builder newIndexMetadataBuilder = IndexMetadata.builder(Watch.INDEX)
+            .settings(indexSettings(IndexVersion.current(), 1, 1));
 
         ShardRouting replicaShardRouting = TestShardRouting.newShardRouting(shardId, "node3", false, STARTED);
         IndexRoutingTable.Builder newRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting).addShard(replicaShardRouting);
@@ -454,7 +438,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         DiscoveryNodes nodes = new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")).build();
 
         IndexMetadata.Builder newIndexMetadataBuilder = IndexMetadata.builder(Watch.INDEX)
-            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6));
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6));
 
         ClusterState clusterStateWithWatcherIndex = ClusterState.builder(new ClusterName("my-cluster"))
             .nodes(nodes)
@@ -520,15 +504,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .nodes(
                 new DiscoveryNodes.Builder().masterNodeId("node_1")
                     .localNodeId("node_1")
-                    .add(
-                        new DiscoveryNode(
-                            "node_1",
-                            ESTestCase.buildNewFakeTransportAddress(),
-                            Collections.emptyMap(),
-                            new HashSet<>(roles),
-                            Version.CURRENT
-                        )
-                    )
+                    .add(DiscoveryNodeUtils.builder("node_1").roles(new HashSet<>(roles)).build())
             )
             .build();
 
@@ -571,7 +547,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .build();
 
         IndexMetadata indexMetadata = IndexMetadata.builder(Watch.INDEX)
-            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6))
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6))
             .build();
 
         ClusterState previousState = ClusterState.builder(new ClusterName("my-cluster"))
@@ -612,7 +588,8 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             TestShardRouting.newShardRouting(new ShardId(index, 0), "node_1", true, ShardRoutingState.STARTED)
         );
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(Watch.INDEX)
-            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)) // the internal index format, required
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)) // the internal index format,
+                                                                                                            // required
             .numberOfShards(1)
             .numberOfReplicas(0);
         Metadata metadata = Metadata.builder()
@@ -649,12 +626,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeName, Version version) {
-        return new DiscoveryNode(
-            nodeName,
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            version
-        );
+        return DiscoveryNodeUtils.builder(nodeName).version(version).build();
     }
 }

@@ -38,6 +38,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private final Map<String, Resource> keystoreFiles = new HashMap<>();
     private final Map<String, Resource> extraConfigFiles = new HashMap<>();
     private final Map<String, String> systemProperties = new HashMap<>();
+    private final List<String> jvmArgs = new ArrayList<>();
     private final Map<String, String> secrets = new HashMap<>();
     private DistributionType distributionType;
     private Version version;
@@ -93,6 +94,12 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     @Override
     public T environment(String key, String value) {
         this.environment.put(key, value);
+        return cast(this);
+    }
+
+    @Override
+    public T environment(String key, Supplier<String> supplier) {
+        this.environmentProviders.add(s -> Map.of(key, supplier.get()));
         return cast(this);
     }
 
@@ -172,6 +179,12 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
         return cast(this);
     }
 
+    @Override
+    public T keystore(SettingsProvider settingsProvider) {
+        this.keystoreProviders.add(settingsProvider);
+        return cast(this);
+    }
+
     public List<SettingsProvider> getKeystoreProviders() {
         return inherit(() -> parent.getKeystoreProviders(), keystoreProviders);
     }
@@ -204,6 +217,16 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
 
     public Map<String, String> getSystemProperties() {
         return inherit(() -> parent.getSystemProperties(), systemProperties);
+    }
+
+    @Override
+    public T jvmArg(String arg) {
+        this.jvmArgs.add(arg);
+        return cast(this);
+    }
+
+    public List<String> getJvmArgs() {
+        return inherit(() -> parent.getJvmArgs(), jvmArgs);
     }
 
     @Override

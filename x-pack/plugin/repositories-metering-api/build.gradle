@@ -7,7 +7,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.repositories.metering.RepositoriesMeteringPlugin'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-repositories-metering-api'
+base {
+  archivesName = 'x-pack-repositories-metering-api'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

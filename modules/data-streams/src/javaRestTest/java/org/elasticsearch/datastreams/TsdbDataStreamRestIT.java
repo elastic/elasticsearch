@@ -11,7 +11,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.Before;
 
@@ -19,7 +18,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -34,7 +32,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TsdbDataStreamRestIT extends ESRestTestCase {
+public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
 
     private static final String COMPONENT_TEMPLATE = """
         {
@@ -213,77 +211,19 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
     }
 
     public void testTsdbDataStreams() throws Exception {
-        var bulkRequest = new Request("POST", "/k8s/_bulk");
-        bulkRequest.setJsonEntity(BULK.replace("$now", formatInstant(Instant.now())));
-        bulkRequest.addParameter("refresh", "true");
-        var response = client().performRequest(bulkRequest);
-        assertOK(response);
-        var responseBody = entityAsMap(response);
-        assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
-
-        var getDataStreamsRequest = new Request("GET", "/_data_stream");
-        response = client().performRequest(getDataStreamsRequest);
-        assertOK(response);
-        var dataStreams = entityAsMap(response);
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams"), hasSize(1));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo("k8s"));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(1));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.template"), equalTo("1"));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(1));
-        String firstBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.0.index_name");
-        assertThat(firstBackingIndex, backingIndexEqualTo("k8s", 1));
-
-        var indices = getIndex(firstBackingIndex);
-        var escapedBackingIndex = firstBackingIndex.replace(".", "\\.");
-        assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo("k8s"));
-        assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.mode"), equalTo("time_series"));
-        String startTimeFirstBackingIndex = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time");
-        assertThat(startTimeFirstBackingIndex, notNullValue());
-        String endTimeFirstBackingIndex = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time");
-        assertThat(endTimeFirstBackingIndex, notNullValue());
-        List<?> routingPaths = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.routing_path");
-        assertThat(routingPaths, containsInAnyOrder("metricset", "k8s.pod.uid", "pod.labels.*"));
-
-        var rolloverRequest = new Request("POST", "/k8s/_rollover");
-        assertOK(client().performRequest(rolloverRequest));
-
-        response = client().performRequest(getDataStreamsRequest);
-        assertOK(response);
-        dataStreams = entityAsMap(response);
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo("k8s"));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(2));
-        String secondBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.1.index_name");
-        assertThat(secondBackingIndex, backingIndexEqualTo("k8s", 2));
-
-        indices = getIndex(secondBackingIndex);
-        escapedBackingIndex = secondBackingIndex.replace(".", "\\.");
-        assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo("k8s"));
-        String startTimeSecondBackingIndex = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time");
-        assertThat(startTimeSecondBackingIndex, equalTo(endTimeFirstBackingIndex));
-        String endTimeSecondBackingIndex = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time");
-        assertThat(endTimeSecondBackingIndex, notNullValue());
-
-        var indexRequest = new Request("POST", "/k8s/_doc");
-        Instant time = parseInstant(startTimeFirstBackingIndex);
-        indexRequest.setJsonEntity(DOC.replace("$time", formatInstant(time)));
-        response = client().performRequest(indexRequest);
-        assertOK(response);
-        assertThat(entityAsMap(response).get("_index"), equalTo(firstBackingIndex));
-
-        indexRequest = new Request("POST", "/k8s/_doc");
-        time = parseInstant(endTimeSecondBackingIndex).minusMillis(1);
-        indexRequest.setJsonEntity(DOC.replace("$time", formatInstant(time)));
-        response = client().performRequest(indexRequest);
-        assertOK(response);
-        assertThat(entityAsMap(response).get("_index"), equalTo(secondBackingIndex));
+        assertTsdbDataStream();
     }
 
     public void testTsdbDataStreamsNanos() throws Exception {
-        // Create a template
+        // Overwrite template to use date_nanos field type:
         var putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
         putComposableIndexTemplateRequest.setJsonEntity(TEMPLATE.replace("date", "date_nanos"));
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
+        assertTsdbDataStream();
+    }
+
+    private void assertTsdbDataStream() throws IOException {
         var bulkRequest = new Request("POST", "/k8s/_bulk");
         bulkRequest.setJsonEntity(BULK.replace("$now", formatInstantNanos(Instant.now())));
         bulkRequest.addParameter("refresh", "true");
@@ -333,6 +273,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         assertThat(endTimeSecondBackingIndex, notNullValue());
 
         var indexRequest = new Request("POST", "/k8s/_doc");
+        indexRequest.addParameter("refresh", "true");
         Instant time = parseInstant(startTimeFirstBackingIndex);
         indexRequest.setJsonEntity(DOC.replace("$time", formatInstantNanos(time)));
         response = client().performRequest(indexRequest);
@@ -340,11 +281,45 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         assertThat(entityAsMap(response).get("_index"), equalTo(firstBackingIndex));
 
         indexRequest = new Request("POST", "/k8s/_doc");
+        indexRequest.addParameter("refresh", "true");
         time = parseInstant(endTimeSecondBackingIndex).minusMillis(1);
         indexRequest.setJsonEntity(DOC.replace("$time", formatInstantNanos(time)));
         response = client().performRequest(indexRequest);
         assertOK(response);
         assertThat(entityAsMap(response).get("_index"), equalTo(secondBackingIndex));
+
+        var searchRequest = new Request("GET", "k8s/_search");
+        searchRequest.setJsonEntity("""
+            {
+                "query": {
+                    "range":{
+                        "@timestamp":{
+                            "gte": "now-7d",
+                            "lte": "now+7d"
+                        }
+                    }
+                },
+                "sort": [
+                    {
+                        "@timestamp": {
+                            "order": "desc"
+                        }
+                    }
+                ]
+            }
+            """);
+        response = client().performRequest(searchRequest);
+        assertOK(response);
+        responseBody = entityAsMap(response);
+        try {
+            assertThat(ObjectPath.evaluate(responseBody, "hits.total.value"), equalTo(10));
+            assertThat(ObjectPath.evaluate(responseBody, "hits.total.relation"), equalTo("eq"));
+            assertThat(ObjectPath.evaluate(responseBody, "hits.hits.0._index"), equalTo(secondBackingIndex));
+            assertThat(ObjectPath.evaluate(responseBody, "hits.hits.1._index"), equalTo(firstBackingIndex));
+        } catch (Exception | AssertionError e) {
+            logger.error("search response body causing assertion error [" + responseBody + "]", e);
+            throw e;
+        }
     }
 
     public void testSimulateTsdbDataStreamTemplate() throws Exception {

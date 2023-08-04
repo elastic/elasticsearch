@@ -17,21 +17,17 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.MinimumScoreCollector;
-import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.util.concurrent.EWMATrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchContextSourcePrinter;
@@ -40,9 +36,8 @@ import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.Profilers;
-import org.elasticsearch.search.profile.query.InternalProfileCollector;
-import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
+import org.elasticsearch.search.profile.query.CollectorResult;
+import org.elasticsearch.search.profile.query.ProfileCollectorManager;
 import org.elasticsearch.search.rank.RankSearchContext;
 import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rescore.RescorePhase;
@@ -52,15 +47,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
-import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MIN_SCORE;
-import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MULTI;
-import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_POST_FILTER;
-import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_TERMINATE_AFTER_COUNT;
+import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_QUERY_PHASE;
 import static org.elasticsearch.search.query.TopDocsCollectorManagerFactory.createTopDocsCollectorFactory;
 
 /**
@@ -102,7 +93,7 @@ public class QueryPhase {
         long serviceTimeEWMA = querySearchResult.serviceTimeEWMA();
         int nodeQueueSize = querySearchResult.nodeQueueSize();
 
-        // run each of the rrf queries
+        // run each of the rank queries
         for (Query rankQuery : rankShardContext.queries()) {
             // if a search timeout occurs, exit with partial results
             if (searchTimedOut) {
@@ -193,99 +184,73 @@ public class QueryPhase {
                 }
             }
 
-            // create the top docs collector last when the other collectors are known
             final TopDocsCollectorManagerFactory topDocsFactory = createTopDocsCollectorFactory(
                 searchContext,
                 searchContext.parsedPostFilter() != null || searchContext.minimumScore() != null
             );
-
-            CollectorManager<Collector, Void> collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
-                searchContext.getProfilers(),
-                topDocsFactory.collectorManager(),
-                topDocsFactory.profilerName
-            );
-
-            if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
-                // add terminate_after before the filter collectors
-                // it will only be applied on documents accepted by these filter collectors
-                EarlyTerminatingCollector earlyTerminatingCollector = new EarlyTerminatingCollector(
-                    EMPTY_COLLECTOR,
-                    searchContext.terminateAfter(),
-                    true
-                );
-                final Collector collector = collectorManager.newCollector();
-                collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
-                    searchContext.getProfilers(),
-                    new SingleThreadCollectorManager(MultiCollector.wrap(earlyTerminatingCollector, collector)),
-                    REASON_SEARCH_TERMINATE_AFTER_COUNT,
-                    collector
-                );
+            CollectorManager<? extends Collector, Void> topDocsCollectorManager = topDocsFactory.collectorManager();
+            ProfileCollectorManager<Void> topDocsProfileCollectorManager = null;
+            if (searchContext.getProfilers() != null) {
+                topDocsProfileCollectorManager = new ProfileCollectorManager<>(topDocsCollectorManager, topDocsFactory.profilerName);
+                topDocsCollectorManager = topDocsProfileCollectorManager;
             }
+
+            CollectorManager<? extends Collector, Void> aggsCollectorManager = null;
+            ProfileCollectorManager<Void> aggsProfileCollectorManager = null;
+            if (searchContext.aggregations() != null) {
+                aggsCollectorManager = searchContext.aggregations().getAggsCollectorManager();
+                if (searchContext.getProfilers() != null) {
+                    aggsProfileCollectorManager = new ProfileCollectorManager<>(aggsCollectorManager, CollectorResult.REASON_AGGREGATION);
+                    aggsCollectorManager = aggsProfileCollectorManager;
+                }
+            }
+
+            Weight postFilterWeight = null;
             if (searchContext.parsedPostFilter() != null) {
-                // add post filters before aggregations
-                // it will only be applied to top hits
-                final Weight filterWeight = searcher.createWeight(
+                postFilterWeight = searcher.createWeight(
                     searcher.rewrite(searchContext.parsedPostFilter().query()),
                     ScoreMode.COMPLETE_NO_SCORES,
                     1f
                 );
-                final Collector collector = collectorManager.newCollector();
-                collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
-                    searchContext.getProfilers(),
-                    new SingleThreadCollectorManager(new FilteredCollector(collector, filterWeight)),
-                    REASON_SEARCH_POST_FILTER,
-                    collector
-                );
-            }
-            if (searchContext.getAggsCollectorManager() != null) {
-                final Collector collector = collectorManager.newCollector();
-                final Collector aggsCollector = searchContext.getAggsCollectorManager().newCollector();
-                collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
-                    searchContext.getProfilers(),
-                    new SingleThreadCollectorManager(MultiCollector.wrap(collector, aggsCollector)),
-                    REASON_SEARCH_MULTI,
-                    collector,
-                    aggsCollector
-                );
-            }
-            if (searchContext.minimumScore() != null) {
-                final Collector collector = collectorManager.newCollector();
-                // apply the minimum score after multi collector so we filter aggs as well
-                collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
-                    searchContext.getProfilers(),
-                    new SingleThreadCollectorManager(new MinimumScoreCollector(collector, searchContext.minimumScore())),
-                    REASON_SEARCH_MIN_SCORE,
-                    collector
-                );
             }
 
-            boolean timeoutSet = scrollContext == null
-                && searchContext.timeout() != null
-                && searchContext.timeout().equals(SearchService.NO_TIMEOUT) == false;
-
-            final Runnable timeoutRunnable;
-            if (timeoutSet) {
-                final long startTime = searchContext.getRelativeTimeInMillis();
-                final long timeout = searchContext.timeout().millis();
-                final long maxTime = startTime + timeout;
-                timeoutRunnable = searcher.addQueryCancellation(() -> {
-                    final long time = searchContext.getRelativeTimeInMillis();
-                    if (time > maxTime) {
-                        throw new TimeExceededException();
-                    }
-                });
+            QueryPhaseCollector.CollectorManager queryPhaseCollectorManager = QueryPhaseCollector.createManager(
+                topDocsCollectorManager,
+                postFilterWeight,
+                searchContext.terminateAfter(),
+                aggsCollectorManager,
+                searchContext.minimumScore()
+            );
+            final CollectorManager<? extends Collector, Void> collectorManager;
+            if (searchContext.getProfilers() == null) {
+                collectorManager = queryPhaseCollectorManager;
             } else {
-                timeoutRunnable = null;
+                ProfileCollectorManager<Void> queryPhaseProfileManager = new ProfileCollectorManager<>(
+                    queryPhaseCollectorManager,
+                    REASON_SEARCH_QUERY_PHASE,
+                    topDocsProfileCollectorManager,
+                    aggsProfileCollectorManager
+                );
+                searchContext.getProfilers().getCurrentQueryProfiler().setCollectorManager(queryPhaseProfileManager::getCollectorTree);
+                collectorManager = queryPhaseProfileManager;
+            }
+
+            final Runnable timeoutRunnable = getTimeoutCheck(searchContext);
+            if (timeoutRunnable != null) {
+                searcher.addQueryCancellation(timeoutRunnable);
             }
 
             try {
-                searchWithCollectorManager(searchContext, searcher, query, collectorManager, timeoutSet);
+                searchWithCollectorManager(searchContext, searcher, query, collectorManager, timeoutRunnable != null);
+                if (queryPhaseCollectorManager.isTerminatedAfter()) {
+                    queryResult.terminatedEarly(true);
+                }
                 queryResult.topDocs(topDocsFactory.topDocsAndMaxScore(), topDocsFactory.sortValueFormats);
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-                assert executor instanceof EWMATrackingEsThreadPoolExecutor
+                assert executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor
                     || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
                     : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
-                if (executor instanceof EWMATrackingEsThreadPoolExecutor rExecutor) {
+                if (executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor rExecutor) {
                     queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }
@@ -301,42 +266,18 @@ public class QueryPhase {
         }
     }
 
-    private static CollectorManager<Collector, Void> wrapWithProfilerCollectorManagerIfNeeded(
-        Profilers profilers,
-        CollectorManager<Collector, Void> collectorManager,
-        String profilerName,
-        Collector... children
-    ) throws IOException {
-        if (profilers == null) {
-            return collectorManager;
-        }
-        InternalProfileCollector[] childProfileCollectors = Arrays.stream(children)
-            .map(c -> (InternalProfileCollector) c)
-            .toArray(InternalProfileCollector[]::new);
-        return new InternalProfileCollectorManager(
-            new InternalProfileCollector(collectorManager.newCollector(), profilerName, childProfileCollectors)
-        );
-    }
-
     private static void searchWithCollectorManager(
         SearchContext searchContext,
         ContextIndexSearcher searcher,
         Query query,
-        CollectorManager<Collector, Void> collectorManager,
+        CollectorManager<? extends Collector, Void> collectorManager,
         boolean timeoutSet
     ) throws IOException {
-        if (searchContext.getProfilers() != null) {
-            searchContext.getProfilers().getCurrentQueryProfiler().setCollectorManager((InternalProfileCollectorManager) collectorManager);
-        }
         QuerySearchResult queryResult = searchContext.queryResult();
-        try {
-            searcher.search(query, collectorManager);
-        } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
-            queryResult.terminatedEarly(true);
-        } catch (TimeExceededException e) {
+        searcher.search(query, collectorManager);
+        if (searcher.timeExceeded()) {
             assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
             if (searchContext.request().allowPartialSearchResults() == false) {
-                // Can't rethrow TimeExceededException because not serializable
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
             queryResult.searchTimedOut(true);
@@ -364,15 +305,23 @@ public class QueryPhase {
         return true;
     }
 
-    public static class TimeExceededException extends RuntimeException {}
+    public static Runnable getTimeoutCheck(SearchContext searchContext) {
+        boolean timeoutSet = searchContext.scrollContext() == null
+            && searchContext.timeout() != null
+            && searchContext.timeout().equals(SearchService.NO_TIMEOUT) == false;
 
-    private static final Collector EMPTY_COLLECTOR = new SimpleCollector() {
-        @Override
-        public void collect(int doc) {}
-
-        @Override
-        public ScoreMode scoreMode() {
-            return ScoreMode.COMPLETE_NO_SCORES;
+        if (timeoutSet) {
+            final long startTime = searchContext.getRelativeTimeInMillis();
+            final long timeout = searchContext.timeout().millis();
+            final long maxTime = startTime + timeout;
+            return () -> {
+                final long time = searchContext.getRelativeTimeInMillis();
+                if (time > maxTime) {
+                    searchContext.searcher().throwTimeExceededException();
+                }
+            };
+        } else {
+            return null;
         }
-    };
+    }
 }

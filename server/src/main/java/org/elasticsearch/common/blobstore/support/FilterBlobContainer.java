@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 
@@ -21,7 +22,6 @@ import java.io.OutputStream;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.OptionalLong;
 import java.util.stream.Collectors;
 
 public abstract class FilterBlobContainer implements BlobContainer {
@@ -105,17 +105,22 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
-    public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+    public void compareAndExchangeRegister(
+        String key,
+        BytesReference expected,
+        BytesReference updated,
+        ActionListener<OptionalBytesReference> listener
+    ) {
         delegate.compareAndExchangeRegister(key, expected, updated, listener);
     }
 
     @Override
-    public void compareAndSetRegister(String key, long expected, long updated, ActionListener<Boolean> listener) {
+    public void compareAndSetRegister(String key, BytesReference expected, BytesReference updated, ActionListener<Boolean> listener) {
         delegate.compareAndSetRegister(key, expected, updated, listener);
     }
 
     @Override
-    public void getRegister(String key, ActionListener<OptionalLong> listener) {
+    public void getRegister(String key, ActionListener<OptionalBytesReference> listener) {
         delegate.getRegister(key, listener);
     }
 }

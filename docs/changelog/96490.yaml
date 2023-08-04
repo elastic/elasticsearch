@@ -1,0 +1,6 @@
+pr: 96490
+summary: Become candidate on publication failure
+area: Cluster Coordination
+type: bug
+issues:
+ - 96273

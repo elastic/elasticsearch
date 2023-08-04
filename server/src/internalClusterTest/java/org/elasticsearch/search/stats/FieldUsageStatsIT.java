@@ -49,7 +49,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
     public void testFieldUsageStats() throws ExecutionException, InterruptedException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         int numShards = randomIntBetween(1, 2);
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings(numShards, 1)));
+        assertAcked(indicesAdmin().prepareCreate("test").setSettings(indexSettings(numShards, 1)));
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd", Locale.ROOT);
         LocalDate date = LocalDate.of(2015, 9, 1);
@@ -60,7 +60,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
                 .setSource("field", "value", "field2", "value2", "date_field", formatter.format(date.plusDays(i)))
                 .get();
         }
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         ensureGreen("test");
 
@@ -134,9 +134,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         // show that we also track stats in can_match
         assertEquals(
             2L * numShards,
-            client().admin()
-                .indices()
-                .prepareStats("test")
+            indicesAdmin().prepareStats("test")
                 .clear()
                 .setSearch(true)
                 .get()
@@ -164,9 +162,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         // to produce a valid search result with all the aggs etc., so we hit one of the two shards
         assertEquals(
             (2 * numShards) + 1,
-            client().admin()
-                .indices()
-                .prepareStats("test")
+            indicesAdmin().prepareStats("test")
                 .clear()
                 .setSearch(true)
                 .get()

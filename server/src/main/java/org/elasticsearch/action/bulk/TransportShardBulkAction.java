@@ -349,7 +349,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.source(),
                 request.getContentType(),
                 request.routing(),
-                request.getDynamicTemplates()
+                request.getDynamicTemplates(),
+                request.pipelinesHaveRun() == false
             );
             result = primary.applyIndexOperationOnPrimary(
                 version,
@@ -385,7 +386,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         @Override
                         public void onResponse(Void v) {
                             assert context.requiresWaitingForMappingUpdate();
-                            context.resetForExecutionForRetry();
+                            context.resetForMappingUpdateRetry();
                         }
 
                         @Override
@@ -425,8 +426,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (isUpdate
             && isFailed
             && isConflictException(executionResult.getFailure().getCause())
-            && context.getRetryCounter() < ((UpdateRequest) docWriteRequest).retryOnConflict()) {
-            context.resetForExecutionForRetry();
+            && context.getUpdateRetryCounter() < ((UpdateRequest) docWriteRequest).retryOnConflict()) {
+            context.resetForUpdateRetry();
             return;
         }
         final BulkItemResponse response;
@@ -617,7 +618,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     indexRequest.source(),
                     indexRequest.getContentType(),
                     indexRequest.routing(),
-                    Map.of()
+                    Map.of(),
+                    false
                 );
                 result = replica.applyIndexOperationOnReplica(
                     primaryResponse.getSeqNo(),

@@ -217,3 +217,37 @@ histogram with synthetic source:
         latency:
           values: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
           counts: [3, 2, 5, 10, 1, 8]
+
+---
+histogram with synthetic source and zero counts:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: histo_synthetic
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              latency:
+                type: histogram
+  - do:
+      bulk:
+        index: histo_synthetic
+        refresh: true
+        body:
+          - '{"index": {"_id": 1}}'
+          - '{"latency": {"values" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [0, 7, 0, 6, 0]}}'
+
+  - do:
+      get:
+        index: histo_synthetic
+        id: 1
+  - match:
+      _source:
+        latency:
+          values: [0.2, 0.4]
+          counts: [7, 6]

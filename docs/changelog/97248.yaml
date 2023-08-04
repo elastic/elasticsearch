@@ -1,0 +1,6 @@
+pr: 97248
+summary: Move get lifecycle API to Management thread pool and make cancellable
+area: ILM+SLM
+type: enhancement
+issues:
+ - 96568

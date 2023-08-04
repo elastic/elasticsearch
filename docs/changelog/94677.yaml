@@ -1,6 +1,0 @@
-pr: 94677
-summary: Fix race condition in `NodeEnvironment.close()`
-area: Infra/Core
-type: bug
-issues:
- - 94672

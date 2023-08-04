@@ -40,7 +40,6 @@ dependencies {
   api "com.azure:azure-storage-common:${versions.azureCommon}"
   api "com.azure:azure-core-http-netty:${versions.azureCoreHttpNetty}"
   api "com.azure:azure-core:${versions.azureCore}"
-
   // jackson
   api "com.fasterxml.jackson.core:jackson-core:${versions.azureJackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.azureJacksonDatabind}"
@@ -71,9 +70,11 @@ dependencies {
 
   implementation project(":modules:transport-netty4")
   implementation("org.slf4j:slf4j-api:${versions.slf4j}")
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+//  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
+
 
   runtimeOnly "com.azure:azure-storage-internal-avro:${versions.azureAvro}"
-  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
 
   testImplementation project(':test:fixtures:azure-fixture')
   yamlRestTestImplementation project(':test:fixtures:azure-fixture')
@@ -161,7 +162,7 @@ tasks.named("thirdPartyAudit").configure {
     // from com.ctc.wstx.shaded.msv_core.driver.textui.Driver (woodstox-core)
     'com.ctc.wstx.shaded.msv_core.driver.textui.Driver',
     // [missing classes] SLF4j includes an optional class that depends on an extension class. see Log4jLogger#createConverter
-    'org.slf4j.ext.EventData'
+    //    'org.slf4j.ext.EventData' - bring back when https://github.com/elastic/elasticsearch/issues/93714 is done
   )
 
   ignoreViolations(

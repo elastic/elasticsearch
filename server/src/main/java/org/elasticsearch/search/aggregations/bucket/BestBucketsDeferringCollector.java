@@ -184,7 +184,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 final PackedLongValues.Iterator buckets = entry.buckets.iterator();
                 int doc = 0;
                 for (long i = 0, end = entry.docDeltas.size(); i < end; ++i) {
-                    doc += docDeltaIterator.next();
+                    doc += (int) docDeltaIterator.next();
                     final long bucket = buckets.next();
                     final long rebasedBucket = this.selectedBuckets.find(bucket);
                     if (rebasedBucket != -1) {

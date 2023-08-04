@@ -100,11 +100,7 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
 
         Settings persistentSettings = Settings.builder().put(key, allowPartialResults).build();
 
-        ClusterUpdateSettingsResponse response1 = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(persistentSettings)
-            .get();
+        ClusterUpdateSettingsResponse response1 = clusterAdmin().prepareUpdateSettings().setPersistentSettings(persistentSettings).get();
 
         assertAcked(response1);
         assertEquals(response1.getPersistentSettings().getAsBoolean(key, null), allowPartialResults);
@@ -120,10 +116,10 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
 
         internalCluster().stopRandomDataNode();
 
-        client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
+        clusterAdmin().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
 
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState().get().getState();
             List<ShardRouting> unassigneds = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.UNASSIGNED);
             assertThat(unassigneds.size(), greaterThan(0));
         });

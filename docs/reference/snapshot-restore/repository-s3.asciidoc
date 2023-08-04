@@ -1,7 +1,7 @@
 [[repository-s3]]
 === S3 repository
 
-You can use AWS S3 as a repository for {ref}/modules-snapshots.html[Snapshot/Restore].
+You can use AWS S3 as a repository for {ref}/snapshot-restore.html[Snapshot/Restore].
 
 *If you are looking for a hosted solution of Elasticsearch on AWS, please visit
 https://www.elastic.co/cloud/.*

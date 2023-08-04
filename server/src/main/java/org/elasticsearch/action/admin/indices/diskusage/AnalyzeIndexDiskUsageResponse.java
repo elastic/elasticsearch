@@ -34,7 +34,7 @@ public final class AnalyzeIndexDiskUsageResponse extends BroadcastResponse {
 
     AnalyzeIndexDiskUsageResponse(StreamInput in) throws IOException {
         super(in);
-        stats = in.readMap(StreamInput::readString, IndexDiskUsageStats::new);
+        stats = in.readMap(IndexDiskUsageStats::new);
     }
 
     @Override

@@ -172,11 +172,11 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         return projectName + distribution.getType().getName();
     }
 
-    private static class ProjectBasedDistributionDependency implements DistributionDependency {
+    public static class ProjectBasedDistributionDependency implements DistributionDependency {
 
         private Function<String, Dependency> function;
 
-        ProjectBasedDistributionDependency(Function<String, Dependency> function) {
+        public ProjectBasedDistributionDependency(Function<String, Dependency> function) {
             this.function = function;
         }
 

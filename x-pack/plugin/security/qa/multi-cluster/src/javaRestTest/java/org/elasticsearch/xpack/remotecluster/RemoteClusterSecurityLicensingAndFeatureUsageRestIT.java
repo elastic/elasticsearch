@@ -53,7 +53,7 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             .name("fulfilling-cluster")
             .nodes(1)
             .apply(commonClusterConfig)
-            .setting("xpack.license.self_generated.type", "basic")
+            .setting("xpack.license.self_generated.type", "trial")
             .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
             .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
@@ -73,15 +73,11 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey(Strings.format("""
                         {
-                          "role": {
-                            "cluster": ["cross_cluster_access"],
-                            "index": [
+                            "search": [
                               {
-                                  "names": ["%s"],
-                                  "privileges": ["read", "read_cross_cluster"]
+                                  "names": ["%s"]
                               }
                             ]
-                          }
                         }""", REMOTE_INDEX_NAME));
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }
@@ -117,7 +113,6 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
     }
 
     public void testCrossClusterAccessFeatureTrackingAndLicensing() throws Exception {
-        assertBasicLicense(fulfillingClusterClient);
         assertBasicLicense(client());
 
         final boolean useProxyMode = randomBoolean();
@@ -171,7 +166,6 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             assertRequestFailsDueToUnsupportedLicense(() -> performRequestWithRemoteSearchUser(searchRequest));
 
             // We start the trial license which supports all features.
-            startTrialLicense(fulfillingClusterClient);
             startTrialLicense(client());
 
             // Check that feature is not tracked before we send CCS request.

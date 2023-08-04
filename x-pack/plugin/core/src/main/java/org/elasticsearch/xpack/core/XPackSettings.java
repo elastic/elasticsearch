@@ -43,13 +43,6 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_U
  */
 public class XPackSettings {
 
-    private static final boolean IS_DARWIN_AARCH64;
-    static {
-        final String name = System.getProperty("os.name");
-        final String arch = System.getProperty("os.arch");
-        IS_DARWIN_AARCH64 = "aarch64".equals(arch) && name.startsWith("Mac OS X");
-    }
-
     private XPackSettings() {
         throw new IllegalStateException("Utility class should not be instantiated");
     }
@@ -89,6 +82,13 @@ public class XPackSettings {
     /** Setting for enabling or disabling machine learning. Defaults to true. */
     public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting(
         "xpack.ml.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
+    /** Setting for enabling or disabling universal profiling. Defaults to true. */
+    public static final Setting<Boolean> PROFILING_ENABLED = Setting.boolSetting(
+        "xpack.profiling.enabled",
         true,
         Setting.Property.NodeScope
     );
@@ -318,6 +318,7 @@ public class XPackSettings {
         settings.add(SECURITY_ENABLED);
         settings.add(GRAPH_ENABLED);
         settings.add(MACHINE_LEARNING_ENABLED);
+        settings.add(PROFILING_ENABLED);
         settings.add(ENTERPRISE_SEARCH_ENABLED);
         settings.add(AUDIT_ENABLED);
         settings.add(WATCHER_ENABLED);

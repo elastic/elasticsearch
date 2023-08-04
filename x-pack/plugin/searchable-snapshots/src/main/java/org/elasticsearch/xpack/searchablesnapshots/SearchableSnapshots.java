@@ -51,6 +51,7 @@ import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -190,10 +191,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         Setting.Property.NotCopyableOnResize
     );
     // The file extensions that are excluded from the cache
-    public static final Setting<List<String>> SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING = Setting.stringListSetting(
         "index.store.snapshot.cache.excluded_file_types",
-        Collections.emptyList(),
-        Function.identity(),
         Setting.Property.IndexScope,
         Setting.Property.NodeScope,
         Setting.Property.NotCopyableOnResize
@@ -332,7 +331,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final IndexNameExpressionResolver resolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         final List<Object> components = new ArrayList<>();
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;
@@ -344,7 +344,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             final SharedBlobCacheService<CacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
                 nodeEnvironment,
                 settings,
-                threadPool
+                threadPool,
+                SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
             );
             this.frozenCacheService.set(sharedBlobCacheService);
             components.add(cacheService);

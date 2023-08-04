@@ -52,9 +52,7 @@ public class RemoveReplicaPriorityIT extends ESIntegTestCase {
             });
         }
 
-        final String dataNodeIdFilter = client().admin()
-            .cluster()
-            .prepareState()
+        final String dataNodeIdFilter = clusterAdmin().prepareState()
             .clear()
             .setNodes(true)
             .get()
@@ -76,9 +74,7 @@ public class RemoveReplicaPriorityIT extends ESIntegTestCase {
         );
 
         assertBusy(() -> {
-            final IndexShardRoutingTable indexShardRoutingTable = client().admin()
-                .cluster()
-                .prepareState()
+            final IndexShardRoutingTable indexShardRoutingTable = clusterAdmin().prepareState()
                 .clear()
                 .setRoutingTable(true)
                 .get()
@@ -94,9 +90,7 @@ public class RemoveReplicaPriorityIT extends ESIntegTestCase {
         updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id"), INDEX_NAME);
 
         assertBusy(() -> {
-            final IndexShardRoutingTable indexShardRoutingTable = client().admin()
-                .cluster()
-                .prepareState()
+            final IndexShardRoutingTable indexShardRoutingTable = clusterAdmin().prepareState()
                 .clear()
                 .setRoutingTable(true)
                 .get()
@@ -113,9 +107,7 @@ public class RemoveReplicaPriorityIT extends ESIntegTestCase {
             setReplicaCount(2, INDEX_NAME);
 
             assertBusy(() -> {
-                final IndexShardRoutingTable indexShardRoutingTable = client().admin()
-                    .cluster()
-                    .prepareState()
+                final IndexShardRoutingTable indexShardRoutingTable = clusterAdmin().prepareState()
                     .clear()
                     .setRoutingTable(true)
                     .get()
@@ -133,9 +125,7 @@ public class RemoveReplicaPriorityIT extends ESIntegTestCase {
             setReplicaCount(1, INDEX_NAME);
 
             assertBusy(() -> {
-                final IndexShardRoutingTable indexShardRoutingTable = client().admin()
-                    .cluster()
-                    .prepareState()
+                final IndexShardRoutingTable indexShardRoutingTable = clusterAdmin().prepareState()
                     .clear()
                     .setRoutingTable(true)
                     .get()
@@ -153,9 +143,7 @@ public class RemoveReplicaPriorityIT extends ESIntegTestCase {
             setReplicaCount(0, INDEX_NAME);
 
             assertBusy(() -> {
-                final IndexShardRoutingTable indexShardRoutingTable = client().admin()
-                    .cluster()
-                    .prepareState()
+                final IndexShardRoutingTable indexShardRoutingTable = clusterAdmin().prepareState()
                     .clear()
                     .setRoutingTable(true)
                     .get()

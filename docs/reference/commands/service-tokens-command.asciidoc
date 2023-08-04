@@ -16,11 +16,22 @@ bin/elasticsearch-service-tokens
 
 [discrete]
 === Description
+
+NOTE: The recommended way to manage <<service-accounts-tokens,service tokens>>
+is via the <<security-api-create-service-token>> API.
+File based tokens are intended for use with orchestrators such as
+{ece-ref}[{ece}] and {eck-ref}[{eck}]
+
 This command creates a `service_tokens` file in the `$ES_HOME/config` directory
 when you create the first service account token. This file does not exist by
 default. {es} monitors this file for changes and dynamically reloads it.
 
-See <<service-accounts,service accounts>> for more information.
+This command only makes changes to the `service_tokens` file on the local node.
+If the service token will be used to authenticate requests against multiple nodes
+in the cluster then you must copy the `service_tokens` file to each node.
+
+See <<service-accounts,service accounts>> for further information about the
+behaviour of service accounts and the management of service tokens.
 
 IMPORTANT: To ensure that {es} can read the service account token information at
 startup, run `elasticsearch-service-tokens` as the same user you use to run

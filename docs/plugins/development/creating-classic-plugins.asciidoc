@@ -47,9 +47,6 @@ Use `bin/elasticsearch-plugin install file:///path/to/your/plugin`
 to install your plugin for testing. The Java plugin is auto-loaded only if it's in the
 `plugins/` directory.
 
-You may also load your plugin within the test framework for integration tests.
-Check {ref}/integration-tests.html#changing-node-configuration[Changing Node Configuration] for more information.
-
 [discrete]
 [[plugin-authors-jsm]]
 ==== Java Security permissions

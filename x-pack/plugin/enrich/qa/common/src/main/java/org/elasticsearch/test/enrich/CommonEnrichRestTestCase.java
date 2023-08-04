@@ -352,15 +352,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
             maxExecutedSearchesTotal = Math.max(maxExecutedSearchesTotal, foundExecutedSearchesTotal);
         }
 
-        // the asserts after this if block keep failing randomly,
-        // so here we're going to pre-check early and fail with more useful information for debugging purposes
-        // that is, given that the search result didn't have a positive value for these, but it does have a non-zero number
-        // of hits, what's in it!? and maybe the size of search result is the interesting thing (since we only get 10 hits by default...)?
-        if (maxRemoteRequestsTotal == 0 || maxExecutedSearchesTotal == 0) {
-            assertThat(response.toString(), equalTo(""));
-        }
-
-        assertThat(maxRemoteRequestsTotal, greaterThanOrEqualTo(1));
-        assertThat(maxExecutedSearchesTotal, greaterThanOrEqualTo(1));
+        assertThat("Maximum remote_requests_total was zero. Response: " + response, maxRemoteRequestsTotal, greaterThanOrEqualTo(1));
+        assertThat("Maximum executed_searches_total was zero. Response: " + response, maxExecutedSearchesTotal, greaterThanOrEqualTo(1));
     }
 }

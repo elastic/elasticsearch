@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -160,9 +161,9 @@ public final class TransformIndex {
                     }
                     createDestinationIndexListener.onResponse(false);
                 }, e -> {
-                    String msg = "Unable to determine destination index stats, error: " + e.getMessage();
-                    logger.warn(msg, e);
-                    auditor.warning(config.getId(), msg);
+                    String message = "Unable to determine destination index stats, error: " + e.getMessage();
+                    logger.warn(message, e);
+                    auditor.warning(config.getId(), message);
                     createDestinationIndexListener.onResponse(false);
                 }),
                 client.admin().indices()::stats
@@ -192,12 +193,17 @@ public final class TransformIndex {
             ActionListener.wrap(createIndexResponse -> {
                 listener.onResponse(true);
             }, e -> {
+                if (e instanceof ResourceAlreadyExistsException) {
+                    // Already existing index is ok, it could have been created by the indexing process of the running transform.
+                    listener.onResponse(false);
+                    return;
+                }
                 String message = TransformMessages.getMessage(
                     TransformMessages.FAILED_TO_CREATE_DESTINATION_INDEX,
                     config.getDestination().getIndex(),
                     config.getId()
                 );
-                logger.error(message);
+                logger.error(message, e);
                 listener.onFailure(new RuntimeException(message, e));
             })
         );
@@ -236,7 +242,7 @@ public final class TransformIndex {
                     config.getDestination().getIndex(),
                     config.getId()
                 );
-                logger.error(message);
+                logger.error(message, e);
                 listener.onFailure(new RuntimeException(message, e));
             })
         );

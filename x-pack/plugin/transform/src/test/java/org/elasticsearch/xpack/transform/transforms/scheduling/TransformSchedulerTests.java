@@ -327,6 +327,7 @@ public class TransformSchedulerTests extends ESTestCase {
         transformScheduler.stop();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95445")
     public void testScheduleNowWithSystemClock() throws Exception {
         String transformId = "test-schedule-now-with-system-clock";
         TimeValue frequency = TimeValue.timeValueHours(1);  // Very long pause between checkpoints

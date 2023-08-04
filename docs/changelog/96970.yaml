@@ -1,0 +1,5 @@
+pr: 96970
+summary: Ensure checking application privileges work with nested-limited roles
+area: Authorization
+type: enhancement
+issues: []

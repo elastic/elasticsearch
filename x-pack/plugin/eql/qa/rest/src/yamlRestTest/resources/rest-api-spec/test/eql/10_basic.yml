@@ -433,3 +433,24 @@ setup:
           query: 'sequence by user [network where valid == true] [network where true]'
   - match: {hits.sequences.0.join_keys.0: "ADMIN"}
   - match: {hits.sequences.1.join_keys.0: "SYSTEM"}
+
+---
+"Sequence with missing events.":
+
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'sequence with maxspan=10d [network where user == "ADMIN"] ![network where user == "ADMIN"] [network where user == "ADMIN"]'
+  - match: {hits.total.value: 1}
+  - match: {hits.sequences.0.events.0._id: "4"}
+  - match: {hits.sequences.0.events.1.missing: true}
+  - match: {hits.sequences.0.events.2._id: "6"}
+
+
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'sequence with maxspan=10d [network where user == "ADMIN"] ![network where user == "SYSTEM"] [network where user == "ADMIN"]'
+  - match: {hits.total.value: 0}

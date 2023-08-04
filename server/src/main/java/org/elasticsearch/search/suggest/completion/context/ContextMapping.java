@@ -9,8 +9,8 @@
 package org.elasticsearch.search.suggest.completion.context;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -130,7 +130,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
      * Checks if the current context is consistent with the rest of the fields. For example, the GeoContext
      * should check that the field that it points to has the correct type.
      */
-    public void validateReferences(Version indexVersionCreated, Function<String, MappedFieldType> fieldResolver) {
+    public void validateReferences(IndexVersion indexVersionCreated, Function<String, MappedFieldType> fieldResolver) {
         // No validation is required by default
     }
 

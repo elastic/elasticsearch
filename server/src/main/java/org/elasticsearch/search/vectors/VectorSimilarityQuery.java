@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterWeight;
@@ -59,8 +58,8 @@ public class VectorSimilarityQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query rewrittenInnerQuery = innerKnnQuery.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewrittenInnerQuery = innerKnnQuery.rewrite(searcher);
         if (rewrittenInnerQuery instanceof MatchNoDocsQuery) {
             return rewrittenInnerQuery;
         }

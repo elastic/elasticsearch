@@ -82,7 +82,8 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                 { "index": { "_index": "remote_index1" } }
                 { "foo": "bar" }
                 { "index": { "_index": "remote_index2" } }
-                { "bar": "foo" }\n"""));
+                { "bar": "foo" }
+                """));
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
         }
 

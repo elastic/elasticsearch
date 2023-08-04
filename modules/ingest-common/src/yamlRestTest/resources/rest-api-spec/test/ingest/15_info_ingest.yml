@@ -1,0 +1,76 @@
+---
+setup:
+  - skip:
+      version: " - 8.8.99"
+      reason: "/_info/ingest only available from v8.9"
+
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "ingest_info_pipeline"
+        ignore: 404
+
+  - do:
+      indices.delete:
+        index: "ingest_info_index"
+        ignore_unavailable: true
+
+---
+"Cluster ingest information":
+  - do:
+      ingest.put_pipeline:
+        id: "ingest_info_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field": "pipeline",
+                  "value": "pipeline"
+                }
+              }
+            ]
+          }
+
+  - do:
+      bulk:
+        refresh: true
+        index: ingest_info_index
+        body:
+          - '{"create": {"pipeline" : "ingest_info_pipeline"}}'
+          - '{"some-field": "some-value"}'
+          - '{"create": {"pipeline" : "ingest_info_pipeline"}}'
+          - '{"some-field": "another-value"}'
+
+  - do:
+      cluster.info:
+        target: [ ingest ]
+
+  - is_true: cluster_name
+
+  # Summary ingest section
+  - is_true: ingest.total
+  - gte: { ingest.total.count: 2 }
+  - gte: { ingest.total.time_in_millis: 0 }
+  # next 2 conditions _should_ be 0, but because these yaml tests are sharing the same test cluster, other tests could
+  # pollute the information.
+  - gte: { ingest.total.current: 0 }
+  - gte: { ingest.total.failed: 0 }
+
+  # Pipelines section
+  - is_true: ingest.pipelines.ingest_info_pipeline
+  - gte: { ingest.pipelines.ingest_info_pipeline.count: 2 }
+  - gte: { ingest.pipelines.ingest_info_pipeline.time_in_millis: 0 }
+  - match: { ingest.pipelines.ingest_info_pipeline.current: 0 }
+  - match: { ingest.pipelines.ingest_info_pipeline.failed: 0 }
+
+  # Processors section
+  - is_true: ingest.pipelines.ingest_info_pipeline.processors.0.set
+  - match: { ingest.pipelines.ingest_info_pipeline.processors.0.set.type: "set" }
+  - is_true: ingest.pipelines.ingest_info_pipeline.processors.0.set.stats
+  - gte: { ingest.pipelines.ingest_info_pipeline.processors.0.set.stats.count: 2 }
+  - gte: { ingest.pipelines.ingest_info_pipeline.processors.0.set.stats.time_in_millis: 0 }
+  - match: { ingest.pipelines.ingest_info_pipeline.processors.0.set.stats.current: 0 }
+  - match: { ingest.pipelines.ingest_info_pipeline.processors.0.set.stats.failed: 0 }

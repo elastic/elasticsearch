@@ -1,5 +1,0 @@
-pr: 95176
-summary: Add `embedding_size` to text embedding config
-area: Machine Learning
-type: enhancement
-issues: []

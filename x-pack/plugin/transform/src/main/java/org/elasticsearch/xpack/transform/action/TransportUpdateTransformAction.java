@@ -25,8 +25,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -112,7 +114,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     nodes.getMasterNode(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, Response::new)
+                    new ActionListenerResponseHandler<>(listener, Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                 );
             }
             return;
@@ -205,6 +207,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                                     authState,
                                     ActionListener.wrap(aVoid -> listener.onResponse(new Response(updatedConfig)), listener::onFailure)
                                 );
+                            } else {
+                                listener.onResponse(new Response(updatedConfig));
                             }
                         } else {
                             listener.onResponse(new Response(updatedConfig));
@@ -227,7 +231,12 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
     }
 
     @Override
-    protected void taskOperation(Task actionTask, Request request, TransformTask transformTask, ActionListener<Response> listener) {
+    protected void taskOperation(
+        CancellableTask actionTask,
+        Request request,
+        TransformTask transformTask,
+        ActionListener<Response> listener
+    ) {
         transformTask.applyNewSettings(request.getConfig().getSettings());
         transformTask.applyNewAuthState(request.getAuthState());
         listener.onResponse(new Response(request.getConfig()));

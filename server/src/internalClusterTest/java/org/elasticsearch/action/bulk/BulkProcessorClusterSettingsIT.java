@@ -28,7 +28,7 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
         internalCluster().startNode(settings);
 
         createIndex("willwork");
-        client().admin().cluster().prepareHealth("willwork").setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth("willwork").setWaitForGreenStatus().execute().actionGet();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("willwork").setId("1").setSource("{\"foo\":1}", XContentType.JSON));

@@ -1,0 +1,5 @@
+pr: 97304
+summary: Avoid `getStateForMasterService` where possible
+area: Cluster Coordination
+type: bug
+issues: []

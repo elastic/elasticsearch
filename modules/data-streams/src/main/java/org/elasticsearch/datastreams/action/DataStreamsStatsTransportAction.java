@@ -31,7 +31,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
@@ -141,10 +140,6 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         ActionListener.completeWith(listener, () -> {
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-            // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
-            if (indexShard.routingEntry() == null) {
-                throw new ShardNotFoundException(indexShard.shardId());
-            }
             StoreStats storeStats = indexShard.storeStats();
             IndexAbstraction indexAbstraction = clusterService.state().getMetadata().getIndicesLookup().get(shardRouting.getIndexName());
             assert indexAbstraction != null;
@@ -153,8 +148,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             long maxTimestamp = 0L;
             try (Engine.Searcher searcher = indexShard.acquireSearcher("data_stream_stats")) {
                 IndexReader indexReader = searcher.getIndexReader();
-                String fieldName = dataStream.getTimeStampField().getName();
-                byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, fieldName);
+                byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, DataStream.TIMESTAMP_FIELD_NAME);
                 if (maxPackedValue != null) {
                     maxTimestamp = LongPoint.decodeDimension(maxPackedValue, 0);
                 }

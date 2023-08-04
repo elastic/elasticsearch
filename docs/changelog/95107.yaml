@@ -1,0 +1,5 @@
+pr: 95107
+summary: Cache modification time of translog writer file
+area: Engine
+type: enhancement
+issues: []

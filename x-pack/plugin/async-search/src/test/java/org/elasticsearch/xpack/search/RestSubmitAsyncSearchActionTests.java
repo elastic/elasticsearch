@@ -91,6 +91,14 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
             batchedReduceSize,
             r -> r.getSearchRequest().getBatchedReduceSize()
         );
+
+        boolean ccsMinimizeRoundtrips = randomBoolean();
+        doTestParameter(
+            "ccs_minimize_roundtrips",
+            Boolean.toString(ccsMinimizeRoundtrips),
+            ccsMinimizeRoundtrips,
+            r -> r.getSearchRequest().isCcsMinimizeRoundtrips()
+        );
     }
 
     @SuppressWarnings("unchecked")

@@ -12,9 +12,6 @@ import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Class that collects all raw values for a metric field and computes its aggregate (downsampled)
@@ -25,9 +22,9 @@ abstract class MetricFieldProducer extends AbstractDownsampleFieldProducer {
     /**
      * a list of metrics that will be computed for the field
      */
-    private final List<Metric> metrics;
+    private final Metric[] metrics;
 
-    MetricFieldProducer(String name, List<Metric> metrics) {
+    MetricFieldProducer(String name, Metric... metrics) {
         super(name);
         this.metrics = metrics;
     }
@@ -36,12 +33,14 @@ abstract class MetricFieldProducer extends AbstractDownsampleFieldProducer {
      * Reset all values collected for the field
      */
     public void reset() {
-        metrics().forEach(Metric::reset);
+        for (Metric metric : metrics) {
+            metric.reset();
+        }
         isEmpty = true;
     }
 
     /** return the list of metrics that are computed for the field */
-    public Collection<Metric> metrics() {
+    public Metric[] metrics() {
         return metrics;
     }
 
@@ -233,7 +232,7 @@ abstract class MetricFieldProducer extends AbstractDownsampleFieldProducer {
     static class CounterMetricFieldProducer extends MetricFieldProducer {
 
         CounterMetricFieldProducer(String name) {
-            super(name, Collections.singletonList(new LastValue()));
+            super(name, new LastValue());
         }
 
         @Override
@@ -248,8 +247,8 @@ abstract class MetricFieldProducer extends AbstractDownsampleFieldProducer {
         }
 
         public Object value() {
-            assert metrics().size() == 1 : "Single value producers must have only one metric";
-            return metrics().iterator().next().get();
+            assert metrics().length == 1 : "Single value producers must have only one metric";
+            return metrics()[0].get();
         }
 
         @Override
@@ -266,10 +265,10 @@ abstract class MetricFieldProducer extends AbstractDownsampleFieldProducer {
     static class GaugeMetricFieldProducer extends MetricFieldProducer {
 
         GaugeMetricFieldProducer(String name) {
-            this(name, List.of(new Min(), new Max(), new Sum(), new ValueCount()));
+            this(name, new Min(), new Max(), new Sum(), new ValueCount());
         }
 
-        GaugeMetricFieldProducer(String name, List<Metric> metrics) {
+        GaugeMetricFieldProducer(String name, Metric... metrics) {
             super(name, metrics);
         }
 

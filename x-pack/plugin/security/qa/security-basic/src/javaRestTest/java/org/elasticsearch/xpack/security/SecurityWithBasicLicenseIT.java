@@ -50,6 +50,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
 
         assertUserProfileFeatures(false);
         checkRemoteIndicesXPackUsage();
+        assertFailToCreateAndUpdateCrossClusterApiKeys();
     }
 
     public void testWithTrialLicense() throws Exception {
@@ -80,6 +81,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertReadWithApiKey(apiKeyCredentials2, "/index*/_search", true);
             assertUserProfileFeatures(true);
             checkRemoteIndicesXPackUsage();
+            assertSuccessToCreateAndUpdateCrossClusterApiKeys();
         } finally {
             revertTrial();
             assertAuthenticateWithToken(accessToken, false);
@@ -95,6 +97,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertReadWithApiKey(apiKeyCredentials2, "/index1/_doc/1", false);
             assertUserProfileFeatures(false);
             checkRemoteIndicesXPackUsage();
+            assertFailToCreateAndUpdateCrossClusterApiKeys();
         }
     }
 
@@ -566,5 +569,55 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(e.getMessage(), containsString("current license is non-compliant for [user-profile-collaboration]"));
         }
+    }
+
+    private void assertFailToCreateAndUpdateCrossClusterApiKeys() {
+        if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            return;
+        }
+
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity("""
+            {
+              "name": "cc-key",
+              "access": {
+                "search": [ { "names": ["*"] } ]
+              }
+            }""");
+        final ResponseException e1 = expectThrows(ResponseException.class, () -> adminClient().performRequest(createRequest));
+        assertThat(e1.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e1.getMessage(), containsString("current license is non-compliant for [advanced-remote-cluster-security]"));
+
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + randomAlphaOfLength(20));
+        updateRequest.setJsonEntity("""
+            {
+              "metadata": { }
+            }""");
+        final ResponseException e2 = expectThrows(ResponseException.class, () -> adminClient().performRequest(updateRequest));
+        assertThat(e2.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e2.getMessage(), containsString("current license is non-compliant for [advanced-remote-cluster-security]"));
+    }
+
+    private void assertSuccessToCreateAndUpdateCrossClusterApiKeys() throws IOException {
+        if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            return;
+        }
+
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity("""
+            {
+              "name": "cc-key",
+              "access": {
+                "search": [ { "names": ["*"] } ]
+              }
+            }""");
+        final ObjectPath createResponse = assertOKAndCreateObjectPath(adminClient().performRequest(createRequest));
+
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + createResponse.evaluate("id"));
+        updateRequest.setJsonEntity("""
+            {
+              "metadata": { }
+            }""");
+        assertOK(adminClient().performRequest(updateRequest));
     }
 }

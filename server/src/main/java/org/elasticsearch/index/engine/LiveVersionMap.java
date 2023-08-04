@@ -22,11 +22,21 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Maps _uid value to its version information. */
-final class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
+public final class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
     private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
 
-    private static final class VersionLookup {
+    private final LiveVersionMapArchive archive;
+
+    LiveVersionMap() {
+        this(LiveVersionMapArchive.NOOP_ARCHIVE);
+    }
+
+    LiveVersionMap(LiveVersionMapArchive archive) {
+        this.archive = archive;
+    }
+
+    public static final class VersionLookup {
 
         /** Tracks bytes used by current map, i.e. what is freed on refresh. For deletes, which are also added to tombstones,
          *  we only account for the CHM entry here, and account for BytesRef/VersionValue against the tombstones, since refresh would not
@@ -52,11 +62,17 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // the tombstone
         private final AtomicLong minDeleteTimestamp = new AtomicLong(Long.MAX_VALUE);
 
+        // Modifies the map of this instance by merging with the given VersionLookup
+        public void merge(VersionLookup versionLookup) {
+            map.putAll(versionLookup.map);
+            minDeleteTimestamp.accumulateAndGet(versionLookup.minDeleteTimestamp(), Math::min);
+        }
+
         private VersionLookup(Map<BytesRef, VersionValue> map) {
             this.map = map;
         }
 
-        VersionValue get(BytesRef key) {
+        public VersionValue get(BytesRef key) {
             return map.get(key);
         }
 
@@ -64,7 +80,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             return map.put(key, value);
         }
 
-        boolean isEmpty() {
+        public boolean isEmpty() {
             return map.isEmpty();
         }
 
@@ -88,6 +104,9 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             minDeleteTimestamp.accumulateAndGet(delete.time, Math::min);
         }
 
+        public long minDeleteTimestamp() {
+            return minDeleteTimestamp.get();
+        }
     }
 
     private static final class Maps {
@@ -98,7 +117,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // Used while refresh is running, and to hold adds/deletes until refresh finishes. We read from both current and old on lookup:
         final VersionLookup old;
 
-        // this is not volatile since we don't need to maintain a happens before relation ship across doc IDs so it's enough to
+        // this is not volatile since we don't need to maintain a happens before relationship across doc IDs so it's enough to
         // have the volatile read of the Maps reference to make it visible even across threads.
         boolean needsSafeAccess;
         final boolean previousMapsNeededSafeAccess;
@@ -136,9 +155,17 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         }
 
         /**
+         * similar to `invalidateOldMap` but used only for the `unsafeKeysMap` used for assertions
+         */
+        Maps invalidateOldMapForAssert() {
+            return new Maps(current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);
+        }
+
+        /**
          * builds a new map that invalidates the old map but maintains the current. This should be called in afterRefresh()
          */
-        Maps invalidateOldMap() {
+        Maps invalidateOldMap(LiveVersionMapArchive archive) {
+            archive.afterRefresh(old);
             return new Maps(current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);
         }
 
@@ -245,8 +272,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // reopen, and so any concurrent indexing requests can still sneak in a few additions to that current map that are in fact
         // reflected in the previous reader. We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
 
-        maps = maps.invalidateOldMap();
-        assert (unsafeKeysMap = unsafeKeysMap.invalidateOldMap()) != null;
+        maps = maps.invalidateOldMap(archive);
+        assert (unsafeKeysMap = unsafeKeysMap.invalidateOldMapForAssert()) != null;
 
     }
 
@@ -270,7 +297,14 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             return value;
         }
 
-        return tombstones.get(uid);
+        // We first check the tombstone then the archive since the archive accumulates ids from the old map, and we
+        // makes sure in `putDeleteUnderLock` the old map does not hold an entry that is in tombstone, archive also wouldn't have them.
+        value = tombstones.get(uid);
+        if (value != null) {
+            return value;
+        }
+
+        return archive.get(uid);
     }
 
     VersionValue getVersionForAssert(final BytesRef uid) {
@@ -368,7 +402,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // version value can't be removed it's
         // not yet flushed to lucene ie. it's part of this current maps object
         final boolean isNotTrackedByCurrentMaps = versionValue.time < maps.getMinDeleteTimestamp();
-        return isTooOld && isSafeToPrune && isNotTrackedByCurrentMaps;
+        final boolean isNotTrackedByArchive = versionValue.time < archive.getMinDeleteTimestamp();
+        return isTooOld && isSafeToPrune && isNotTrackedByCurrentMaps & isNotTrackedByArchive;
     }
 
     /**
@@ -458,5 +493,10 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {
         assert keyedLock.isHeldByCurrentThread(uid) : "Thread [" + Thread.currentThread().getName() + "], uid [" + uid.utf8ToString() + "]";
         return true;
+    }
+
+    // visible for testing purposes only
+    LiveVersionMapArchive getArchive() {
+        return archive;
     }
 }

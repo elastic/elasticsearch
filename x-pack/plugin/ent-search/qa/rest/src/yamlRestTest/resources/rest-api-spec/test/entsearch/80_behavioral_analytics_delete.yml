@@ -7,7 +7,7 @@ setup:
 teardown:
   - do:
       search_application.delete_behavioral_analytics:
-        name: test-analytics-collection-to-delete
+        name: my-test-analytics-collection
         ignore: 404
 
 ---

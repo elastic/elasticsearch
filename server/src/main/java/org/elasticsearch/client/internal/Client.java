@@ -58,6 +58,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * A client provides a one stop interface for performing actions/operations against the cluster.
@@ -412,7 +413,7 @@ public interface Client extends ElasticsearchClient, Releasable {
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      * @throws UnsupportedOperationException if this functionality is not available on this client.
      */
-    default Client getRemoteClusterClient(String clusterAlias) {
+    default Client getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
         throw new UnsupportedOperationException("this client doesn't support remote cluster connections");
     }
 }

@@ -60,8 +60,9 @@ you might expect otherwise.
 ==== {api-request-body-title}
 
 `current_node`::
-    (Optional, string) Specifies the node ID or the name of the node to only 
-    explain a shard that is currently located on the specified node.
+    (Optional, string) Specifies the node ID or the name of the node currently
+    holding the shard to explain. To explain an unassigned shard, omit this
+    parameter.
 
 `index`::
     (Optional, string) Specifies the name of the index that you would like an 

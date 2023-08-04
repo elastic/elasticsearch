@@ -31,6 +31,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -64,10 +65,13 @@ import java.util.function.Supplier;
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
-    private final BiFunction<Supplier<Boolean>, SearchRequest, AggregationReduceContext.Builder> requestToAggReduceContextBuilder;
+    private final BiFunction<
+        Supplier<Boolean>,
+        AggregatorFactories.Builder,
+        AggregationReduceContext.Builder> requestToAggReduceContextBuilder;
 
     public SearchPhaseController(
-        BiFunction<Supplier<Boolean>, SearchRequest, AggregationReduceContext.Builder> requestToAggReduceContextBuilder
+        BiFunction<Supplier<Boolean>, AggregatorFactories.Builder, AggregationReduceContext.Builder> requestToAggReduceContextBuilder
     ) {
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
     }
@@ -537,15 +541,25 @@ public final class SearchPhaseController {
             );
         }
         int total = queryResults.size();
-        queryResults = queryResults.stream().filter(res -> res.queryResult().isNull() == false).toList();
-        String errorMsg = "must have at least one non-empty search result, got 0 out of " + total;
-        assert queryResults.isEmpty() == false : errorMsg;
-        if (queryResults.isEmpty()) {
-            throw new IllegalStateException(errorMsg);
+        final Collection<SearchPhaseResult> nonNullResults = new ArrayList<>();
+        boolean hasSuggest = false;
+        boolean hasProfileResults = false;
+        for (SearchPhaseResult queryResult : queryResults) {
+            var res = queryResult.queryResult();
+            if (res.isNull()) {
+                continue;
+            }
+            hasSuggest |= res.suggest() != null;
+            hasProfileResults |= res.hasProfileResults();
+            nonNullResults.add(queryResult);
         }
+        queryResults = nonNullResults;
         validateMergeSortValueFormats(queryResults);
-        final boolean hasSuggest = queryResults.stream().anyMatch(res -> res.queryResult().suggest() != null);
-        final boolean hasProfileResults = queryResults.stream().anyMatch(res -> res.queryResult().hasProfileResults());
+        if (queryResults.isEmpty()) {
+            var ex = new IllegalStateException("must have at least one non-empty search result, got 0 out of " + total);
+            assert false : ex;
+            throw ex;
+        }
 
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         final Map<String, List<Suggestion<?>>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
@@ -574,9 +588,7 @@ public final class SearchPhaseController {
                     }
                 }
             }
-            if (bufferedTopDocs.isEmpty() == false) {
-                assert result.hasConsumedTopDocs() : "firstResult has no aggs but we got non null buffered aggs?";
-            }
+            assert bufferedTopDocs.isEmpty() || result.hasConsumedTopDocs() : "firstResult has no aggs but we got non null buffered aggs?";
             if (hasProfileResults) {
                 String key = result.getSearchShardTarget().toString();
                 profileShardResults.put(key, result.consumeProfileResult());
@@ -747,8 +759,8 @@ public final class SearchPhaseController {
         }
     }
 
-    AggregationReduceContext.Builder getReduceContext(Supplier<Boolean> isCanceled, SearchRequest request) {
-        return requestToAggReduceContextBuilder.apply(isCanceled, request);
+    AggregationReduceContext.Builder getReduceContext(Supplier<Boolean> isCanceled, AggregatorFactories.Builder aggs) {
+        return requestToAggReduceContextBuilder.apply(isCanceled, aggs);
     }
 
     /**

@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -48,7 +49,7 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
             String nodeId = randomAlphaOfLength(10);
             ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, nodeId, randomBoolean(), ShardRoutingState.STARTED);
             clusterSearchShardsGroups[i] = new ClusterSearchShardsGroup(shardId, new ShardRouting[] { shardRouting });
-            DiscoveryNode node = new DiscoveryNode(
+            DiscoveryNode node = DiscoveryNodeUtils.create(
                 shardRouting.currentNodeId(),
                 new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)),
                 VersionUtils.randomVersion(random())

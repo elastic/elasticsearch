@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -22,7 +22,7 @@ import java.util.Set;
 public class MessagesTests extends ESTestCase {
 
     private DiscoveryNode createNode(String id) {
-        return new DiscoveryNode(id, buildNewFakeTransportAddress(), Version.CURRENT);
+        return DiscoveryNodeUtils.create(id);
     }
 
     public void testJoinEqualsHashCodeSerialization() {

@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -17,7 +18,6 @@ import org.junit.Before;
 
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -120,6 +120,6 @@ public class InternalExecutePolicyActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles, Version version) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, version);
+        return DiscoveryNodeUtils.builder(nodeId).roles(roles).version(version).build();
     }
 }

@@ -12,12 +12,14 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
@@ -34,6 +36,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -46,14 +49,22 @@ public class TransportActionProxyTests extends ESTestCase {
     protected ThreadPool threadPool;
     // we use always a non-alpha or beta version here otherwise minimumCompatibilityVersion will be different for the two used versions
     private static final Version CURRENT_VERSION = Version.fromString(String.valueOf(Version.CURRENT.major) + ".0.0");
-    protected static final Version version0 = CURRENT_VERSION.minimumCompatibilityVersion();
+    protected static final VersionInformation version0 = new VersionInformation(
+        CURRENT_VERSION.minimumCompatibilityVersion(),
+        IndexVersion.MINIMUM_COMPATIBLE,
+        IndexVersion.current()
+    );
     protected static final TransportVersion transportVersion0 = TransportVersion.MINIMUM_COMPATIBLE;
 
     protected DiscoveryNode nodeA;
     protected MockTransportService serviceA;
 
-    protected static final Version version1 = Version.fromId(CURRENT_VERSION.id + 1);
-    protected static final TransportVersion transportVersion1 = TransportVersion.fromId(TransportVersion.CURRENT.id + 1);
+    protected static final VersionInformation version1 = new VersionInformation(
+        Version.fromId(CURRENT_VERSION.id + 1),
+        IndexVersion.MINIMUM_COMPATIBLE,
+        IndexVersion.current()
+    );
+    protected static final TransportVersion transportVersion1 = TransportVersion.fromId(TransportVersion.current().id() + 1);
     protected DiscoveryNode nodeB;
     protected MockTransportService serviceB;
 
@@ -87,7 +98,7 @@ public class TransportActionProxyTests extends ESTestCase {
         IOUtils.close(serviceA, serviceB, serviceC, serviceD, () -> { terminate(threadPool); });
     }
 
-    private MockTransportService buildService(Version version, TransportVersion transportVersion) {
+    private MockTransportService buildService(VersionInformation version, TransportVersion transportVersion) {
         MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, version, transportVersion, threadPool, null);
         service.start();
         service.acceptIncomingRequests();
@@ -147,6 +158,11 @@ public class TransportActionProxyTests extends ESTestCase {
                     }
 
                     @Override
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
+                    @Override
                     public void handleResponse(SimpleTestResponse response) {
                         try {
                             assertEquals("TS_C", response.targetNode);
@@ -191,6 +207,11 @@ public class TransportActionProxyTests extends ESTestCase {
                     @Override
                     public SimpleTestResponse read(StreamInput in) throws IOException {
                         return new SimpleTestResponse(in);
+                    }
+
+                    @Override
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
                     @Override
@@ -255,6 +276,11 @@ public class TransportActionProxyTests extends ESTestCase {
                 }
 
                 @Override
+                public Executor executor(ThreadPool threadPool) {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
+                @Override
                 public void handleResponse(SimpleTestResponse response) {
                     try {
                         assertEquals("TS_B", response.targetNode);
@@ -310,6 +336,11 @@ public class TransportActionProxyTests extends ESTestCase {
                 @Override
                 public SimpleTestResponse read(StreamInput in) throws IOException {
                     return new SimpleTestResponse(in);
+                }
+
+                @Override
+                public Executor executor(ThreadPool threadPool) {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
                 @Override

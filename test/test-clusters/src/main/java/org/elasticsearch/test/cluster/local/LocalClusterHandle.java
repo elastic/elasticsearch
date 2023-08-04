@@ -11,12 +11,14 @@ package org.elasticsearch.test.cluster.local;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.cluster.ClusterHandle;
+import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.local.LocalClusterFactory.Node;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.ExceptionUtils;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
@@ -141,7 +143,7 @@ public class LocalClusterHandle implements ClusterHandle {
     public void upgradeNodeToVersion(int index, Version version) {
         Node node = nodes.get(index);
         node.stop(false);
-        LOGGER.info("Upgrading node '{}' to version {}", node.getSpec().getName(), version);
+        LOGGER.info("Upgrading node '{}' to version {}", node.getName(), version);
         node.start(version);
         waitUntilReady();
     }
@@ -156,7 +158,25 @@ public class LocalClusterHandle implements ClusterHandle {
         waitUntilReady();
     }
 
-    private void waitUntilReady() {
+    public String getName(int index) {
+        return nodes.get(index).getName();
+    }
+
+    @Override
+    public long getPid(int index) {
+        return nodes.get(index).getPid();
+    }
+
+    public void stopNode(int index) {
+        nodes.get(index).stop(false);
+    }
+
+    @Override
+    public InputStream getNodeLog(int index, LogType logType) {
+        return nodes.get(index).getLog(logType);
+    }
+
+    protected void waitUntilReady() {
         writeUnicastHostsFile();
         try {
             WaitForHttpResource wait = configureWaitForReady();

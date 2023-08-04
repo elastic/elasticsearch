@@ -116,6 +116,34 @@ public class Iterators {
         }
     }
 
+    public static <T, U> Iterator<U> map(Iterator<? extends T> input, Function<T, U> fn) {
+        if (input.hasNext()) {
+            return new MapIterator<>(input, fn);
+        } else {
+            return Collections.emptyIterator();
+        }
+    }
+
+    private static final class MapIterator<T, U> implements Iterator<U> {
+        private final Iterator<? extends T> input;
+        private final Function<T, U> fn;
+
+        MapIterator(Iterator<? extends T> input, Function<T, U> fn) {
+            this.input = input;
+            this.fn = fn;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return input.hasNext();
+        }
+
+        @Override
+        public U next() {
+            return fn.apply(input.next());
+        }
+    }
+
     public static <T, U> Iterator<? extends U> flatMap(Iterator<? extends T> input, Function<T, Iterator<? extends U>> fn) {
         while (input.hasNext()) {
             final var value = fn.apply(input.next());

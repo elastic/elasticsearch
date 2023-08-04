@@ -281,6 +281,29 @@ public class DateProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("1970-01-01T00:16:40.500Z"));
     }
 
+    public void testEpochMillis() {
+        DateProcessor dateProcessor = new DateProcessor(
+            randomAlphaOfLength(10),
+            null,
+            templatize(ZoneOffset.UTC),
+            templatize(randomLocale(random())),
+            "date_as_string",
+            List.of("epoch_millis"),
+            "date_as_date"
+        );
+        Map<String, Object> document = new HashMap<>();
+        document.put("date_as_string", "1683701716065");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        dateProcessor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2023-05-10T06:55:16.065Z"));
+
+        document = new HashMap<>();
+        document.put("date_as_string", 1683701716065L);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        dateProcessor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2023-05-10T06:55:16.065Z"));
+    }
+
     public void testInvalidTimezone() {
         DateProcessor processor = new DateProcessor(
             randomAlphaOfLength(10),

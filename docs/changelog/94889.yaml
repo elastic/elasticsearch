@@ -1,5 +1,0 @@
-pr: 94889
-summary: Shortcut total hit count when `terminate_after` is used
-area: Search
-type: enhancement
-issues: []

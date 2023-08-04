@@ -27,9 +27,16 @@ collection.
 [timestamp_short_interval_from_last][INFO ][o.e.m.j.JvmGcMonitorService] [node_id] [gc][number] overhead, spent [21s] collecting in the last [40s]
 ----
 
+**Capture a JVM heap dump**
+
+To determine the exact reason for the high JVM memory pressure, capture a heap
+dump of the JVM while its memory usage is high.
+
 [discrete]
 [[reduce-jvm-memory-pressure]]
 ==== Reduce JVM memory pressure
+
+This section contains some common suggestions for reducing JVM memory pressure.
 
 **Reduce your shard count**
 

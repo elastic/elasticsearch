@@ -30,12 +30,11 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
+import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-
-import static org.elasticsearch.xpack.rollup.Rollup.TASK_THREAD_POOL_NAME;
 
 /**
  * A {@link TransportBroadcastAction} that rollups all the shards of a source index into a new rollup index.
@@ -69,7 +68,7 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
             indexNameExpressionResolver,
             DownsampleIndexerAction.Request::new,
             DownsampleIndexerAction.ShardDownsampleRequest::new,
-            TASK_THREAD_POOL_NAME
+            Rollup.DOWSAMPLE_TASK_THREAD_POOL_NAME
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
         this.clusterService = clusterService;

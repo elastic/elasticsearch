@@ -564,6 +564,22 @@ Supports also regular expressions with flag X for more readability (accepts whit
 
 **Note:** `$body` is used to refer to the last obtained response body as a string, while `''` refers to the parsed representation (parsed into a Map by the Java runner for instance). Having the raw string response is for example useful when testing cat APIs.
 
+=== `close_to`
+
+Used to compare floats or doubles with a specified error bound.
+
+....
+    - close_to { path.to.actual.value, {value: 0.12345678, error: 0.00000001}}
+....
+
+**Note: you should use a feature skip along with close_to, as not all runners
+support it:**
+
+....
+    - skip:
+          features: close_to
+....
+
 === `lt` and `gt`
 
 Compares two numeric values, eg:

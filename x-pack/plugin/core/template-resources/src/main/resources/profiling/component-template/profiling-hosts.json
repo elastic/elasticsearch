@@ -1,0 +1,307 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "number_of_replicas": 0,
+        "auto_expand_replicas": "0-1",
+        "refresh_interval": "10s",
+        "sort": {
+          "field": [
+            "profiling.project.id",
+            "host.id",
+            "@timestamp"
+          ]
+        }
+      },
+      "codec": "best_compression"
+    },
+    "mappings": {
+      "_source": {
+        "enabled": true
+      },
+      "_meta": {
+        "index-template-version": ${xpack.profiling.template.version},
+        "index-version": ${xpack.profiling.index.hosts.version}
+      },
+      "dynamic": false,
+      "properties": {
+        "ecs.version": {
+          "type": "keyword"
+        },
+        "host.id": {
+          "type": "keyword"
+        },
+        "@timestamp": {
+          "type": "date",
+          "format": "epoch_second"
+        },
+        "profiling": {
+          "properties": {
+            "project.id": {
+              "type": "keyword"
+            },
+            "agent": {
+              "properties": {
+                "version": {
+                  "type": "version"
+                },
+                "revision": {
+                  "type": "keyword"
+                },
+                "build_timestamp": {
+                  "type": "date",
+                  "format": "epoch_second"
+                },
+                "start_time": {
+                  "type": "date",
+                  "format": "epoch_millis"
+                },
+                "config.bpf_log_level": {
+                  "type": "long"
+                },
+                "config.bpf_log_size": {
+                  "type": "long"
+                },
+                "config.cache_directory": {
+                  "type": "keyword"
+                },
+                "config.ca_address": {
+                  "type": "keyword"
+                },
+                "config.file": {
+                  "type": "keyword"
+                },
+                "config.tags": {
+                  "type": "keyword"
+                },
+                "config.disable_tls": {
+                  "type": "boolean"
+                },
+                "config.elastic_mode": {
+                  "type": "boolean"
+                },
+                "config.no_kernel_version_check": {
+                  "type": "boolean"
+                },
+                "config.upload_symbols": {
+                  "type": "boolean"
+                },
+                "config.tracers": {
+                  "type": "keyword"
+                },
+                "config.known_traces_entries": {
+                  "type": "long"
+                },
+                "config.map_scale_factor": {
+                  "type": "short"
+                },
+                "config.max_elements_per_interval": {
+                  "type": "long"
+                },
+                "config.verbose": {
+                  "type": "boolean"
+                },
+                "config.probabilistic_interval": {
+                  "type": "keyword"
+                },
+                "config.probabilistic_threshold": {
+                  "type": "unsigned_long"
+                },
+                "config.present_cpu_cores": {
+                  "type": "integer"
+                }
+              }
+            },
+            "instance": {
+              "properties": {
+                "public_ipv4s": {
+                  "type": "ip",
+                  "ignore_malformed": true
+                },
+                "private_ipv4s": {
+                  "type": "ip",
+                  "ignore_malformed": true
+                },
+                "public_ipv6s": {
+                  "type": "ip",
+                  "ignore_malformed": true
+                },
+                "private_ipv6s": {
+                  "type": "ip",
+                  "ignore_malformed": true
+                }
+              }
+            },
+            "host": {
+              "properties": {
+                "ip": {
+                  "type": "ip",
+                  "ignore_malformed": true
+                },
+                "tags": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "keyword"
+                },
+                "kernel_version": {
+                  "type": "version"
+                },
+                "kernel_proc_version": {
+                  "type": "keyword"
+                },
+                "sysctl.kernel.bpf_stats_enabled": {
+                  "type": "integer"
+                },
+                "sysctl.kernel.unprivileged_bpf_disabled": {
+                  "type": "integer"
+                },
+                "sysctl.net.core.bpf_jit_enable": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "ec2": {
+          "properties": {
+            "ami_id": {
+              "type": "keyword"
+            },
+            "ami_manifest_path": {
+              "type": "keyword"
+            },
+            "ancestor_ami_ids": {
+              "type": "keyword"
+            },
+            "hostname": {
+              "type": "keyword"
+            },
+            "instance_id": {
+              "type": "keyword"
+            },
+            "instance_type": {
+              "type": "keyword"
+            },
+            "instance_life_cycle": {
+              "type": "keyword"
+            },
+            "local_hostname": {
+              "type": "keyword"
+            },
+            "local_ipv4": {
+              "type": "ip",
+              "ignore_malformed": true
+            },
+            "kernel_id": {
+              "type": "keyword"
+            },
+            "mac": {
+              "type": "keyword"
+            },
+            "profile": {
+              "type": "keyword"
+            },
+            "public_hostname": {
+              "type": "keyword"
+            },
+            "public_ipv4": {
+              "type": "ip",
+              "ignore_malformed": true
+            },
+            "product_codes": {
+              "type": "keyword"
+            },
+            "security_groups": {
+              "type": "keyword"
+            },
+            "placement.availability_zone": {
+              "type": "keyword"
+            },
+            "placement.availability_zone_id": {
+              "type": "keyword"
+            },
+            "placement.region": {
+              "type": "keyword"
+            }
+          }
+        },
+        "azure": {
+          "properties": {
+            "compute.sku": {
+              "type": "keyword"
+            },
+            "compute.name": {
+              "type": "keyword"
+            },
+            "compute.zone": {
+              "type": "keyword"
+            },
+            "compute.vmid": {
+              "type": "keyword"
+            },
+            "compute.tags": {
+              "type": "keyword"
+            },
+            "compute.offer": {
+              "type": "keyword"
+            },
+            "compute.vmsize": {
+              "type": "keyword"
+            },
+            "compute.ostype": {
+              "type": "keyword"
+            },
+            "compute.version": {
+              "type": "keyword"
+            },
+            "compute.location": {
+              "type": "keyword"
+            },
+            "compute.publisher": {
+              "type": "keyword"
+            },
+            "compute.environment": {
+              "type": "keyword"
+            },
+            "compute.subscriptionid": {
+              "type": "keyword"
+            }
+          }
+        },
+        "gce": {
+          "properties": {
+            "instance.id": {
+              "type": "keyword"
+            },
+            "instance.cpu_platform": {
+              "type": "keyword"
+            },
+            "instance.description": {
+              "type": "keyword"
+            },
+            "instance.hostname": {
+              "type": "keyword"
+            },
+            "instance.image": {
+              "type": "keyword"
+            },
+            "instance.machine_type": {
+              "type": "keyword"
+            },
+            "instance.name": {
+              "type": "keyword"
+            },
+            "instance.tags": {
+              "type": "keyword"
+            },
+            "instance.zone": {
+              "type": "keyword"
+            }
+          }
+        }
+      }
+    }
+  },
+  "version": ${xpack.profiling.template.version}
+}

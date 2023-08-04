@@ -143,7 +143,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
     }
 
     public void testWebhookWithTimebasedIndex() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("<logstash-{now/d}>").get());
+        assertAcked(indicesAdmin().prepareCreate("<logstash-{now/d}>").get());
 
         HttpServerTransport serverTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
         TransportAddress publishAddress = serverTransport.boundAddress().publishAddress();

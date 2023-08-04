@@ -356,7 +356,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         // A watch record without a watch is the easiest to simulate, so that is what this test does.
         if (indexExists(Watch.INDEX) == false) {
             // we rarely create an .watches alias in the base class
-            assertAcked(client().admin().indices().prepareCreate(Watch.INDEX));
+            assertAcked(indicesAdmin().prepareCreate(Watch.INDEX));
         }
         LocalDateTime localDateTime = LocalDateTime.of(2015, 11, 5, 0, 0, 0, 0);
         ZonedDateTime triggeredTime = ZonedDateTime.of(localDateTime, ZoneOffset.UTC);

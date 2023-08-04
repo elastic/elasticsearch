@@ -197,7 +197,7 @@ public class FilterAllocationDecider extends AllocationDecider {
                 return allocation.decision(
                     Decision.NO,
                     NAME,
-                    "node does not cluster setting [%s] filters [%s]",
+                    "node does not match cluster setting [%s] filters [%s]",
                     CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX,
                     clusterIncludeFilters
                 );

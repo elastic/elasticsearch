@@ -1,0 +1,5 @@
+pr: 96943
+summary: Add cluster setting to `SearchExecutionContext` to configure `TDigestExecutionHint`
+area: Aggregations
+type: enhancement
+issues: []

@@ -33,9 +33,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.OffsetTime;
+import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -66,7 +68,7 @@ import java.util.function.IntFunction;
  */
 public abstract class StreamInput extends InputStream {
 
-    private TransportVersion version = TransportVersion.CURRENT;
+    private TransportVersion version = TransportVersion.current();
 
     /**
      * The transport version the data is serialized as.
@@ -617,6 +619,13 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Same as {@link #readMap(Writeable.Reader, Writeable.Reader)} but always reading string keys.
+     */
+    public <V> Map<String, V> readMap(Writeable.Reader<V> valueReader) throws IOException {
+        return readMap(StreamInput::readString, valueReader, Maps::newHashMapWithExpectedSize);
+    }
+
+    /**
      * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
      */
     public <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
@@ -643,28 +652,18 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Read a {@link Map} of {@code K}-type keys to {@code V}-type {@link List}s.
+     * Read a {@link Map} of string keys to {@code V}-type {@link List}s.
      * <pre><code>
-     * Map&lt;String, List&lt;String&gt;&gt; map = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
+     * Map&lt;String, List&lt;String&gt;&gt; map = in.readMapOfLists(StreamInput::readString);
      * </code></pre>
      * If the map or a list in it contains any elements it will be mutable, otherwise either the empty map or empty lists it contains
      * might be immutable.
      *
-     * @param keyReader The key reader
      * @param valueReader The value reader
      * @return Never {@code null}.
      */
-    public <K, V> Map<K, List<V>> readMapOfLists(final Writeable.Reader<K> keyReader, final Writeable.Reader<V> valueReader)
-        throws IOException {
-        final int size = readArraySize();
-        if (size == 0) {
-            return Collections.emptyMap();
-        }
-        final Map<K, List<V>> map = Maps.newMapWithExpectedSize(size);
-        for (int i = 0; i < size; ++i) {
-            map.put(keyReader.read(this), readList(valueReader));
-        }
-        return map;
+    public <V> Map<String, List<V>> readMapOfLists(final Writeable.Reader<V> valueReader) throws IOException {
+        return readMap(i -> i.readList(valueReader));
     }
 
     /**
@@ -694,6 +693,13 @@ public abstract class StreamInput extends InputStream {
     @SuppressWarnings("unchecked")
     public Map<String, Object> readMap() throws IOException {
         return (Map<String, Object>) readGenericValue();
+    }
+
+    /**
+     * Same as {@link #readMap(Writeable.Reader, Writeable.Reader)} but always reading string keys.
+     */
+    public <V> Map<String, V> readImmutableMap(Writeable.Reader<V> valueReader) throws IOException {
+        return readImmutableMap(StreamInput::readString, valueReader);
     }
 
     /**
@@ -760,7 +766,7 @@ public abstract class StreamInput extends InputStream {
                 : readOrderedMap(StreamInput::readString, StreamInput::readGenericValue);
             case 10 -> getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)
                 ? readMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
-                : readMap(StreamInput::readString, StreamInput::readGenericValue);
+                : readMap(StreamInput::readGenericValue);
             case 11 -> readByte();
             case 12 -> readDate();
             case 13 ->
@@ -781,6 +787,8 @@ public abstract class StreamInput extends InputStream {
             case 25 -> readCollection(StreamInput::readGenericValue, Sets::newHashSetWithExpectedSize, Collections.emptySet());
             case 26 -> readBigInteger();
             case 27 -> readOffsetTime();
+            case 28 -> readDuration();
+            case 29 -> readPeriod();
             default -> throw new IOException("Can't read unknown type [" + type + "]");
         };
     }
@@ -822,6 +830,19 @@ public abstract class StreamInput extends InputStream {
     private OffsetTime readOffsetTime() throws IOException {
         final String zoneOffsetId = readString();
         return OffsetTime.of(LocalTime.ofNanoOfDay(readLong()), ZoneOffset.of(zoneOffsetId));
+    }
+
+    private Duration readDuration() throws IOException {
+        final long seconds = readLong();
+        final long nanos = readLong();
+        return Duration.ofSeconds(seconds, nanos);
+    }
+
+    private Period readPeriod() throws IOException {
+        final int years = readInt();
+        final int months = readInt();
+        final int days = readInt();
+        return Period.of(years, months, days);
     }
 
     private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
@@ -1076,20 +1097,20 @@ public abstract class StreamInput extends InputStream {
     public <T> List<T> readImmutableList(final Writeable.Reader<T> reader) throws IOException {
         int count = readArraySize();
         // special cases small arrays, just like in java.util.List.of(...)
-        if (count == 0) {
-            return List.of();
-        } else if (count == 1) {
-            return List.of(reader.read(this));
-        } else if (count == 2) {
-            return List.of(reader.read(this), reader.read(this));
-        }
-        Object[] entries = new Object[count];
-        for (int i = 0; i < count; i++) {
-            entries[i] = reader.read(this);
-        }
-        @SuppressWarnings("unchecked")
-        T[] typedEntries = (T[]) entries;
-        return List.of(typedEntries);
+        return switch (count) {
+            case 0 -> List.of();
+            case 1 -> List.of(reader.read(this));
+            case 2 -> List.of(reader.read(this), reader.read(this));
+            default -> {
+                Object[] entries = new Object[count];
+                for (int i = 0; i < count; i++) {
+                    entries[i] = reader.read(this);
+                }
+                @SuppressWarnings("unchecked")
+                T[] typedEntries = (T[]) entries;
+                yield List.of(typedEntries);
+            }
+        };
     }
 
     /**
@@ -1140,6 +1161,32 @@ public abstract class StreamInput extends InputStream {
      */
     public <T> Set<T> readSet(Writeable.Reader<T> reader) throws IOException {
         return readCollection(reader, Sets::newHashSetWithExpectedSize, Collections.emptySet());
+    }
+
+    /**
+     * Reads a set of objects. The set is expected to have been written using {@link StreamOutput#writeCollection(Collection)}} with
+     * a collection that contains no duplicates. The returned set is immutable.
+     *
+     * @return the set of objects
+     * @throws IOException if an I/O exception occurs reading the set
+     */
+    public <T> Set<T> readImmutableSet(final Writeable.Reader<T> reader) throws IOException {
+        int count = readArraySize();
+        // special cases small arrays, just like in java.util.Set.of(...)
+        return switch (count) {
+            case 0 -> Set.of();
+            case 1 -> Set.of(reader.read(this));
+            case 2 -> Set.of(reader.read(this), reader.read(this));
+            default -> {
+                Object[] entries = new Object[count];
+                for (int i = 0; i < count; i++) {
+                    entries[i] = reader.read(this);
+                }
+                @SuppressWarnings("unchecked")
+                T[] typedEntries = (T[]) entries;
+                yield Set.of(typedEntries);
+            }
+        };
     }
 
     /**

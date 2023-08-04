@@ -209,7 +209,6 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
         assertHitCount(searchResponse, 0L);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86115")
     public void testCardinalityAggregation() throws IOException {
         int numDocs = randomIntBetween(2, 100);
         int precisionThreshold = randomIntBetween(0, 1 << randomInt(20));

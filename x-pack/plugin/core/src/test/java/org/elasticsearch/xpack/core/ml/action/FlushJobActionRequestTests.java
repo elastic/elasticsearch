@@ -20,6 +20,9 @@ public class FlushJobActionRequestTests extends AbstractBWCWireSerializationTest
             request.setWaitForNormalization(randomBoolean());
         }
         if (randomBoolean()) {
+            request.setRefreshRequired(randomBoolean());
+        }
+        if (randomBoolean()) {
             request.setCalcInterim(randomBoolean());
         }
         if (randomBoolean()) {
@@ -49,6 +52,9 @@ public class FlushJobActionRequestTests extends AbstractBWCWireSerializationTest
 
     @Override
     protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
+        if (version.before(TransportVersion.V_8_500_012)) {
+            instance.setRefreshRequired(true);
+        }
         return instance;
     }
 }

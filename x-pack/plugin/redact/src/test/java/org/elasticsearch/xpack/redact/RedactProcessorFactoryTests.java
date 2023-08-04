@@ -81,8 +81,9 @@ public class RedactProcessorFactoryTests extends ESTestCase {
             config.put("field", "_field");
             config.put("patterns", List.of("%{MY_PATTERN:name}!"));
             config.put("pattern_definitions", Map.of("MY_PATTERN", "foo"));
+            config.put("skip_if_unlicensed", true); // set to true explicitly (the default is false)
 
-            // the default value for skip_if_unlicensed is true, and so the license state doesn't matter
+            // since skip_if_unlicensed is true, we can use the redact processor regardless of the license state
             XPackLicenseState licenseState = randomBoolean() ? mockLicenseState() : mockNotAllowedLicenseState();
             RedactProcessor.Factory factory = new RedactProcessor.Factory(licenseState, MatcherWatchdog.noop());
             RedactProcessor processor = factory.create(null, null, null, config);
@@ -95,9 +96,11 @@ public class RedactProcessorFactoryTests extends ESTestCase {
             config.put("field", "_field");
             config.put("patterns", List.of("%{MY_PATTERN:name}!"));
             config.put("pattern_definitions", Map.of("MY_PATTERN", "foo"));
+            if (randomBoolean()) {
+                config.put("skip_if_unlicensed", false); // sometimes set to false explicitly, sometimes rely on the default (also false)
+            }
 
-            // but it can be set to false if you wish, in which case the license check must pass
-            config.put("skip_if_unlicensed", false);
+            // regardless of default/explicit, the license must be sufficient for the feature
             RedactProcessor.Factory factory = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop());
             RedactProcessor processor = factory.create(null, null, null, config);
             processor.extraValidation();
@@ -109,9 +112,10 @@ public class RedactProcessorFactoryTests extends ESTestCase {
             config.put("field", "_field");
             config.put("patterns", List.of("%{MY_PATTERN:name}!"));
             config.put("pattern_definitions", Map.of("MY_PATTERN", "foo"));
-
+            if (randomBoolean()) {
+                config.put("skip_if_unlicensed", false); // sometimes set to false explicitly, sometimes rely on the default (also false)
+            }
             // if skip_if_unlicensed is false, then the license must allow for redact to be used in order to pass the extra validation
-            config.put("skip_if_unlicensed", false);
             RedactProcessor.Factory factory = new RedactProcessor.Factory(mockNotAllowedLicenseState(), MatcherWatchdog.noop());
             RedactProcessor processor = factory.create(null, null, null, config);
             ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> processor.extraValidation());

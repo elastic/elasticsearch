@@ -56,7 +56,9 @@ dependencies {
     api 'org.apache.commons:commons-lang3:3.11'
     api 'javax.servlet:javax.servlet-api:3.1.0'
     api "org.slf4j:slf4j-api:${versions.slf4j}"
-    api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+    runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+    //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
+
     // Set the keytab files in the classpath so that we can access them from test code without the security manager
     // freaking out.
     if (isEclipse == false) {

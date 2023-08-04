@@ -1,5 +1,0 @@
-pr: 95168
-summary: "Start, stop and infer of a trained model can now optionally use a deployment ID that is different to the model ID"
-area: Machine Learning
-type: enhancement
-issues: []

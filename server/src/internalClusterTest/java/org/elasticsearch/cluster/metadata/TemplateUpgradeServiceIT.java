@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
@@ -77,7 +78,8 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             IndexNameExpressionResolver expressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            AllocationService allocationService
+            AllocationService allocationService,
+            IndicesService indicesService
         ) {
             clusterService.getClusterSettings().addSettingsUpdateConsumer(UPDATE_TEMPLATE_DUMMY_SETTING, integer -> {
                 logger.debug("the template dummy setting was updated to {}", integer);
@@ -95,7 +97,8 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
                 expressionResolver,
                 repositoriesServiceSupplier,
                 tracer,
-                allocationService
+                allocationService,
+                indicesService
             );
         }
 
@@ -125,29 +128,12 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         assertTemplates();
 
         // Change some templates
+        assertAcked(indicesAdmin().preparePutTemplate("test_dummy_template").setOrder(0).setPatterns(Collections.singletonList("*")).get());
         assertAcked(
-            client().admin()
-                .indices()
-                .preparePutTemplate("test_dummy_template")
-                .setOrder(0)
-                .setPatterns(Collections.singletonList("*"))
-                .get()
+            indicesAdmin().preparePutTemplate("test_changed_template").setOrder(0).setPatterns(Collections.singletonList("*")).get()
         );
         assertAcked(
-            client().admin()
-                .indices()
-                .preparePutTemplate("test_changed_template")
-                .setOrder(0)
-                .setPatterns(Collections.singletonList("*"))
-                .get()
-        );
-        assertAcked(
-            client().admin()
-                .indices()
-                .preparePutTemplate("test_removed_template")
-                .setOrder(1)
-                .setPatterns(Collections.singletonList("*"))
-                .get()
+            indicesAdmin().preparePutTemplate("test_removed_template").setOrder(1).setPatterns(Collections.singletonList("*")).get()
         );
 
         AtomicInteger updateCount = new AtomicInteger();
@@ -156,7 +142,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             // the updates only happen on cluster state updates, so we need to make sure that the cluster state updates are happening
             // so we need to simulate updates to make sure the template upgrade kicks in
             updateClusterSettings(Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet()));
-            List<IndexTemplateMetadata> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
+            List<IndexTemplateMetadata> templates = indicesAdmin().prepareGetTemplates("test_*").get().getIndexTemplates();
             assertThat(templates, hasSize(3));
             boolean addedFound = false;
             boolean changedFound = false;
@@ -186,7 +172,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         });
 
         // Wipe out all templates
-        assertAcked(client().admin().indices().prepareDeleteTemplate("test_*").get());
+        assertAcked(indicesAdmin().prepareDeleteTemplate("test_*").get());
 
         assertTemplates();
 
@@ -200,7 +186,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             // so we need to simulate updates to make sure the template upgrade kicks in
             updateClusterSettings(Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet()));
 
-            List<IndexTemplateMetadata> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
+            List<IndexTemplateMetadata> templates = indicesAdmin().prepareGetTemplates("test_*").get().getIndexTemplates();
             assertThat(templates, hasSize(2));
             boolean addedFound = false;
             boolean changedFound = false;

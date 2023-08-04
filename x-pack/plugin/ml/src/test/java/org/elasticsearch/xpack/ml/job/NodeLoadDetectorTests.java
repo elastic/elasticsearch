@@ -6,12 +6,11 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -68,43 +67,39 @@ public class NodeLoadDetectorTests extends ESTestCase {
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                new DiscoveryNode(
+                DiscoveryNodeUtils.create(
                     "_node_name1",
                     "_node_id1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                     nodeAttr,
-                    Set.of(DiscoveryNodeRole.ML_ROLE),
-                    Version.CURRENT
+                    Set.of(DiscoveryNodeRole.ML_ROLE)
                 )
             )
             .add(
-                new DiscoveryNode(
+                DiscoveryNodeUtils.create(
                     "_node_name2",
                     "_node_id2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
                     nodeAttr,
-                    Set.of(DiscoveryNodeRole.ML_ROLE),
-                    Version.CURRENT
+                    Set.of(DiscoveryNodeRole.ML_ROLE)
                 )
             )
             .add(
-                new DiscoveryNode(
+                DiscoveryNodeUtils.create(
                     "_node_name3",
                     "_node_id3",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
                     nodeAttr,
-                    Set.of(DiscoveryNodeRole.ML_ROLE),
-                    Version.CURRENT
+                    Set.of(DiscoveryNodeRole.ML_ROLE)
                 )
             )
             .add(
-                new DiscoveryNode(
+                DiscoveryNodeUtils.create(
                     "_node_name4",
                     "_node_id4",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9303),
                     nodeAttr,
-                    Set.of(DiscoveryNodeRole.ML_ROLE),
-                    Version.CURRENT
+                    Set.of(DiscoveryNodeRole.ML_ROLE)
                 )
             )
             .build();

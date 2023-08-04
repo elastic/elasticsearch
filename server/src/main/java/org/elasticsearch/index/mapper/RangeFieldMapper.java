@@ -444,8 +444,8 @@ public class RangeFieldMapper extends FieldMapper {
         byte[] upper = lower.clone();
         for (int i = cidr.v2(); i < 8 * lower.length; i++) {
             int m = 1 << 7 - (i & 7);
-            lower[i >> 3] &= ~m;
-            upper[i >> 3] |= m;
+            lower[i >> 3] &= (byte) ~m;
+            upper[i >> 3] |= (byte) m;
         }
         try {
             return new Range(RangeType.IP, InetAddress.getByAddress(lower), InetAddress.getByAddress(upper), true, true);

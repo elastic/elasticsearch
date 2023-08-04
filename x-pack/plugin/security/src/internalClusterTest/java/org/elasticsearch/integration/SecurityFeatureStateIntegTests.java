@@ -68,9 +68,7 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
     public void testSecurityFeatureStateSnapshotAndRestore() throws Exception {
         // set up a snapshot repository
         final String repositoryName = "test-repo";
-        client().admin()
-            .cluster()
-            .preparePutRepository(repositoryName)
+        clusterAdmin().preparePutRepository(repositoryName)
             .setType("fs")
             .setSettings(Settings.builder().put("location", repositoryLocation))
             .get();
@@ -107,9 +105,7 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
 
         // snapshot state
         final String snapshotName = "security-state";
-        client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repositoryName, snapshotName)
+        clusterAdmin().prepareCreateSnapshot(repositoryName, snapshotName)
             .setIndices("test_index")
             .setFeatureStates("LocalStateSecurity")
             .get();
@@ -135,9 +131,7 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
         client().admin().indices().prepareClose("test_index").get();
 
         // restore state
-        client().admin()
-            .cluster()
-            .prepareRestoreSnapshot(repositoryName, snapshotName)
+        clusterAdmin().prepareRestoreSnapshot(repositoryName, snapshotName)
             .setFeatureStates("LocalStateSecurity")
             .setIndices("test_index")
             .setWaitForCompletion(true)
@@ -174,13 +168,11 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
 
     private void waitForSnapshotToFinish(String repo, String snapshot) throws Exception {
         assertBusy(() -> {
-            SnapshotsStatusResponse response = client().admin().cluster().prepareSnapshotStatus(repo).setSnapshots(snapshot).get();
+            SnapshotsStatusResponse response = clusterAdmin().prepareSnapshotStatus(repo).setSnapshots(snapshot).get();
             assertThat(response.getSnapshots().get(0).getState(), is(SnapshotsInProgress.State.SUCCESS));
             // The status of the snapshot in the repository can become SUCCESS before it is fully finalized in the cluster state so wait for
             // it to disappear from the cluster state as well
-            SnapshotsInProgress snapshotsInProgress = client().admin()
-                .cluster()
-                .state(new ClusterStateRequest())
+            SnapshotsInProgress snapshotsInProgress = clusterAdmin().state(new ClusterStateRequest())
                 .get()
                 .getState()
                 .custom(SnapshotsInProgress.TYPE);

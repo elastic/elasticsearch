@@ -204,19 +204,19 @@ public class VersionsTests extends ESTestCase {
         final Version nextVersion = Version.fromId(version.id + 100);
         if (Version.getDeclaredVersions(Version.class).contains(nextVersion) == false) {
             // the version is not known, we make an assumption the Lucene version stays the same
-            assertEquals(nextVersion.luceneVersion, version.luceneVersion);
+            assertEquals(nextVersion.luceneVersion(), version.luceneVersion());
         } else {
             // the version is known, the most we can assert is that the Lucene version is not earlier
-            assertTrue(nextVersion.luceneVersion.onOrAfter(version.luceneVersion));
+            assertTrue(nextVersion.luceneVersion().onOrAfter(version.luceneVersion()));
         }
 
         // too old version, major should be the oldest supported lucene version minus 1
         version = Version.fromString("5.2.1");
-        assertEquals(VersionUtils.getFirstVersion().luceneVersion.major - 1, version.luceneVersion.major);
+        assertEquals(VersionUtils.getFirstVersion().luceneVersion().major - 1, version.luceneVersion().major);
 
         // future version, should be the same version as today
         version = Version.fromId(Version.CURRENT.id + 100);
-        assertEquals(Version.CURRENT.luceneVersion, version.luceneVersion);
+        assertEquals(Version.CURRENT.luceneVersion(), version.luceneVersion());
     }
 
     public void testTimeSeriesLoadDocIdAndVersion() throws Exception {
@@ -231,7 +231,7 @@ public class VersionsTests extends ESTestCase {
 
         Document doc = new Document();
         doc.add(new StringField(IdFieldMapper.NAME, "1", Field.Store.YES));
-        doc.add(new LongPoint(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 1_000));
+        doc.add(new LongPoint(DataStream.TIMESTAMP_FIELD_NAME, 1_000));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, 0L));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 1L));
@@ -239,7 +239,7 @@ public class VersionsTests extends ESTestCase {
 
         doc = new Document();
         doc.add(new StringField(IdFieldMapper.NAME, "2", Field.Store.YES));
-        doc.add(new LongPoint(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 10_000));
+        doc.add(new LongPoint(DataStream.TIMESTAMP_FIELD_NAME, 10_000));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, 0L));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 1L));

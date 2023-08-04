@@ -8,12 +8,18 @@
 
 package org.elasticsearch.index.snapshots;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.snapshots.AbortedSnapshotException;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Represent shard snapshot status
@@ -50,6 +56,15 @@ public class IndexShardSnapshotStatus {
         ABORTED
     }
 
+    /**
+     * Used to complete listeners added via {@link #addAbortListener} when the shard snapshot is either aborted or it gets past the stages
+     * where an abort could have occurred.
+     */
+    public enum AbortStatus {
+        NO_ABORT,
+        ABORTED
+    }
+
     private final AtomicReference<Stage> stage;
     private final AtomicReference<ShardGeneration> generation;
     private final AtomicReference<ShardSnapshotResult> shardSnapshotResult; // only set in stage DONE
@@ -61,8 +76,8 @@ public class IndexShardSnapshotStatus {
     private long totalSize;
     private long incrementalSize;
     private long processedSize;
-    private long indexVersion;
     private String failure;
+    private final SubscribableListener<AbortStatus> abortListeners = new SubscribableListener<>();
 
     private IndexShardSnapshotStatus(
         final Stage stage,
@@ -115,18 +130,23 @@ public class IndexShardSnapshotStatus {
         return asCopy();
     }
 
-    public synchronized Copy moveToFinalize(final long indexVersion) {
-        if (stage.compareAndSet(Stage.STARTED, Stage.FINALIZE)) {
-            this.indexVersion = indexVersion;
-        } else if (isAborted()) {
-            throw new AbortedSnapshotException();
-        } else {
-            assert false : "Should not try to move stage [" + stage.get() + "] to [FINALIZE]";
-            throw new IllegalStateException(
-                "Unable to move the shard snapshot status to [FINALIZE]: " + "expecting [STARTED] but got [" + stage.get() + "]"
-            );
-        }
-        return asCopy();
+    public synchronized Copy moveToFinalize() {
+        final var prevStage = stage.compareAndExchange(Stage.STARTED, Stage.FINALIZE);
+        return switch (prevStage) {
+            case STARTED -> {
+                abortListeners.onResponse(AbortStatus.NO_ABORT);
+                yield asCopy();
+            }
+            case ABORTED -> throw new AbortedSnapshotException();
+            default -> {
+                final var message = Strings.format(
+                    "Unable to move the shard snapshot status to [FINALIZE]: expecting [STARTED] but got [%s]",
+                    prevStage
+                );
+                assert false : message;
+                throw new IllegalStateException(message);
+            }
+        };
     }
 
     public synchronized void moveToDone(final long endTime, final ShardSnapshotResult shardSnapshotResult) {
@@ -144,14 +164,23 @@ public class IndexShardSnapshotStatus {
         }
     }
 
-    public synchronized void abortIfNotCompleted(final String failure) {
+    public void addAbortListener(ActionListener<AbortStatus> listener) {
+        abortListeners.addListener(listener);
+    }
+
+    public synchronized void abortIfNotCompleted(final String failure, Consumer<ActionListener<Releasable>> notifyRunner) {
         if (stage.compareAndSet(Stage.INIT, Stage.ABORTED) || stage.compareAndSet(Stage.STARTED, Stage.ABORTED)) {
             this.failure = failure;
+            notifyRunner.accept(abortListeners.map(r -> {
+                Releasables.closeExpectNoException(r);
+                return AbortStatus.ABORTED;
+            }));
         }
     }
 
     public synchronized void moveToFailed(final long endTime, final String failure) {
         if (stage.getAndSet(Stage.FAILURE) != Stage.FAILURE) {
+            abortListeners.onResponse(AbortStatus.NO_ABORT);
             this.totalTime = Math.max(0L, endTime - startTime);
             this.failure = failure;
         }
@@ -206,7 +235,6 @@ public class IndexShardSnapshotStatus {
             incrementalSize,
             totalSize,
             processedSize,
-            indexVersion,
             failure
         );
     }
@@ -262,7 +290,6 @@ public class IndexShardSnapshotStatus {
         private final long totalSize;
         private final long processedSize;
         private final long incrementalSize;
-        private final long indexVersion;
         private final String failure;
 
         public Copy(
@@ -275,7 +302,6 @@ public class IndexShardSnapshotStatus {
             final long incrementalSize,
             final long totalSize,
             final long processedSize,
-            final long indexVersion,
             final String failure
         ) {
             this.stage = stage;
@@ -287,7 +313,6 @@ public class IndexShardSnapshotStatus {
             this.totalSize = totalSize;
             this.processedSize = processedSize;
             this.incrementalSize = incrementalSize;
-            this.indexVersion = indexVersion;
             this.failure = failure;
         }
 
@@ -327,10 +352,6 @@ public class IndexShardSnapshotStatus {
             return processedSize;
         }
 
-        public long getIndexVersion() {
-            return indexVersion;
-        }
-
         public String getFailure() {
             return failure;
         }
@@ -356,8 +377,6 @@ public class IndexShardSnapshotStatus {
                 + totalSize
                 + ", processedSize="
                 + processedSize
-                + ", indexVersion="
-                + indexVersion
                 + ", failure='"
                 + failure
                 + '\''

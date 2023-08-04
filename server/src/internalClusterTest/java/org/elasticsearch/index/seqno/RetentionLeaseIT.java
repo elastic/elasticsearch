@@ -10,6 +10,7 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -560,7 +561,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
             .build();
         assertAcked(prepareCreate("index").setSettings(settings));
         ensureYellowAndNoInitializingShards("index");
-        assertFalse(client().admin().cluster().prepareHealth("index").setWaitForActiveShards(numDataNodes).get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth("index").setWaitForActiveShards(numDataNodes).get().isTimedOut());
 
         final String primaryShardNodeId = clusterService().state().routingTable().index("index").shard(0).primaryShard().currentNodeId();
         final String primaryShardNodeName = clusterService().state().nodes().get(primaryShardNodeId).getName();
@@ -603,7 +604,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
     }
 
     private static ActionListener<ReplicationResponse> countDownLatchListener(CountDownLatch latch) {
-        return ActionListener.wrap(r -> latch.countDown(), RetentionLeaseIT::failWithException);
+        return ActionTestUtils.assertNoFailureListener(r -> latch.countDown());
     }
 
 }

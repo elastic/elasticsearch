@@ -101,7 +101,7 @@ public class VectorHighlighterTests extends ESTestCase {
         );
         assertThat(fragment, nullValue());
         prefixQuery = new PrefixQuery(new Term("content", "ba"), MultiTermQuery.SCORING_BOOLEAN_REWRITE);
-        Query rewriteQuery = prefixQuery.rewrite(reader);
+        Query rewriteQuery = prefixQuery.rewrite(searcher);
         fragment = highlighter.getBestFragment(highlighter.getFieldQuery(rewriteQuery), reader, topDocs.scoreDocs[0].doc, "content", 30);
         assertThat(fragment, notNullValue());
 

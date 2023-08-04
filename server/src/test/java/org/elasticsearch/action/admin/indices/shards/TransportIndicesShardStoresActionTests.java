@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -179,7 +180,7 @@ public class TransportIndicesShardStoresActionTests extends ESTestCase {
 
         TestHarness() {
             this.deterministicTaskQueue = new DeterministicTaskQueue();
-            this.localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+            this.localNode = DiscoveryNodeUtils.create("local");
 
             final var threadPool = deterministicTaskQueue.getThreadPool();
 

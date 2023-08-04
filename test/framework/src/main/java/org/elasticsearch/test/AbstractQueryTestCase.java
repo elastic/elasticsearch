@@ -607,7 +607,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected QueryBuilder assertSerialization(QueryBuilder testQuery) throws IOException {
-        return assertSerialization(testQuery, TransportVersion.CURRENT);
+        return assertSerialization(testQuery, TransportVersion.current());
     }
 
     /**

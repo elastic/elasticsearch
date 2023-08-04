@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -29,10 +28,12 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.Feature;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
@@ -433,6 +434,19 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             () -> indexNameExpressionResolver.concreteIndexNames(context2, "-*")
         );
         assertThat(infe.getResourceId().toString(), equalTo("[-*]"));
+
+        infe = expectThrows(
+            IndexNotFoundException.class,
+            // throws error because "-foobar" was not covered by a wildcard that included it
+            () -> indexNameExpressionResolver.concreteIndexNames(context2, "bar", "hidden", "-foobar")
+        );
+        assertThat(
+            infe.getMessage(),
+            containsString(
+                "if you intended to exclude this index, ensure that you use wildcards that include it " + "before explicitly excluding it"
+            )
+        );
+        assertThat(infe.getResourceId().toString(), equalTo("[-foobar]"));
 
         // open and hidden
         options = IndicesOptions.fromOptions(false, true, true, false, true);
@@ -1672,9 +1686,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             String[] result = indexNameExpressionResolver.indexAliases(state, index, x -> true, x -> true, false, resolvedExpressions);
             assertThat(result, nullValue());
         }
-
         {
-            // Only resolve aliases that refer to dataStreamName1 where the filter is not null
+            // Null is returned, because the wildcard expands to a list of aliases containing an unfiltered alias for dataStreamName1
             Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "l*");
             String index = backingIndex1.getIndex().getName();
             String[] result = indexNameExpressionResolver.indexAliases(
@@ -1685,7 +1698,49 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 true,
                 resolvedExpressions
             );
-            assertThat(result, arrayContainingInAnyOrder("logs", "logs_foo"));
+            assertThat(result, nullValue());
+        }
+        {
+            // Null is returned, because an unfiltered alias is targeting the same data stream
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "logs_bar", "logs");
+            String index = backingIndex1.getIndex().getName();
+            String[] result = indexNameExpressionResolver.indexAliases(
+                state,
+                index,
+                x -> true,
+                DataStreamAlias::filteringRequired,
+                true,
+                resolvedExpressions
+            );
+            assertThat(result, nullValue());
+        }
+        {
+            // The filtered alias is returned because although we target the data stream name, skipIdentity is true
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, dataStreamName1, "logs");
+            String index = backingIndex1.getIndex().getName();
+            String[] result = indexNameExpressionResolver.indexAliases(
+                state,
+                index,
+                x -> true,
+                DataStreamAlias::filteringRequired,
+                true,
+                resolvedExpressions
+            );
+            assertThat(result, arrayContainingInAnyOrder("logs"));
+        }
+        {
+            // Null is returned because we target the data stream name and skipIdentity is false
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, dataStreamName1, "logs");
+            String index = backingIndex1.getIndex().getName();
+            String[] result = indexNameExpressionResolver.indexAliases(
+                state,
+                index,
+                x -> true,
+                DataStreamAlias::filteringRequired,
+                false,
+                resolvedExpressions
+            );
+            assertThat(result, nullValue());
         }
     }
 
@@ -1741,10 +1796,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
             }
 
-            @Override
-            public boolean includeDataStreams() {
-                return false;
-            }
         };
         Index writeIndex = indexNameExpressionResolver.concreteWriteIndex(state, request);
         assertThat(writeIndex.getName(), equalTo("test-0"));
@@ -1779,10 +1830,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
             }
 
-            @Override
-            public boolean includeDataStreams() {
-                return false;
-            }
         };
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -1831,10 +1878,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 return IndicesOptions.strictExpandOpenAndForbidClosed();
             }
 
-            @Override
-            public boolean includeDataStreams() {
-                return false;
-            }
         };
 
         IllegalArgumentException exception = expectThrows(
@@ -2420,19 +2463,26 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new Feature(
                     "ml",
                     "ml indices",
-                    List.of(new SystemIndexDescriptor(".ml-meta*", "ml meta"), new SystemIndexDescriptor(".ml-stuff*", "other ml"))
+                    List.of(
+                        SystemIndexDescriptorUtils.createUnmanaged(".ml-meta*", "ml meta"),
+                        SystemIndexDescriptorUtils.createUnmanaged(".ml-stuff*", "other ml")
+                    )
                 ),
-                new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches*", "watches index"))),
+                new Feature(
+                    "watcher",
+                    "watcher indices",
+                    List.of(SystemIndexDescriptorUtils.createUnmanaged(".watches*", "watches index"))
+                ),
                 new Feature(
                     "stack-component",
                     "stack component",
                     List.of(
-                        new SystemIndexDescriptor(
-                            ".external-sys-idx*",
-                            "external",
-                            Type.EXTERNAL_UNMANAGED,
-                            List.of("stack-component", "other")
-                        )
+                        SystemIndexDescriptor.builder()
+                            .setIndexPattern(".external-sys-idx*")
+                            .setDescription("external")
+                            .setType(Type.EXTERNAL_UNMANAGED)
+                            .setAllowedElasticProductOrigins(List.of("stack-component", "other"))
+                            .build()
                     )
                 )
             )
@@ -2943,7 +2993,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         IndexMetadata index1 = createBackingIndex(dataStream1, 1, epochMillis).build();
         IndexMetadata index2 = createBackingIndex(dataStream1, 2, epochMillis).build();
         IndexMetadata justAnIndex = IndexMetadata.builder("logs-foobarbaz-0")
-            .settings(ESTestCase.settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .putAlias(new AliasMetadata.Builder("logs-foobarbaz"))
@@ -2973,7 +3023,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         IndexMetadata index1 = createBackingIndex(dataStream1, 1, epochMillis).build();
         IndexMetadata index2 = createBackingIndex(dataStream1, 2, epochMillis).build();
         IndexMetadata justAnIndex = IndexMetadata.builder("logs-foobarbaz-0")
-            .settings(ESTestCase.settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
@@ -3013,7 +3063,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         IndexMetadata index1 = createBackingIndex(dataStream1, 1).build();
         IndexMetadata index2 = createBackingIndex(dataStream1, 2).build();
         IndexMetadata justAnIndex = IndexMetadata.builder("logs-foobarbaz-0")
-            .settings(ESTestCase.settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .putAlias(new AliasMetadata.Builder("logs-foobarbaz"))
@@ -3227,9 +3277,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new Feature(
                     "ml",
                     "ml indices",
-                    List.of(new SystemIndexDescriptor(".ml-meta*", "ml meta"), new SystemIndexDescriptor(".ml-stuff*", "other ml"))
+                    List.of(
+                        SystemIndexDescriptorUtils.createUnmanaged(".ml-meta*", "ml meta"),
+                        SystemIndexDescriptorUtils.createUnmanaged(".ml-stuff*", "other ml")
+                    )
                 ),
-                new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches*", "watches index")))
+                new Feature("watcher", "watcher indices", List.of(SystemIndexDescriptorUtils.createUnmanaged(".watches*", "watches index")))
             )
         );
         indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
@@ -3241,7 +3294,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     private static IndexMetadata.Builder indexBuilder(String index, Settings additionalSettings) {
-        return IndexMetadata.builder(index).settings(indexSettings(Version.CURRENT, 1, 0).put(additionalSettings));
+        return IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0).put(additionalSettings));
     }
 
 }

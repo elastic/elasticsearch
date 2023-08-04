@@ -42,7 +42,7 @@ final class ReverseBytesReader extends FST.BytesReader {
 
     @Override
     public void skipBytes(long count) {
-        pos -= count;
+        pos -= (int) count;
     }
 
     @Override

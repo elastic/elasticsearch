@@ -94,8 +94,8 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
 
     private void assertLatestHistoryEntry(String id, String expectedValue) throws Exception {
         assertBusy(() -> {
+            ensureGreen(HistoryStoreField.DATA_STREAM);
             refresh(HistoryStoreField.DATA_STREAM + "*");
-
             SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
                 .setSize(1)
                 .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id))))
@@ -111,12 +111,17 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
         });
     }
 
-    private void assertTotalHistoryEntries(String id, long expectedCount) {
-        SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-            .setSize(0)
-            .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id))))
-            .get();
+    private void assertTotalHistoryEntries(String id, long expectedCount) throws Exception {
+        assertBusy(() -> {
+            // Watcher history is now written asynchronously, so we check this in an assertBusy
+            ensureGreen(HistoryStoreField.DATA_STREAM);
+            SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
+                .setSize(0)
+                .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id))))
+                .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, is(oneOf(expectedCount, expectedCount + 1)));
+            assertThat(searchResponse.getHits().getTotalHits().value, is(oneOf(expectedCount, expectedCount + 1)));
+        });
+
     }
 }

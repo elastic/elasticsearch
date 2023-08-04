@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,11 +22,82 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import java.util.stream.Stream;
 
 public class DynamicTemplate implements ToXContentObject {
 
     public enum MatchType {
+        /**
+         * DEFAULT is set when the user did not explicitly set a match_pattern in their dynamic_templates entry.
+         * DEFAULT uses the functionality of SIMPLE for matching, but does additional validation
+         * to detect whether the user appears to be using regex notation, in order to provide a warning.
+         */
+        DEFAULT {
+            @Override
+            public boolean matches(String pattern, String value) {
+                return MatchType.SIMPLE.matches(pattern, value);
+            }
+
+            @Override
+            public String toString() {
+                return "default";
+            }
+
+            /**
+             * Attempts to determine if the String passed in appears to be
+             * regular expression rather than a simple wildcard match or a
+             * regular ES field name (or dotted path) with no regex metacharacters.
+             *
+             * The method looks for the presence of standard regex metacharacters
+             * like $, ^, |, .*, or paired braces or brackets. If found, it will then
+             * attempt to compile it as a regex to determine if it is a valid regex.
+             *
+             * It will add a {@link HeaderWarning} if the user appears to be passing in a regex
+             * in a default (simple) match scenario. This method will not throw an Exception.
+             *
+             * @param pattern pattern to evaluate
+             */
+            @Override
+            public void validate(String pattern, String templateName) {
+                // regexes cannot start with '*' so we assume this is valid (not a regex)
+                if (pattern.startsWith("*")) {
+                    return;
+                }
+
+                boolean regexCandidate = false;
+                if (pattern.startsWith(".*")) {  // .* is valid for SIMPLE because of ES dotted field names, except at string start
+                    regexCandidate = true;
+                } else if (pattern.contains("^")) {
+                    regexCandidate = true;
+                } else if (pattern.contains("$")) {
+                    regexCandidate = true;
+                } else if (pattern.contains("|")) {
+                    regexCandidate = true;
+                } else if (pattern.contains("[") && pattern.contains("]")) {
+                    regexCandidate = true;
+                } else if (pattern.contains("{") && pattern.contains("}")) {
+                    regexCandidate = true;
+                }
+
+                if (regexCandidate) {
+                    try {
+                        Pattern.compile(pattern);
+                        // simple patterns only warrant a warning and only if the user did not explicitly set match_pattern=simple
+                        String warning = "Pattern ["
+                            + pattern
+                            + "] in dynamic template ["
+                            + templateName
+                            + "] appears to be a regular expression, not a simple wildcard pattern"
+                            + ". To remove this warning, set [match_pattern] in the dynamic template.";
+                        HeaderWarning.addWarning(warning);
+                    } catch (PatternSyntaxException e) {
+                        // ignore since it is not a valid regex
+                    }
+                }
+            }
+        },
         SIMPLE {
             @Override
             public boolean matches(String pattern, String value) {
@@ -35,6 +107,11 @@ public class DynamicTemplate implements ToXContentObject {
             @Override
             public String toString() {
                 return "simple";
+            }
+
+            @Override
+            public void validate(String pattern, String templateName) {
+                // no-op. All patterns are valid if user explicitly set match_pattern=simple
             }
         },
         REGEX {
@@ -46,6 +123,29 @@ public class DynamicTemplate implements ToXContentObject {
             @Override
             public String toString() {
                 return "regex";
+            }
+
+            /**
+             * If pattern is valid, no exception is thrown.
+             * @param pattern to evaluate
+             * @throws MapperParsingException if pattern is not a valid Java regex
+             */
+            @Override
+            public void validate(String pattern, String templateName) {
+                try {
+                    // if it parses as a Java regex, it is valid
+                    this.matches(pattern, "");
+                } catch (PatternSyntaxException e) {
+                    // fail dynamic_template calls that have invalid regexes
+                    throw new MapperParsingException(
+                        Strings.format(
+                            "Pattern [%s] of type [regex] is invalid. Cannot create dynamic template [%s].",
+                            pattern,
+                            templateName
+                        ),
+                        e
+                    );
+                }
             }
         };
 
@@ -60,6 +160,14 @@ public class DynamicTemplate implements ToXContentObject {
 
         /** Whether {@code value} matches {@code regex}. */
         public abstract boolean matches(String regex, String value);
+
+        /**
+         * Validates {@code pattern} for the MatchType.
+         * @param pattern to validate
+         * @param templateName naming of the dynamic_template passed in (for use in warnings/error messages)
+         * @throws IllegalArgumentException if the pattern is not valid
+         */
+        public abstract void validate(String pattern, String templateName);
     }
 
     /** The type of a field as detected while parsing a json document. */
@@ -150,7 +258,7 @@ public class DynamicTemplate implements ToXContentObject {
         Map<String, Object> mapping = null;
         boolean runtime = false;
         String matchMappingType = null;
-        String matchPattern = MatchType.SIMPLE.toString();
+        String matchPattern = MatchType.DEFAULT.toString();
 
         for (Map.Entry<String, Object> entry : conf.entrySet()) {
             String propName = entry.getKey();
@@ -222,7 +330,11 @@ public class DynamicTemplate implements ToXContentObject {
         List<String> allPatterns = Stream.of(match.stream(), unmatch.stream(), pathMatch.stream(), pathUnmatch.stream())
             .flatMap(s -> s)
             .toList();
-        validatePatterns(name, matchType, allPatterns);
+        for (String pattern : allPatterns) {
+            // no need to check return value - the method impls either have side effects (set header warnings)
+            // or throw an exception that should be sent back to the user
+            matchType.validate(pattern, name);
+        }
 
         return new DynamicTemplate(name, pathMatch, pathUnmatch, match, unmatch, xContentFieldTypes, matchType, mapping, runtime);
     }
@@ -237,40 +349,20 @@ public class DynamicTemplate implements ToXContentObject {
     }
 
     private static void addEntriesToPatternList(List<String> matchList, String propName, Map.Entry<String, Object> entry) {
-        if (entry.getValue() instanceof String s) {
-            matchList.add(s);
-        } else if (entry.getValue() instanceof List<?> ls) {
+        if (entry.getValue() instanceof List<?> ls) {
             for (Object o : ls) {
                 if (o instanceof String s) {
                     matchList.add(s);
                 } else {
+                    // for array-based matches, we enforce that only strings are allowed as un/match values in the array
                     throw new MapperParsingException(
                         Strings.format("[%s] values must either be a string or list of strings, but was [%s]", propName, entry.getValue())
                     );
                 }
             }
         } else {
-            throw new MapperParsingException(
-                Strings.format("[%s] values must either be a string or list of strings, but was [%s]", propName, entry.getValue())
-            );
-        }
-    }
-
-    private static void validatePatterns(String templateName, MatchType matchType, List<String> patterns) {
-        for (String regex : patterns) {
-            try {
-                matchType.matches(regex, "");
-            } catch (IllegalArgumentException e) {
-                throw new MapperParsingException(
-                    Strings.format(
-                        "Pattern [%s] of type [%s] is invalid. Cannot create dynamic template [%s].",
-                        regex,
-                        matchType,
-                        templateName
-                    ),
-                    e
-                );
-            }
+            // to preserve backwards compatability for single-valued matches, we convert whatever the user provided to a string
+            matchList.add(entry.getValue().toString());
         }
     }
 
@@ -469,7 +561,7 @@ public class DynamicTemplate implements ToXContentObject {
         } else if (xContentFieldTypes.length == 1) {
             builder.field("match_mapping_type", xContentFieldTypes[0]);
         }
-        if (matchType != MatchType.SIMPLE) {
+        if (matchType != MatchType.DEFAULT) {
             builder.field("match_pattern", matchType);
         }
         // use a sorted map for consistent serialization

@@ -33,8 +33,10 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -134,7 +136,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     nodes.getMasterNode(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, Response::new)
+                    new ActionListenerResponseHandler<>(listener, Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                 );
             }
         } else {
@@ -225,7 +227,12 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     }
 
     @Override
-    protected void taskOperation(Task actionTask, Request request, TransformTask transformTask, ActionListener<Response> listener) {
+    protected void taskOperation(
+        CancellableTask actionTask,
+        Request request,
+        TransformTask transformTask,
+        ActionListener<Response> listener
+    ) {
 
         Set<String> ids = request.getExpandedIds();
         if (ids == null) {
@@ -322,7 +329,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         List<Exception> exceptions = Stream.concat(
             taskOperationFailures.stream().map(TaskOperationFailure::getCause),
             elasticsearchExceptions.stream()
-        ).collect(Collectors.toList());
+        ).toList();
 
         assert exceptions.size() > 0 : "buildException called, but no exception found";
         assert exceptions.get(0) != null : "exception must not be null";

@@ -1,5 +1,0 @@
-pr: 95170
-summary: Ensure checking indices privileges works with nested-limited-role
-area: Authorization
-type: enhancement
-issues: []

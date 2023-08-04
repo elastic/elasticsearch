@@ -8,13 +8,12 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -22,7 +21,6 @@ import org.junit.Before;
 
 import java.util.Collections;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -39,7 +37,7 @@ public class RestNodesActionTests extends ESTestCase {
     public void testBuildTableDoesNotThrowGivenNullNodeInfoAndStats() {
         ClusterName clusterName = new ClusterName("cluster-1");
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        builder.add(new DiscoveryNode("node-1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
+        builder.add(DiscoveryNodeUtils.builder("node-1").roles(emptySet()).build());
         DiscoveryNodes discoveryNodes = builder.build();
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.nodes()).thenReturn(discoveryNodes);

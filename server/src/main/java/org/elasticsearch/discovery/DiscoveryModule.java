@@ -76,10 +76,8 @@ public class DiscoveryModule {
         Property.NodeScope
     );
 
-    public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS_SETTING = Setting.stringListSetting(
         "discovery.seed_providers",
-        Collections.emptyList(),
-        Function.identity(),
         Property.NodeScope
     );
 
@@ -93,6 +91,7 @@ public class DiscoveryModule {
     );
 
     private final Coordinator coordinator;
+    private final Reconfigurator reconfigurator;
 
     public DiscoveryModule(
         Settings settings,
@@ -184,7 +183,7 @@ public class DiscoveryModule {
                 );
         }
 
-        var reconfigurator = getReconfigurator(settings, clusterSettings, clusterCoordinationPlugins);
+        this.reconfigurator = getReconfigurator(settings, clusterSettings, clusterCoordinationPlugins);
         var preVoteCollectorFactory = getPreVoteCollectorFactory(clusterCoordinationPlugins);
         var leaderHeartbeatService = getLeaderHeartbeatService(settings, clusterCoordinationPlugins);
 
@@ -283,5 +282,9 @@ public class DiscoveryModule {
 
     public Coordinator getCoordinator() {
         return coordinator;
+    }
+
+    public Reconfigurator getReconfigurator() {
+        return reconfigurator;
     }
 }

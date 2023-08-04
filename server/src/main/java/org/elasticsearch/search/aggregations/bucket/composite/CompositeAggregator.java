@@ -105,7 +105,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
         this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).toList();
         this.sources = new SingleDimensionValuesSource<?>[sourceConfigs.length];
         // check that the provided size is not greater than the search.max_buckets setting
-        int bucketLimit = aggCtx.multiBucketConsumer().getLimit();
+        int bucketLimit = aggCtx.maxBuckets();
         if (size > bucketLimit) {
             throw new MultiBucketConsumerService.TooManyBucketsException(
                 "Trying to create too many buckets. Must be less than or equal"

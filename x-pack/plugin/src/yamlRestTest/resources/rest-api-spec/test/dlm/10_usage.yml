@@ -1,0 +1,86 @@
+---
+"Test data stream lifecycle usage stats":
+  - skip:
+      version: "- 8.8.99"
+      reason: "the data stream lifecycle stats were only added to the usage api in 8.9"
+      features: allowed_warnings
+
+  - do:
+      xpack.usage: {}
+
+  - match: { data_lifecycle.available: true }
+  - match: { data_lifecycle.enabled: true }
+  - match: { data_lifecycle.count: 0 }
+  - match: { data_lifecycle.default_rollover_used: true }
+  - match: { data_lifecycle.retention.minimum_millis: 0 }
+  - match: { data_lifecycle.retention.maximum_millis: 0 }
+  - match: { data_lifecycle.retention.average_millis: 0 }
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template-1] has index patterns [foo-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template-1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template-1
+        body:
+          index_patterns: [foo-*]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+            lifecycle:
+              data_retention: 10d
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: foo-foobar
+  - is_true: acknowledged
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template-2] has index patterns [bar-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template-2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template-2
+        body:
+          index_patterns: [bar-*]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+            lifecycle:
+              data_retention: 5d
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: bar-foobar
+  - is_true: acknowledged
+
+  - do:
+      xpack.usage: {}
+
+  - match: { data_lifecycle.available: true }
+  - match: { data_lifecycle.enabled: true }
+  - match: { data_lifecycle.count: 2 }
+  - match: { data_lifecycle.default_rollover_used: true }
+  - match: { data_lifecycle.retention.minimum_millis: 432000000 }
+  - match: { data_lifecycle.retention.maximum_millis: 864000000 }
+  - match: { data_lifecycle.retention.average_millis: 648000000 }
+
+  - do:
+      indices.delete_data_stream:
+        name: foo-foobar
+  - is_true: acknowledged
+
+  - do:
+      xpack.usage: {}
+
+  - match: { data_lifecycle.available: true }
+  - match: { data_lifecycle.enabled: true }
+  - match: { data_lifecycle.count: 1 }
+  - match: { data_lifecycle.default_rollover_used: true }
+  - match: { data_lifecycle.retention.minimum_millis: 432000000 }
+  - match: { data_lifecycle.retention.maximum_millis: 432000000 }
+  - match: { data_lifecycle.retention.average_millis: 432000000 }

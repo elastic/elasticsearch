@@ -1,0 +1,8 @@
+[[release-notes-8.10.0]]
+== {es} version 8.10.0
+
+coming[8.10.0]
+
+Also see <<breaking-changes-8.10,Breaking changes in 8.10>>.
+
+

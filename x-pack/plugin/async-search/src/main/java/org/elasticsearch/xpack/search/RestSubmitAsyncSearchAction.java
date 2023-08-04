@@ -52,9 +52,10 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SubmitAsyncSearchRequest submit = new SubmitAsyncSearchRequest();
         IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);
-        // for simplicity, we share parsing with ordinary search. That means a couple of unsupported parameters, like scroll,
-        // pre_filter_shard_size and ccs_minimize_roundtrips get set to the search request although the REST spec don't list
+        // for simplicity, we share parsing with ordinary search. That means a couple of unsupported parameters, like scroll
+        // and pre_filter_shard_size get set to the search request although the REST spec don't list
         // them as supported. We rely on SubmitAsyncSearchRequest#validate to fail in case they are set.
+        // Note that ccs_minimize_roundtrips is also set this way, which is a supported option.
         request.withContentOrSourceParamParserOrNull(
             parser -> parseSearchRequest(
                 submit.getSearchRequest(),

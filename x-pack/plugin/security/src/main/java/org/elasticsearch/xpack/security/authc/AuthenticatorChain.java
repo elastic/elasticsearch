@@ -73,6 +73,7 @@ class AuthenticatorChain {
         // Check whether authentication is an operator user and mark the threadContext if necessary
         // before returning the authentication object
         final ActionListener<Authentication> listener = originalListener.map(authentication -> {
+            assert authentication != null;
             operatorPrivilegesService.maybeMarkOperatorUser(authentication, context.getThreadContext());
             return authentication;
         });
@@ -114,19 +115,19 @@ class AuthenticatorChain {
         // Depending on the authentication result from each Authenticator, the iteration may stop earlier
         // because of either a successful authentication or a not-continuable failure.
         final IteratingActionListener<AuthenticationResult<Authentication>, Authenticator> iterListener = new IteratingActionListener<>(
-            ActionListener.wrap(result -> {
+            listener.delegateFailureAndWrap((l, result) -> {
                 assert result.getStatus() != AuthenticationResult.Status.TERMINATE
                     : "terminate should already be handled by each individual authenticator";
                 if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
-                    maybeLookupRunAsUser(context, result.getValue(), listener);
+                    maybeLookupRunAsUser(context, result.getValue(), l);
                 } else {
                     if (context.shouldHandleNullToken()) {
-                        handleNullToken(context, listener);
+                        handleNullToken(context, l);
                     } else {
-                        listener.onFailure(Exceptions.authenticationError("failed to authenticate", result.getException()));
+                        l.onFailure(Exceptions.authenticationError("failed to authenticate", result.getException()));
                     }
                 }
-            }, listener::onFailure),
+            }),
             getAuthenticatorConsumer(context, shouldExtractCredentials),
             allAuthenticators,
             context.getThreadContext(),
@@ -210,7 +211,7 @@ class AuthenticatorChain {
         }
 
         // Now we have a valid runAsUsername
-        realmsAuthenticator.lookupRunAsUser(context, authentication, ActionListener.wrap(tuple -> {
+        realmsAuthenticator.lookupRunAsUser(context, authentication, listener.delegateFailureAndWrap((l, tuple) -> {
             final Authentication finalAuth;
             if (tuple == null) {
                 logger.debug(
@@ -223,8 +224,8 @@ class AuthenticatorChain {
             } else {
                 finalAuth = authentication.runAs(tuple.v1(), tuple.v2().realmRef());
             }
-            finishAuthentication(context, finalAuth, listener);
-        }, listener::onFailure));
+            finishAuthentication(context, finalAuth, l);
+        }));
     }
 
     /**

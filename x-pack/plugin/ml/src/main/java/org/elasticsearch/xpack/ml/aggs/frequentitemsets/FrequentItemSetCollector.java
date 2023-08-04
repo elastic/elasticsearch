@@ -59,7 +59,7 @@ public final class FrequentItemSetCollector {
         }
 
         public FrequentItemSet(StreamInput in) throws IOException {
-            this.fields = in.readMapOfLists(StreamInput::readString, StreamInput::readGenericValue);
+            this.fields = in.readMapOfLists(StreamInput::readGenericValue);
             this.docCount = in.readVLong();
             this.support = in.readDouble();
         }

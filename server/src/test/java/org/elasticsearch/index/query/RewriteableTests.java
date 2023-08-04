@@ -21,7 +21,7 @@ import java.util.function.Supplier;
 public class RewriteableTests extends ESTestCase {
 
     public void testRewrite() throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(null, null, null, null);
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
         TestRewriteable rewrite = Rewriteable.rewrite(
             new TestRewriteable(randomIntBetween(0, Rewriteable.MAX_REWRITE_ROUNDS)),
             context,
@@ -41,7 +41,7 @@ public class RewriteableTests extends ESTestCase {
     }
 
     public void testRewriteAndFetch() throws ExecutionException, InterruptedException {
-        QueryRewriteContext context = new QueryRewriteContext(null, null, null, null);
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
         PlainActionFuture<TestRewriteable> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(new TestRewriteable(randomIntBetween(0, Rewriteable.MAX_REWRITE_ROUNDS), true), context, future);
         TestRewriteable rewrite = future.get();
@@ -59,7 +59,7 @@ public class RewriteableTests extends ESTestCase {
     }
 
     public void testRewriteList() throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(null, null, null, null);
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
         List<TestRewriteable> rewriteableList = new ArrayList<>();
         int numInstances = randomIntBetween(1, 10);
         rewriteableList.add(new TestRewriteable(randomIntBetween(1, Rewriteable.MAX_REWRITE_ROUNDS)));

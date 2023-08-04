@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
-import org.elasticsearch.xpack.ilm.LifecyclePolicySecurityClient2;
 import org.elasticsearch.xpack.slm.history.SnapshotHistoryItem;
 import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 
@@ -93,7 +92,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         String snapshotName = maybeMetadata.map(policyMetadata -> {
             // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
             CreateSnapshotRequest request = policyMetadata.getPolicy().toRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
-            final LifecyclePolicySecurityClient2 clientWithHeaders = new LifecyclePolicySecurityClient2(
+            final ClientWithHeaders clientWithHeaders = new ClientWithHeaders(
                 client,
                 ClientHelper.INDEX_LIFECYCLE_ORIGIN,
                 policyMetadata.getHeaders()

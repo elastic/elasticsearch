@@ -24,7 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.action.StopSLMAction;
-import org.elasticsearch.xpack.ilm.OperationModeUpdateTask2;
+import org.elasticsearch.xpack.slm.OperationModeUpdateTask;
 
 public class TransportStopSLMAction extends AcknowledgedTransportMasterNodeAction<StopSLMAction.Request> {
 
@@ -57,7 +57,7 @@ public class TransportStopSLMAction extends AcknowledgedTransportMasterNodeActio
     ) {
         submitUnbatchedTask(
             "slm_operation_mode_update[stopping]",
-            OperationModeUpdateTask2.wrap(OperationModeUpdateTask2.slmMode(OperationMode.STOPPING), request, listener)
+            OperationModeUpdateTask.wrap(OperationModeUpdateTask.slmMode(OperationMode.STOPPING), request, listener)
         );
     }
 

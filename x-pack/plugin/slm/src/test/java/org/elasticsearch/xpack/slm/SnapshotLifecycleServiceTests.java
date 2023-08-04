@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
-import org.elasticsearch.xpack.ilm.OperationModeUpdateTask2;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -460,7 +459,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             @Override
             public void submitUnbatchedStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
                 logger.info("--> got task: [source: {}]: {}", source, updateTask);
-                if (updateTask instanceof OperationModeUpdateTask2) {
+                if (updateTask instanceof OperationModeUpdateTask) {
                     task.set(updateTask);
                 }
             }
@@ -477,7 +476,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             true
         );
         service.clusterChanged(new ClusterChangedEvent("blah", state, ClusterState.EMPTY_STATE));
-        assertThat(task.get(), equalTo(OperationModeUpdateTask2.slmMode(OperationMode.STOPPED)));
+        assertThat(task.get(), equalTo(OperationModeUpdateTask.slmMode(OperationMode.STOPPED)));
         threadPool.shutdownNow();
     }
 

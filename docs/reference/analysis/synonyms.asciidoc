@@ -36,14 +36,14 @@ You can use two formats to define synonym rules: Solr and WordNet.
 This format uses two different definitions:
 
 * Equivalent synonyms: Define groups of words that are equivalent. Words are separated by commas. Example:
-[source]
+[source,synonyms]
 ----
 ipod, i-pod, i pod
 computer, pc, laptop
 ----
 * Explicit mappings: Matches a group of words to other words. Words on the left hand side of the rule definition are expanded into all the possibilities described on the right hand side. Example:
 
-[source]
+[source,synonyms]
 ----
 personal computer => pc
 sea biscuit, sea biscit => seabiscuit

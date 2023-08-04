@@ -228,10 +228,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
         return updatedAtMillis;
     }
 
-    public @Nullable SearchApplicationTemplate searchApplicationTemplate() {
-        return searchApplicationTemplate;
-    }
-
     public boolean hasStoredTemplate() {
         return searchApplicationTemplate != null;
     }

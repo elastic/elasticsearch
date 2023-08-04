@@ -86,7 +86,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(getSearchApp, equalTo(searchApp));
         checkAliases(searchApp);
 
-        assertNull(getSearchApp.searchApplicationTemplate());
+        assertFalse(getSearchApp.hasStoredTemplate());
 
         expectThrows(VersionConflictEngineException.class, () -> awaitPutSearchApplication(searchApp, true));
 
@@ -107,7 +107,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(getSearchApp2, equalTo(searchApp2));
         checkAliases(searchApp2);
 
-        assertThat(getSearchApp2.searchApplicationTemplate(), equalTo(SearchApplicationTemplate.DEFAULT_TEMPLATE));
+        assertThat(getSearchApp2.searchApplicationTemplateOrDefault(), equalTo(SearchApplicationTemplate.DEFAULT_TEMPLATE));
 
         resp2 = awaitPutSearchApplication(searchApp2, false);
         assertThat(resp2.status(), equalTo(RestStatus.OK));
@@ -153,7 +153,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(newResp.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
         SearchApplication getNewSearchApp = awaitGetSearchApplication(searchApp.name());
         assertThat(searchApp, equalTo(getNewSearchApp));
-        assertThat(searchApp.searchApplicationTemplate(), equalTo(getNewSearchApp.searchApplicationTemplate()));
+        assertThat(searchApp.searchApplicationTemplateOrDefault(), equalTo(getNewSearchApp.searchApplicationTemplateOrDefault()));
         checkAliases(searchApp);
     }
 

@@ -39,6 +39,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.BoundedExecutor;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
@@ -130,6 +131,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -284,6 +286,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final Tracer tracer;
 
+    private final BoundedExecutor concurrentSearchExecutor;
+
     public SearchService(
         ClusterService clusterService,
         IndicesService indicesService,
@@ -346,14 +350,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         enableConcurrentCollection = SEARCH_CONCURRENCY_ENABLED.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_CONCURRENCY_ENABLED, this::setEnableConcurrentCollection);
+
+        concurrentSearchExecutor = new BoundedExecutor((ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH_CONCURRENT));
     }
 
     private void setEnableConcurrentCollection(boolean concurrentCollection) {
         this.enableConcurrentCollection = concurrentCollection;
-    }
-
-    boolean isConcurrentCollectionEnabled() {
-        return this.enableConcurrentCollection;
     }
 
     private static void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -1039,7 +1041,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
         final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
         try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true)) {
-            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, null);
+            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, ResultsType.NONE);
             searchContext.addReleasable(readerContext.markAsUsed(0L));
             return searchContext;
         }
@@ -1069,7 +1071,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 minimumDocsPerSlice,
                 fetchPhase,
                 lowLevelCancellation,
-                this.enableConcurrentCollection && concurrentSearchEnabled(resultsType, request.source())
+                this.enableConcurrentCollection ? concurrentSearchExecutor : null,
+                supportsConcurrency(resultsType, request.source()) == false
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
@@ -1089,7 +1092,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return searchContext;
     }
 
-    static boolean concurrentSearchEnabled(ResultsType resultsType, SearchSourceBuilder source) {
+    static boolean supportsConcurrency(ResultsType resultsType, SearchSourceBuilder source) {
         if (resultsType == ResultsType.DFS) {
             return true; // only enable concurrent collection for DFS phase for now
         }

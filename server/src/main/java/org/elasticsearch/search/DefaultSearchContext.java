@@ -18,6 +18,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.util.concurrent.BoundedExecutor;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -139,7 +140,8 @@ final class DefaultSearchContext extends SearchContext {
         int minimumDocsPerSlice,
         FetchPhase fetchPhase,
         boolean lowLevelCancellation,
-        boolean parallelize
+        BoundedExecutor executor,
+        boolean forceSequentialCollection
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -157,11 +159,8 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getQueryCachingPolicy(),
             minimumDocsPerSlice,
             lowLevelCancellation,
-            // TODO not set the for now, this needs a special thread pool and can be enabled after its introduction
-            // parallelize
-            // ? (EsThreadPoolExecutor) this.indexService.getThreadPool().executor(ThreadPool.Names.CONCURRENT_COLLECTION_TBD)
-            // : null,
-            null
+            executor,
+            forceSequentialCollection
         );
         releasables.addAll(List.of(engineSearcher, searcher));
 

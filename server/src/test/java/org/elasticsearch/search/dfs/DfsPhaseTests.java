@@ -16,6 +16,7 @@ import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.util.concurrent.BoundedExecutor;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -75,7 +76,8 @@ public class DfsPhaseTests extends ESTestCase {
                 IndexSearcher.getDefaultQueryCachingPolicy(),
                 1,
                 randomBoolean(),
-                this.threadPoolExecutor
+                new BoundedExecutor(this.threadPoolExecutor),
+                randomBoolean()
             );
 
             Query query = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, numDocs, null);

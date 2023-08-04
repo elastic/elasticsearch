@@ -1,4 +1,4 @@
-i---
+---
 setup:
   - do:
       cluster.health:

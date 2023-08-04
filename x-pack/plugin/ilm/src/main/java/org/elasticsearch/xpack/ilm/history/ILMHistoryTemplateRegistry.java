@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
-import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
 import java.util.List;
 import java.util.Map;
@@ -79,8 +78,8 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
     );
 
     @Override
-    protected List<LifecyclePolicy> loadLifecycleConfigurations() {
-        return List.of(LIFECYCLE_POLICY_CONFIG.load(new NamedXContentRegistry(IndexLifecycle.NAMED_X_CONTENT_ENTRIES)));
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return List.of(LIFECYCLE_POLICY_CONFIG);
     }
 
     @Override

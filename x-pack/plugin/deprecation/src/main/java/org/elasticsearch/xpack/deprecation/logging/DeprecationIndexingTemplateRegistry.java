@@ -16,7 +16,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
@@ -108,8 +107,8 @@ public class DeprecationIndexingTemplateRegistry extends IndexTemplateRegistry {
     );
 
     @Override
-    protected List<LifecyclePolicy> loadLifecycleConfigurations() {
-        return List.of(LIFECYCLE_POLICY_CONFIG.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY));
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return List.of(LIFECYCLE_POLICY_CONFIG);
     }
 
     @Override

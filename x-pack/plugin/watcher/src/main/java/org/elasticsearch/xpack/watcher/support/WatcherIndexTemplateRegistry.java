@@ -72,8 +72,8 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     );
 
     @Override
-    protected List<LifecyclePolicy> loadLifecycleConfigurations() {
-        return List.of(LIFECYCLE_POLICIES.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY));
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return List.of(LIFECYCLE_POLICIES);
     }
 
     /**

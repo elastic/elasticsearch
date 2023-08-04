@@ -99,26 +99,26 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         this.xContentRegistry = xContentRegistry;
         this.clusterService = clusterService;
         if (isDataStreamsLifecycleOnlyMode(settings) == false) {
-            this.lifecyclePolicies = loadLifecycleConfigurations();
+            this.lifecyclePolicies = getLifecycleConfigs().stream()
+                .map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY))
+                .toList();
         } else {
             this.lifecyclePolicies = List.of();
         }
     }
 
     /**
-     * This is the place where subclasses should iterate over all their {@link LifecyclePolicyConfig}s and load them
-     * i.e. this operation will parse the provided confiuration and map them to a list of {@link LifecyclePolicy} that
-     * gets returned.
-     * This method is only called once if we're not running data stream only mode (controlled via
-     * {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME}). If expected policies are missing,
+     * Returns the configured configurations for the lifecycle policies. Subclasses should provide
+     * the ILM configurations and they will be loaded if we're not running data stream only mode (controlled via
+     * {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME}).
      *
      * The loaded lifecycle configurations will be installed if returned by {@link #getLifecyclePolicies()}. Child classes
      * have a chance to override {@link #getLifecyclePolicies()} in case they want additional control over if these
-     * policies should be installed or not (say, if they belong to functionalities that can be enabled/disabled via a flag)
+     * policies should be installed or not (say, if they belong to functionalities that can be enabled/disabled via a flag).
      *
-     * @return The lifecycle policies that pertain to this template registry.
+     * @return The lifecycle policies configurations that pertain to this template registry.
      */
-    protected List<LifecyclePolicy> loadLifecycleConfigurations() {
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
         return List.of();
     }
 

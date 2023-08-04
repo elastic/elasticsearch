@@ -252,7 +252,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<LifecyclePolicy> loadLifecycleConfigurations() {
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
         Map<String, String> templateVars = new HashMap<>();
         if (HISTORY_DURATION.exists(settings)) {
             templateVars.put(MONITORING_POLICY_RETENTION_VARIABLE, HISTORY_DURATION.get(settings).getStringRep());
@@ -264,9 +264,12 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
             templateVars.put(MONITORING_POLICY_RETENTION_VARIABLE, MONITORING_POLICY_DEFAULT_RETENTION);
             templateVars.put(MONITORING_POLICY_RETENTION_REASON_VARIABLE, "the monitoring plugin default");
         }
-        LifecyclePolicy monitoringPolicy = new LifecyclePolicyConfig(MONITORING_POLICY_NAME, "/monitoring-mb-ilm-policy.json", templateVars)
-            .load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY);
-        return Collections.singletonList(monitoringPolicy);
+        LifecyclePolicyConfig monitoringPolicy = new LifecyclePolicyConfig(
+            MONITORING_POLICY_NAME,
+            "/monitoring-mb-ilm-policy.json",
+            templateVars
+        );
+        return List.of(monitoringPolicy);
     }
 
     @Override

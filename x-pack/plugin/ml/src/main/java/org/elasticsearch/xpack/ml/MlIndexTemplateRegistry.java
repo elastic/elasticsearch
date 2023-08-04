@@ -137,8 +137,8 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
     );
 
     @Override
-    protected List<LifecyclePolicy> loadLifecycleConfigurations() {
-        return List.of(LIFECYCLE_POLICY_CONFIG.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY));
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return List.of(LIFECYCLE_POLICY_CONFIG);
     }
 
     @Override

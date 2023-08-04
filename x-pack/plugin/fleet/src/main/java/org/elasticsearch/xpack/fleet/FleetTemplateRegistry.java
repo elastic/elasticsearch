@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
@@ -79,8 +78,8 @@ public class FleetTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<LifecyclePolicy> loadLifecycleConfigurations() {
-        return LIFECYCLE_POLICIES_CONFIG.stream().map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)).toList();
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return LIFECYCLE_POLICIES_CONFIG;
     }
 
     @Override

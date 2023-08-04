@@ -91,8 +91,8 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<LifecyclePolicy> loadLifecycleConfigurations() {
-        return LIFECYCLE_POLICY_CONFIGS.stream().map(policy -> policy.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)).toList();
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return LIFECYCLE_POLICY_CONFIGS;
     }
 
     @Override

@@ -1,8 +1,4 @@
 setup:
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/98179"
-
   - do:
       indices.create:
         index: test-2-shards

@@ -164,7 +164,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getLong(groupPosition));
       if (seen.getBoolean(groupPosition + positionOffset)) {
-        state.set(groupId, MinLongAggregator.combine(min.getLong(groupPosition + positionOffset), state.getOrDefault(groupId)));
+        state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), min.getLong(groupPosition + positionOffset)));
       }
     }
   }

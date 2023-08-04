@@ -43,11 +43,12 @@ averageByField
 from employees | stats avg(avg_worked_seconds) by languages;
 
 avg(avg_worked_seconds):double | languages:integer
-3.0318626831578946E8 | 2
-3.133013149047619E8 | 5
-2.863684210555556E8 | 4
-2.94833632E8 | 1
-2.978159518235294E8 | 3
+          3.181719481E8        | null 
+          3.0318626831578946E8 | 2
+          3.133013149047619E8  | 5
+          2.863684210555556E8  | 4
+          2.94833632E8         | 1
+          2.978159518235294E8  | 3
 ;
 
 whereWithAverageBySubField
@@ -60,24 +61,26 @@ avg(avg_worked_seconds):double | languages.long:long
 statsBySubField
 from employees | stats avg=avg(avg_worked_seconds),min=min(avg_worked_seconds),max=max(avg_worked_seconds) by languages.long;
 
-avg:double | min:long | max:long | languages.long:long
+          avg:double | min:long  | max:long  | languages.long:long
+3.181719481E8        | 226435054 | 374037782 | null
 3.0318626831578946E8 | 212460105 | 377713748 | 2
-3.133013149047619E8 | 203838153 | 390266432 | 5
-2.863684210555556E8 | 200296405 | 393084805 | 4
-2.94833632E8 | 208374744 | 387408356 | 1
-2.978159518235294E8 | 203989706 | 394597613 | 3
+3.133013149047619E8  | 203838153 | 390266432 | 5
+2.863684210555556E8  | 200296405 | 393084805 | 4
+2.94833632E8         | 208374744 | 387408356 | 1
+2.978159518235294E8  | 203989706 | 394597613 | 3
 ;
 
 statsBySubFieldSortedByKey
 // https://github.com/elastic/elasticsearch-internal/issues/414
 from employees | stats avg=avg(avg_worked_seconds),min=min(avg_worked_seconds),max=max(avg_worked_seconds) by languages.long | sort languages.long;
 
-avg:double | min:long | max:long | languages.long:long
-2.94833632E8 | 208374744 | 387408356 | 1
+          avg:double | min:long   | max:long | languages.long:long
+2.94833632E8         | 208374744 | 387408356 | 1
 3.0318626831578946E8 | 212460105 | 377713748 | 2
-2.978159518235294E8 | 203989706 | 394597613 | 3
-2.863684210555556E8 | 200296405 | 393084805 | 4
-3.133013149047619E8 | 203838153 | 390266432 | 5
+2.978159518235294E8  | 203989706 | 394597613 | 3
+2.863684210555556E8  | 200296405 | 393084805 | 4
+3.133013149047619E8  | 203838153 | 390266432 | 5
+3.181719481E8        | 226435054 | 374037782 | null
 ;
 
 avgOfIntegerWithSortByGroupingKey
@@ -200,7 +203,8 @@ emp_no:integer | languages:integer | gender:keyword | first_name:keyword | abc:i
 projectFromWithStatsAfterLimit
 from employees | keep gender, avg_worked_seconds, first_name, last_name | limit 10 | stats m = max(avg_worked_seconds) by gender;
 
-m:long | gender:keyword
+   m:long | gender:keyword
+315236372 | null
 311267831 | M
 393084805 | F
 ;
@@ -421,9 +425,10 @@ avg(nullsum):double | count(nullsum):long
 ;
 
 fromStatsLimit
-from employees | stats ac = avg(salary) by languages | limit 1;
+from employees | stats ac = avg(salary) by languages | limit 2;
 
-ac:double | languages:integer
+ac:double         | languages:integer
+52519.6           | null
 48178.84210526316 | 2
 ;
 

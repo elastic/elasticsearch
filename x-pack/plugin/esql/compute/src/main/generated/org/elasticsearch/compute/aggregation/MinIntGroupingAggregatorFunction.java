@@ -165,7 +165,7 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getLong(groupPosition));
       if (seen.getBoolean(groupPosition + positionOffset)) {
-        state.set(groupId, MinIntAggregator.combine(min.getInt(groupPosition + positionOffset), state.getOrDefault(groupId)));
+        state.set(groupId, MinIntAggregator.combine(state.getOrDefault(groupId), min.getInt(groupPosition + positionOffset)));
       }
     }
   }

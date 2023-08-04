@@ -50,7 +50,7 @@ public class PercentileLongGroupingAggregatorFunctionTests extends GroupingAggre
     }
 
     @Override
-    protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
+    protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
         TDigestState td = TDigestState.create(QuantileStates.DEFAULT_COMPRESSION);
         input.stream().flatMapToLong(p -> allLongs(p, group)).forEach(td::add);
         if (td.size() > 0) {

@@ -166,7 +166,7 @@ public final class MinDoubleGroupingAggregatorFunction implements GroupingAggreg
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getLong(groupPosition));
       if (seen.getBoolean(groupPosition + positionOffset)) {
-        state.set(groupId, MinDoubleAggregator.combine(min.getDouble(groupPosition + positionOffset), state.getOrDefault(groupId)));
+        state.set(groupId, MinDoubleAggregator.combine(state.getOrDefault(groupId), min.getDouble(groupPosition + positionOffset)));
       }
     }
   }

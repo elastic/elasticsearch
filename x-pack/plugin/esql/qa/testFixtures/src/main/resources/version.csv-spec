@@ -181,7 +181,6 @@ groupByVersion
 FROM apps | STATS c = COUNT(version), maxid = MAX(id) BY version | SORT version;
 
 c:l |maxid:i  |version:v
-// 2   |13       |null # https://github.com/elastic/elasticsearch-internal/issues/770
 1   |1        |1
 2   |12       |1.2.3.4
 1   |5        |1.11.0
@@ -191,6 +190,7 @@ c:l |maxid:i  |version:v
 1   |7        |5.2.9-SNAPSHOT
 3   |14       |5.2.9
 1   |9        |bad
+0   |13       |null
 ;
 
 groupOrderLimit
@@ -214,7 +214,7 @@ id:i
 7
 9
 12
-// 13 # https://github.com/elastic/elasticsearch-internal/issues/770
+13
 14
 ;
 

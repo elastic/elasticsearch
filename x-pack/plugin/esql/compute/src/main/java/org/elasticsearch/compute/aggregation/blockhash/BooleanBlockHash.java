@@ -19,13 +19,17 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.MultivalueDedupeBoolean;
 
+import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.FALSE_ORD;
+import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.NULL_ORD;
+import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.TRUE_ORD;
+
 /**
  * Maps a {@link BooleanBlock} column to group ids. Assigns group
  * {@code 0} to {@code false} and group {@code 1} to {@code true}.
  */
 final class BooleanBlockHash extends BlockHash {
     private final int channel;
-    private final boolean[] everSeen = new boolean[2];
+    private final boolean[] everSeen = new boolean[TRUE_ORD + 1];
 
     BooleanBlockHash(int channel) {
         this.channel = channel;
@@ -56,35 +60,36 @@ final class BooleanBlockHash extends BlockHash {
 
     @Override
     public BooleanBlock[] getKeys() {
-        BooleanVector.Builder builder = BooleanVector.newVectorBuilder(2);
-        if (everSeen[0]) {
+        BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(everSeen.length);
+        if (everSeen[NULL_ORD]) {
+            builder.appendNull();
+        }
+        if (everSeen[FALSE_ORD]) {
             builder.appendBoolean(false);
         }
-        if (everSeen[1]) {
+        if (everSeen[TRUE_ORD]) {
             builder.appendBoolean(true);
         }
-        return new BooleanBlock[] { builder.build().asBlock() };
+        return new BooleanBlock[] { builder.build() };
     }
 
     @Override
     public IntVector nonEmpty() {
-        IntVector.Builder builder = IntVector.newVectorBuilder(2);
-        if (everSeen[0]) {
-            builder.appendInt(0);
-        }
-        if (everSeen[1]) {
-            builder.appendInt(1);
+        IntVector.Builder builder = IntVector.newVectorBuilder(everSeen.length);
+        for (int i = 0; i < everSeen.length; i++) {
+            if (everSeen[i]) {
+                builder.appendInt(i);
+            }
         }
         return builder.build();
     }
 
     public BitArray seenGroupIds(BigArrays bigArrays) {
-        BitArray seen = new BitArray(2, bigArrays);
-        if (everSeen[0]) {
-            seen.set(0);
-        }
-        if (everSeen[1]) {
-            seen.set(1);
+        BitArray seen = new BitArray(everSeen.length, bigArrays);
+        for (int i = 0; i < everSeen.length; i++) {
+            if (everSeen[i]) {
+                seen.set(i);
+            }
         }
         return seen;
     }
@@ -96,6 +101,14 @@ final class BooleanBlockHash extends BlockHash {
 
     @Override
     public String toString() {
-        return "BooleanBlockHash{channel=" + channel + ", seenFalse=" + everSeen[0] + ", seenTrue=" + everSeen[1] + '}';
+        return "BooleanBlockHash{channel="
+            + channel
+            + ", seenFalse="
+            + everSeen[FALSE_ORD]
+            + ", seenTrue="
+            + everSeen[TRUE_ORD]
+            + ", seenNull="
+            + everSeen[NULL_ORD]
+            + '}';
     }
 }

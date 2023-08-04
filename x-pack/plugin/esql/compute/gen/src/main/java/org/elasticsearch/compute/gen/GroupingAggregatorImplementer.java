@@ -313,6 +313,7 @@ public class GroupingAggregatorImplementer {
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
         {
             if (groupsIsBlock) {
+                // TODO we can drop this once we stop sending null group keys
                 builder.beginControlFlow("if (groups.isNull(groupPosition))");
                 builder.addStatement("continue");
                 builder.endControlFlow();
@@ -447,7 +448,7 @@ public class GroupingAggregatorImplementer {
                     var name = intermediateState.get(0).name();
                     var m = vectorAccessorName(intermediateState.get(0).elementType());
                     builder.addStatement(
-                        "state.set(groupId, $T.combine($L.$L(groupPosition + positionOffset), state.getOrDefault(groupId)))",
+                        "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.$L(groupPosition + positionOffset)))",
                         declarationType,
                         name,
                         m

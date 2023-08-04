@@ -12,12 +12,17 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeLong;
+
+import java.util.BitSet;
 
 /**
  * Maps {@link LongBlock} to group ids.
@@ -25,6 +30,15 @@ import org.elasticsearch.compute.operator.MultivalueDedupeLong;
 final class LongBlockHash extends BlockHash {
     private final int channel;
     private final LongHash longHash;
+
+    /**
+     * Have we seen any {@code null} values?
+     * <p>
+     *     We reserve the 0 ordinal for the {@code null} key so methods like
+     *     {@link #nonEmpty} need to skip 0 if we haven't seen any null values.
+     * </p>
+     */
+    private boolean seenNull;
 
     LongBlockHash(int channel, BigArrays bigArrays) {
         this.channel = channel;
@@ -45,17 +59,30 @@ final class LongBlockHash extends BlockHash {
     private LongVector add(LongVector vector) {
         long[] groups = new long[vector.getPositionCount()];
         for (int i = 0; i < vector.getPositionCount(); i++) {
-            groups[i] = hashOrdToGroup(longHash.add(vector.getLong(i)));
+            groups[i] = hashOrdToGroupNullReserved(longHash.add(vector.getLong(i)));
         }
         return new LongArrayVector(groups, groups.length);
     }
 
     private LongBlock add(LongBlock block) {
-        return new MultivalueDedupeLong(block).hash(longHash);
+        MultivalueDedupe.HashResult result = new MultivalueDedupeLong(block).hash(longHash);
+        seenNull |= result.sawNull();
+        return result.ords();
     }
 
     @Override
     public LongBlock[] getKeys() {
+        if (seenNull) {
+            final int size = Math.toIntExact(longHash.size() + 1);
+            final long[] keys = new long[size];
+            for (int i = 1; i < size; i++) {
+                keys[i] = longHash.get(i - 1);
+            }
+            BitSet nulls = new BitSet(1);
+            nulls.set(0);
+            return new LongBlock[] { new LongArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.ASCENDING) };
+        }
+
         final int size = Math.toIntExact(longHash.size());
         final long[] keys = new long[size];
         for (int i = 0; i < size; i++) {
@@ -68,12 +95,12 @@ final class LongBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(longHash.size()));
+        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(longHash.size() + 1));
     }
 
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
-        return new SeenGroupIds.Range(0, Math.toIntExact(longHash.size())).seenGroupIds(bigArrays);
+        return new SeenGroupIds.Range(seenNull ? 0 : 1, Math.toIntExact(longHash.size() + 1)).seenGroupIds(bigArrays);
     }
 
     @Override
@@ -83,6 +110,6 @@ final class LongBlockHash extends BlockHash {
 
     @Override
     public String toString() {
-        return "LongBlockHash{channel=" + channel + ", entries=" + longHash.size() + '}';
+        return "LongBlockHash{channel=" + channel + ", entries=" + longHash.size() + ", seenNull=" + seenNull + '}';
     }
 }

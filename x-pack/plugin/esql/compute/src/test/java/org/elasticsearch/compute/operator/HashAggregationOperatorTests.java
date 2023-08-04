@@ -66,7 +66,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
     @Override
     protected String expectedToStringOfSimple() {
-        return "HashAggregationOperator[blockHash=LongBlockHash{channel=0, entries=0}, aggregators=["
+        return "HashAggregationOperator[blockHash=LongBlockHash{channel=0, entries=0, seenNull=false}, aggregators=["
             + "GroupingAggregator[aggregatorFunction=SumLongGroupingAggregatorFunction[channels=[1]], mode=SINGLE], "
             + "GroupingAggregator[aggregatorFunction=MaxLongGroupingAggregatorFunction[channels=[1]], mode=SINGLE]]]";
     }

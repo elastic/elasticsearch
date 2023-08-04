@@ -40,7 +40,7 @@ public class SumDoubleGroupingAggregatorFunctionTests extends GroupingAggregator
     }
 
     @Override
-    protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
+    protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
         CompensatedSum sum = new CompensatedSum();
         input.stream().flatMapToDouble(p -> allDoubles(p, group)).forEach(sum::add);
         // Won't precisely match in distributed case but will be close

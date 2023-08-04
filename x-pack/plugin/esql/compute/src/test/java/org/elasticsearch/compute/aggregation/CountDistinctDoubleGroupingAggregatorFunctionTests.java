@@ -41,7 +41,7 @@ public class CountDistinctDoubleGroupingAggregatorFunctionTests extends Grouping
     }
 
     @Override
-    protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
+    protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
         long distinct = input.stream().flatMapToDouble(p -> allDoubles(p, group)).distinct().count();
         long count = ((LongBlock) result).getLong(position);
         // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param

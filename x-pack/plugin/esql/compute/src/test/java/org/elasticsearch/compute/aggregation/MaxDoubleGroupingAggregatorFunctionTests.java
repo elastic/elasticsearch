@@ -41,7 +41,7 @@ public class MaxDoubleGroupingAggregatorFunctionTests extends GroupingAggregator
     }
 
     @Override
-    protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
+    protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
         OptionalDouble max = input.stream().flatMapToDouble(p -> allDoubles(p, group)).max();
         if (max.isEmpty()) {
             assertThat(result.isNull(position), equalTo(true));

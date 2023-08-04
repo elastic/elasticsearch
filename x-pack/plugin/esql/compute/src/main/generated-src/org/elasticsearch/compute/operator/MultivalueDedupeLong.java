@@ -140,13 +140,17 @@ public class MultivalueDedupeLong {
      * Dedupe values and build a {@link LongBlock} suitable for passing
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-    public LongBlock hash(LongHash hash) {
+    public MultivalueDedupe.HashResult hash(LongHash hash) {
         LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
+        boolean sawNull = false;
         for (int p = 0; p < block.getPositionCount(); p++) {
             int count = block.getValueCount(p);
             int first = block.getFirstValueIndex(p);
             switch (count) {
-                case 0 -> builder.appendNull();
+                case 0 -> {
+                    sawNull = true;
+                    builder.appendLong(0);
+                }
                 case 1 -> {
                     long v = block.getLong(first);
                     hash(builder, hash, v);
@@ -162,7 +166,7 @@ public class MultivalueDedupeLong {
                 }
             }
         }
-        return builder.build();
+        return new MultivalueDedupe.HashResult(builder.build(), sawNull);
     }
 
     /**
@@ -358,6 +362,6 @@ public class MultivalueDedupeLong {
     }
 
     private void hash(LongBlock.Builder builder, LongHash hash, long v) {
-        builder.appendLong(BlockHash.hashOrdToGroup(hash.add(v)));
+        builder.appendLong(BlockHash.hashOrdToGroupNullReserved(hash.add(v)));
     }
 }

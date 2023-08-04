@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeBytesRef;
 
 import java.io.IOException;
@@ -36,6 +37,15 @@ final class BytesRefBlockHash extends BlockHash {
     private final BytesRef bytes = new BytesRef();
     private final int channel;
     private final BytesRefHash bytesRefHash;
+
+    /**
+     * Have we seen any {@code null} values?
+     * <p>
+     *     We reserve the 0 ordinal for the {@code null} key so methods like
+     *     {@link #nonEmpty} need to skip 0 if we haven't seen any null values.
+     * </p>
+     */
+    private boolean seenNull;
 
     BytesRefBlockHash(int channel, BigArrays bigArrays) {
         this.channel = channel;
@@ -56,41 +66,36 @@ final class BytesRefBlockHash extends BlockHash {
     private LongVector add(BytesRefVector vector) {
         long[] groups = new long[vector.getPositionCount()];
         for (int i = 0; i < vector.getPositionCount(); i++) {
-            groups[i] = hashOrdToGroup(bytesRefHash.add(vector.getBytesRef(i, bytes)));
+            groups[i] = hashOrdToGroupNullReserved(bytesRefHash.add(vector.getBytesRef(i, bytes)));
         }
         return new LongArrayVector(groups, vector.getPositionCount());
     }
 
     private LongBlock add(BytesRefBlock block) {
-        return new MultivalueDedupeBytesRef(block).hash(bytesRefHash);
-    }
-
-    protected static int addOrd(LongBlock.Builder builder, long[] seen, int nextSeen, long ord) {
-        if (ord < 0) { // already seen
-            ord = -1 - ord;
-            /*
-             * Check if we've seen the value before. This is n^2 on the number of
-             * values, but we don't expect many of them in each entry.
-             */
-            for (int j = 0; j < nextSeen; j++) {
-                if (seen[j] == ord) {
-                    return nextSeen;
-                }
-            }
-        }
-        seen[nextSeen] = ord;
-        builder.appendLong(ord);
-        return nextSeen + 1;
+        MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(block).hash(bytesRefHash);
+        seenNull |= result.sawNull();
+        return result.ords();
     }
 
     @Override
     public BytesRefBlock[] getKeys() {
-        final int size = Math.toIntExact(bytesRefHash.size());
         /*
          * Create an un-owned copy of the data so we can close our BytesRefHash
          * without and still read from the block.
          */
         // TODO replace with takeBytesRefsOwnership ?!
+
+        if (seenNull) {
+            BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(Math.toIntExact(bytesRefHash.size() + 1));
+            builder.appendNull();
+            BytesRef spare = new BytesRef();
+            for (long i = 0; i < bytesRefHash.size(); i++) {
+                builder.appendBytesRef(bytesRefHash.get(i, spare));
+            }
+            return new BytesRefBlock[] { builder.build() };
+        }
+
+        final int size = Math.toIntExact(bytesRefHash.size());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             bytesRefHash.getBytesRefs().writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
@@ -104,12 +109,12 @@ final class BytesRefBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(bytesRefHash.size()));
+        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(bytesRefHash.size() + 1));
     }
 
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
-        return new SeenGroupIds.Range(0, Math.toIntExact(bytesRefHash.size())).seenGroupIds(bigArrays);
+        return new SeenGroupIds.Range(seenNull ? 0 : 1, Math.toIntExact(bytesRefHash.size() + 1)).seenGroupIds(bigArrays);
     }
 
     @Override
@@ -125,6 +130,8 @@ final class BytesRefBlockHash extends BlockHash {
             + bytesRefHash.size()
             + ", size="
             + ByteSizeValue.ofBytes(bytesRefHash.ramBytesUsed())
+            + ", seenNull="
+            + seenNull
             + '}';
     }
 }

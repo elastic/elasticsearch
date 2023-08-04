@@ -177,16 +177,20 @@ $endif$
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
 $if(BytesRef)$
-    public LongBlock hash(BytesRefHash hash) {
+    public MultivalueDedupe.HashResult hash(BytesRefHash hash) {
 $else$
-    public LongBlock hash(LongHash hash) {
+    public MultivalueDedupe.HashResult hash(LongHash hash) {
 $endif$
         LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
+        boolean sawNull = false;
         for (int p = 0; p < block.getPositionCount(); p++) {
             int count = block.getValueCount(p);
             int first = block.getFirstValueIndex(p);
             switch (count) {
-                case 0 -> builder.appendNull();
+                case 0 -> {
+                    sawNull = true;
+                    builder.appendLong(0);
+                }
                 case 1 -> {
 $if(BytesRef)$
                     BytesRef v = block.getBytesRef(first, work[0]);
@@ -206,7 +210,7 @@ $endif$
                 }
             }
         }
-        return builder.build();
+        return new MultivalueDedupe.HashResult(builder.build(), sawNull);
     }
 
     /**
@@ -486,9 +490,9 @@ $else$
     private void hash(LongBlock.Builder builder, LongHash hash, $type$ v) {
 $endif$
 $if(double)$
-        builder.appendLong(BlockHash.hashOrdToGroup(hash.add(Double.doubleToLongBits(v))));
+        builder.appendLong(BlockHash.hashOrdToGroupNullReserved(hash.add(Double.doubleToLongBits(v))));
 $else$
-        builder.appendLong(BlockHash.hashOrdToGroup(hash.add(v)));
+        builder.appendLong(BlockHash.hashOrdToGroupNullReserved(hash.add(v)));
 $endif$
     }
 }

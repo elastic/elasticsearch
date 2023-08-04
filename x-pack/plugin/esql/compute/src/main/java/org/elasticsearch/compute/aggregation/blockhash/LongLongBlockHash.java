@@ -160,19 +160,13 @@ final class LongLongBlockHash extends BlockHash {
         }
 
         protected final void emitOrds() {
-            LongBlock groupIdsBlock = ords.build();
-            LongVector groupIdsVector = groupIdsBlock.asVector();
-            if (groupIdsVector == null) {
-                addInput.add(positionOffset, groupIdsBlock);
-            } else {
-                addInput.add(positionOffset, groupIdsVector);
-            }
+            addInput.add(positionOffset, ords.build());
         }
 
         private void rollover(int position) {
             emitOrds();
             positionOffset = position;
-            ords = LongBlock.newBlockBuilder(emitBatchSize); // TODO build a clear method on the builder?
+            ords = LongBlock.newBlockBuilder(emitBatchSize); // TODO add a clear method to the builder?
         }
     }
 

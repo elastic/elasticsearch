@@ -98,8 +98,13 @@ public class HashAggregationOperator implements Operator {
         blockHash.add(wrapPage(page), new GroupingAggregatorFunction.AddInput() {
             @Override
             public void add(int positionOffset, LongBlock groupIds) {
-                for (GroupingAggregatorFunction.AddInput p : prepared) {
-                    p.add(positionOffset, groupIds);
+                LongVector groupIdsVector = groupIds.asVector();
+                if (groupIdsVector != null) {
+                    add(positionOffset, groupIdsVector);
+                } else {
+                    for (GroupingAggregatorFunction.AddInput p : prepared) {
+                        p.add(positionOffset, groupIds);
+                    }
                 }
             }
 

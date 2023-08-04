@@ -184,7 +184,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             client().prepareBulk()
                 .add(new IndexRequest("test").id("no_count_old_" + i).source("data", between(1, 2), "data_d", 1d))
                 .add(new IndexRequest("test").id("no_count_new_" + i).source("data", 99, "data_d", 1d))
-                .add(new IndexRequest("test").id("no_data_" + i).source("count", between(0, 100), "count_d", between(0, 100)))
+                .add(new IndexRequest("test").id("no_data_" + i).source("count", 12, "count_d", 12d))
                 .get();
             if (randomBoolean()) {
                 client().admin().indices().prepareRefresh("test").get();
@@ -193,36 +193,17 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         client().admin().indices().prepareRefresh("test").get();
         EsqlQueryResponse results = run("from test | stats avg(count) by data | sort data");
         logger.info(results);
-        Assert.assertEquals(2, results.columns().size());
-        Assert.assertEquals(3, results.values().size());
 
-        // assert column metadata
+        assertThat(results.columns(), hasSize(2));
         assertEquals("avg(count)", results.columns().get(0).name());
         assertEquals("double", results.columns().get(0).type());
         assertEquals("data", results.columns().get(1).name());
         assertEquals("long", results.columns().get(1).type());
 
-        record Group(Long data, Double avg) {
-
-        }
-
-        List<Group> expectedGroups = List.of(new Group(1L, 42.0), new Group(2L, 44.0), new Group(99L, null));
-
-        // assert column values
-        List<Group> actualGroups = results.values()
-            .stream()
-            .map(l -> new Group((Long) l.get(1), (Double) l.get(0)))
-            .sorted(comparing(c -> c.data))
-            .toList();
-        assertEquals(expectedGroups, actualGroups);
-        for (int i = 0; i < 5; i++) { /// TODO indices are automatically cleaned up. why delete?
-            client().prepareBulk()
-                .add(new DeleteRequest("test").id("no_color_" + i))
-                .add(new DeleteRequest("test").id("no_count_red_" + i))
-                .add(new DeleteRequest("test").id("no_count_yellow_" + i))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
-        }
+        record Group(Long data, Double avg) {}
+        List<Group> expectedGroups = List.of(new Group(1L, 42.0), new Group(2L, 44.0), new Group(99L, null), new Group(null, 12.0));
+        List<Group> actualGroups = results.values().stream().map(l -> new Group((Long) l.get(1), (Double) l.get(0))).toList();
+        assertThat(actualGroups, equalTo(expectedGroups));
     }
 
     public void testFromStatsGroupingByKeyword() {

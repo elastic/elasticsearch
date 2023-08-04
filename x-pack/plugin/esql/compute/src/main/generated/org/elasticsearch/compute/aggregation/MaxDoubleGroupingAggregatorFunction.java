@@ -166,7 +166,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getLong(groupPosition));
       if (seen.getBoolean(groupPosition + positionOffset)) {
-        state.set(groupId, MaxDoubleAggregator.combine(max.getDouble(groupPosition + positionOffset), state.getOrDefault(groupId)));
+        state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), max.getDouble(groupPosition + positionOffset)));
       }
     }
   }

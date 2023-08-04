@@ -14,7 +14,7 @@ public interface SeenGroupIds {
     /**
      * The grouping ids that have been seen already. This {@link BitArray} is
      * kept and mutated by the caller so make a copy if it's something you
-     * need your own copy of.
+     * need your own copy of it.
      */
     BitArray seenGroupIds(BigArrays bigArrays);
 

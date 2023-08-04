@@ -123,6 +123,11 @@ public final class MultivalueDedupe {
     }
 
     /**
+     * Result of calling "hash" on a multivalue dedupe.
+     */
+    public record HashResult(LongBlock ords, boolean sawNull) {}
+
+    /**
      * Build a {@link BatchEncoder} which deduplicates values at each position
      * and then encodes the results into a {@link byte[]} which can be used for
      * things like hashing many fields together.

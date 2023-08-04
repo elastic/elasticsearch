@@ -109,8 +109,9 @@ class SumDoubleAggregator {
     public static Block evaluateFinal(GroupingSumState state, IntVector selected) {
         DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
-            if (state.hasValue(i)) {
-                builder.appendDouble(state.values.get(selected.getInt(i)));
+            int si = selected.getInt(i);
+            if (state.hasValue(si) && si < state.values.size()) {
+                builder.appendDouble(state.values.get(si));
             } else {
                 builder.appendNull();
             }

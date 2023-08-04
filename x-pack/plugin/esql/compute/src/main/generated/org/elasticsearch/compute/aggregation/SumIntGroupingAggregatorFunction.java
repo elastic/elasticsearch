@@ -165,7 +165,7 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getLong(groupPosition));
       if (seen.getBoolean(groupPosition + positionOffset)) {
-        state.set(groupId, SumIntAggregator.combine(sum.getLong(groupPosition + positionOffset), state.getOrDefault(groupId)));
+        state.set(groupId, SumIntAggregator.combine(state.getOrDefault(groupId), sum.getLong(groupPosition + positionOffset)));
       }
     }
   }

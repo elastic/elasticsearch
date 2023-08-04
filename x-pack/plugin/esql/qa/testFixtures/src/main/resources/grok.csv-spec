@@ -89,6 +89,7 @@ from employees | eval x = concat(gender, " foobar") | grok x "%{WORD:a} %{WORD:b
 a:keyword  | n:integer
 F          | 10100    
 M          | 10097       
+null       | 10019
 ;
 
 

@@ -102,20 +102,19 @@ from ul_logs | where bytes_in < bytes_out | eval b_in = bytes_in / to_ul(pow(10.
 ;
 
 groupBy
-from ul_logs | stats c = count(bytes_in) by bytes_in | sort c desc | limit 10;
- // TODO: top row "counts" all values in all documents that contains this value ?!?!
+from ul_logs | stats c = count(bytes_in) by bytes_in | sort c desc, bytes_in desc | limit 10;
 
        c:l     |      bytes_in:ul
-5              |154551962150890564
-4              |0
+5              |  154551962150890564
+4              |                   0
 3              |16002960716282089759
 2              |18446744073709551614
-2              |154551962150890561
-2              |754822992931077409
-1              |18081123477485622121
-1              |8847365258155648277
-1              |7239423344688551324
-1              |9223372036854775807
+2              |  754822992931077409
+2              |  154551962150890561
+1              |18446744073709551615
+1              |18446744073709550591
+1              |18345360876889252152
+1              |18317075104972913640
 ;
 
 case

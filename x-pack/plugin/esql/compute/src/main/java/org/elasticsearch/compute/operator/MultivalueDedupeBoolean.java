@@ -15,6 +15,19 @@ import org.elasticsearch.compute.data.LongBlock;
  * Removes duplicate values from multivalued positions.
  */
 public class MultivalueDedupeBoolean {
+    /**
+     * Ordinal assigned to {@code null}.
+     */
+    public static final int NULL_ORD = 0;
+    /**
+     * Ordinal assigned to {@code false}.
+     */
+    public static final int FALSE_ORD = 1;
+    /**
+     * Ordinal assigned to {@code true}.
+     */
+    public static final int TRUE_ORD = 2;
+
     private final BooleanBlock block;
     private boolean seenTrue;
     private boolean seenFalse;
@@ -57,7 +70,10 @@ public class MultivalueDedupeBoolean {
             int count = block.getValueCount(p);
             int first = block.getFirstValueIndex(p);
             switch (count) {
-                case 0 -> builder.appendNull();
+                case 0 -> {
+                    everSeen[NULL_ORD] = true;
+                    builder.appendLong(NULL_ORD);
+                }
                 case 1 -> builder.appendLong(hashOrd(everSeen, block.getBoolean(first)));
                 default -> {
                     readValues(first, count);
@@ -166,12 +182,15 @@ public class MultivalueDedupeBoolean {
         }
     }
 
+    /**
+     * Convert the boolean to an ordinal and track if it's been seen in {@code everSeen}.
+     */
     public static long hashOrd(boolean[] everSeen, boolean b) {
         if (b) {
-            everSeen[1] = true;
-            return 1;
+            everSeen[TRUE_ORD] = true;
+            return TRUE_ORD;
         }
-        everSeen[0] = true;
-        return 0;
+        everSeen[FALSE_ORD] = true;
+        return FALSE_ORD;
     }
 }

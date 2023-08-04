@@ -159,8 +159,13 @@ public final class QuantileStates {
             var builder = BytesRefBlock.newBlockBuilder(selected.getPositionCount());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                TDigestState state = get(group);
-                if (state == null) {
+                TDigestState state;
+                if (group < digests.size()) {
+                    state = get(group);
+                    if (state == null) {
+                        state = TDigestState.create(DEFAULT_COMPRESSION);
+                    }
+                } else {
                     state = TDigestState.create(DEFAULT_COMPRESSION);
                 }
                 builder.appendBytesRef(serializeDigest(state));
@@ -172,7 +177,12 @@ public final class QuantileStates {
             assert percentile == MEDIAN : "Median must be 50th percentile [percentile = " + percentile + "]";
             final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
             for (int i = 0; i < selected.getPositionCount(); i++) {
-                final TDigestState digest = digests.get(selected.getInt(i));
+                int si = selected.getInt(i);
+                if (si >= digests.size()) {
+                    builder.appendNull();
+                    continue;
+                }
+                final TDigestState digest = digests.get(si);
                 if (digest != null && digest.size() > 0) {
                     builder.appendDouble(InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation(digest));
                 } else {
@@ -185,7 +195,12 @@ public final class QuantileStates {
         Block evaluatePercentile(IntVector selected) {
             final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
             for (int i = 0; i < selected.getPositionCount(); i++) {
-                final TDigestState digest = digests.get(selected.getInt(i));
+                int si = selected.getInt(i);
+                if (si >= digests.size()) {
+                    builder.appendNull();
+                    continue;
+                }
+                final TDigestState digest = digests.get(si);
                 if (percentile != null && digest != null && digest.size() > 0) {
                     builder.appendDouble(digest.quantile(percentile / 100));
                 } else {

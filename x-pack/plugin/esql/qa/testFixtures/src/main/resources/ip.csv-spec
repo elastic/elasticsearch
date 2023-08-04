@@ -85,6 +85,7 @@ c:long         |ip:ip
 3              |fe80::cae2:65ff:fece:fec1
 2              |fe81::cae2:65ff:fece:feb9
 2              |fe82::cae2:65ff:fece:fec0
+0              |null
 ;
 
 doubleSort

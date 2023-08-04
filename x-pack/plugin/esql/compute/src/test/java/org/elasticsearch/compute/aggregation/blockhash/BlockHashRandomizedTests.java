@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.MockBigArrays;
@@ -26,6 +27,7 @@ import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -69,11 +71,11 @@ public class BlockHashRandomizedTests extends ESTestCase {
     private final List<ElementType> allowedTypes;
 
     public BlockHashRandomizedTests(
-        boolean forcePackedHash,
-        int groups,
-        int maxValuesPerPosition,
-        int dups,
-        List<ElementType> allowedTypes
+        @Name("forcePackdHash") boolean forcePackedHash,
+        @Name("groups") int groups,
+        @Name("maxValuesPerPosition") int maxValuesPerPosition,
+        @Name("dups") int dups,
+        @Name("allowedTypes") List<ElementType> allowedTypes
     ) {
         this.forcePackedHash = forcePackedHash;
         this.groups = groups;
@@ -90,7 +92,10 @@ public class BlockHashRandomizedTests extends ESTestCase {
         int positionCount = 100;
         int emitBatchSize = 100;
         try (BlockHash blockHash = newBlockHash(emitBatchSize, types)) {
-            Oracle oracle = new Oracle();
+            /*
+             * Only the native single valued hashes support nulls. So far!
+             */
+            Oracle oracle = new Oracle(forcePackedHash == false && groups == 1);
 
             for (int p = 0; p < pageCount; p++) {
                 for (int g = 0; g < blocks.length; g++) {
@@ -180,6 +185,12 @@ public class BlockHashRandomizedTests extends ESTestCase {
     private static class Oracle {
         private final NavigableSet<List<Object>> keys = new TreeSet<>(new KeyComparator());
 
+        private final boolean collectsNull;
+
+        private Oracle(boolean collectsNull) {
+            this.collectsNull = collectsNull;
+        }
+
         void add(BasicBlockTests.RandomBlock[] randomBlocks) {
             for (int p = 0; p < randomBlocks[0].block().getPositionCount(); p++) {
                 add(randomBlocks, p, List.of());
@@ -194,6 +205,9 @@ public class BlockHashRandomizedTests extends ESTestCase {
             BasicBlockTests.RandomBlock block = randomBlocks[key.size()];
             List<Object> values = block.values().get(p);
             if (values == null) {
+                if (collectsNull) {
+                    keys.add(singletonList(null));
+                }
                 return;
             }
             for (Object v : values) {

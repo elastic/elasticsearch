@@ -38,7 +38,7 @@ public class MaxLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
     }
 
     @Override
-    public void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
+    public void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
         OptionalLong max = input.stream().flatMapToLong(p -> allLongs(p, group)).max();
         if (max.isEmpty()) {
             assertThat(result.isNull(position), equalTo(true));

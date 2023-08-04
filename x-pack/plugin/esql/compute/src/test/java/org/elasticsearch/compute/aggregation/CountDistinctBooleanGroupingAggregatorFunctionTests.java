@@ -40,7 +40,7 @@ public class CountDistinctBooleanGroupingAggregatorFunctionTests extends Groupin
     }
 
     @Override
-    protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
+    protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
         long distinct = input.stream().flatMap(p -> allBooleans(p, group)).distinct().count();
         long count = ((LongBlock) result).getLong(position);
         assertThat(count, equalTo(distinct));

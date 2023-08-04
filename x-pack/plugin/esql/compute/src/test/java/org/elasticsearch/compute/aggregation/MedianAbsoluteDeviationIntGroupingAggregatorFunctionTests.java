@@ -56,7 +56,7 @@ public class MedianAbsoluteDeviationIntGroupingAggregatorFunctionTests extends G
     }
 
     @Override
-    protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
+    protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
         assertThat(
             ((DoubleBlock) result).getDouble(position),
             equalTo(medianAbsoluteDeviation(input.stream().flatMapToInt(p -> allInts(p, group)).asDoubleStream()))

@@ -165,7 +165,7 @@ public final class MaxIntGroupingAggregatorFunction implements GroupingAggregato
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getLong(groupPosition));
       if (seen.getBoolean(groupPosition + positionOffset)) {
-        state.set(groupId, MaxIntAggregator.combine(max.getInt(groupPosition + positionOffset), state.getOrDefault(groupId)));
+        state.set(groupId, MaxIntAggregator.combine(state.getOrDefault(groupId), max.getInt(groupPosition + positionOffset)));
       }
     }
   }

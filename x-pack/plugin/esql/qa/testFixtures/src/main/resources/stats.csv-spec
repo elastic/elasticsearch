@@ -250,6 +250,7 @@ m:d  | languages:i
 1.44 | 3
 1.52 | 4
 1.5  | 5
+1.41 | null
 ; 
 
 IfDuplicateNamesLastOneWins
@@ -261,6 +262,7 @@ h:d  | languages:i
 1.44 | 3
 1.52 | 4
 1.5  | 5
+1.41 | null
 ;
 
 groupByAlias
@@ -272,6 +274,7 @@ m:d  | l:i
 1.44 | 3
 1.52 | 4
 1.5  | 5
+1.41 | null
 ; 
 
 IfDuplicateNamesGroupingHasPriority
@@ -283,6 +286,7 @@ languages:i
 3
 4
 5
+null
 ;
 
 byStringAndLong
@@ -437,15 +441,16 @@ from employees | stats min(salary), max(salary) by is_rehired | sort is_rehired;
 min(salary):integer | max(salary):integer | is_rehired:boolean
 25324               | 74970               | false
 25324               | 74999               | true
+27215               | 66174               | null
 ;
 
 byMvInt
 from employees | stats min(salary), max(salary) by salary_change.int | sort salary_change.int desc | limit 5;
 
 min(salary):integer | max(salary):integer | salary_change.int:integer
+26436               | 74970               | null
 25324               | 73578               | 14
 36174               | 68547               | 13
 25324               | 69904               | 12
 28336               | 56760               | 11
-28336               | 73578               | 10
 ;

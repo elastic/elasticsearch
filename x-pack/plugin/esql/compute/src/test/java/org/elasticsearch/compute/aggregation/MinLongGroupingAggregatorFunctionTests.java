@@ -38,7 +38,7 @@ public class MinLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
     }
 
     @Override
-    protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
+    protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
         OptionalLong min = input.stream().flatMapToLong(p -> allLongs(p, group)).min();
         if (min.isEmpty()) {
             assertThat(result.isNull(position), equalTo(true));

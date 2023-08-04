@@ -175,7 +175,8 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
         LongVector.Builder builder = LongVector.newVectorBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
-            builder.appendLong(state.get(selected.getInt(i)));
+            int si = selected.getInt(i);
+            builder.appendLong(state.hasValue(si) ? state.get(si) : 0);
         }
         blocks[offset] = builder.build().asBlock();
     }

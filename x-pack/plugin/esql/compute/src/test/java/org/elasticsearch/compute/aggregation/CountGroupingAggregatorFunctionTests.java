@@ -45,7 +45,7 @@ public class CountGroupingAggregatorFunctionTests extends GroupingAggregatorFunc
     }
 
     @Override
-    protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
+    protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
         long count = input.stream().flatMapToInt(p -> allValueOffsets(p, group)).count();
         assertThat(((LongBlock) result).getLong(position), equalTo(count));
     }

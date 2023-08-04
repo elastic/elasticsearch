@@ -65,15 +65,16 @@ public class BlockHashTests extends ESTestCase {
         IntBlock block = new IntArrayVector(values, values.length).asBlock();
 
         OrdsAndKeys ordsAndKeys = hash(block);
-        assertThat(
-            ordsAndKeys.description,
-            forcePackedHash
-                ? startsWith("PackedValuesBlockHash{groups=[0:INT], entries=3, size=")
-                : equalTo("IntBlockHash{channel=0, entries=3}")
-        );
-        assertOrds(ordsAndKeys.ords, 0L, 1L, 2L, 0L, 1L, 2L, 0L, 1L, 2L);
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:INT], entries=3, size="));
+            assertOrds(ordsAndKeys.ords, 0L, 1L, 2L, 0L, 1L, 2L, 0L, 1L, 2L);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        } else {
+            assertThat(ordsAndKeys.description, equalTo("IntBlockHash{channel=0, entries=3, seenNull=false}"));
+            assertOrds(ordsAndKeys.ords, 1L, 2L, 3L, 1L, 2L, 3L, 1L, 2L, 3L);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(1, 4)));
+        }
         assertKeys(ordsAndKeys.keys, 1, 2, 3);
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
     }
 
     public void testIntHashWithNulls() {
@@ -84,15 +85,17 @@ public class BlockHashTests extends ESTestCase {
         builder.appendNull();
 
         OrdsAndKeys ordsAndKeys = hash(builder.build());
-        assertThat(
-            ordsAndKeys.description,
-            forcePackedHash
-                ? startsWith("PackedValuesBlockHash{groups=[0:INT], entries=2, size=")
-                : equalTo("IntBlockHash{channel=0, entries=2}")
-        );
-        assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
-        assertKeys(ordsAndKeys.keys, 0, 2);
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:INT], entries=2, size="));
+            assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
+            assertKeys(ordsAndKeys.keys, 0, 2);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+        } else {
+            assertThat(ordsAndKeys.description, equalTo("IntBlockHash{channel=0, entries=2, seenNull=true}"));
+            assertOrds(ordsAndKeys.ords, 1L, 0L, 2L, 0L);
+            assertKeys(ordsAndKeys.keys, null, 0, 2);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        }
     }
 
     public void testIntHashWithMultiValuedFields() {
@@ -118,23 +121,33 @@ public class BlockHashTests extends ESTestCase {
         builder.endPositionEntry();
 
         OrdsAndKeys ordsAndKeys = hash(builder.build());
-        assertThat(
-            ordsAndKeys.description,
-            forcePackedHash
-                ? startsWith("PackedValuesBlockHash{groups=[0:INT], entries=3, size=")
-                : equalTo("IntBlockHash{channel=0, entries=3}")
-        );
-        assertOrds(
-            ordsAndKeys.ords,
-            new long[] { 0 },
-            new long[] { 0, 1 },
-            new long[] { 2, 0 },
-            new long[] { 2 },
-            null,
-            new long[] { 2, 1, 0 }
-        );
-        assertKeys(ordsAndKeys.keys, 1, 2, 3);
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:INT], entries=3, size="));
+            assertOrds(
+                ordsAndKeys.ords,
+                new long[] { 0 },
+                new long[] { 0, 1 },
+                new long[] { 2, 0 },
+                new long[] { 2 },
+                null,
+                new long[] { 2, 1, 0 }
+            );
+            assertKeys(ordsAndKeys.keys, 1, 2, 3);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        } else {
+            assertThat(ordsAndKeys.description, equalTo("IntBlockHash{channel=0, entries=3, seenNull=true}"));
+            assertOrds(
+                ordsAndKeys.ords,
+                new long[] { 1 },
+                new long[] { 1, 2 },
+                new long[] { 3, 1 },
+                new long[] { 3 },
+                new long[] { 0 },
+                new long[] { 3, 2, 1 }
+            );
+            assertKeys(ordsAndKeys.keys, null, 1, 2, 3);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 4)));
+        }
     }
 
     public void testLongHash() {
@@ -142,15 +155,16 @@ public class BlockHashTests extends ESTestCase {
         LongBlock block = new LongArrayVector(values, values.length).asBlock();
 
         OrdsAndKeys ordsAndKeys = hash(block);
-        assertThat(
-            ordsAndKeys.description,
-            forcePackedHash
-                ? startsWith("PackedValuesBlockHash{groups=[0:LONG], entries=4, size=")
-                : equalTo("LongBlockHash{channel=0, entries=4}")
-        );
-        assertOrds(ordsAndKeys.ords, 0L, 1L, 2L, 0L, 2L, 1L, 3L, 2L);
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:LONG], entries=4, size="));
+            assertOrds(ordsAndKeys.ords, 0L, 1L, 2L, 0L, 2L, 1L, 3L, 2L);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 4)));
+        } else {
+            assertThat(ordsAndKeys.description, equalTo("LongBlockHash{channel=0, entries=4, seenNull=false}"));
+            assertOrds(ordsAndKeys.ords, 1L, 2L, 3L, 1L, 3L, 2L, 4L, 3L);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(1, 5)));
+        }
         assertKeys(ordsAndKeys.keys, 2L, 1L, 4L, 3L);
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 4)));
     }
 
     public void testLongHashWithNulls() {
@@ -161,15 +175,17 @@ public class BlockHashTests extends ESTestCase {
         builder.appendNull();
 
         OrdsAndKeys ordsAndKeys = hash(builder.build());
-        assertThat(
-            ordsAndKeys.description,
-            forcePackedHash
-                ? startsWith("PackedValuesBlockHash{groups=[0:LONG], entries=2, size=")
-                : equalTo("LongBlockHash{channel=0, entries=2}")
-        );
-        assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
-        assertKeys(ordsAndKeys.keys, 0L, 2L);
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:LONG], entries=2, size="));
+            assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
+            assertKeys(ordsAndKeys.keys, 0L, 2L);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+        } else {
+            assertThat(ordsAndKeys.description, equalTo("LongBlockHash{channel=0, entries=2, seenNull=true}"));
+            assertOrds(ordsAndKeys.ords, 1L, 0L, 2L, 0L);
+            assertKeys(ordsAndKeys.keys, null, 0L, 2L);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        }
     }
 
     public void testLongHashWithMultiValuedFields() {
@@ -195,23 +211,34 @@ public class BlockHashTests extends ESTestCase {
         builder.endPositionEntry();
 
         OrdsAndKeys ordsAndKeys = hash(builder.build());
-        assertThat(
-            ordsAndKeys.description,
-            forcePackedHash
-                ? startsWith("PackedValuesBlockHash{groups=[0:LONG], entries=3, size=")
-                : equalTo("LongBlockHash{channel=0, entries=3}")
-        );
-        assertOrds(
-            ordsAndKeys.ords,
-            new long[] { 0 },
-            new long[] { 0, 1, 2 },
-            new long[] { 0 },
-            new long[] { 2 },
-            null,
-            new long[] { 2, 1, 0 }
-        );
-        assertKeys(ordsAndKeys.keys, 1L, 2L, 3L);
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:LONG], entries=3, size="));
+            // TODO change all this when packed value hash supports nulls properly
+            assertOrds(
+                ordsAndKeys.ords,
+                new long[] { 0 },
+                new long[] { 0, 1, 2 },
+                new long[] { 0 },
+                new long[] { 2 },
+                null,
+                new long[] { 2, 1, 0 }
+            );
+            assertKeys(ordsAndKeys.keys, 1L, 2L, 3L);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        } else {
+            assertThat(ordsAndKeys.description, equalTo("LongBlockHash{channel=0, entries=3, seenNull=true}"));
+            assertOrds(
+                ordsAndKeys.ords,
+                new long[] { 1 },
+                new long[] { 1, 2, 3 },
+                new long[] { 1 },
+                new long[] { 3 },
+                new long[] { 0 },
+                new long[] { 3, 2, 1 }
+            );
+            assertKeys(ordsAndKeys.keys, null, 1L, 2L, 3L);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 4)));
+        }
     }
 
     public void testDoubleHash() {
@@ -219,15 +246,16 @@ public class BlockHashTests extends ESTestCase {
         DoubleBlock block = new DoubleArrayVector(values, values.length).asBlock();
         OrdsAndKeys ordsAndKeys = hash(block);
 
-        assertThat(
-            ordsAndKeys.description,
-            forcePackedHash
-                ? startsWith("PackedValuesBlockHash{groups=[0:DOUBLE], entries=4, size=")
-                : equalTo("DoubleBlockHash{channel=0, entries=4}")
-        );
-        assertOrds(ordsAndKeys.ords, 0L, 1L, 2L, 0L, 2L, 1L, 3L, 2L);
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:DOUBLE], entries=4, size="));
+            assertOrds(ordsAndKeys.ords, 0L, 1L, 2L, 0L, 2L, 1L, 3L, 2L);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 4)));
+        } else {
+            assertThat(ordsAndKeys.description, equalTo("DoubleBlockHash{channel=0, entries=4, seenNull=false}"));
+            assertOrds(ordsAndKeys.ords, 1L, 2L, 3L, 1L, 3L, 2L, 4L, 3L);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(1, 5)));
+        }
         assertKeys(ordsAndKeys.keys, 2.0, 1.0, 4.0, 3.0);
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 4)));
     }
 
     public void testDoubleHashWithNulls() {
@@ -238,15 +266,17 @@ public class BlockHashTests extends ESTestCase {
         builder.appendNull();
 
         OrdsAndKeys ordsAndKeys = hash(builder.build());
-        assertThat(
-            ordsAndKeys.description,
-            forcePackedHash
-                ? startsWith("PackedValuesBlockHash{groups=[0:DOUBLE], entries=2, size=")
-                : equalTo("DoubleBlockHash{channel=0, entries=2}")
-        );
-        assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
-        assertKeys(ordsAndKeys.keys, 0.0, 2.0);
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:DOUBLE], entries=2, size="));
+            assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
+            assertKeys(ordsAndKeys.keys, 0.0, 2.0);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+        } else {
+            assertThat(ordsAndKeys.description, equalTo("DoubleBlockHash{channel=0, entries=2, seenNull=true}"));
+            assertOrds(ordsAndKeys.ords, 1L, 0L, 2L, 0L);
+            assertKeys(ordsAndKeys.keys, null, 0.0, 2.0);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        }
     }
 
     public void testDoubleHashWithMultiValuedFields() {
@@ -271,23 +301,33 @@ public class BlockHashTests extends ESTestCase {
         builder.endPositionEntry();
 
         OrdsAndKeys ordsAndKeys = hash(builder.build());
-        assertThat(
-            ordsAndKeys.description,
-            forcePackedHash
-                ? startsWith("PackedValuesBlockHash{groups=[0:DOUBLE], entries=3, size=")
-                : equalTo("DoubleBlockHash{channel=0, entries=3}")
-        );
-        assertOrds(
-            ordsAndKeys.ords,
-            new long[] { 0 },
-            new long[] { 1, 2 },
-            new long[] { 2, 1 },
-            new long[] { 0 },
-            null,
-            new long[] { 0, 1 }
-        );
-        assertKeys(ordsAndKeys.keys, 1.0, 2.0, 3.0);
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:DOUBLE], entries=3, size="));
+            assertOrds(
+                ordsAndKeys.ords,
+                new long[] { 0 },
+                new long[] { 1, 2 },
+                new long[] { 2, 1 },
+                new long[] { 0 },
+                null,
+                new long[] { 0, 1 }
+            );
+            assertKeys(ordsAndKeys.keys, 1.0, 2.0, 3.0);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        } else {
+            assertThat(ordsAndKeys.description, equalTo("DoubleBlockHash{channel=0, entries=3, seenNull=true}"));
+            assertOrds(
+                ordsAndKeys.ords,
+                new long[] { 1 },
+                new long[] { 2, 3 },
+                new long[] { 3, 2 },
+                new long[] { 1 },
+                new long[] { 0 },
+                new long[] { 1, 2 }
+            );
+            assertKeys(ordsAndKeys.keys, null, 1.0, 2.0, 3.0);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 4)));
+        }
     }
 
     public void testBasicBytesRefHash() {
@@ -302,18 +342,18 @@ public class BlockHashTests extends ESTestCase {
         builder.appendBytesRef(new BytesRef("item-4"));
 
         OrdsAndKeys ordsAndKeys = hash(builder.build());
-        assertThat(
-            ordsAndKeys.description,
-            startsWith(
-                forcePackedHash
-                    ? "PackedValuesBlockHash{groups=[0:BYTES_REF], entries=4, size="
-                    : "BytesRefBlockHash{channel=0, entries=4, size="
-            )
-        );
-        assertThat(ordsAndKeys.description, endsWith("b}"));
-        assertOrds(ordsAndKeys.ords, 0L, 1L, 2L, 0L, 2L, 1L, 3L, 2L);
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=4, size="));
+            assertThat(ordsAndKeys.description, endsWith("b}"));
+            assertOrds(ordsAndKeys.ords, 0L, 1L, 2L, 0L, 2L, 1L, 3L, 2L);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 4)));
+        } else {
+            assertThat(ordsAndKeys.description, startsWith("BytesRefBlockHash{channel=0, entries=4, size="));
+            assertThat(ordsAndKeys.description, endsWith("b, seenNull=false}"));
+            assertOrds(ordsAndKeys.ords, 1L, 2L, 3L, 1L, 3L, 2L, 4L, 3L);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(1, 5)));
+        }
         assertKeys(ordsAndKeys.keys, "item-2", "item-1", "item-4", "item-3");
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 4)));
     }
 
     public void testBytesRefHashWithNulls() {
@@ -324,18 +364,19 @@ public class BlockHashTests extends ESTestCase {
         builder.appendNull();
 
         OrdsAndKeys ordsAndKeys = hash(builder.build());
-        assertThat(
-            ordsAndKeys.description,
-            startsWith(
-                forcePackedHash
-                    ? "PackedValuesBlockHash{groups=[0:BYTES_REF], entries=2, size="
-                    : "BytesRefBlockHash{channel=0, entries=2, size="
-            )
-        );
-        assertThat(ordsAndKeys.description, endsWith("b}"));
-        assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
-        assertKeys(ordsAndKeys.keys, "cat", "dog");
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=2, size="));
+            assertThat(ordsAndKeys.description, endsWith("b}"));
+            assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
+            assertKeys(ordsAndKeys.keys, "cat", "dog");
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+        } else {
+            assertThat(ordsAndKeys.description, startsWith("BytesRefBlockHash{channel=0, entries=2, size="));
+            assertThat(ordsAndKeys.description, endsWith("b, seenNull=true}"));
+            assertOrds(ordsAndKeys.ords, 1L, 0L, 2L, 0L);
+            assertKeys(ordsAndKeys.keys, null, "cat", "dog");
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        }
     }
 
     public void testBytesRefHashWithMultiValuedFields() {
@@ -361,26 +402,35 @@ public class BlockHashTests extends ESTestCase {
         builder.endPositionEntry();
 
         OrdsAndKeys ordsAndKeys = hash(builder.build());
-        assertThat(
-            ordsAndKeys.description,
-            startsWith(
-                forcePackedHash
-                    ? "PackedValuesBlockHash{groups=[0:BYTES_REF], entries=3, size="
-                    : "BytesRefBlockHash{channel=0, entries=3, size="
-            )
-        );
-        assertThat(ordsAndKeys.description, endsWith("b}"));
-        assertOrds(
-            ordsAndKeys.ords,
-            new long[] { 0 },
-            new long[] { 0, 1 },
-            new long[] { 1, 2 },
-            new long[] { 2, 1 },
-            null,
-            new long[] { 2, 1 }
-        );
-        assertKeys(ordsAndKeys.keys, "foo", "bar", "bort");
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=3, size="));
+            assertThat(ordsAndKeys.description, endsWith("b}"));
+            assertOrds(
+                ordsAndKeys.ords,
+                new long[] { 0 },
+                new long[] { 0, 1 },
+                new long[] { 1, 2 },
+                new long[] { 2, 1 },
+                null,
+                new long[] { 2, 1 }
+            );
+            assertKeys(ordsAndKeys.keys, "foo", "bar", "bort");
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        } else {
+            assertThat(ordsAndKeys.description, startsWith("BytesRefBlockHash{channel=0, entries=3, size="));
+            assertThat(ordsAndKeys.description, endsWith("b, seenNull=true}"));
+            assertOrds(
+                ordsAndKeys.ords,
+                new long[] { 1 },
+                new long[] { 1, 2 },
+                new long[] { 2, 3 },
+                new long[] { 3, 2 },
+                new long[] { 0 },
+                new long[] { 3, 2 }
+            );
+            assertKeys(ordsAndKeys.keys, null, "foo", "bar", "bort");
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 4)));
+        }
     }
 
     public void testBooleanHashFalseFirst() {
@@ -388,15 +438,16 @@ public class BlockHashTests extends ESTestCase {
         BooleanBlock block = new BooleanArrayVector(values, values.length).asBlock();
 
         OrdsAndKeys ordsAndKeys = hash(block);
-        assertThat(
-            ordsAndKeys.description,
-            forcePackedHash
-                ? startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=2, size=")
-                : equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=true}")
-        );
-        assertOrds(ordsAndKeys.ords, 0L, 1L, 1L, 1L, 1L);
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=2, size="));
+            assertOrds(ordsAndKeys.ords, 0L, 1L, 1L, 1L, 1L);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+        } else {
+            assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=true, seenNull=false}"));
+            assertOrds(ordsAndKeys.ords, 1L, 2L, 2L, 2L, 2L);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(1, 3)));
+        }
         assertKeys(ordsAndKeys.keys, false, true);
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
     }
 
     public void testBooleanHashTrueFirst() {
@@ -404,17 +455,17 @@ public class BlockHashTests extends ESTestCase {
         BooleanBlock block = new BooleanArrayVector(values, values.length).asBlock();
 
         OrdsAndKeys ordsAndKeys = hash(block);
-        assertThat(
-            ordsAndKeys.description,
-            forcePackedHash
-                ? startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=2, size=")
-                : equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=true}")
-        );
-        long trueOrd = forcePackedHash ? 0L : 1L;
-        long falseOrd = forcePackedHash ? 1L : 0L;
-        assertOrds(ordsAndKeys.ords, trueOrd, falseOrd, falseOrd, trueOrd, trueOrd);
-        assertKeys(ordsAndKeys.keys, forcePackedHash ? new Object[] { true, false } : new Object[] { false, true });
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=2, size="));
+            assertOrds(ordsAndKeys.ords, 0L, 1L, 1L, 0L, 0L);
+            assertKeys(ordsAndKeys.keys, true, false);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+        } else {
+            assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=true, seenNull=false}"));
+            assertOrds(ordsAndKeys.ords, 2L, 1L, 1L, 2L, 2L);
+            assertKeys(ordsAndKeys.keys, false, true);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(1, 3)));
+        }
     }
 
     public void testBooleanHashTrueOnly() {
@@ -422,16 +473,17 @@ public class BlockHashTests extends ESTestCase {
         BooleanBlock block = new BooleanArrayVector(values, values.length).asBlock();
 
         OrdsAndKeys ordsAndKeys = hash(block);
-        assertThat(
-            ordsAndKeys.description,
-            forcePackedHash
-                ? startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=1, size=")
-                : equalTo("BooleanBlockHash{channel=0, seenFalse=false, seenTrue=true}")
-        );
-        long ord = forcePackedHash ? 0L : 1L;
-        assertOrds(ordsAndKeys.ords, ord, ord, ord, ord);
-        assertKeys(ordsAndKeys.keys, true);
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt((int) ord).build()));
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=1, size="));
+            assertOrds(ordsAndKeys.ords, 0L, 0L, 0L, 0L);
+            assertKeys(ordsAndKeys.keys, true);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(0).build()));
+        } else {
+            assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=false, seenTrue=true, seenNull=false}"));
+            assertOrds(ordsAndKeys.ords, 2L, 2L, 2L, 2L);
+            assertKeys(ordsAndKeys.keys, true);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(2).build()));
+        }
     }
 
     public void testBooleanHashFalseOnly() {
@@ -439,15 +491,16 @@ public class BlockHashTests extends ESTestCase {
         BooleanBlock block = new BooleanArrayVector(values, values.length).asBlock();
 
         OrdsAndKeys ordsAndKeys = hash(block);
-        assertThat(
-            ordsAndKeys.description,
-            forcePackedHash
-                ? startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=1, size=")
-                : equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=false}")
-        );
-        assertOrds(ordsAndKeys.ords, 0L, 0L, 0L, 0L);
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=1, size="));
+            assertOrds(ordsAndKeys.ords, 0L, 0L, 0L, 0L);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(0).build()));
+        } else {
+            assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=false, seenNull=false}"));
+            assertOrds(ordsAndKeys.ords, 1L, 1L, 1L, 1L);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(1).build()));
+        }
         assertKeys(ordsAndKeys.keys, false);
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(0).build()));
     }
 
     public void testBooleanHashWithNulls() {
@@ -458,15 +511,17 @@ public class BlockHashTests extends ESTestCase {
         builder.appendNull();
 
         OrdsAndKeys ordsAndKeys = hash(builder.build());
-        assertThat(
-            ordsAndKeys.description,
-            forcePackedHash
-                ? startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=2, size=")
-                : equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=true}")
-        );
-        assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
-        assertKeys(ordsAndKeys.keys, false, true);
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=2, size="));
+            assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
+            assertKeys(ordsAndKeys.keys, false, true);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+        } else {
+            assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=true, seenNull=true}"));
+            assertOrds(ordsAndKeys.ords, 1L, 0L, 2L, 0L);
+            assertKeys(ordsAndKeys.keys, null, false, true);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        }
     }
 
     public void testBooleanHashWithMultiValuedFields() {
@@ -491,23 +546,33 @@ public class BlockHashTests extends ESTestCase {
         builder.endPositionEntry();
 
         OrdsAndKeys ordsAndKeys = hash(builder.build());
-        assertThat(
-            ordsAndKeys.description,
-            forcePackedHash
-                ? startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=2, size=")
-                : equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=true}")
-        );
-        assertOrds(
-            ordsAndKeys.ords,
-            new long[] { 0 },
-            new long[] { 0, 1 },
-            new long[] { 0, 1 },  // Order is not preserved
-            new long[] { 1 },
-            null,
-            new long[] { 0, 1 }
-        );
-        assertKeys(ordsAndKeys.keys, false, true);
-        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+        if (forcePackedHash) {
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=2, size="));
+            assertOrds(
+                ordsAndKeys.ords,
+                new long[] { 0 },
+                new long[] { 0, 1 },
+                new long[] { 0, 1 },  // Order is not preserved
+                new long[] { 1 },
+                null,
+                new long[] { 0, 1 }
+            );
+            assertKeys(ordsAndKeys.keys, false, true);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+        } else {
+            assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=true, seenNull=true}"));
+            assertOrds(
+                ordsAndKeys.ords,
+                new long[] { 1 },
+                new long[] { 1, 2 },
+                new long[] { 1, 2 },  // Order is not preserved
+                new long[] { 2 },
+                new long[] { 0 },
+                new long[] { 1, 2 }
+            );
+            assertKeys(ordsAndKeys.keys, null, false, true);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        }
     }
 
     public void testLongLongHash() {
@@ -998,6 +1063,11 @@ public class BlockHashTests extends ESTestCase {
         }
         for (int r = 0; r < expectedKeys.length; r++) {
             for (int c = 0; c < actualKeys.length; c++) {
+                if (expectedKeys[r][c] == null) {
+                    assertThat(actualKeys[c].isNull(r), equalTo(true));
+                    return;
+                }
+                assertThat(actualKeys[c].isNull(r), equalTo(false));
                 if (expectedKeys[r][c] instanceof Integer v) {
                     assertThat(((IntBlock) actualKeys[c]).getInt(r), equalTo(v));
                 } else if (expectedKeys[r][c] instanceof Long v) {

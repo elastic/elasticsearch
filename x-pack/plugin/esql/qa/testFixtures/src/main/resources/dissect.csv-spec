@@ -104,7 +104,8 @@ from employees | eval x = concat(gender, " foobar") | dissect x "%{a} %{b}" | st
 
 a:keyword  | n:integer
 F          | 10100    
-M          | 10097       
+M          | 10097
+null       | 10019
 ;
 
 

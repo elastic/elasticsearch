@@ -245,19 +245,19 @@ public class MultivalueDedupeTests extends ESTestCase {
     }
 
     private void assertBooleanHash(Set<Boolean> previousValues, BasicBlockTests.RandomBlock b) {
-        boolean[] everSeen = new boolean[2];
+        boolean[] everSeen = new boolean[3];
         if (previousValues.contains(false)) {
-            everSeen[0] = true;
+            everSeen[1] = true;
         }
         if (previousValues.contains(true)) {
-            everSeen[1] = true;
+            everSeen[2] = true;
         }
         LongBlock hashes = new MultivalueDedupeBoolean((BooleanBlock) b.block()).hash(everSeen);
         List<Boolean> hashedValues = new ArrayList<>();
-        if (everSeen[0]) {
+        if (everSeen[1]) {
             hashedValues.add(false);
         }
-        if (everSeen[0]) {
+        if (everSeen[2]) {
             hashedValues.add(true);
         }
         assertHash(b, hashes, hashedValues.size(), previousValues, i -> hashedValues.get((int) i));
@@ -266,29 +266,33 @@ public class MultivalueDedupeTests extends ESTestCase {
     private void assertBytesRefHash(Set<BytesRef> previousValues, BasicBlockTests.RandomBlock b) {
         BytesRefHash hash = new BytesRefHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         previousValues.stream().forEach(hash::add);
-        LongBlock hashes = new MultivalueDedupeBytesRef((BytesRefBlock) b.block()).hash(hash);
-        assertHash(b, hashes, hash.size(), previousValues, i -> hash.get(i, new BytesRef()));
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeBytesRef((BytesRefBlock) b.block()).hash(hash);
+        assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
+        assertHash(b, hashes.ords(), hash.size(), previousValues, i -> hash.get(i, new BytesRef()));
     }
 
     private void assertIntHash(Set<Integer> previousValues, BasicBlockTests.RandomBlock b) {
         LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         previousValues.stream().forEach(hash::add);
-        LongBlock hashes = new MultivalueDedupeInt((IntBlock) b.block()).hash(hash);
-        assertHash(b, hashes, hash.size(), previousValues, i -> (int) hash.get(i));
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeInt((IntBlock) b.block()).hash(hash);
+        assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
+        assertHash(b, hashes.ords(), hash.size(), previousValues, i -> (int) hash.get(i));
     }
 
     private void assertLongHash(Set<Long> previousValues, BasicBlockTests.RandomBlock b) {
         LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         previousValues.stream().forEach(hash::add);
-        LongBlock hashes = new MultivalueDedupeLong((LongBlock) b.block()).hash(hash);
-        assertHash(b, hashes, hash.size(), previousValues, i -> hash.get(i));
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeLong((LongBlock) b.block()).hash(hash);
+        assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
+        assertHash(b, hashes.ords(), hash.size(), previousValues, i -> hash.get(i));
     }
 
     private void assertDoubleHash(Set<Double> previousValues, BasicBlockTests.RandomBlock b) {
         LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         previousValues.stream().forEach(d -> hash.add(Double.doubleToLongBits(d)));
-        LongBlock hashes = new MultivalueDedupeDouble((DoubleBlock) b.block()).hash(hash);
-        assertHash(b, hashes, hash.size(), previousValues, i -> Double.longBitsToDouble(hash.get(i)));
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeDouble((DoubleBlock) b.block()).hash(hash);
+        assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
+        assertHash(b, hashes.ords(), hash.size(), previousValues, i -> Double.longBitsToDouble(hash.get(i)));
     }
 
     private void assertHash(
@@ -301,18 +305,19 @@ public class MultivalueDedupeTests extends ESTestCase {
         Set<Object> allValues = new HashSet<>();
         allValues.addAll(previousValues);
         for (int p = 0; p < b.block().getPositionCount(); p++) {
+            assertThat(hashes.isNull(p), equalTo(false));
             int count = hashes.getValueCount(p);
+            int start = hashes.getFirstValueIndex(p);
             List<Object> v = b.values().get(p);
             if (v == null) {
-                assertThat(hashes.isNull(p), equalTo(true));
-                assertThat(count, equalTo(0));
+                assertThat(count, equalTo(1));
+                assertThat(hashes.getLong(start), equalTo(0L));
                 return;
             }
             List<Object> actualValues = new ArrayList<>(count);
-            int start = hashes.getFirstValueIndex(p);
             int end = start + count;
             for (int i = start; i < end; i++) {
-                actualValues.add(lookup.apply(hashes.getLong(i)));
+                actualValues.add(lookup.apply(hashes.getLong(i) - 1));
             }
             assertThat(actualValues, containsInAnyOrder(v.stream().collect(Collectors.toSet()).stream().sorted().toArray()));
             allValues.addAll(v);

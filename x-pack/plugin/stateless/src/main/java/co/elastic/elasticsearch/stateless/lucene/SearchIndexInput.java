@@ -23,6 +23,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -37,7 +38,7 @@ import java.nio.ByteBuffer;
 
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 
-public class SearchIndexInput extends StatelessBufferedIndexInput {
+public class SearchIndexInput extends BlobCacheBufferedIndexInput {
 
     private static final Logger logger = LogManager.getLogger(SearchIndexInput.class);
 
@@ -92,63 +93,6 @@ public class SearchIndexInput extends StatelessBufferedIndexInput {
 
     private long getAbsolutePosition() {
         return getFilePointer() + offset;
-    }
-
-    @Override
-    public void readFloats(float[] dst, int offset, int len) throws IOException {
-        int remainingDst = len;
-        while (remainingDst > 0) {
-            int cnt = Math.min(buffer.remaining() / Float.BYTES, remainingDst);
-            buffer.asFloatBuffer().get(dst, offset + len - remainingDst, cnt);
-            buffer.position(buffer.position() + Float.BYTES * cnt);
-            remainingDst -= cnt;
-            if (remainingDst > 0) {
-                if (buffer.hasRemaining()) {
-                    dst[offset + len - remainingDst] = Float.intBitsToFloat(readInt());
-                    --remainingDst;
-                } else {
-                    refill();
-                }
-            }
-        }
-    }
-
-    @Override
-    public void readLongs(long[] dst, int offset, int len) throws IOException {
-        int remainingDst = len;
-        while (remainingDst > 0) {
-            int cnt = Math.min(buffer.remaining() / Long.BYTES, remainingDst);
-            buffer.asLongBuffer().get(dst, offset + len - remainingDst, cnt);
-            buffer.position(buffer.position() + Long.BYTES * cnt);
-            remainingDst -= cnt;
-            if (remainingDst > 0) {
-                if (buffer.hasRemaining()) {
-                    dst[offset + len - remainingDst] = readLong();
-                    --remainingDst;
-                } else {
-                    refill();
-                }
-            }
-        }
-    }
-
-    @Override
-    public void readInts(int[] dst, int offset, int len) throws IOException {
-        int remainingDst = len;
-        while (remainingDst > 0) {
-            int cnt = Math.min(buffer.remaining() / Integer.BYTES, remainingDst);
-            buffer.asIntBuffer().get(dst, offset + len - remainingDst, cnt);
-            buffer.position(buffer.position() + Integer.BYTES * cnt);
-            remainingDst -= cnt;
-            if (remainingDst > 0) {
-                if (buffer.hasRemaining()) {
-                    dst[offset + len - remainingDst] = readInt();
-                    --remainingDst;
-                } else {
-                    refill();
-                }
-            }
-        }
     }
 
     @Override

@@ -26,6 +26,7 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -377,7 +378,7 @@ public class IndexDirectory extends ByteSizeDirectory {
      * cache directory. When it reopens an IndexInput it takes care of restoring the position in the file as well as the clone or slice
      * state.
      */
-    private class ReopeningIndexInput extends StatelessBufferedIndexInput {
+    private class ReopeningIndexInput extends BlobCacheBufferedIndexInput {
 
         private final String name;
         private final long length;
@@ -406,7 +407,7 @@ public class IndexDirectory extends ByteSizeDirectory {
             long sliceOffset,
             long sliceLength
         ) {
-            super("reopening(" + name + ')');
+            super("reopening(" + name + ')', BlobCacheBufferedIndexInput.BUFFER_SIZE);
             this.name = name;
             this.length = length;
             this.context = context;
@@ -471,14 +472,14 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
 
         @Override
-        public StatelessBufferedIndexInput clone() {
+        public BlobCacheBufferedIndexInput clone() {
             // Note: Lucene can clone a slice or a clone
             var currentDelegate = this.delegate;
             // We clone the actual delegate input. No need to clone our wrapper with the isReopened marker.
             IndexInput inputToClone = currentDelegate.getDelegate();
             if (currentDelegate.isReopened()) {
                 assert inputToClone instanceof SearchIndexInput : toString();
-                return ((StatelessBufferedIndexInput) inputToClone).clone();
+                return ((BlobCacheBufferedIndexInput) inputToClone).clone();
             }
             if (localFile.tryIncRef()) {
                 try {
@@ -493,7 +494,7 @@ public class IndexDirectory extends ByteSizeDirectory {
 
             try {
                 // We clone the actual delegate input. No need to clone our wrapper with the isReopened marker.
-                return (StatelessBufferedIndexInput) reopenInputFromCache().getDelegate().clone();
+                return (BlobCacheBufferedIndexInput) reopenInputFromCache().getDelegate().clone();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

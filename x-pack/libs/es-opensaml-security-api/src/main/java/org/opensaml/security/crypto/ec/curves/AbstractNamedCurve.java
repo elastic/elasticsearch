@@ -17,11 +17,10 @@
 
 package org.opensaml.security.crypto.ec.curves;
 
-import java.security.interfaces.ECPublicKey;
-import java.security.spec.ECGenParameterSpec;
-import java.security.spec.ECParameterSpec;
-
-import javax.annotation.Nullable;
+import net.shibboleth.utilities.java.support.annotation.constraint.NonnullAfterInit;
+import net.shibboleth.utilities.java.support.component.AbstractInitializableComponent;
+import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
+import net.shibboleth.utilities.java.support.component.ComponentSupport;
 
 import org.opensaml.security.crypto.JCAConstants;
 import org.opensaml.security.crypto.KeySupport;
@@ -29,10 +28,11 @@ import org.opensaml.security.crypto.ec.NamedCurve;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.shibboleth.utilities.java.support.annotation.constraint.NonnullAfterInit;
-import net.shibboleth.utilities.java.support.component.AbstractInitializableComponent;
-import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
-import net.shibboleth.utilities.java.support.component.ComponentSupport;
+import java.security.interfaces.ECPublicKey;
+import java.security.spec.ECGenParameterSpec;
+import java.security.spec.ECParameterSpec;
+
+import javax.annotation.Nullable;
 
 /**
  * Abstract base class for implementations of {@link NamedCurve}.
@@ -43,10 +43,12 @@ public abstract class AbstractNamedCurve extends AbstractInitializableComponent 
     private final Logger log = LoggerFactory.getLogger(this.getClass());
 
     /** Instance of {@link ECParameterSpec} corresponding to the curve. */
-    @NonnullAfterInit private ECParameterSpec paramSpec;
+    @NonnullAfterInit
+    private ECParameterSpec paramSpec;
 
     /** {@inheritDoc} */
-    @NonnullAfterInit public ECParameterSpec getParameterSpec() {
+    @NonnullAfterInit
+    public ECParameterSpec getParameterSpec() {
         ComponentSupport.ifNotInitializedThrowUninitializedComponentException(this);
         return paramSpec;
     }
@@ -77,21 +79,27 @@ public abstract class AbstractNamedCurve extends AbstractInitializableComponent 
      *
      * @return the parameter spec instance, or null if can not be built
      */
-    @Nullable protected ECParameterSpec buildParameterSpec() {
+    @Nullable
+    protected ECParameterSpec buildParameterSpec() {
         try {
             var jcaSpec = ECPublicKey.class.cast(
-                    KeySupport.generateKeyPair(JCAConstants.KEY_ALGO_EC, new ECGenParameterSpec(getName()), null)
-                    .getPublic()).getParams();
-            log.trace("Inited NamedCurve ECParameterSpec via key pair generation for name '{}', OID '{}'",
-                    getName(), getObjectIdentifier());
+                KeySupport.generateKeyPair(JCAConstants.KEY_ALGO_EC, new ECGenParameterSpec(getName()), null).getPublic()
+            ).getParams();
+            log.trace(
+                "Inited NamedCurve ECParameterSpec via key pair generation for name '{}', OID '{}'",
+                getName(),
+                getObjectIdentifier()
+            );
             return jcaSpec;
         } catch (final Exception e) {
-            log.warn("Error initing the NamedCurve ECParameterSpce via key pair generation with name: {}",
-                    getName(), e);
+            log.warn("Error initing the NamedCurve ECParameterSpce via key pair generation with name: {}", getName(), e);
         }
 
-        log.warn("Failed to init NamedCurve ECParameterSpec from BC or key pair generation for name '{}', OID '{}'",
-                getName(), getObjectIdentifier());
+        log.warn(
+            "Failed to init NamedCurve ECParameterSpec from BC or key pair generation for name '{}', OID '{}'",
+            getName(),
+            getObjectIdentifier()
+        );
 
         return null;
     }
@@ -102,4 +110,3 @@ public abstract class AbstractNamedCurve extends AbstractInitializableComponent 
     }
 
 }
-

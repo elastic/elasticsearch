@@ -17,10 +17,12 @@
 
 package org.opensaml.xmlsec.derivation.impl;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
+import net.shibboleth.utilities.java.support.annotation.constraint.NonnullAfterInit;
+import net.shibboleth.utilities.java.support.component.AbstractInitializableComponent;
+import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
+import net.shibboleth.utilities.java.support.component.ComponentSupport;
+import net.shibboleth.utilities.java.support.logic.Constraint;
+import net.shibboleth.utilities.java.support.primitive.StringSupport;
 
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
@@ -31,28 +33,16 @@ import org.opensaml.xmlsec.agreement.KeyAgreementException;
 import org.opensaml.xmlsec.agreement.KeyAgreementParameter;
 import org.opensaml.xmlsec.agreement.XMLExpressableKeyAgreementParameter;
 import org.opensaml.xmlsec.agreement.impl.KeyAgreementParameterParser;
-import org.opensaml.xmlsec.algorithm.AlgorithmDescriptor;
-import org.opensaml.xmlsec.algorithm.AlgorithmSupport;
-import org.opensaml.xmlsec.algorithm.DigestAlgorithm;
 import org.opensaml.xmlsec.derivation.KeyDerivation;
 import org.opensaml.xmlsec.derivation.KeyDerivationException;
-import org.opensaml.xmlsec.derivation.KeyDerivationSupport;
 import org.opensaml.xmlsec.encryption.ConcatKDFParams;
 import org.opensaml.xmlsec.encryption.KeyDerivationMethod;
 import org.opensaml.xmlsec.encryption.support.EncryptionConstants;
 import org.opensaml.xmlsec.signature.DigestMethod;
-import org.opensaml.xmlsec.signature.support.SignatureConstants;
 
-// import com.google.common.primitives.Bytes;
-
-import net.shibboleth.utilities.java.support.annotation.constraint.NonnullAfterInit;
-import net.shibboleth.utilities.java.support.component.AbstractInitializableComponent;
-import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
-import net.shibboleth.utilities.java.support.component.ComponentSupport;
-import net.shibboleth.utilities.java.support.logic.Constraint;
-import net.shibboleth.utilities.java.support.primitive.StringSupport;
-
-import java.util.Arrays;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.crypto.SecretKey;
 
 /**
  * Implementation of ConcatKDF key derivation as defined in XML Encryption 1.1.

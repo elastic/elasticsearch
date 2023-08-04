@@ -19,7 +19,7 @@ This is a destructive action that is not recoverable.
 [[delete-query-ruleset-prereq]]
 ==== {api-prereq-title}
 
-Requires the `manage_cluster` privilege.
+Requires the `manage_search_query_rules` privilege.
 
 [[delete-query_ruleset-path-params]]
 ==== {api-path-parms-title}
@@ -54,7 +54,7 @@ PUT _query_rules/my-ruleset
                 {
                     "type": "exact",
                     "metadata": "query_string",
-                    "values": ["marvel"]
+                    "values": [ "marvel" ]
                 }
             ],
             "actions": {

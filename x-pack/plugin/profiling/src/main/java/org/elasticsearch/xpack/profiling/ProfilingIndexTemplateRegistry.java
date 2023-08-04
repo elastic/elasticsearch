@@ -86,17 +86,22 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         return true;
     }
 
-    private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
+    private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
         new LifecyclePolicyConfig(
             "profiling-60-days",
             "/profiling/ilm-policy/profiling-60-days.json",
             Map.of(PROFILING_TEMPLATE_VERSION_VARIABLE, String.valueOf(INDEX_TEMPLATE_VERSION))
-        ).load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)
+        )
     );
 
     @Override
-    protected List<LifecyclePolicy> getPolicyConfigs() {
-        return templatesEnabled ? LIFECYCLE_POLICIES : Collections.emptyList();
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return LIFECYCLE_POLICY_CONFIGS;
+    }
+
+    @Override
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
+        return templatesEnabled ? lifecyclePolicies : Collections.emptyList();
     }
 
     private static final Map<String, ComponentTemplate> COMPONENT_TEMPLATE_CONFIGS;
@@ -299,10 +304,12 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
                 return false;
             }
         }
-        for (LifecyclePolicy lifecyclePolicy : LIFECYCLE_POLICIES) {
-            IndexLifecycleMetadata ilmMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
-            if (ilmMetadata == null || ilmMetadata.getPolicies().containsKey(lifecyclePolicy.getName()) == false) {
-                return false;
+        if (isDataStreamsLifecycleOnlyMode(state.metadata().settings()) == false) {
+            for (LifecyclePolicyConfig lifecyclePolicy : LIFECYCLE_POLICY_CONFIGS) {
+                IndexLifecycleMetadata ilmMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
+                if (ilmMetadata == null || ilmMetadata.getPolicies().containsKey(lifecyclePolicy.getPolicyName()) == false) {
+                    return false;
+                }
             }
         }
         return true;

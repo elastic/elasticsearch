@@ -55,15 +55,15 @@ public class TransportGetSearchApplicationAction extends HandledTransportAction<
                     }
                     if (searchApplication.hasStoredTemplate() == false) {
                         HeaderWarning.addWarning(SearchApplication.NO_TEMPLATE_STORED_WARNING);
-                        return new GetSearchApplicationAction.Response(
-                            searchApplication.name(),
-                            searchApplication.indices(),
-                            searchApplication.analyticsCollectionName(),
-                            searchApplication.updatedAtMillis(),
-                            searchApplication.searchApplicationTemplateOrDefault()
-                        );
                     }
-                    return new GetSearchApplicationAction.Response(searchApplication);
+                    // Construct a new object to ensure we backfill the stored application with the default template
+                    return new GetSearchApplicationAction.Response(
+                        searchApplication.name(),
+                        searchApplication.indices(),
+                        searchApplication.analyticsCollectionName(),
+                        searchApplication.updatedAtMillis(),
+                        searchApplication.searchApplicationTemplateOrDefault()
+                    );
                 }))
             )
         );

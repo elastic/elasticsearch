@@ -355,6 +355,7 @@
   - skip:
       version: ' - 8.9.1'
       reason: 'https://github.com/elastic/elasticsearch/issues/96768 fixed after 8.9.0'
+      features: allowed_warnings
 
   - do:
       cluster.put_component_template:
@@ -375,6 +376,8 @@
                   type: keyword
 
   - do:
+      allowed_warnings:
+        - "index template [logs-composable-template] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-composable-template] will take precedence during new index creation"
       indices.put_index_template:
         name: logs-composable-template
         body:
@@ -383,3 +386,4 @@
           composed_of:
             - test-subobjects
             - test-field
+  - is_true: acknowledged

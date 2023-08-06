@@ -463,7 +463,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
             MapperParsingException.class,
             () -> mapperService.merge("_doc", List.of(mapping2, mapping1, subobjectsTrueExplicitly), MergeReason.INDEX_TEMPLATE)
         );
-        assertEquals("Failed to parse mappings: contradicting subobjects settings provided", e.getMessage());
+        assertEquals("Failed to parse mappings: contradicting subobjects settings provided for field: _doc", e.getMessage());
     }
 
     private static CompressedXContent createTestMapping1() throws IOException {
@@ -506,5 +506,50 @@ public class MapperServiceTests extends MapperServiceTestCase {
             );
         }
         return mapping2;
+    }
+
+    public void testSubobjectsDisabledNotAtRoot() throws IOException {
+        final MapperService mapperService = createMapperService(mapping(b -> {}));
+        CompressedXContent mapping1;
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+            mapping1 = new CompressedXContent(
+                BytesReference.bytes(
+                    xContentBuilder.startObject()
+                        .startObject("_doc")
+                        .startObject("properties")
+                        .startObject("parent")
+                        .field("subobjects", false)
+                        .field("type", "object")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            );
+        }
+        CompressedXContent mapping2;
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+            mapping2 = new CompressedXContent(
+                BytesReference.bytes(
+                    xContentBuilder.startObject()
+                        .startObject("_doc")
+                        .startObject("properties")
+                        .startObject("parent")
+                        .startObject("properties")
+                        .startObject("child.grandchild")
+                        .field("type", "text")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            );
+        }
+
+        DocumentMapper subobjectsFirst = mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
+        DocumentMapper subobjectsLast = mapperService.merge("_doc", List.of(mapping2, mapping1), MergeReason.INDEX_TEMPLATE);
+        assertEquals(subobjectsFirst.mappingSource(), subobjectsLast.mappingSource());
     }
 }

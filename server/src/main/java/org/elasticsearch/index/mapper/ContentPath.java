@@ -15,6 +15,7 @@ public final class ContentPath {
     private final StringBuilder sb;
 
     private int index = 0;
+    private int sbIndex = 0;
 
     private String[] path = new String[10];
 
@@ -39,6 +40,12 @@ public final class ContentPath {
 
     public void remove() {
         path[index--] = null;
+
+        // Reset the StringBuilder if it includes a newly removed field
+        if (index < sbIndex) {
+            sbIndex = 0;
+            sb.setLength(0);
+        }
     }
 
     public void setWithinLeafObject(boolean withinLeafObject) {
@@ -50,12 +57,18 @@ public final class ContentPath {
     }
 
     public String pathAsText(String name) {
-        sb.setLength(0);
-        for (int i = 0; i < index; i++) {
-            sb.append(path[i]).append(DELIMITER);
+        // If index is 0 we know that we are at the root, so return the provided string directly
+        if (index == 0) {
+            return name;
         }
-        sb.append(name);
-        return sb.toString();
+
+        // Otherwise we preserve the previously built StringBuilder and append any necessary path fields
+        while (sbIndex < index) {
+            sb.append(path[sbIndex]).append(DELIMITER);
+            sbIndex++;
+        }
+
+        return sb + name;
     }
 
     public int length() {

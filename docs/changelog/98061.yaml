@@ -1,0 +1,6 @@
+pr: 98061
+summary: Fix the `PersistentTask.getState()` return value may cause NPE
+area: Transform
+type: bug
+issues:
+  - 98052

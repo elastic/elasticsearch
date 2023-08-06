@@ -18,6 +18,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.application.search.SearchApplication;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 
 public class TransportGetSearchApplicationAction extends HandledTransportAction<
@@ -52,7 +53,17 @@ public class TransportGetSearchApplicationAction extends HandledTransportAction<
                     for (String key : inconsistentIndices.keySet()) {
                         HeaderWarning.addWarning(key + " " + inconsistentIndices.get(key));
                     }
-                    return new GetSearchApplicationAction.Response(searchApplication);
+                    if (searchApplication.hasStoredTemplate() == false) {
+                        HeaderWarning.addWarning(SearchApplication.NO_TEMPLATE_STORED_WARNING);
+                    }
+                    // Construct a new object to ensure we backfill the stored application with the default template
+                    return new GetSearchApplicationAction.Response(
+                        searchApplication.name(),
+                        searchApplication.indices(),
+                        searchApplication.analyticsCollectionName(),
+                        searchApplication.updatedAtMillis(),
+                        searchApplication.searchApplicationTemplateOrDefault()
+                    );
                 }))
             )
         );

@@ -121,7 +121,7 @@ class ScrollDataExtractor implements DataExtractor {
         SearchResponse searchResponse = executeSearchRequest(buildSearchRequest(startTimestamp));
         logger.debug("[{}] Search response was obtained", context.jobId);
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        return processSearchResponse(searchResponse);
+        return processAndConsumeSearchResponse(searchResponse);
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
@@ -166,7 +166,22 @@ class ScrollDataExtractor implements DataExtractor {
         return searchRequestBuilder;
     }
 
-    private InputStream processSearchResponse(SearchResponse searchResponse) throws IOException {
+    class ConvertableByteArrayOutputStream extends ByteArrayOutputStream {
+
+        public ByteArrayInputStream getByteArrayInputStream(){
+            ByteArrayInputStream stream = new ByteArrayInputStream(buf, 0, count);
+            buf = new byte[0];
+            count =0;
+            return stream;
+        }
+
+    }
+
+    /*
+    IMPORTANT: This is not a idempotent method. This method change the input parameter SearchResponse.
+    It deletes are all SearchHits from input object SearchResponse.
+     */
+    private InputStream processAndConsumeSearchResponse(SearchResponse searchResponse) throws IOException {
 
         scrollId = searchResponse.getScrollId();
         if (searchResponse.getHits().getHits().length == 0) {
@@ -175,9 +190,14 @@ class ScrollDataExtractor implements DataExtractor {
             return null;
         }
 
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        ConvertableByteArrayOutputStream outputStream = new ConvertableByteArrayOutputStream() ;
+
+        SearchHit lastHit = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length - 1];
+        lastTimestamp = context.extractedFields.timeFieldValue(lastHit);
         try (SearchHitToJsonProcessor hitProcessor = new SearchHitToJsonProcessor(context.extractedFields, outputStream)) {
-            for (SearchHit hit : searchResponse.getHits().getHits()) {
+            SearchHit hits[] = searchResponse.getHits().getHits();
+            for (int i = 0;i<hits.length;i++) {
+                SearchHit hit = hits[i];
                 if (isCancelled) {
                     Long timestamp = context.extractedFields.timeFieldValue(hit);
                     if (timestamp != null) {
@@ -191,11 +211,12 @@ class ScrollDataExtractor implements DataExtractor {
                     }
                 }
                 hitProcessor.process(hit);
+                // hack to remove the reference from object. This object can be big and consume alot of memory.
+                // We are removing it as soon as we process it.
+                hits[i] = null;
             }
-            SearchHit lastHit = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length - 1];
-            lastTimestamp = context.extractedFields.timeFieldValue(lastHit);
         }
-        return new ByteArrayInputStream(outputStream.toByteArray());
+        return outputStream.getByteArrayInputStream();
     }
 
     private InputStream continueScroll() throws IOException {
@@ -213,7 +234,7 @@ class ScrollDataExtractor implements DataExtractor {
         }
         logger.debug("[{}] Search response was obtained", context.jobId);
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        return processSearchResponse(searchResponse);
+        return processAndConsumeSearchResponse(searchResponse);
     }
 
     void markScrollAsErrored() {

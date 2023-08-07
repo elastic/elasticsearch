@@ -75,14 +75,19 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
          */
         String evaluatorToString;
         /**
+         * The expected output type for the case being tested
+         */
+        DataType exptectedType;
+        /**
          * A matcher to validate the output of the function run on the given input data
          */
         private Matcher<Object> matcher;
 
-        public TestCase(Source source, List<TypedData> data, String evaluatorToString, Matcher<Object> matcher) {
-            this.source = source;
+        public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
+            this.source = Source.EMPTY;
             this.data = data;
             this.evaluatorToString = evaluatorToString;
+            this.exptectedType = expectedType;
             this.matcher = matcher;
         }
 
@@ -223,6 +228,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public final void testSimple() {
         Expression expression = buildFieldExpression(testCase);
+        assertThat(expression.dataType(), equalTo(testCase.exptectedType));
         Object result = toJavaObject(evaluator(expression).get().eval(row(testCase.getDataValues())), 0);
         assertThat(result, testCase.getMatcher());
     }
@@ -283,6 +289,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public final void testSimpleConstantFolding() {
         Expression e = buildLiteralExpression(testCase);
+        assertThat(e.dataType(), equalTo(testCase.exptectedType));
         assertTrue(e.foldable());
         assertThat(e.fold(), testCase.getMatcher());
     }

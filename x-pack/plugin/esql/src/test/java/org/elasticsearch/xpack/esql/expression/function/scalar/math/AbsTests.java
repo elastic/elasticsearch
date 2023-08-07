@@ -27,33 +27,33 @@ public class AbsTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Integer", () -> {
             int arg = randomInt();
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(arg, DataTypes.INTEGER, "arg")),
                 "AbsIntEvaluator[fieldVal=Attribute[channel=0]]",
+                DataTypes.INTEGER,
                 equalTo(Math.abs(arg))
             );
         }), new TestCaseSupplier("UnsignedLong", () -> {
             long arg = randomLong();
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(arg, DataTypes.UNSIGNED_LONG, "arg")),
                 "Attribute[channel=0]",
+                DataTypes.UNSIGNED_LONG,
                 equalTo(arg)
             );
         }), new TestCaseSupplier("Long", () -> {
             long arg = randomLong();
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(arg, DataTypes.LONG, "arg")),
                 "AbsLongEvaluator[fieldVal=Attribute[channel=0]]",
+                DataTypes.LONG,
                 equalTo(Math.abs(arg))
             );
         }), new TestCaseSupplier("Double", () -> {
             double arg = randomDouble();
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
                 "AbsDoubleEvaluator[fieldVal=Attribute[channel=0]]",
+                DataTypes.DOUBLE,
                 equalTo(Math.abs(arg))
             );
         })));

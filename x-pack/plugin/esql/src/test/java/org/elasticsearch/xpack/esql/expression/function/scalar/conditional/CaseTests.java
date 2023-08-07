@@ -49,10 +49,10 @@ public class CaseTests extends AbstractFunctionTestCase {
                 new TypedData(new BytesRef("b"), DataTypes.KEYWORD, "b")
             );
             return new TestCase(
-                Source.EMPTY,
                 typedData,
                 "CaseEvaluator[resultType=BYTES_REF, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
                     + "value=Attribute[channel=1]]], elseVal=Attribute[channel=2]]",
+                DataTypes.KEYWORD,
                 equalTo(new BytesRef("a"))
             );
         })));

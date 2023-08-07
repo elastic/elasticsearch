@@ -32,9 +32,9 @@ public class ETests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("E Test", () -> {
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(1, DataTypes.INTEGER, "foo")),
                 "LiteralsEvaluator[block=2.718281828459045]",
+                DataTypes.DOUBLE,
                 equalTo(Math.E)
             );
         })));

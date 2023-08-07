@@ -36,9 +36,9 @@ public class IsNotNullTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Keyword Not Null", () -> {
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(new BytesRef("cat"), DataTypes.KEYWORD, "exp")),
                 "IsNotNullEvaluator[field=Attribute[channel=0]]",
+                DataTypes.BOOLEAN,
                 equalTo(true)
             );
         })));

@@ -31,10 +31,11 @@ public class TrimTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Trim basic test", () -> {
             BytesRef sampleData = addRandomLeadingOrTrailingWhitespaces(randomUnicodeOfLength(8));
+            DataType dataType = randomFrom(strings());
             return new TestCase(
-                Source.EMPTY,
-                List.of(new TypedData(sampleData, randomFrom(strings()), "str")),
+                List.of(new TypedData(sampleData, dataType, "str")),
                 "TrimEvaluator[val=Attribute[channel=0]]",
+                dataType,
                 equalTo(new BytesRef(sampleData.utf8ToString().trim()))
             );
         })));

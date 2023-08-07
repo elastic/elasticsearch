@@ -37,9 +37,9 @@ public class DivTests extends AbstractArithmeticTestCase {
                 rhs = randomInt();
             } while (rhs == 0);
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(lhs, DataTypes.INTEGER, "lhs"), new TypedData(rhs, DataTypes.INTEGER, "rhs")),
                 "DivIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.INTEGER,
                 equalTo(lhs / rhs)
             );
         }), new TestCaseSupplier("Long / Long", () -> {
@@ -49,9 +49,9 @@ public class DivTests extends AbstractArithmeticTestCase {
                 rhs = randomLong();
             } while (rhs == 0);
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(lhs, DataTypes.LONG, "lhs"), new TypedData(rhs, DataTypes.LONG, "rhs")),
                 "DivLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.LONG,
                 equalTo(lhs / rhs)
             );
         }), new TestCaseSupplier("Double / Double", () -> {
@@ -61,9 +61,9 @@ public class DivTests extends AbstractArithmeticTestCase {
                 rhs = randomDouble();
             } while (rhs == 0);
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(lhs, DataTypes.DOUBLE, "lhs"), new TypedData(rhs, DataTypes.DOUBLE, "rhs")),
                 "DivDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.DOUBLE,
                 equalTo(lhs / rhs)
             );
         })/*, new TestCaseSupplier("ULong / ULong", () -> {

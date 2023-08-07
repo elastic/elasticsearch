@@ -34,9 +34,9 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
             double number = 1 / randomDouble();
             int precision = between(-30, 30);
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(number, DataTypes.DOUBLE, "number"), new TypedData(precision, DataTypes.INTEGER, "precision")),
                 "RoundDoubleEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]",
+                DataTypes.DOUBLE,
                 equalTo(Maths.round(number, precision))
             );
         })));

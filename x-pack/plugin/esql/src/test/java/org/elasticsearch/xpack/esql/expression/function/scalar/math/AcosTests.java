@@ -31,9 +31,9 @@ public class AcosTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("double", () -> {
             double arg = randomDouble();
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
                 "AcosEvaluator[val=Attribute[channel=0]]",
+                DataTypes.DOUBLE,
                 equalTo(Math.acos(arg))
             );
         })));

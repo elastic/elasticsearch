@@ -20,7 +20,6 @@ import org.hamcrest.Matcher;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class Log10Tests extends AbstractScalarFunctionTestCase {
@@ -34,9 +33,9 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
             // TODO: include larger values here
             double arg = randomDouble();
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
                 "Log10DoubleEvaluator[val=Attribute[channel=0]]",
+                DataTypes.DOUBLE,
                 equalTo(Math.log10(arg))
             );
         })));
@@ -58,6 +57,6 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected DataType expectedType(List<DataType> argTypes) {
-        return DOUBLE;
+        return DataTypes.DOUBLE;
     }
 }

@@ -31,12 +31,12 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Basic Case", () -> {
             return new TestCase(
-                Source.EMPTY,
                 List.of(
                     new TypedData(new BytesRef("2023-05-05"), DataTypes.KEYWORD, "first"),
                     new TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.KEYWORD, "second")
                 ),
                 "DateParseEvaluator[val=Attribute[channel=0], formatter=Attribute[channel=1], zoneId=Z]",
+                DataTypes.DATETIME,
                 equalTo(1683244800000L)
             );
         })));

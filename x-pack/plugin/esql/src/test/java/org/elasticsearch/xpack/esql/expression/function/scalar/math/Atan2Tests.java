@@ -32,9 +32,9 @@ public class Atan2Tests extends AbstractScalarFunctionTestCase {
             double y = randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
             double x = randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(y, DataTypes.DOUBLE, "y"), new TypedData(x, DataTypes.DOUBLE, "x")),
                 "Atan2Evaluator[y=Attribute[channel=0], x=Attribute[channel=1]]",
+                DataTypes.DOUBLE,
                 equalTo(Math.atan2(y, x))
             );
         })));

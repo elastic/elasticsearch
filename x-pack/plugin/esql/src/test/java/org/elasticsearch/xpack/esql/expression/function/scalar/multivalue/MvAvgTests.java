@@ -48,9 +48,9 @@ public class MvAvgTests extends AbstractMultivalueFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("mv_avg(<double>)", () -> {
             List<Double> mvData = randomList(1, 100, () -> randomDouble());
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(mvData, DataTypes.DOUBLE, "field")),
                 "MvAvg[field=Attribute[channel=0]]",
+                DataTypes.DOUBLE,
                 equalTo(mvData.stream().mapToDouble(Double::doubleValue).summaryStatistics().getAverage())
             );
         })));

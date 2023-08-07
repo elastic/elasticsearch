@@ -36,9 +36,9 @@ public class MvMinTests extends AbstractMultivalueFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("mv_min(<double>)", () -> {
             List<Double> mvData = randomList(1, 100, () -> randomDouble());
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(mvData, DataTypes.DOUBLE, "field")),
                 "MvMin[field=Attribute[channel=0]]",
+                DataTypes.DOUBLE,
                 equalTo(mvData.stream().mapToDouble(Double::doubleValue).summaryStatistics().getMin())
             );
         })));

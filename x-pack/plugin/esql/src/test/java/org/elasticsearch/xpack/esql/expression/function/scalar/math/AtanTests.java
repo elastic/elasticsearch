@@ -31,9 +31,9 @@ public class AtanTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("double", () -> {
             double arg = randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
                 "AtanEvaluator[val=Attribute[channel=0]]",
+                DataTypes.DOUBLE,
                 equalTo(Math.atan(arg))
             );
         })));

@@ -34,9 +34,9 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("length basic test", () -> {
             BytesRef value = new BytesRef(randomAlphaOfLength(between(0, 10000)));
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(value, DataTypes.KEYWORD, "f")),
                 "LengthEvaluator[val=Attribute[channel=0]]",
+                DataTypes.INTEGER,
                 equalTo(UnicodeUtil.codePointCount(value))
             );
         }),
@@ -52,9 +52,9 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
 
     private static TestCase makeTestCase(String text, int expectedLength) {
         return new TestCase(
-            Source.EMPTY,
             List.of(new TypedData(new BytesRef(text), DataTypes.KEYWORD, "f")),
             "LengthEvaluator[val=Attribute[channel=0]]",
+            DataTypes.INTEGER,
             equalTo(expectedLength)
         );
     }

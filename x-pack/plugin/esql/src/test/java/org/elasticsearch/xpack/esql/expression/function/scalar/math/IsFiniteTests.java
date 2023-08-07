@@ -42,9 +42,9 @@ public class IsFiniteTests extends AbstractRationalUnaryPredicateTests {
 
     private static TestCase makeTestCase(double val, boolean expected) {
         return new TestCase(
-            Source.EMPTY,
             List.of(new TypedData(val, DataTypes.DOUBLE, "arg")),
             "IsFiniteEvaluator[val=Attribute[channel=0]]",
+            DataTypes.BOOLEAN,
             equalTo(expected)
         );
     }

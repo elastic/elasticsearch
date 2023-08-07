@@ -32,9 +32,9 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("mv_count(<double>)", () -> {
             List<Double> mvData = randomList(1, 100, () -> randomDouble());
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(mvData, DataTypes.DOUBLE, "field")),
                 "MvCount[field=Attribute[channel=0]]",
+                DataTypes.INTEGER,
                 equalTo(mvData.size())
             );
         })));

@@ -39,9 +39,9 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
             BytesRef first = new BytesRef(randomAlphaOfLength(3));
             BytesRef second = new BytesRef(randomAlphaOfLength(3));
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(first, DataTypes.KEYWORD, "first"), new TypedData(second, DataTypes.KEYWORD, "second")),
                 "ConcatEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataTypes.KEYWORD,
                 equalTo(new BytesRef(first.utf8ToString() + second.utf8ToString()))
             );
         })));

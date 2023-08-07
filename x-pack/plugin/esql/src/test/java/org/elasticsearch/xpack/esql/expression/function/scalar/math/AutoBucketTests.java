@@ -38,9 +38,9 @@ public class AutoBucketTests extends AbstractScalarFunctionTestCase {
                 new TypedData(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"), DataTypes.DATETIME, "arg")
             );
             return new TestCase(
-                Source.EMPTY,
                 args,
                 "DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
+                DataTypes.DATETIME,
                 resultsMatcher(args)
             );
         })));

@@ -31,9 +31,9 @@ public class CosTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("large double value", () -> {
             double arg = 1 / randomDouble();
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
                 "CosEvaluator[val=Attribute[channel=0]]",
+                DataTypes.DOUBLE,
                 equalTo(Math.cos(arg))
             );
         })));

@@ -34,9 +34,9 @@ public class GreaterThanTests extends AbstractBinaryComparisonTestCase {
             int rhs = randomInt();
             int lhs = randomInt();
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(lhs, DataTypes.INTEGER, "lhs"), new TypedData(rhs, DataTypes.INTEGER, "rhs")),
                 "GreaterThanIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.BOOLEAN,
                 equalTo(lhs > rhs)
             );
         })));

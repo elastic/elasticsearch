@@ -39,13 +39,13 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
             int length = between(1, 10 - start);
             String text = randomAlphaOfLength(10);
             return new TestCase(
-                Source.EMPTY,
                 List.of(
                     new TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
                     new TypedData(start, DataTypes.INTEGER, "start"),
                     new TypedData(length, DataTypes.INTEGER, "end")
                 ),
                 "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
+                DataTypes.KEYWORD,
                 equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
             );
         })));

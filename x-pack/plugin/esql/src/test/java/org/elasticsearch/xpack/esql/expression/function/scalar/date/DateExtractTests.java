@@ -37,12 +37,12 @@ public class DateExtractTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Date Extract Year", () -> {
             return new TestCase(
-                Source.EMPTY,
                 List.of(
                     new TypedData(1687944333000L, DataTypes.DATETIME, "date"),
                     new TypedData(new BytesRef("YEAR"), DataTypes.KEYWORD, "field")
                 ),
                 "DateExtractEvaluator[value=Attribute[channel=0], chronoField=Attribute[channel=1], zone=Z]",
+                DataTypes.LONG,
                 equalTo(2023L)
             );
         })));

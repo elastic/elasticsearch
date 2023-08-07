@@ -34,9 +34,9 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             double base = 1 / randomDouble();
             int exponent = between(-30, 30);
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(base, DataTypes.DOUBLE, "arg"), new TypedData(exponent, DataTypes.INTEGER, "exp")),
                 "PowDoubleEvaluator[base=Attribute[channel=0], exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                DataTypes.DOUBLE,
                 equalTo(Math.pow(base, exponent))
             );
         })));

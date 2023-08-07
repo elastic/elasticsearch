@@ -36,9 +36,9 @@ public class MvDedupeTests extends AbstractMultivalueFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("mv_dedupe(<double>)", () -> {
             List<Double> mvData = randomList(1, 100, () -> randomDouble());
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(mvData, DataTypes.DOUBLE, "field")),
                 "MvDedupe[field=Attribute[channel=0]]",
+                DataTypes.DOUBLE,
                 getMatcher(mvData)
             );
         })));

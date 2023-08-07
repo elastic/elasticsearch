@@ -36,12 +36,12 @@ public class MvConcatTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("mv_concat basic test", () -> {
             return new TestCase(
-                Source.EMPTY,
                 List.of(
                     new TypedData(List.of(new BytesRef("foo"), new BytesRef("bar"), new BytesRef("baz")), DataTypes.KEYWORD, "field"),
                     new TypedData(new BytesRef(", "), DataTypes.KEYWORD, "delim")
                 ),
                 "MvConcat[field=Attribute[channel=0], delim=Attribute[channel=1]]",
+                DataTypes.KEYWORD,
                 equalTo(new BytesRef("foo, bar, baz"))
             );
         })));

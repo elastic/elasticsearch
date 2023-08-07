@@ -37,12 +37,12 @@ public class StartsWithTests extends AbstractScalarFunctionTestCase {
                 str = prefix + str;
             }
             return new TestCase(
-                Source.EMPTY,
                 List.of(
                     new TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
                     new TypedData(new BytesRef(prefix), DataTypes.KEYWORD, "prefix")
                 ),
                 "StartsWithEvaluator[str=Attribute[channel=0], prefix=Attribute[channel=1]]",
+                DataTypes.BOOLEAN,
                 equalTo(str.startsWith(prefix))
             );
         })));

@@ -43,9 +43,9 @@ public class IsNaNTests extends AbstractRationalUnaryPredicateTests {
 
     private static TestCase makeTestCase(double val, boolean expected) {
         return new TestCase(
-            Source.EMPTY,
             List.of(new TypedData(val, DataTypes.DOUBLE, "arg")),
             "IsNaNEvaluator[val=Attribute[channel=0]]",
+            DataTypes.BOOLEAN,
             equalTo(expected)
         );
     }

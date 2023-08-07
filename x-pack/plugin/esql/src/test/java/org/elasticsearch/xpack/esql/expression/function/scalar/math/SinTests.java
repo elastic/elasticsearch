@@ -31,9 +31,9 @@ public class SinTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("large double value", () -> {
             double arg = 1 / randomDouble();
             return new TestCase(
-                Source.EMPTY,
                 List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
                 "SinEvaluator[val=Attribute[channel=0]]",
+                DataTypes.DOUBLE,
                 equalTo(Math.sin(arg))
             );
         })));

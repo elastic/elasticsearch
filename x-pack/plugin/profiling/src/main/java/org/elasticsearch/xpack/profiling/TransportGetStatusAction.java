@@ -14,8 +14,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -51,10 +53,19 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         ClusterState state,
         ActionListener<GetStatusAction.Response> listener
     ) {
-        boolean pluginEnabled = XPackSettings.PROFILING_ENABLED.get(state.getMetadata().settings());
-        boolean resourceManagementEnabled = ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.get(state.getMetadata().settings());
+        boolean pluginEnabled = getValue(state, XPackSettings.PROFILING_ENABLED);
+        boolean resourceManagementEnabled = getValue(state, ProfilingPlugin.PROFILING_TEMPLATES_ENABLED);
         boolean resourcesCreated = ProfilingIndexTemplateRegistry.isAllResourcesCreated(state);
         listener.onResponse(new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated));
+    }
+
+    private boolean getValue(ClusterState state, Setting<Boolean> setting) {
+        Metadata metadata = state.getMetadata();
+        if (metadata.settings().hasValue(setting.getKey())) {
+            return setting.get(metadata.settings());
+        } else {
+            return setting.get(clusterService.getSettings());
+        }
     }
 
     @Override

@@ -29,6 +29,7 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransport;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
@@ -46,6 +47,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -545,6 +547,11 @@ public class FollowersCheckerTests extends ESTestCase {
             new FollowerCheckRequest(leaderTerm, leader),
             new TransportResponseHandler.Empty() {
                 @Override
+                public Executor executor(ThreadPool threadPool) {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
+                @Override
                 public void handleResponse(TransportResponse.Empty response) {
                     fail("unexpected success");
                 }
@@ -629,6 +636,11 @@ public class FollowersCheckerTests extends ESTestCase {
                 new FollowerCheckRequest(leaderTerm, leader),
                 new TransportResponseHandler.Empty() {
                     @Override
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
+                    @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         fail("unexpected success");
                     }
@@ -691,6 +703,11 @@ public class FollowersCheckerTests extends ESTestCase {
                 new FollowerCheckRequest(term, leader),
                 new TransportResponseHandler.Empty() {
                     @Override
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
+                    @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         fail("unexpected success");
                     }
@@ -721,6 +738,11 @@ public class FollowersCheckerTests extends ESTestCase {
                 FOLLOWER_CHECK_ACTION_NAME,
                 new FollowerCheckRequest(term, leader),
                 new TransportResponseHandler.Empty() {
+                    @Override
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         fail("unexpected success");
@@ -804,6 +826,11 @@ public class FollowersCheckerTests extends ESTestCase {
 
     private static class ExpectsSuccess extends TransportResponseHandler.Empty {
         private final AtomicBoolean responseReceived = new AtomicBoolean();
+
+        @Override
+        public Executor executor(ThreadPool threadPool) {
+            return TransportResponseHandler.TRANSPORT_WORKER;
+        }
 
         @Override
         public void handleResponse(TransportResponse.Empty response) {

@@ -53,6 +53,8 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.settings.GetSecuritySettingsAction;
+import org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
@@ -284,7 +286,8 @@ public class PrivilegeTests extends ESTestCase {
             GetServiceAccountCredentialsAction.NAME,
             GetUsersAction.NAME,
             HasPrivilegesAction.NAME,
-            GetUserPrivilegesAction.NAME
+            GetUserPrivilegesAction.NAME,
+            GetSecuritySettingsAction.NAME
         );
         verifyClusterActionAllowed(
             ClusterPrivilegeResolver.READ_SECURITY,
@@ -319,7 +322,8 @@ public class PrivilegeTests extends ESTestCase {
             DelegatePkiAuthenticationAction.NAME,
             ActivateProfileAction.NAME,
             SetProfileEnabledAction.NAME,
-            UpdateProfileDataAction.NAME
+            UpdateProfileDataAction.NAME,
+            UpdateSecuritySettingsAction.NAME
         );
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 /**
@@ -55,6 +56,11 @@ public final class TransportActionProxy {
             TaskId taskId = task.taskInfo(service.localNode.getId(), false).taskId();
             wrappedRequest.setParentTask(taskId);
             service.sendRequest(targetNode, action, wrappedRequest, new TransportResponseHandler<>() {
+                @Override
+                public Executor executor(ThreadPool threadPool) {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
                 @Override
                 public void handleResponse(TransportResponse response) {
                     try {

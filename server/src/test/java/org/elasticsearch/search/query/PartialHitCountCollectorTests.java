@@ -19,6 +19,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.test.ESTestCase;
@@ -63,7 +64,7 @@ public class PartialHitCountCollectorTests extends ESTestCase {
 
     public void testEarlyTerminatesWithoutCollection() throws IOException {
         Query query = new NonCountingTermQuery(new Term("string", "a1"));
-        PartialHitCountCollector hitCountCollector = new PartialHitCountCollector(0) {
+        PartialHitCountCollector hitCountCollector = new PartialHitCountCollector(new PartialHitCountCollector.HitsThresholdChecker(0)) {
             @Override
             public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
                 return new FilterLeafCollector(super.getLeafCollector(context)) {
@@ -112,7 +113,7 @@ public class PartialHitCountCollectorTests extends ESTestCase {
     public void testCollectedHitCount() throws Exception {
         Query query = new NonCountingTermQuery(new Term("string", "a1"));
         int threshold = randomIntBetween(1, 10000);
-        // there's one doc matching the query: any totalHitsThreshold greater than or equal to 1 will non cause early termination
+        // there's one doc matching the query: any totalHitsThreshold greater than or equal to 1 will not cause early termination
         PartialHitCountCollector.CollectorManager collectorManager = new PartialHitCountCollector.CollectorManager(threshold);
         searcher.search(query, collectorManager);
         assertEquals(1, collectorManager.getTotalHits());
@@ -128,4 +129,42 @@ public class PartialHitCountCollectorTests extends ESTestCase {
         assertEquals(totalHitsThreshold, collectorManager.getTotalHits());
         assertTrue(collectorManager.hasEarlyTerminated());
     }
+
+    public void testCollectedAccurateHitCount() throws Exception {
+        Query query = new NonCountingTermQuery(new Term("string", "a1"));
+        // make sure there is no overhead caused by early termination functionality when performing accurate total hit counting
+        PartialHitCountCollector.CollectorManager collectorManager = new PartialHitCountCollector.CollectorManager(
+            NO_OVERHEAD_HITS_CHECKER
+        );
+        searcher.search(query, collectorManager);
+        assertEquals(1, collectorManager.getTotalHits());
+        assertFalse(collectorManager.hasEarlyTerminated());
+    }
+
+    public void testScoreModeEarlyTermination() {
+        PartialHitCountCollector hitCountCollector = new PartialHitCountCollector(
+            new PartialHitCountCollector.HitsThresholdChecker(randomIntBetween(0, Integer.MAX_VALUE - 1))
+        );
+        assertEquals(ScoreMode.TOP_DOCS, hitCountCollector.scoreMode());
+    }
+
+    public void testScoreModeAccurateHitCount() {
+        PartialHitCountCollector hitCountCollector = new PartialHitCountCollector(
+            new PartialHitCountCollector.HitsThresholdChecker(Integer.MAX_VALUE)
+        );
+        assertEquals(ScoreMode.COMPLETE_NO_SCORES, hitCountCollector.scoreMode());
+    }
+
+    private static final PartialHitCountCollector.HitsThresholdChecker NO_OVERHEAD_HITS_CHECKER =
+        new PartialHitCountCollector.HitsThresholdChecker(Integer.MAX_VALUE) {
+            @Override
+            void incrementHitCount() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            boolean isThresholdReached() {
+                throw new UnsupportedOperationException();
+            }
+        };
 }

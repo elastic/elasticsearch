@@ -19,7 +19,7 @@ Summary information on the number of rules per ruleset will be returned, and ful
 [[list-query-rules-prereq]]
 ==== {api-prereq-title}
 
-Requires the `manage_cluster` privilege.
+Requires the `manage_search_query_rules` privilege.
 
 [[list-query-rules-path-params]]
 ==== {api-path-parms-title}
@@ -29,9 +29,6 @@ Requires the `manage_cluster` privilege.
 
 `from`::
 (Optional, integer) The offset from the first result to fetch.
-
-[[list-query-rules-response-codes]]
-==== {api-response-codes-title}
 
 [[list-query-rules-example]]
 ==== {api-examples-title}

@@ -502,6 +502,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ResourceWatcherService.RELOAD_INTERVAL_LOW,
         SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
         SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING,
+        SearchModule.SEARCH_CONCURRENCY_ENABLED,
         ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
         ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING,
         ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING,

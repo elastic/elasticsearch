@@ -33,7 +33,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
@@ -131,7 +130,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
-    private static final List<LifecyclePolicy> LIFECYCLE_POLICY_CONFIGS = Stream.of(
+    private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
         new LifecyclePolicyConfig(LOGS_ILM_POLICY_NAME, "/logs-policy.json"),
         new LifecyclePolicyConfig(METRICS_ILM_POLICY_NAME, "/metrics-policy.json"),
         new LifecyclePolicyConfig(SYNTHETICS_ILM_POLICY_NAME, "/synthetics-policy.json"),
@@ -140,12 +139,17 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         new LifecyclePolicyConfig(ILM_90_DAYS_POLICY_NAME, "/" + ILM_90_DAYS_POLICY_NAME + ".json"),
         new LifecyclePolicyConfig(ILM_180_DAYS_POLICY_NAME, "/" + ILM_180_DAYS_POLICY_NAME + ".json"),
         new LifecyclePolicyConfig(ILM_365_DAYS_POLICY_NAME, "/" + ILM_365_DAYS_POLICY_NAME + ".json")
-    ).map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)).toList();
+    );
 
     @Override
-    protected List<LifecyclePolicy> getPolicyConfigs() {
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return LIFECYCLE_POLICY_CONFIGS;
+    }
+
+    @Override
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
         if (stackTemplateEnabled) {
-            return LIFECYCLE_POLICY_CONFIGS;
+            return lifecyclePolicies;
         } else {
             return Collections.emptyList();
         }

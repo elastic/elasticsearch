@@ -4,7 +4,7 @@
 <titleabbrev>Synonym graph</titleabbrev>
 ++++
 
-The `synonym_graph` token filter allows to easily handle <<analysis-synonyms,synonyms>>,
+The `synonym_graph` token filter allows to easily handle <<search-with-synonyms,synonyms>>,
 including multi-word synonyms correctly during the analysis process.
 
 In order to properly handle multi-word synonyms this token filter

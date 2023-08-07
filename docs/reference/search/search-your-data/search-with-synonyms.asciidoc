@@ -1,4 +1,4 @@
-[[analysis-synonyms]]
+[[search-with-synonyms]]
 == Search with synonyms
 
 Synonyms are words or phrases that have the same or similar meaning.

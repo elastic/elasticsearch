@@ -4,7 +4,7 @@
 <titleabbrev>Synonym</titleabbrev>
 ++++
 
-The `synonym` token filter allows to easily handle <<analysis-synonyms,synonyms>> during the
+The `synonym` token filter allows to easily handle <<search-with-synonyms,synonyms>> during the
 analysis process. Synonyms are configured using a configuration file.
 
 Synonyms can be configured using the <<synonyms-store-synonyms-api,synonyms API>>, a <<synonyms-store-synonyms-file,synonyms file>>, or directly <<synonyms-store-synonyms-inline,inlined>> in the token filter configuration.

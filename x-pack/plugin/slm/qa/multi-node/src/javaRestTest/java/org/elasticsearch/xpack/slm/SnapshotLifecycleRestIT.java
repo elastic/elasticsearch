@@ -352,7 +352,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
                 assertThat(totalTaken, equalTo(1));
                 assertThat(totalDeleted, equalTo(1));
                 assertThat(totalFailed, equalTo(0));
-            }, 30, TimeUnit.SECONDS);
+            });
 
             assertBusy(() -> {
                 try {

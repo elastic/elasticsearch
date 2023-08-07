@@ -21,12 +21,12 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import java.util.Objects;
 
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE) // as default timeout seems not enough on the jenkins VMs
-public class SnapshotLifecycleRestIT extends ESClientYamlSuiteTestCase {
+public class SnapshotLifecycleYamlIT extends ESClientYamlSuiteTestCase {
 
     private static final String USER = Objects.requireNonNull(System.getProperty("tests.rest.cluster.username"));
     private static final String PASS = Objects.requireNonNull(System.getProperty("tests.rest.cluster.password"));
 
-    public SnapshotLifecycleRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public SnapshotLifecycleYamlIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

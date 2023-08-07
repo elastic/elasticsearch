@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.apikey;
 
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -15,11 +16,13 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
@@ -34,10 +37,15 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
 
 import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE;
 import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_DESCRIPTOR;
@@ -1414,6 +1422,61 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         }
     }
 
+    public void testGetActiveOnlyApiKeys() throws Exception {
+        final EncodedApiKey apiKey0 = createApiKey("key-0", Collections.emptyMap());
+        final EncodedApiKey apiKey1 = createApiKey("key-1", Collections.emptyMap());
+        // Set short enough expiration for the API key to be expired by the time we query for it
+        final EncodedApiKey apiKey2 = createApiKey("key-2", Collections.emptyMap(), TimeValue.timeValueNanos(1));
+
+        {
+            final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
+            request.addParameter("active_only", "true");
+
+            final GetApiKeyResponse response = GetApiKeyResponse.fromXContent(getParser(adminClient().performRequest(request)));
+
+            assertResponseContainsApiKeyIds(response, apiKey0.id, apiKey1.id);
+        }
+        {
+            final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
+            if (randomBoolean()) {
+                request.addParameter("active_only", "false");
+            }
+
+            final GetApiKeyResponse response = GetApiKeyResponse.fromXContent(getParser(adminClient().performRequest(request)));
+
+            assertResponseContainsApiKeyIds(response, apiKey0.id, apiKey1.id, apiKey2.id);
+        }
+
+        getSecurityClient().invalidateApiKeys(apiKey0.id);
+        {
+            final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
+            request.addParameter("active_only", "true");
+
+            final GetApiKeyResponse response = GetApiKeyResponse.fromXContent(getParser(adminClient().performRequest(request)));
+
+            assertResponseContainsApiKeyIds(response, apiKey1.id);
+        }
+        {
+            final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
+            if (randomBoolean()) {
+                request.addParameter("active_only", "false");
+            }
+
+            final GetApiKeyResponse response = GetApiKeyResponse.fromXContent(getParser(adminClient().performRequest(request)));
+
+            assertResponseContainsApiKeyIds(response, apiKey0.id, apiKey1.id, apiKey2.id);
+        }
+    }
+
+    private static void assertResponseContainsApiKeyIds(GetApiKeyResponse response, String... ids) {
+        assertThat(Arrays.stream(response.getApiKeyInfos()).map(ApiKey::getId).collect(Collectors.toList()), containsInAnyOrder(ids));
+    }
+
+    private XContentParser getParser(Response response) throws IOException {
+        final byte[] responseBody = EntityUtils.toByteArray(response.getEntity());
+        return XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, responseBody);
+    }
+
     private Response performRequestWithManageOwnApiKeyUser(Request request) throws IOException {
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
@@ -1555,7 +1618,15 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     private EncodedApiKey createApiKey(final String apiKeyName, final Map<String, Object> metadata) throws IOException {
-        final Map<String, Object> createApiKeyRequestBody = Map.of("name", apiKeyName, "metadata", metadata);
+        return createApiKey(apiKeyName, metadata, null);
+    }
+
+    private EncodedApiKey createApiKey(final String apiKeyName, final Map<String, Object> metadata, @Nullable TimeValue expiration)
+        throws IOException {
+
+        final Map<String, Object> createApiKeyRequestBody = expiration == null
+            ? Map.of("name", apiKeyName, "metadata", metadata)
+            : Map.of("name", apiKeyName, "metadata", metadata, "expiration", expiration);
 
         final Request createApiKeyRequest = new Request("POST", "_security/api_key");
         createApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(createApiKeyRequestBody, XContentType.JSON).utf8ToString());

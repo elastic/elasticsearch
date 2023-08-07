@@ -6,9 +6,9 @@ They are an important aspect of search, as they can improve the search experienc
 
 Synonyms allow you to:
 
-* Improve search relevance: Synonyms enable users to find relevant documents even if they use different terms to express the same concept. Search results are not limited to the specific terms included in your documents, and variations of relevant terms are included in search results.
-* Domain-specific vocabulary: Certain domains use specific terms that users are not familiar with. Using synonyms allow search to become more user-friendly, as users can search terms they are familiar with and search results will not be limited to the specific domain vocabulary.
-* Handling common misspellings and typos: Synonyms can be used to make sure that frequent or specific misspellings are correctly handled.
+* *Improve search relevance* by finding relevant documents that use different terms to express the same concept.
+* Make *domain-specific vocabulary* more user-friendly, allowing users to use search terms they are more familiar with.
+* *Define common misspellings and typos* to transparently handle common mistakes.
 
 Synonyms are grouped together using *synonyms sets*.
 You can have as many synonyms sets as you need.

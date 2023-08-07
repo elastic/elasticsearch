@@ -1900,7 +1900,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertTrue(service.freeReaderContext(contextId));
     }
 
-    public void testEnableSearchConcurrency() throws IOException {
+    public void testEnableSearchWorkerThreads() throws IOException {
         IndexService indexService = createIndex("index", Settings.EMPTY);
         IndexShard indexShard = indexService.getShard(0);
         ShardSearchRequest request = new ShardSearchRequest(

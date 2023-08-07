@@ -88,9 +88,7 @@ PUT /index1
 
 PUT /index2
 
-PUT /index3
-
-PUT _application/search_application/my-app?create
+PUT _application/search_application/my-app
 {
   "indices": [ "index1", "index2" ],
   "template": {
@@ -211,48 +209,4 @@ In the above example, the value of the `default_field` parameter is not valid, t
   "status": 400
 }
 ----
-// TEST[continued]
-
-The following example creates or updates an existing Search Application called `my-app`:
-
-[source,console]
-----
-PUT _application/search_application/my-app
-{
-  "indices": [ "index1", "index2", "index3" ],
-  "template": {
-    "script": {
-      "source": {
-        "query": {
-          "query_string": {
-            "query": "{{query_string}}",
-            "default_field": "{{default_field}}"
-          }
-        }
-      },
-      "params": {
-        "query_string": "*",
-        "default_field": "*"
-      }
-    },
-    "dictionary": {
-      "properties": {
-        "query_string": {
-          "type": "string"
-        },
-        "default_field": {
-          "type": "string",
-          "enum": [
-            "title",
-            "description"
-          ]
-        },
-        "additionalProperties": false
-      },
-      "required": [
-        "query_string"
-      ]
-    }
-  }
-}
-----
+// TEST[skip:example of a bad response]

@@ -156,50 +156,41 @@ The following example lists the first three query rulesets:
 ----
 GET _query_rules/?from=0&size=3
 ----
-// TEST[continued]
 
 A sample response:
 
 [source,console-result]
 ----
 {
-    "count": 4,
+    "count": 3,
     "results": [
         {
             "ruleset_id": "ruleset-1",
-            "rule_total_count": 10,
-            "rule_criteria_types_counts: {
-                "exact": 5,
-                "fuzzy": 5
+            "rule_total_count": 1,
+            "rule_criteria_types_counts": {
+                "exact": 1
             }
         },
         {
             "ruleset_id": "ruleset-2",
-            "rule_total_count": 15,
-            "rule_criteria_types_counts: {
-                "exact": 5,
-                "fuzzy": 10,
-                "gt": 4
+            "rule_total_count": 2,
+            "rule_criteria_types_counts": {
+                "exact": 1,
+                "fuzzy": 1
             }
         },
         {
             "ruleset_id": "ruleset-3",
-            "rule_total_count": 5,
-            "rule_criteria_types_counts: {
+            "rule_total_count": 3,
+            "rule_criteria_types_counts": {
                 "exact": 1,
-                "contains": 4
+                "fuzzy": 2
             }
         }
     ]
 }
 ----
-// TESTRESPONSE[s/"count": 4/"value": $body.count/]
-// TESTRESPONSE[s/"ruleset_id": "ruleset-1"/"value": $body.results.0.ruleset_id.value/]
-// TESTRESPONSE[s/"rules_count": 10/"value": $body.results.0.rules_count.value/]
-// TESTRESPONSE[s/"ruleset_id": "ruleset-2"/"value": $body.results.0.ruleset_id.value/]
-// TESTRESPONSE[s/"rules_count": 15/"value": $body.results.0.rules_count.value/]
-// TESTRESPONSE[s/"ruleset_id": "ruleset-3"/"value": $body.results.0.ruleset_id.value/]
-// TESTRESPONSE[s/"rules_count": 5/"value": $body.results.0.rules_count.value/]
+// TEST[continued]
 
 [NOTE]
 The counts in `rule_criteria_types_counts` may be larger than the value of `rule_total_count`, because a rule may have multiple criteria.

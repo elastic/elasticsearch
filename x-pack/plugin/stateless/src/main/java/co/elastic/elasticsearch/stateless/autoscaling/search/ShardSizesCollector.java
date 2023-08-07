@@ -267,7 +267,7 @@ public class ShardSizesCollector implements ClusterStateListener {
     private void publishDiffNow() {
         PublishTask newPublishTask = new PublishTask();
         publishTask = newPublishTask;
-        newPublishTask.run();
+        threadPool.generic().submit(newPublishTask::run);
     }
 
     private void scheduleNextDiffPublication() {
@@ -280,6 +280,8 @@ public class ShardSizesCollector implements ClusterStateListener {
 
         @Override
         protected void doRun() {
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+
             if (publishTask != PublishTask.this) {
                 return;
             }

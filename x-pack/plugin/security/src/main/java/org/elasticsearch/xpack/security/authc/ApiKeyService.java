@@ -1908,7 +1908,7 @@ public class ApiKeyService {
             ActionListener.wrap(apiKeyInfos -> {
                 if (apiKeyInfos.isEmpty()) {
                     logger.debug(
-                        "No active api keys found for realms {}, user [{}], api key name [{}] and api key ids {}",
+                        "No api keys found for realms {}, user [{}], api key name [{}] and api key ids {}",
                         Arrays.toString(realmNames),
                         username,
                         apiKeyName,

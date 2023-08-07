@@ -40,6 +40,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1430,60 +1431,67 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final EncodedApiKey apiKey2 = createApiKey("key-2", Collections.emptyMap(), TimeValue.timeValueNanos(1));
 
         {
-            final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
-            request.addParameter("active_only", "true");
+            final Map<String, String> parameters = new HashMap<>();
+            parameters.put("active_only", "true");
+            if (randomBoolean()) {
+                parameters.put("username", MANAGE_OWN_API_KEY_USER);
+            }
 
-            final GetApiKeyResponse response = GetApiKeyResponse.fromXContent(getParser(adminClient().performRequest(request)));
+            final GetApiKeyResponse response = getApiKeysWithRequestParams(parameters);
 
             assertResponseContainsApiKeyIds(response, apiKey0.id, apiKey1.id);
         }
         {
-            final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
+            final Map<String, String> parameters = new HashMap<>();
             if (randomBoolean()) {
-                request.addParameter("active_only", "false");
+                parameters.put("active_only", "false");
+            }
+            if (randomBoolean()) {
+                parameters.put("username", MANAGE_OWN_API_KEY_USER);
             }
 
-            final GetApiKeyResponse response = GetApiKeyResponse.fromXContent(getParser(adminClient().performRequest(request)));
+            final GetApiKeyResponse response = getApiKeysWithRequestParams(parameters);
 
             assertResponseContainsApiKeyIds(response, apiKey0.id, apiKey1.id, apiKey2.id);
         }
 
         getSecurityClient().invalidateApiKeys(apiKey0.id);
         {
-            final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
-            request.addParameter("active_only", "true");
+            final Map<String, String> parameters = new HashMap<>();
+            parameters.put("active_only", "true");
+            if (randomBoolean()) {
+                parameters.put("username", MANAGE_OWN_API_KEY_USER);
+            }
 
-            final GetApiKeyResponse response = GetApiKeyResponse.fromXContent(getParser(adminClient().performRequest(request)));
+            final GetApiKeyResponse response = getApiKeysWithRequestParams(parameters);
 
             assertResponseContainsApiKeyIds(response, apiKey1.id);
         }
         {
-            final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
+            final Map<String, String> parameters = new HashMap<>();
             if (randomBoolean()) {
-                request.addParameter("active_only", "false");
+                parameters.put("active_only", "false");
+            }
+            if (randomBoolean()) {
+                parameters.put("username", MANAGE_OWN_API_KEY_USER);
             }
 
-            final GetApiKeyResponse response = GetApiKeyResponse.fromXContent(getParser(adminClient().performRequest(request)));
+            final GetApiKeyResponse response = getApiKeysWithRequestParams(parameters);
 
             assertResponseContainsApiKeyIds(response, apiKey0.id, apiKey1.id, apiKey2.id);
         }
 
         // Active-only throws if used with id for existing but non-active API keys
         {
-            final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
-            request.addParameter("id", randomFrom(apiKey0, apiKey2).id);
-            request.addParameter("active_only", "true");
-
-            final ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(request));
+            final ResponseException e = expectThrows(
+                ResponseException.class,
+                () -> getApiKeysWithRequestParams(Map.of("id", randomFrom(apiKey0, apiKey2).id, "active_only", "true"))
+            );
 
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
         }
         {
-            final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
-            request.addParameter("id", apiKey1.id);
-            request.addParameter("active_only", "true");
-
-            final GetApiKeyResponse response = GetApiKeyResponse.fromXContent(getParser(adminClient().performRequest(request)));
+            final GetApiKeyResponse response = getApiKeysWithRequestParams(Map.of("id", apiKey1.id, "active_only", "true"));
 
             assertResponseContainsApiKeyIds(response, apiKey1.id);
         }
@@ -1491,20 +1499,23 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         getSecurityClient().invalidateApiKeys(apiKey1.id);
         // Active-only returns empty when no keys found
         {
-            final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
-            request.addParameter("active_only", "true");
-
-            final GetApiKeyResponse response = GetApiKeyResponse.fromXContent(getParser(adminClient().performRequest(request)));
+            final GetApiKeyResponse response = getApiKeysWithRequestParams(Map.of("active_only", "true"));
 
             assertThat(response.getApiKeyInfos(), emptyArray());
         }
+    }
+
+    private static GetApiKeyResponse getApiKeysWithRequestParams(Map<String, String> requestParams) throws IOException {
+        final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
+        request.addParameters(requestParams);
+        return GetApiKeyResponse.fromXContent(getParser(adminClient().performRequest(request)));
     }
 
     private static void assertResponseContainsApiKeyIds(GetApiKeyResponse response, String... ids) {
         assertThat(Arrays.stream(response.getApiKeyInfos()).map(ApiKey::getId).collect(Collectors.toList()), containsInAnyOrder(ids));
     }
 
-    private XContentParser getParser(Response response) throws IOException {
+    private static XContentParser getParser(Response response) throws IOException {
         final byte[] responseBody = EntityUtils.toByteArray(response.getEntity());
         return XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, responseBody);
     }

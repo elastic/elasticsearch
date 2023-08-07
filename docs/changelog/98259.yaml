@@ -1,0 +1,5 @@
+pr: 98259
+summary: Support getting active-only API keys
+area: Security
+type: enhancement
+issues: []

@@ -1537,6 +1537,9 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     private Response fetchApiKey(String apiKeyId) throws IOException {
         Request getApiKeyRequest = new Request(HttpGet.METHOD_NAME, "_security/api_key?id=" + apiKeyId);
+        if (randomBoolean()) {
+            getApiKeyRequest.addParameter("active_only", "false");
+        }
         Response getApiKeyResponse = adminClient().performRequest(getApiKeyRequest);
         assertOK(getApiKeyResponse);
         return getApiKeyResponse;

@@ -144,6 +144,9 @@ public final class GetApiKeyRequest extends ActionRequest {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             out.writeBoolean(withLimitedBy);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_052)) {
+            out.writeBoolean(activeOnly);
+        }
     }
 
     @Override
@@ -160,12 +163,13 @@ public final class GetApiKeyRequest extends ActionRequest {
             && Objects.equals(userName, that.userName)
             && Objects.equals(apiKeyId, that.apiKeyId)
             && Objects.equals(apiKeyName, that.apiKeyName)
-            && withLimitedBy == that.withLimitedBy;
+            && withLimitedBy == that.withLimitedBy
+            && activeOnly == that.activeOnly;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser, withLimitedBy);
+        return Objects.hash(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser, withLimitedBy, activeOnly);
     }
 
     public static Builder builder() {

@@ -105,7 +105,10 @@ public class OperatorPrivileges {
             // mark internalUser with operator privileges
             if (user instanceof InternalUser && false == authentication.isRunAs()) {
                 if (threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY) == null) {
-                    threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
+                    threadContext.putHeader(
+                        AuthenticationField.PRIVILEGE_CATEGORY_KEY,
+                        AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR
+                    );
                 }
                 return;
             }

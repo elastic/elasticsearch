@@ -151,8 +151,8 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
             AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR,
             threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
         );
-//        assertNull(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
-//        verify(fileOperatorUsersStore, never()).isOperatorUser(any());
+        // assertNull(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
+        // verify(fileOperatorUsersStore, never()).isOperatorUser(any());
 
         // Will skip if header already exist
         threadContext = new ThreadContext(settings);

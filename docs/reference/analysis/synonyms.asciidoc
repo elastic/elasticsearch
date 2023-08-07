@@ -112,11 +112,11 @@ This manual syncing and reloading makes this approach less flexible than using t
 [[synonyms-store-synonyms-inline]]
 ==== Inline
 
-For testing out your synonyms, you can directly inline them in your token filter definition.
+You can test your synonyms by adding them directly inline in your token filter definition.
 
 [WARNING]
 ======
-This is not recommended for production usage.
+Inline synonyms are not recommended for production usage.
 A large number of inline synonyms increases cluster size unnecessarily and can lead to performance issues.
 ======
 
@@ -131,7 +131,7 @@ A large number of inline synonyms increases cluster size unnecessarily and can l
 Once your synonyms sets are created, you can start configuring your token filters and analyzers to use them.
 
 {es} uses synonyms as part of the <<analysis-overview,analysis process>>.
-There are two different <<analysis-tokenfilters,token filters>> that can be used for including synonyms:
+You can use two types of <<analysis-tokenfilters,token filter>> to include synonyms:
 
 * <<analysis-synonym-graph-tokenfilter>>: It is recommended to use it, as it can correctly handle multi-word synonyms ("hurriedly", "in a hurry").
 * <<analysis-synonym-tokenfilter>>: Not recommended if you need to use multi-word synonyms.
@@ -195,7 +195,7 @@ Text will be processed first through filters preceding the synonym filter before
 In the above example, text will be lowercased by the `lowercase` filter before being processed by the `synonyms_filter`.
 This means that all the synonyms defined there needs to be in lowercase, or they won't be found by the synonyms filter.
 
-The synonym rules should not contain words that are removed by a filter that appears after in the chain (like a `stop` filter).
+The synonym rules should not contain words that are removed by a filter that appears later in the chain (like a `stop` filter).
 Removing a term from a synonym rule means there will be no matching for it at query time.
 
 Because entries in the synonym map cannot have stacked positions, some token filters may cause issues here.
@@ -236,10 +236,10 @@ Analyzers can be applied at <<analysis-index-search-time,index time or search ti
 
 You need to decide when to apply your synonyms:
 
-* Index time: Synonyms are applied when the documents are indexed into Elasticsearch. It is a less flexible alternative, as changing your synonyms imply that your index needs to be <<docs-reindex,reindexed>> to ensure the new synonyms are applied and stored in your index.
-* Search time: Synonyms are applied when a search is executed. This is a more flexible approach, as indices don't have to be reindexed, and search analyzers <<indices-reload-analyzers,can be reloaded>> with changes done to synonyms.
+* Index time: Synonyms are applied when the documents are indexed into Elasticsearch. This is a less flexible alternative, as changes to your synonyms require <<docs-reindex,reindexing>>.
+* Search time: Synonyms are applied when a search is executed. This is a more flexible approach, which doesn't require reindexing. With this approach, search analyzers can be <<indices-reload-analyzers,reloaded>> whenever you make changes to your synonyms.
 
-Synonyms sets created using <<synonyms-store-synonyms-api,synonyms API>> can only be used at search time.
+Synonyms sets created using the <<synonyms-store-synonyms-api,synonyms API>> can only be used at search time.
 
 You can specify the analyzer that contains your synonyms set as a <<specify-search-analyzer,search time analyzer>> or as an <<specify-index-time-analyzer,index time analyzer>>.
 

@@ -1956,7 +1956,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         int numDocs = randomIntBetween(50, 100);
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("index").setId(String.valueOf(i)).setSource("field", "value").get();
-            if (randomBoolean()) {
+            if (i % 5 == 0) {
                 indicesAdmin().prepareRefresh("index").get();
             }
         }

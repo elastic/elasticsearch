@@ -144,7 +144,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
-        // TODO can we remove this instance member that is kept around only for testing?
         this.minimumDocsPerSlice = minimumDocsPerSlice;
         if (executor == null) {
             this.leafSlices = null;

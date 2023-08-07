@@ -53,9 +53,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.blobcache.shared.SharedBytes.pageAligned;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.pageAligned;
 
 public class ReopeningIndexInputTests extends ESIndexInputTestCase {
 

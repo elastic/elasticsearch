@@ -27,6 +27,7 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -119,6 +120,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
     }
 
     public void publishIndicesMappingSize() {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
         if (indexToMappingSizeMetrics.isEmpty()) {
             return;
@@ -151,7 +153,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         if (event.nodesDelta().masterNodeChanged()) {
             // new master does not have any mapping size estimation data
             // therefore each index node pushes it explicitly not waiting for the next scheduled publish task run
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(this::publishIndicesMappingSize);
+            threadPool.generic().execute(this::publishIndicesMappingSize);
         }
         if (event.metadataChanged()) {
             // handle index metadata mapping updates
@@ -225,7 +227,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
             return;
         }
         publishTask = new PublishTask();
-        publishTask.run();
+        publishTask.scheduleNext();
     }
 
     void stop() {
@@ -236,22 +238,28 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
     }
 
     // TODO: send updates only if there is a change in metrics
-    class PublishTask implements Runnable {
+    class PublishTask extends AbstractRunnable {
+
         @Override
-        public void run() {
+        protected void doRun() {
             if (publishTask != PublishTask.this) {
-                // Estimator component is tearing down (publishTask == null)
-                // do not schedule the next run
                 return;
             }
-            try {
-                publishIndicesMappingSize();
-            } catch (final RuntimeException e) {
-                logger.error("Unexpected error during publishing indices memory mapping size metric", e);
-            } finally {
-                threadPool.scheduleUnlessShuttingDown(publicationFrequency, ThreadPool.Names.GENERIC, PublishTask.this);
-            }
+            publishIndicesMappingSize();
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.error("Unexpected error during publishing indices memory mapping size metric", e);
+        }
+
+        @Override
+        public void onAfter() {
+            scheduleNext();
+        }
+
+        private void scheduleNext() {
+            threadPool.scheduleUnlessShuttingDown(publicationFrequency, ThreadPool.Names.GENERIC, PublishTask.this);
         }
     }
-
 }

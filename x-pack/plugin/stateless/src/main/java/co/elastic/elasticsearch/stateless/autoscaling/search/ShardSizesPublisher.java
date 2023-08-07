@@ -30,18 +30,15 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ShardSizesPublisher {
 
     private final Client client;
-    private final ThreadPool threadPool;
     private final AtomicLong seqNoSupplier = new AtomicLong();
 
-    public ShardSizesPublisher(Client client, ThreadPool threadPool) {
+    public ShardSizesPublisher(Client client) {
         this.client = client;
-        this.threadPool = threadPool;
     }
 
     public void publishSearchShardDiskUsage(String nodeId, Map<ShardId, ShardSize> shardSizes, ActionListener<Void> listener) {
-        threadPool.generic().execute(() -> {
-            var request = new PublishShardSizesRequest(nodeId, seqNoSupplier.incrementAndGet(), shardSizes);
-            client.execute(PublishShardSizesAction.INSTANCE, request, listener.map(unused -> null));
-        });
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+        var request = new PublishShardSizesRequest(nodeId, seqNoSupplier.incrementAndGet(), shardSizes);
+        client.execute(PublishShardSizesAction.INSTANCE, request, listener.map(unused -> null));
     }
 }

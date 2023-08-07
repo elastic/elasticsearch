@@ -326,11 +326,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
 
         // autoscaling
         // memory
-        var indexMappingSizePublisher = new IndicesMappingSizePublisher(
-            client,
-            threadPool,
-            () -> clusterService.state().getMinTransportVersion()
-        );
+        var indexMappingSizePublisher = new IndicesMappingSizePublisher(client, () -> clusterService.state().getMinTransportVersion());
         var indicesMappingSizeCollector = setAndGet(
             this.indicesMappingSizeCollector,
             IndicesMappingSizeCollector.create(
@@ -366,7 +362,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         clusterService.addListener(ingestMetricService);
         // search
         var shardSizeStatsReader = new ShardSizeStatsReader(threadPool, indicesService);
-        var shardSizesPublisher = new ShardSizesPublisher(client, threadPool);
+        var shardSizesPublisher = new ShardSizesPublisher(client);
         var shardSizesCollector = setAndGet(
             this.shardSizesCollector,
             ShardSizesCollector.create(

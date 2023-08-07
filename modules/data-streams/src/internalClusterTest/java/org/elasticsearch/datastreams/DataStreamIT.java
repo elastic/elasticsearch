@@ -514,7 +514,7 @@ public class DataStreamIT extends ESIntegTestCase {
             {
                   "properties": {
                     "@timestamp": {
-                      "type": "keyword"
+                      "type": "long"
                     }
                   }
                 }""";
@@ -538,7 +538,7 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         assertThat(
             e.getCause().getCause().getMessage(),
-            equalTo("data stream timestamp field [@timestamp] is of type [keyword], but [date,date_nanos] is expected")
+            equalTo("data stream timestamp field [@timestamp] is of type [long], but [date,date_nanos] is expected")
         );
     }
 

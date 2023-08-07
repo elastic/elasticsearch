@@ -69,6 +69,15 @@ public class FleetSecretsSystemIndexIT extends ESRestTestCase {
         assertThat(responseMap.get("deleted"), is(true));
     }
 
+    public void testPostInvalidSecretBody() throws Exception {
+        Request postRequest = new Request("POST", "/_fleet/secret/");
+        postRequest.setJsonEntity("""
+            {"something":"else"}""");
+        ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(postRequest));
+        Response getResponse = re.getResponse();
+        assertThat(getResponse.getStatusLine().getStatusCode(), is(400));
+    }
+
     public void testGetNonExistingSecret() {
         Request getRequest = new Request("GET", "/_fleet/secret/123");
         ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(getRequest));

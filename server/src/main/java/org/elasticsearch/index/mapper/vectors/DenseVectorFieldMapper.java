@@ -68,6 +68,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class DenseVectorFieldMapper extends FieldMapper {
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersion.V_7_5_0;
+    public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersion.V_8_10_0;
     public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersion.V_8_9_0;
 
     public static final String CONTENT_TYPE = "dense_vector";
@@ -111,14 +112,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
         });
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, false);
-        private final Parameter<VectorSimilarity> similarity = Parameter.enumParam(
-            "similarity",
-            false,
-            m -> toType(m).similarity,
-            null,
-            VectorSimilarity.class
-        );
+        private final Parameter<VectorSimilarity> similarity;
         private final Parameter<IndexOptions> indexOptions = new Parameter<>(
             "index_options",
             false,
@@ -128,6 +122,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             XContentBuilder::field,
             Objects::toString
         );
+        private final Parameter<Boolean> indexed;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final IndexVersion indexVersionCreated;
@@ -135,11 +130,36 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public Builder(String name, IndexVersion indexVersionCreated) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
-
-            this.indexed.requiresParameter(similarity);
-            this.similarity.setSerializerCheck((id, ic, v) -> v != null);
-            this.similarity.requiresParameter(indexed);
-            this.indexOptions.requiresParameter(indexed);
+            boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
+            this.similarity = Parameter.enumParam(
+                "similarity",
+                false,
+                m -> toType(m).similarity,
+                indexedByDefault ? VectorSimilarity.COSINE : null,
+                VectorSimilarity.class
+            );
+            this.indexed = Parameter.indexParam(
+                    m -> toType(m).indexed,
+                    indexedByDefault)
+                .addValidator(v -> {
+                    if (v == false) {
+                        if (similarity.isConfigured()) {
+                            throw new IllegalArgumentException(
+                                "Field [similarity] can only be specified for a field of type [dense_vector] when it is indexed"
+                            );
+                        }
+                        if (indexOptions.isConfigured()) {
+                            throw new IllegalArgumentException(
+                                "Field [indexOptions] can only be specified for a field of type [dense_vector] when it is indexed"
+                            );
+                        }
+                    }
+                }).alwaysSerialize();
+            if (indexedByDefault == false) {
+                this.similarity.requiresParameter(indexed);
+                this.indexed.requiresParameter(similarity);
+                this.indexOptions.requiresParameter(indexed);
+            }
             this.indexOptions.setSerializerCheck((id, ic, v) -> v != null);
         }
 

@@ -355,7 +355,7 @@ public class DesiredBalanceReconciler {
             int assigned = 0;
             for (RoutingNode routingNode : routingNodes) {
                 var assignedShard = routingNode.getByShardId(shard.shardId());
-                if (assignedShard != null) {
+                if (assignedShard != null && assignedShard.relocating() == false) {
                     assigned++;
                 }
             }

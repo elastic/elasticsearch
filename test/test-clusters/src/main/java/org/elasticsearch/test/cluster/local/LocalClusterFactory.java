@@ -493,14 +493,22 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
                 if (operators.isEmpty() == false) {
                     // TODO: Support service accounts here
-                    Path destination = workingDir.resolve("config").resolve("operator_users.yml");
-                    boolean fileExists = Files.exists(destination);
-                    try (Writer writer = Files.newBufferedWriter(destination, StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
-                        // If the file already exists (the test has its own operator_users file) then don't duplicate the top-level key
-                        if (fileExists == false) {
-                            writer.write("operator:\n");
-                        }
+                    final String operatorUsersFileName = "operator_users.yml";
+                    final Path destination = workingDir.resolve("config").resolve(operatorUsersFileName);
+                    if (Files.exists(destination)) {
+                        throw new IllegalStateException(
+                            "Operator users file ["
+                                + destination.toAbsolutePath().toString()
+                                + "] already exists, but user(s) ["
+                                + operators.stream().collect(Collectors.joining(","))
+                                + "] have been configured as operators. If you need to manage "
+                                + operatorUsersFileName
+                                + " yourself then you cannot not request that the cluster factory mark users as operators"
+                        );
+                    }
+                    try (Writer writer = Files.newBufferedWriter(destination, StandardOpenOption.CREATE)) {
                         writer.write(String.format(Locale.ROOT, """
+                            operator:
                               - usernames: [%s]
                                 realm_type: "file"
                                 auth_type: "realm"

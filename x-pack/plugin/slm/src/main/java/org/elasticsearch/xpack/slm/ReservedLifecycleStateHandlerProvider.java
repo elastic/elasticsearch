@@ -13,7 +13,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 import java.util.Collection;
 
 /**
- * ILM Provider implementation for the {@link ReservedClusterStateHandlerProvider} service interface
+ * SLM Provider implementation for the {@link ReservedClusterStateHandlerProvider} service interface
  */
 public class ReservedLifecycleStateHandlerProvider implements ReservedClusterStateHandlerProvider {
     private final SnapshotLifecycle plugin;

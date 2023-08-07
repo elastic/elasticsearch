@@ -28,7 +28,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -61,12 +60,6 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
             .put(ObjectStoreService.CLIENT_SETTING.getKey(), "test")
             .setSecureSettings(mockSecureSettings);
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/656")
-    public void testBlobStoreStats() throws IOException {
-        super.testBlobStoreStats();
     }
 
     @Override

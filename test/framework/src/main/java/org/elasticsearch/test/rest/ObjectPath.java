@@ -169,6 +169,6 @@ public class ObjectPath {
 
     @Override
     public String toString() {
-        return "ObjectPath["  + object + "]";
+        return "ObjectPath[" + object + "]";
     }
 }

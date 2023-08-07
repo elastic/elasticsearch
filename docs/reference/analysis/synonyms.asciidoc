@@ -1,13 +1,12 @@
 [[analysis-synonyms]]
-== Synonyms
+== Search with synonyms
 
 Synonyms are words or phrases that have the same or similar meaning.
 They are an important aspect of search, as they can improve the search experience and the relevancy of search results.
 
 Synonyms allow you to:
 
-* Improve search relevance: Synonyms enable users to find relevant documents even if they use different terms to express the same concept.
-* Increase search scope: Using synonyms ensures a wider range of possible terms. Search results are not limited to the specific terms included in your documents, and variations of relevant terms are included in search results.
+* Improve search relevance: Synonyms enable users to find relevant documents even if they use different terms to express the same concept. Search results are not limited to the specific terms included in your documents, and variations of relevant terms are included in search results.
 * Domain-specific vocabulary: Certain domains use specific terms that users are not familiar with. Using synonyms allow search to become more user-friendly, as users can search terms they are familiar with and search results will not be limited to the specific domain vocabulary.
 * Handling common misspellings and typos: Synonyms can be used to make sure that frequent or specific misspellings are correctly handled.
 
@@ -75,7 +74,7 @@ s(100000002,3,'approach',v,1,0).""";
 === Store your synonyms set
 
 Your synonyms sets need to be stored in {es} so your analyzers can refer to them.
-There are three ways to include your synonyms sets:
+There are three ways to store your synonyms sets:
 
 [discrete]
 [[synonyms-store-synonyms-api]]
@@ -134,8 +133,8 @@ Once your synonyms sets are created, you can start configuring your token filter
 {es} uses synonyms as part of the <<analysis-overview,analysis process>>.
 There are two different <<analysis-tokenfilters,token filters>> that can be used for including synonyms:
 
-* <<analysis-synonym-tokenfilter>>: Use it for single word synonyms ("car", "automobile").
-* <<analysis-synonym-graph-tokenfilter>>: Use it for synonyms that may span multiple words ("hurriedly", "in a hurry").
+* <<analysis-synonym-graph-tokenfilter>>: It is recommended to use it, as it can correctly handle multi-word synonyms ("hurriedly", "in a hurry").
+* <<analysis-synonym-tokenfilter>>: Not recommended if you need to use multi-word synonyms.
 
 Synonyms sets created via synonyms APIs can be included into synonym token filters using `synonyms_set` configuration:
 
@@ -191,7 +190,7 @@ To apply synonyms, you will need to include one of the above synonym token filte
 ----
 
 Order is important for your token filters.
-{es} will use the token filters preceding the synonym filter to parse the synonym rules in a synonyms set.
+Text will be processed first through filters preceding the synonym filter before being processed by the synonym filter.
 
 In the above example, text will be lowercased by the `lowercase` filter before being processed by the `synonyms_filter`.
 This means that all the synonyms defined there needs to be in lowercase, or they won't be found by the synonyms filter.

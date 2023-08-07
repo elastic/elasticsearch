@@ -25,6 +25,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public final class GetApiKeyRequest extends ActionRequest {
 
+    public static TransportVersion TRANSPORT_VERSION_ACTIVE_ONLY = TransportVersion.V_8_500_053;
+
     private final String realmName;
     private final String userName;
     private final String apiKeyId;
@@ -49,7 +51,7 @@ public final class GetApiKeyRequest extends ActionRequest {
         } else {
             withLimitedBy = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_052)) {
+        if (in.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ACTIVE_ONLY)) {
             activeOnly = in.readBoolean();
         } else {
             activeOnly = false;
@@ -116,6 +118,12 @@ public final class GetApiKeyRequest extends ActionRequest {
                     validationException
                 );
             }
+            if (activeOnly) {
+                validationException = addValidationError(
+                    "active_only must not be [true] when the api key id or api key name is specified",
+                    validationException
+                );
+            }
         }
         if (ownedByAuthenticatedUser) {
             if (Strings.hasText(realmName) || Strings.hasText(userName)) {
@@ -144,7 +152,7 @@ public final class GetApiKeyRequest extends ActionRequest {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             out.writeBoolean(withLimitedBy);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_052)) {
+        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ACTIVE_ONLY)) {
             out.writeBoolean(activeOnly);
         }
     }

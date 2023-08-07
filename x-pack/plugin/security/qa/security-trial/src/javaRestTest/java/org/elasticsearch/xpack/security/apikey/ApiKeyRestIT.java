@@ -1481,21 +1481,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             assertResponseContainsApiKeyIds(response, apiKey0.id, apiKey1.id, apiKey2.id);
         }
 
-        // Active-only throws if used with id for existing but non-active API keys
-        {
-            final ResponseException e = expectThrows(
-                ResponseException.class,
-                () -> getApiKeysWithRequestParams(Map.of("id", randomFrom(apiKey0, apiKey2).id, "active_only", "true"))
-            );
-
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-        }
-        {
-            final GetApiKeyResponse response = getApiKeysWithRequestParams(Map.of("id", apiKey1.id, "active_only", "true"));
-
-            assertResponseContainsApiKeyIds(response, apiKey1.id);
-        }
-
         getSecurityClient().invalidateApiKeys(apiKey1.id);
         // Active-only returns empty when no keys found
         {

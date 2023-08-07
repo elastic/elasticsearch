@@ -21,10 +21,8 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest.TRANSPORT_VERSION_ACTIVE_ONLY;
+import static org.hamcrest.Matchers.*;
 
 public class GetApiKeyRequestTests extends ESTestCase {
 
@@ -38,13 +36,17 @@ public class GetApiKeyRequestTests extends ESTestCase {
         request = GetApiKeyRequest.builder().apiKeyName(randomAlphaOfLength(5)).ownedByAuthenticatedUser(randomBoolean()).build();
         ve = request.validate();
         assertNull(ve);
-        request = GetApiKeyRequest.builder().realmName(randomAlphaOfLength(5)).build();
+        request = GetApiKeyRequest.builder().realmName(randomAlphaOfLength(5)).activeOnly(randomBoolean()).build();
         ve = request.validate();
         assertNull(ve);
-        request = GetApiKeyRequest.builder().userName(randomAlphaOfLength(5)).build();
+        request = GetApiKeyRequest.builder().userName(randomAlphaOfLength(5)).activeOnly(randomBoolean()).build();
         ve = request.validate();
         assertNull(ve);
-        request = GetApiKeyRequest.builder().realmName(randomAlphaOfLength(5)).userName(randomAlphaOfLength(7)).build();
+        request = GetApiKeyRequest.builder()
+            .realmName(randomAlphaOfLength(5))
+            .userName(randomAlphaOfLength(7))
+            .activeOnly(randomBoolean())
+            .build();
         ve = request.validate();
         assertNull(ve);
     }
@@ -56,6 +58,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
             String apiKeyId;
             String apiKeyName;
             boolean ownedByAuthenticatedUser;
+            boolean activeOnly;
 
             Dummy(String[] a) {
                 realm = a[0];
@@ -63,6 +66,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 apiKeyId = a[2];
                 apiKeyName = a[3];
                 ownedByAuthenticatedUser = Boolean.parseBoolean(a[4]);
+                activeOnly = Boolean.parseBoolean(a[5]);
             }
 
             @Override
@@ -79,24 +83,26 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 out.writeOptionalString(apiKeyName);
                 out.writeOptionalBoolean(ownedByAuthenticatedUser);
                 out.writeBoolean(randomBoolean());
-                out.writeBoolean(randomBoolean());
+                out.writeBoolean(activeOnly);
             }
         }
 
         String[][] inputs = new String[][] {
-            { randomNullOrEmptyString(), "user", "api-kid", "api-kname", "false" },
-            { "realm", randomNullOrEmptyString(), "api-kid", "api-kname", "false" },
-            { "realm", "user", "api-kid", randomNullOrEmptyString(), "false" },
-            { randomNullOrEmptyString(), randomNullOrEmptyString(), "api-kid", "api-kname", "false" },
-            { "realm", randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), "true" },
-            { randomNullOrEmptyString(), "user", randomNullOrEmptyString(), randomNullOrEmptyString(), "true" } };
+            { randomNullOrEmptyString(), "user", "api-kid", "api-kname", "false", "true" },
+            { "realm", randomNullOrEmptyString(), "api-kid", "api-kname", "false", "true" },
+            { "realm", "user", "api-kid", randomNullOrEmptyString(), "false", "false" },
+            { randomNullOrEmptyString(), randomNullOrEmptyString(), "api-kid", "api-kname", "false", "false" },
+            { "realm", randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), "true", "false" },
+            { randomNullOrEmptyString(), "user", randomNullOrEmptyString(), randomNullOrEmptyString(), "true", "false" } };
         String[][] expectedErrorMessages = new String[][] {
             {
                 "username or realm name must not be specified when the api key id or api key name is specified",
-                "only one of [api key id, api key name] can be specified" },
+                "only one of [api key id, api key name] can be specified",
+                "active_only must not be [true] when the api key id or api key name is specified" },
             {
                 "username or realm name must not be specified when the api key id or api key name is specified",
-                "only one of [api key id, api key name] can be specified" },
+                "only one of [api key id, api key name] can be specified",
+                "active_only must not be [true] when the api key id or api key name is specified" },
             { "username or realm name must not be specified when the api key id or api key name is specified" },
             { "only one of [api key id, api key name] can be specified" },
             { "neither username nor realm-name may be specified when retrieving owned API keys" },
@@ -193,12 +199,13 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 .build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            TransportVersion activeOnlyVersion = TransportVersion.V_8_500_053;
-            out.setTransportVersion(randomVersionBetween(random(), activeOnlyVersion, TransportVersion.current()));
+            out.setTransportVersion(randomVersionBetween(random(), TRANSPORT_VERSION_ACTIVE_ONLY, TransportVersion.current()));
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), activeOnlyVersion, TransportVersion.current()));
+            inputStreamStreamInput.setTransportVersion(
+                randomVersionBetween(random(), TRANSPORT_VERSION_ACTIVE_ONLY, TransportVersion.current())
+            );
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream, equalTo(getApiKeyRequest));

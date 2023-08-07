@@ -211,9 +211,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 settings,
                 Names.SEARCH_WORKER,
                 searchOrGetThreadPoolSize,
-                // TODO the queue is only needed as overflow because we may release permits before the executor updated its internal state.
-                // Queue size equal to the bound (max pool size) should be enough to ensure no rejection, but it could also be unbounded.
-                searchOrGetThreadPoolSize,
+                -128, // TODO clean this up
                 TaskTrackingConfig.DEFAULT
             )
         );

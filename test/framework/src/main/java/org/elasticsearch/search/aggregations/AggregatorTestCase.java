@@ -59,7 +59,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.BoundedExecutor;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.CheckedConsumer;
@@ -929,10 +928,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 IndexSearcher.getDefaultSimilarity(),
                 IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(),
-                1, // forces multiple slices
                 randomBoolean(),
-                new BoundedExecutor(this.threadPoolExecutor),
-                false
+                this.threadPoolExecutor,
+                false,
+                1, // forces multiple slices
+                this.threadPoolExecutor.getMaximumPoolSize()
             );
         }
     }

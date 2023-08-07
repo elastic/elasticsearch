@@ -191,6 +191,7 @@ public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
             ThreadPool.Names.SNAPSHOT,
             ThreadPool.Names.GENERIC,
             ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_WORKER,
             ThreadPool.Names.SEARCH_THROTTLED,
 
             // Cache asynchronous fetching runs on a dedicated thread pool.

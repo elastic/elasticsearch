@@ -28,6 +28,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -127,11 +128,24 @@ public class EsExecutors {
         TaskTrackingConfig config
     ) {
         BlockingQueue<Runnable> queue;
-        if (queueCapacity < 0) {
+        if (queueCapacity == -128) {
+            queue = new SynchronousQueue<>(true);
+        } else if (queueCapacity < 0) {
             queue = ConcurrentCollections.newBlockingQueue();
         } else {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
+        return newFixed(name, size, queue, threadFactory, contextHolder, config);
+    }
+
+    private static EsThreadPoolExecutor newFixed(
+        String name,
+        int size,
+        BlockingQueue<Runnable> queue,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder,
+        TaskTrackingConfig config
+    ) {
         if (config.trackExecutionTime()) {
             return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,

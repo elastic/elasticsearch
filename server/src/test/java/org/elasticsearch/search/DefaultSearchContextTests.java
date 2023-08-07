@@ -142,11 +142,11 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
                 null,
-                false
+                false,
+                randomInt()
             );
             contextWithoutScroll.from(300);
             contextWithoutScroll.close();
@@ -182,11 +182,11 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
                 null,
-                false
+                false,
+                randomInt()
             );
             context1.from(300);
             exception = expectThrows(IllegalArgumentException.class, context1::preProcess);
@@ -257,11 +257,11 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
                 null,
-                false
+                false,
+                randomInt()
             );
 
             SliceBuilder sliceBuilder = mock(SliceBuilder.class);
@@ -294,11 +294,11 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
                 null,
-                false
+                false,
+                randomInt()
             );
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess();
@@ -321,11 +321,11 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
                 null,
-                false
+                false,
+                randomInt()
             );
             context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess();
             Query query1 = context4.query();
@@ -389,11 +389,11 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
                 null,
-                false
+                false,
+                randomInt()
             );
 
             assertThat(context.searcher().hasCancellations(), is(false));

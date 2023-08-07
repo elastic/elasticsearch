@@ -45,7 +45,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.BoundedExecutor;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -132,7 +131,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
-import static org.elasticsearch.search.SearchModule.SEARCH_CONCURRENCY_ENABLED;
+import static org.elasticsearch.search.SearchService.SEARCH_WORKER_THREADS_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
@@ -1925,7 +1924,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 ClusterUpdateSettingsResponse response = client().admin()
                     .cluster()
                     .prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().put(SEARCH_CONCURRENCY_ENABLED.getKey(), false).build())
+                    .setPersistentSettings(Settings.builder().put(SEARCH_WORKER_THREADS_ENABLED.getKey(), false).build())
                     .get();
                 assertTrue(response.isAcknowledged());
                 {
@@ -1937,7 +1936,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 client().admin()
                     .cluster()
                     .prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().putNull(SEARCH_CONCURRENCY_ENABLED.getKey()).build())
+                    .setPersistentSettings(Settings.builder().putNull(SEARCH_WORKER_THREADS_ENABLED.getKey()).build())
                     .get();
                 SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean());
                 assertNotNull(searchContext.searcher().getExecutor());
@@ -1975,32 +1974,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testConcurrentExecutorBound() throws IOException {
-        IndexService indexService = createIndex("index", Settings.EMPTY);
-        final IndexShard indexShard = indexService.getShard(0);
-        ShardSearchRequest request = new ShardSearchRequest(
-            OriginalIndices.NONE,
-            new SearchRequest().allowPartialSearchResults(randomBoolean()),
-            indexShard.shardId(),
-            0,
-            indexService.numberOfShards(),
-            AliasFilter.EMPTY,
-            1f,
-            System.currentTimeMillis(),
-            null
-        );
-        SearchService service = getInstanceFromNode(SearchService.class);
-        try (ReaderContext readerContext = createReaderContext(indexService, indexShard)) {
-            SearchShardTask task = new SearchShardTask(0, "type", "action", "description", null, emptyMap());
-            SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, true);
-            BoundedExecutor boundedExecutor = (BoundedExecutor) searchContext.searcher().getExecutor();
-            ThreadPoolExecutor executor = (ThreadPoolExecutor) indexService.getThreadPool().executor(ThreadPool.Names.SEARCH_WORKER);
-            assertEquals(executor.getMaximumPoolSize(), boundedExecutor.getBound());
-        }
-    }
-
     /**
-     * Verify that a single slice is created for requests that don't support concurrency
+     * Verify that a single slice is created for requests that don't support concurrency, while computation
+     * is still offloaded to the worker threads.
      */
     public void testSupportsConcurrencyAffectsSlicing() throws IOException {
         IndexService indexService = createIndex("index", Settings.EMPTY);
@@ -2032,7 +2008,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 ContextIndexSearcher searcher = searchContext.searcher();
                 assertNotNull(searcher.getExecutor());
                 assertEquals(searcher.getIndexReader().leaves().size(), searcher.getSlices().length);
-                int maxNumSlices = ((BoundedExecutor) searcher.getExecutor()).getBound();
+                int maxNumSlices = ((ThreadPoolExecutor) searcher.getExecutor()).getMaximumPoolSize();
                 int numSlices = ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), maxNumSlices, 1).length;
                 assertEquals(numSlices, searcher.getSlicesForCollection().length);
             }

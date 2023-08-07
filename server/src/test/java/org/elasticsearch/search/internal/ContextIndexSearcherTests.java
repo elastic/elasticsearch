@@ -63,8 +63,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.BoundedExecutor;
-import org.elasticsearch.common.util.concurrent.BoundedExecutorTests;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
@@ -88,6 +86,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -217,19 +216,19 @@ public class ContextIndexSearcherTests extends ESTestCase {
             indexDocs(directory);
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
                 AtomicInteger executeCalls = new AtomicInteger(0);
-                int bound = randomIntBetween(1, 50);
                 ContextIndexSearcher searcher = new ContextIndexSearcher(
                     directoryReader,
                     IndexSearcher.getDefaultSimilarity(),
                     IndexSearcher.getDefaultQueryCache(),
                     IndexSearcher.getDefaultQueryCachingPolicy(),
-                    1,
                     randomBoolean(),
-                    new BoundedExecutor(command -> {
+                    command -> {
                         executeCalls.incrementAndGet();
                         command.run();
-                    }, bound),
-                    randomBoolean()
+                    },
+                    randomBoolean(),
+                    randomIntBetween(1, Integer.MAX_VALUE),
+                    randomIntBetween(1, Integer.MAX_VALUE)
                 );
                 // check that we calculate one slice per segment
                 int numSegments = directoryReader.getContext().leaves().size();
@@ -251,20 +250,20 @@ public class ContextIndexSearcherTests extends ESTestCase {
         try (Directory directory = newDirectory()) {
             int numDocs = indexDocs(directory);
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                int bound = randomIntBetween(1, 50);
                 AtomicInteger executeCalls = new AtomicInteger(0);
                 ContextIndexSearcher searcher = new ContextIndexSearcher(
                     directoryReader,
                     IndexSearcher.getDefaultSimilarity(),
                     IndexSearcher.getDefaultQueryCache(),
                     IndexSearcher.getDefaultQueryCachingPolicy(),
-                    1,
                     randomBoolean(),
-                    new BoundedExecutor(command -> {
+                    command -> {
                         executeCalls.incrementAndGet();
                         command.run();
-                    }, bound),
-                    false
+                    },
+                    false,
+                    1,
+                    randomIntBetween(1, 100)
                 );
                 Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager());
                 assertEquals(numDocs, totalHits.intValue());
@@ -464,7 +463,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
     }
 
     public void testReduceIsCalledOnTimeout() throws IOException {
-        try (Directory dir = newDirectory();) {
+        try (Directory dir = newDirectory()) {
             indexDocs(dir);
             ThreadPoolExecutor executor = null;
             try (DirectoryReader directoryReader = DirectoryReader.open(dir)) {
@@ -476,10 +475,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     IndexSearcher.getDefaultSimilarity(),
                     IndexSearcher.getDefaultQueryCache(),
                     IndexSearcher.getDefaultQueryCachingPolicy(),
-                    1,
                     true,
-                    executor == null ? null : new BoundedExecutor(executor),
-                    false
+                    executor,
+                    false,
+                    1,
+                    executor == null ? -1 : executor.getMaximumPoolSize()
                 );
                 boolean[] called = new boolean[1];
                 CollectorManager<Collector, Void> manager = new CollectorManager<>() {
@@ -546,15 +546,14 @@ public class ContextIndexSearcherTests extends ESTestCase {
             int numBusyThreads = randomIntBetween(0, 3);
             int numAvailableThreads = numThreads - numBusyThreads;
             ThreadPoolExecutor executor = EsExecutors.newFixed(
-                BoundedExecutorTests.class.getName(),
+                ContextIndexSearcherTests.class.getName(),
                 numThreads,
                 numThreads,
                 EsExecutors.daemonThreadFactory(""),
                 new ThreadContext(Settings.EMPTY),
                 EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             );
-            ;
-            AssertingBoundedExecutor boundedExecutor = new AssertingBoundedExecutor(executor, numBusyThreads);
+            ExecutorTestWrapper boundedExecutor = new ExecutorTestWrapper(executor, numBusyThreads);
             try (DirectoryReader directoryReader = DirectoryReader.open(dir)) {
                 Set<LeafReaderContext> throwingLeaves = new HashSet<>();
                 Set<LeafReaderContext> scoredLeaves = new CopyOnWriteArraySet<>();
@@ -567,10 +566,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         IndexSearcher.getDefaultSimilarity(),
                         IndexSearcher.getDefaultQueryCache(),
                         IndexSearcher.getDefaultQueryCachingPolicy(),
-                        1,
                         true,
                         boundedExecutor,
-                        false
+                        false,
+                        1,
+                        executor.getMaximumPoolSize()
                     )
                 ) {
                     leafSlices = contextIndexSearcher.getSlicesForCollection();
@@ -689,15 +689,14 @@ public class ContextIndexSearcherTests extends ESTestCase {
             int numBusyThreads = randomIntBetween(0, 3);
             int numAvailableThreads = numThreads - numBusyThreads;
             ThreadPoolExecutor executor = EsExecutors.newFixed(
-                BoundedExecutorTests.class.getName(),
+                ContextIndexSearcherTests.class.getName(),
                 numThreads,
                 numThreads,
                 EsExecutors.daemonThreadFactory(""),
                 new ThreadContext(Settings.EMPTY),
                 EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             );
-            ;
-            AssertingBoundedExecutor boundedExecutor = new AssertingBoundedExecutor(executor, numBusyThreads);
+            ExecutorTestWrapper boundedExecutor = new ExecutorTestWrapper(executor, numBusyThreads);
             try (DirectoryReader directoryReader = DirectoryReader.open(dir)) {
                 Set<LeafReaderContext> throwingLeaves = new HashSet<>();
                 Set<LeafReaderContext> scoredLeaves = new CopyOnWriteArraySet<>();
@@ -710,10 +709,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         IndexSearcher.getDefaultSimilarity(),
                         IndexSearcher.getDefaultQueryCache(),
                         IndexSearcher.getDefaultQueryCachingPolicy(),
-                        1,
                         true,
                         boundedExecutor,
-                        false
+                        false,
+                        1,
+                        executor.getMaximumPoolSize()
                     )
                 ) {
                     leafSlices = contextIndexSearcher.getSlicesForCollection();
@@ -813,12 +813,13 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
     }
 
-    private static class AssertingBoundedExecutor extends BoundedExecutor {
+    private static class ExecutorTestWrapper implements Executor {
+        private final ThreadPoolExecutor executor;
         private final AtomicInteger startedTasks = new AtomicInteger(0);
         private final CountDownLatch busyThreadsLatch = new CountDownLatch(1);
 
-        AssertingBoundedExecutor(ThreadPoolExecutor executor, int numBusyThreads) {
-            super(executor);
+        ExecutorTestWrapper(ThreadPoolExecutor executor, int numBusyThreads) {
+            this.executor = executor;
             // keep some of the threads occupied to simulate the situation where the slices tasks don't all fit in the executor directly.
             // This is a realistic scenario that does not get tested otherwise by executing a single concurrent search, given that the
             // number of slices is capped by max pool size, and so is the executor bound.
@@ -840,7 +841,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         @Override
         public void execute(Runnable command) {
             int started = startedTasks.incrementAndGet();
-            if (started > getBound()) {
+            if (started > executor.getMaximumPoolSize()) {
                 try {
                     /*
                     There could be tasks that complete quickly before the exception is handled, which leaves room for new tasks that are
@@ -859,7 +860,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
             }
-            super.execute(command);
+            executor.execute(command);
         }
     }
 

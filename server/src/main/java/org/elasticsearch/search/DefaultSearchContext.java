@@ -18,7 +18,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.util.concurrent.BoundedExecutor;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -65,6 +64,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.LongSupplier;
 
 final class DefaultSearchContext extends SearchContext {
@@ -137,11 +138,11 @@ final class DefaultSearchContext extends SearchContext {
         SearchShardTarget shardTarget,
         LongSupplier relativeTimeSupplier,
         TimeValue timeout,
-        int minimumDocsPerSlice,
         FetchPhase fetchPhase,
         boolean lowLevelCancellation,
-        BoundedExecutor executor,
-        boolean forceSequentialCollection
+        Executor executor,
+        boolean forceSequentialCollection,
+        int minimumDocsPerSlice
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -152,16 +153,28 @@ final class DefaultSearchContext extends SearchContext {
         this.indexShard = readerContext.indexShard();
 
         Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
-        this.searcher = new ContextIndexSearcher(
-            engineSearcher.getIndexReader(),
-            engineSearcher.getSimilarity(),
-            engineSearcher.getQueryCache(),
-            engineSearcher.getQueryCachingPolicy(),
-            minimumDocsPerSlice,
-            lowLevelCancellation,
-            executor,
-            forceSequentialCollection
-        );
+        if (executor == null) {
+            this.searcher = new ContextIndexSearcher(
+                engineSearcher.getIndexReader(),
+                engineSearcher.getSimilarity(),
+                engineSearcher.getQueryCache(),
+                engineSearcher.getQueryCachingPolicy(),
+                lowLevelCancellation
+            );
+        } else {
+            this.searcher = new ContextIndexSearcher(
+                engineSearcher.getIndexReader(),
+                engineSearcher.getSimilarity(),
+                engineSearcher.getQueryCache(),
+                engineSearcher.getQueryCachingPolicy(),
+                lowLevelCancellation,
+                executor,
+                forceSequentialCollection,
+                minimumDocsPerSlice,
+                // TODO is there a better way that does not require casting the executor?
+                ((ThreadPoolExecutor) executor).getMaximumPoolSize()
+            );
+        }
         releasables.addAll(List.of(engineSearcher, searcher));
 
         this.relativeTimeSupplier = relativeTimeSupplier;

@@ -37,7 +37,6 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.apache.lucene.util.ThreadInterruptedException;
-import org.elasticsearch.common.util.concurrent.BoundedExecutor;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.CombinedBitSet;
@@ -60,6 +59,7 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.RunnableFuture;
@@ -106,10 +106,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             queryCache,
             queryCachingPolicy,
             new MutableQueryTimeout(),
-            Integer.MAX_VALUE,
             wrapWithExitableDirectoryReader,
             null,
-            true
+            true,
+            -1,
+            -1
         );
     }
 
@@ -119,10 +120,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         Similarity similarity,
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
-        int minimumDocsPerSlice,
         boolean wrapWithExitableDirectoryReader,
-        BoundedExecutor executor,
-        boolean forceSequentialCollection
+        Executor executor,
+        boolean forceSequentialCollection,
+        int minimumDocsPerSlice,
+        int maximumNumberOfSlices
     ) throws IOException {
         this(
             reader,
@@ -130,23 +132,25 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             queryCache,
             queryCachingPolicy,
             new MutableQueryTimeout(),
-            minimumDocsPerSlice,
             wrapWithExitableDirectoryReader,
             executor,
-            forceSequentialCollection
+            forceSequentialCollection,
+            minimumDocsPerSlice,
+            maximumNumberOfSlices
         );
     }
 
-    private ContextIndexSearcher(
+    ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
         MutableQueryTimeout cancellable,
-        int minimumDocsPerSlice,
         boolean wrapWithExitableDirectoryReader,
-        BoundedExecutor executor,
-        boolean forceSequentialCollection
+        Executor executor,
+        boolean forceSequentialCollection,
+        int minimumDocsPerSlice,
+        int maximumNumberOfSlices
     ) throws IOException {
         // we need to pass the executor up so it can potentially be used as a sliceExecutor by knn search
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
@@ -154,6 +158,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
+        // TODO can we remove this instance member that is kept around only for testing?
         this.minimumDocsPerSlice = minimumDocsPerSlice;
         if (executor == null) {
             this.leafSlices = null;
@@ -163,8 +168,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 // TODO are we good offloading aggs that don't support concurrency to the concurrent executor or is postCollect an issue?
                 this.leafSlices = new LeafSlice[] { new LeafSlice(new ArrayList<>(getLeafContexts())) };
             } else {
-                this.leafSlices = computeSlices(getLeafContexts(), executor.getBound(), minimumDocsPerSlice);
-                assert this.leafSlices.length <= executor.getBound() : "more slices than threads";
+                this.leafSlices = computeSlices(getLeafContexts(), maximumNumberOfSlices, minimumDocsPerSlice);
+                assert this.leafSlices.length <= maximumNumberOfSlices : "more slices created than the maximum allowed";
             }
         }
     }

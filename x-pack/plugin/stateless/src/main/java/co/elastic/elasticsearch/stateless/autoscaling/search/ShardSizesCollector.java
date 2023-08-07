@@ -236,6 +236,7 @@ public class ShardSizesCollector implements ClusterStateListener {
 
     private void publishAllNow() {
         assert isSearchNode : "Should be executed only on search nodes";
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         if (nodeId == null) {
             return;
         }

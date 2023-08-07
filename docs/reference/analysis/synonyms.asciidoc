@@ -2,7 +2,7 @@
 == Search with synonyms
 
 Synonyms are words or phrases that have the same or similar meaning.
-They are an important aspect of search, as they can improve the search experience and the relevancy of search results.
+They are an important aspect of search, as they can improve the search experience and increase the scope of search results.
 
 Synonyms allow you to:
 
@@ -136,7 +136,7 @@ You can use two types of <<analysis-tokenfilters,token filter>> to include synon
 * <<analysis-synonym-graph-tokenfilter>>: It is recommended to use it, as it can correctly handle multi-word synonyms ("hurriedly", "in a hurry").
 * <<analysis-synonym-tokenfilter>>: Not recommended if you need to use multi-word synonyms.
 
-Synonyms sets created via synonyms APIs can be included into synonym token filters using `synonyms_set` configuration:
+Use `synonyms_set` configuration option to provide a synonym set created via Synonyms Management APIs:
 
 [source,JSON]
 ----
@@ -148,7 +148,7 @@ Synonyms sets created via synonyms APIs can be included into synonym token filte
   }
 ----
 
-The synonym file path needs to be included as part of your token filter using `synonyms_path` configuration:
+Use `synonyms_path` to provide a synonym file :
 
 [source,JSON]
 ----
@@ -160,7 +160,7 @@ The synonym file path needs to be included as part of your token filter using `s
   }
 ----
 
-Synonyms can be directly included in your token filter using the `synonyms` configuration:
+Use `synonyms` to define inline synonyms:
 
 [source,JSON]
 ----

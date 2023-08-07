@@ -138,23 +138,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 indexedByDefault ? VectorSimilarity.COSINE : null,
                 VectorSimilarity.class
             );
-            this.indexed = Parameter.indexParam(
-                    m -> toType(m).indexed,
-                    indexedByDefault)
-                .addValidator(v -> {
-                    if (v == false) {
-                        if (similarity.isConfigured()) {
-                            throw new IllegalArgumentException(
-                                "Field [similarity] can only be specified for a field of type [dense_vector] when it is indexed"
-                            );
-                        }
-                        if (indexOptions.isConfigured()) {
-                            throw new IllegalArgumentException(
-                                "Field [indexOptions] can only be specified for a field of type [dense_vector] when it is indexed"
-                            );
-                        }
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexedByDefault).addValidator(v -> {
+                if (v == false) {
+                    if (similarity.isConfigured()) {
+                        throw new IllegalArgumentException(
+                            "Field [similarity] can only be specified for a field of type [dense_vector] when it is indexed"
+                        );
                     }
-                }).alwaysSerialize();
+                    if (indexOptions.isConfigured()) {
+                        throw new IllegalArgumentException(
+                            "Field [indexOptions] can only be specified for a field of type [dense_vector] when it is indexed"
+                        );
+                    }
+                }
+            }).alwaysSerialize();
             if (indexedByDefault == false) {
                 this.similarity.requiresParameter(indexed);
                 this.indexed.requiresParameter(similarity);

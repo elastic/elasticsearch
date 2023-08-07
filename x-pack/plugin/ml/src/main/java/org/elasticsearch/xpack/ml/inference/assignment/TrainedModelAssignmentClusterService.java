@@ -227,6 +227,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(currentState);
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
 
+        logger.error("Called removeRoutingToUnassignableNodes");
         for (TrainedModelAssignment assignment : metadata.allAssignments().values()) {
             Set<String> unassignableNodes = Sets.difference(assignment.getNodeRoutingTable().keySet(), assignableNodes);
 
@@ -244,6 +245,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 List<String> shuttingDownIds = partitions.get(true);
                 List<String> routedNodeIdsToRemove = partitions.get(false);
 
+                logger.error(format("Shutting down ids %s", shuttingDownIds));
+                logger.error(format("routedNodeIdsToRemove %s", routedNodeIdsToRemove));
+
                 TrainedModelAssignment.Builder assignmentBuilder = TrainedModelAssignment.Builder.fromAssignment(assignment);
                 routedNodeIdsToRemove.forEach(assignmentBuilder::removeRoutingEntry);
 
@@ -252,6 +256,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                         new RoutingStateAndReason(RoutingState.STOPPING, "node is shutting down")
                     );
 
+                    logger.error(format("Trying to set route to stopping for node %s", id));
                     // TODO ideally we'd get the routing table from the builder? that way we handle the chance that it's out of sync after
                     // the removal from above
                     var newRoutingInfo = routeUpdate.apply(assignment.getNodeRoutingTable().get(id));

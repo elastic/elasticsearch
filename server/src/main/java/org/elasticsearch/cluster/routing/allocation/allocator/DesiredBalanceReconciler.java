@@ -249,8 +249,7 @@ public class DesiredBalanceReconciler {
                     final var shard = primary[i];
                     final var assignment = desiredBalance.getAssignment(shard.shardId());
                     final var isThrottled = new AtomicBoolean(false);
-                    if (assignment != null) {
-
+                    if (assignment != null && assignment.isIgnored(shard.primary()) == false) {
                         for (final var nodeIdIterator : List.of(
                             getDesiredNodesIds(shard, assignment),
                             getFallbackNodeIds(shard, isThrottled)
@@ -284,11 +283,12 @@ public class DesiredBalanceReconciler {
                                         }
                                         continue nextShard;
                                     }
-                                    case THROTTLE -> isThrottled.set(true);
+                                    case THROTTLE -> {
+                                        isThrottled.set(true);
+                                        logger.trace("Couldn't assign shard [{}] to [{}]: {}", shard.shardId(), desiredNodeId, decision);
+                                    }
                                     case NO -> {
-                                        if (logger.isTraceEnabled()) {
-                                            logger.trace("Couldn't assign shard [{}] to [{}]", shard.shardId(), desiredNodeId);
-                                        }
+                                        logger.trace("Couldn't assign shard [{}] to [{}]: {}", shard.shardId(), desiredNodeId, decision);
                                     }
                                 }
                             }
@@ -333,7 +333,7 @@ public class DesiredBalanceReconciler {
             return () -> {
                 if (shard.primary() && isThrottled.get() == false) {
                     var fallbackNodeIds = allocation.routingNodes().getAllNodeIds();
-                    logger.debug("Shard [{}] assignment is temporary not possible. Falling back to {}", shard.shardId(), fallbackNodeIds);
+                    logger.warn("Shard [{}] assignment is temporary not possible. Falling back to {}", shard.shardId(), fallbackNodeIds);
                     return allocationOrdering.sort(fallbackNodeIds).iterator();
                 } else {
                     return Collections.emptyIterator();

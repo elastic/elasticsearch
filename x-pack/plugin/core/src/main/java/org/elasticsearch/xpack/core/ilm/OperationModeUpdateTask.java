@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.ilm;
+package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,8 +17,6 @@ import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
-import org.elasticsearch.xpack.core.ilm.OperationMode;
 
 import java.util.Objects;
 
@@ -35,6 +33,8 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(OperationModeUpdateTask.class);
     @Nullable
     private final OperationMode ilmMode;
+    @Nullable
+    private final OperationMode slmMode;
 
     public static AckedClusterStateUpdateTask wrap(
         OperationModeUpdateTask task,
@@ -49,13 +49,18 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         };
     }
 
-    private OperationModeUpdateTask(Priority priority, OperationMode ilmMode) {
+    private OperationModeUpdateTask(Priority priority, OperationMode ilmMode, OperationMode slmMode) {
         super(priority);
         this.ilmMode = ilmMode;
+        this.slmMode = slmMode;
     }
 
     public static OperationModeUpdateTask ilmMode(OperationMode mode) {
-        return new OperationModeUpdateTask(getPriority(mode), mode);
+        return new OperationModeUpdateTask(getPriority(mode), mode, null);
+    }
+
+    public static OperationModeUpdateTask slmMode(OperationMode mode) {
+        return new OperationModeUpdateTask(getPriority(mode), null, mode);
     }
 
     private static Priority getPriority(OperationMode mode) {
@@ -66,14 +71,19 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         }
     }
 
-    OperationMode getILMOperationMode() {
+    public OperationMode getILMOperationMode() {
         return ilmMode;
+    }
+
+    public OperationMode getSLMOperationMode() {
+        return slmMode;
     }
 
     @Override
     public ClusterState execute(ClusterState currentState) {
         ClusterState newState = currentState;
         newState = updateILMState(newState);
+        newState = updateSLMState(newState);
         return newState;
     }
 
@@ -105,9 +115,37 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             .build();
     }
 
+    private ClusterState updateSLMState(final ClusterState currentState) {
+        if (slmMode == null) {
+            return currentState;
+        }
+
+        final OperationMode currentMode = currentSLMMode(currentState);
+        if (currentMode.equals(slmMode)) {
+            // No need for a new state
+            return currentState;
+        }
+
+        final OperationMode newMode;
+        if (currentMode.isValidChange(slmMode)) {
+            newMode = slmMode;
+        } else {
+            // The transition is invalid, return the current state
+            return currentState;
+        }
+
+        logger.info("updating SLM operation mode to {}", newMode);
+        return ClusterState.builder(currentState)
+            .metadata(
+                Metadata.builder(currentState.metadata())
+                    .putCustom(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(currentILMMode(currentState), newMode))
+            )
+            .build();
+    }
+
     @Override
     public void onFailure(Exception e) {
-        logger.error("unable to update lifecycle metadata with new ilm mode [" + ilmMode + "]", e);
+        logger.error("unable to update lifecycle metadata with new ilm mode [" + ilmMode + "], slm mode [" + slmMode + "]", e);
     }
 
     @Override
@@ -115,11 +153,14 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         if (ilmMode != null) {
             logger.info("ILM operation mode updated to {}", ilmMode);
         }
+        if (slmMode != null) {
+            logger.info("SLM operation mode updated to {}", slmMode);
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), ilmMode);
+        return Objects.hash(super.hashCode(), ilmMode, slmMode);
     }
 
     @Override
@@ -131,6 +172,8 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             return false;
         }
         OperationModeUpdateTask other = (OperationModeUpdateTask) obj;
-        return Objects.equals(priority(), other.priority()) && Objects.equals(ilmMode, other.ilmMode);
+        return Objects.equals(priority(), other.priority())
+            && Objects.equals(ilmMode, other.ilmMode)
+            && Objects.equals(slmMode, other.slmMode);
     }
 }

@@ -23,8 +23,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
 import org.elasticsearch.xpack.core.slm.action.StartSLMAction;
-import org.elasticsearch.xpack.slm.OperationModeUpdateTask;
 
 public class TransportStartSLMAction extends AcknowledgedTransportMasterNodeAction<StartSLMAction.Request> {
 

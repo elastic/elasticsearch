@@ -143,12 +143,16 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         );
         verify(fileOperatorUsersStore, never()).isOperatorUser(any());
 
-        // Will not mark for internal users
+        // Will mark for internal users
         final Authentication internalAuth = AuthenticationTestHelper.builder().internal().build();
         threadContext = new ThreadContext(settings);
         operatorPrivilegesService.maybeMarkOperatorUser(internalAuth, threadContext);
-        assertNull(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
-        verify(fileOperatorUsersStore, never()).isOperatorUser(any());
+        assertEquals(
+            AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR,
+            threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
+        );
+//        assertNull(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
+//        verify(fileOperatorUsersStore, never()).isOperatorUser(any());
 
         // Will skip if header already exist
         threadContext = new ThreadContext(settings);

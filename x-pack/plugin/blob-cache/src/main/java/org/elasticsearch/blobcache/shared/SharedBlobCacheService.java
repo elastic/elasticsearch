@@ -426,7 +426,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         assert Thread.holdsLock(entry.chunk);
         RegionKey<KeyType> regionKey = entry.chunk.regionKey;
         if (keyMapping.get(regionKey) != entry) {
-            throw new AlreadyClosedException("no free region found (contender)");
+            throwAlreadyClosed("no free region found (contender)");
         }
         // new item
         assert entry.freq == 0;
@@ -447,7 +447,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             } else {
                 boolean removed = keyMapping.remove(regionKey, entry);
                 assert removed;
-                throw new AlreadyClosedException("no free region found");
+                throwAlreadyClosed("no free region found");
             }
         }
 
@@ -472,12 +472,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 assert regionOwners.compareAndSet(freeSlot, entry.chunk, null);
                 freeRegions.add(freeSlot);
                 keyMapping.remove(entry.chunk.regionKey, entry);
-                throw new AlreadyClosedException("evicted during free region allocation");
+                throwAlreadyClosed("evicted during free region allocation");
             }
             pushEntryToBack(entry);
             // assign sharedBytesPos only when chunk is ready for use. Under lock to avoid concurrent tryEvict.
             entry.chunk.sharedBytesPos = freeSlot;
         }
+    }
+
+    private static void throwAlreadyClosed(String message) {
+        throw new AlreadyClosedException(message);
     }
 
     private boolean assertChunkActiveOrEvicted(Entry<CacheFileRegion> entry) {
@@ -488,14 +492,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
         assert regionOwners.get(entry.chunk.sharedBytesPos) == entry.chunk || entry.chunk.isEvicted();
         return true;
-    }
-
-    public void onClose(CacheFileRegion chunk) {
-        // we held the "this" lock when this was evicted, hence if sharedBytesPos is not filled in, chunk will never be registered.
-        if (chunk.sharedBytesPos != -1) {
-            assert regionOwners.compareAndSet(chunk.sharedBytesPos, chunk, null);
-            freeRegions.add(chunk.sharedBytesPos);
-        }
     }
 
     // used by tests
@@ -807,7 +803,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         @Override
         protected void closeInternal() {
             // now actually free the region associated with this chunk
-            onClose(this);
+            // we held the "this" lock when this was evicted, hence if sharedBytesPos is not filled in, chunk will never be registered.
+            if (sharedBytesPos != -1) {
+                assert regionOwners.compareAndSet(sharedBytesPos, this, null);
+                freeRegions.add(sharedBytesPos);
+            }
             logger.trace("closed {} with channel offset {}", regionKey, physicalStartOffset());
         }
 
@@ -818,7 +818,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         private static void throwAlreadyEvicted() {
-            throw new AlreadyClosedException("File chunk is evicted");
+            throwAlreadyClosed("File chunk is evicted");
         }
 
         boolean tryRead(ByteBuffer buf, long offset) throws IOException {
@@ -884,24 +884,19 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
                     @Override
                     protected void doRun() throws Exception {
-                        if (CacheFileRegion.this.tryIncRef() == false) {
-                            throw new AlreadyClosedException("Cache file channel has been released and closed");
-                        }
-                        try {
-                            ensureOpen();
-                            final long start = gap.start();
-                            assert regionOwners.get(sharedBytesPos) == CacheFileRegion.this;
-                            writer.fillCacheRange(
-                                fileChannel,
-                                physicalStartOffset() + gap.start(),
-                                gap.start(),
-                                gap.end() - gap.start(),
-                                progress -> gap.onProgress(start + progress)
-                            );
-                            writeCount.increment();
-                        } finally {
-                            decRef();
-                        }
+                        assert CacheFileRegion.this.hasReferences();
+                        ensureOpen();
+                        final long start = gap.start();
+                        assert regionOwners.get(sharedBytesPos) == CacheFileRegion.this;
+                        writer.fillCacheRange(
+                            fileChannel,
+                            physicalStartOffset() + start,
+                            start,
+                            gap.end() - start,
+                            progress -> gap.onProgress(start + progress)
+                        );
+                        writeCount.increment();
+
                         gap.onCompletion();
                     }
 

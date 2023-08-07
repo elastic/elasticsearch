@@ -531,6 +531,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
             for (String nodeId : nodeIds) {
                 RoutingState state = assignment.getNodeRoutingTable().get(nodeId).getState();
+                logger.error(format("checking for shutting down node id: %s state: %s", nodeId, state));
+
                 if (currentState.metadata().nodeShutdowns().contains(nodeId)
                     && (state == RoutingState.STARTED || state == RoutingState.STARTING)) {
                     foundShuttingDownNodeForAssignment = true;

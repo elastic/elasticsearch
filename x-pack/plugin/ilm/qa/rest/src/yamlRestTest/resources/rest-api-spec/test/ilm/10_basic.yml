@@ -40,6 +40,7 @@ setup:
                }
              }
            }
+
   - do:
       ilm.get_lifecycle:
         policy: "my_timeseries_lifecycle"
@@ -77,6 +78,7 @@ setup:
               }
             }
           }
+
   - do:
       ilm.put_lifecycle:
         policy: "my_timeseries_lifecycle_2"
@@ -93,6 +95,7 @@ setup:
               }
             }
           }
+
   - do:
       ilm.put_lifecycle:
         policy: "other_lifecycle"
@@ -117,6 +120,7 @@ setup:
               }
             }
           }
+
   - do:
       ilm.get_lifecycle:
         policy: "my_timeseries*"
@@ -170,6 +174,7 @@ setup:
                }
              }
            }
+
   - do:
       ilm.get_lifecycle:
         policy: "my_timeseries_lifecycle"
@@ -217,6 +222,7 @@ setup:
                }
              }
            }
+
   - do:
       ilm.get_lifecycle:
         policy: "my_timeseries_lifecycle"
@@ -267,6 +273,7 @@ setup:
                }
              }
            }
+
   - do:
       ilm.get_lifecycle:
         policy: "my_timeseries_lifecycle"
@@ -321,6 +328,7 @@ setup:
                }
              }
            }
+
   - do:
       catch: bad_request
       ilm.put_lifecycle:
@@ -340,6 +348,7 @@ setup:
                }
              }
            }
+
   - do:
       catch: bad_request
       ilm.put_lifecycle:
@@ -357,6 +366,7 @@ setup:
                }
              }
            }
+
 ---
 "Test increasing phase timings validated":
 

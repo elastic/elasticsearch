@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ilm;
+package org.elasticsearch.xpack.slm;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -20,15 +20,13 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE) // as default timeout seems not enough on the jenkins VMs
-public class IndexLifecycleRestIT extends ESClientYamlSuiteTestCase {
+public class SnapshotLifecycleRestIT extends ESClientYamlSuiteTestCase {
 
     private static final String USER = Objects.requireNonNull(System.getProperty("tests.rest.cluster.username"));
     private static final String PASS = Objects.requireNonNull(System.getProperty("tests.rest.cluster.password"));
 
-    public IndexLifecycleRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public SnapshotLifecycleRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

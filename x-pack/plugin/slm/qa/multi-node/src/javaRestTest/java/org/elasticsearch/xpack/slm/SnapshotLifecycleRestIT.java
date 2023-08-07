@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.slm;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
@@ -30,9 +32,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
-import org.elasticsearch.xpack.core.ilm.RolloverAction;
-import org.elasticsearch.xpack.core.ilm.Step;
-import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
@@ -43,17 +42,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.slm.history.SnapshotHistoryItem.CREATE_OPERATION;
 import static org.elasticsearch.xpack.slm.history.SnapshotHistoryItem.DELETE_OPERATION;
-import static org.elasticsearch.xpack.slm.history.SnapshotHistoryStore.SLM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -691,6 +688,21 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         }
     }
 
+    private static void createComposableTemplate(RestClient client, String templateName, String indexPattern, Template template)
+        throws IOException {
+        XContentBuilder builder = jsonBuilder();
+        template.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        StringEntity templateJSON = new StringEntity(String.format(Locale.ROOT, """
+            {
+              "index_patterns": "%s",
+              "data_stream": {},
+              "template": %s
+            }""", indexPattern, Strings.toString(builder)), ContentType.APPLICATION_JSON);
+        Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + templateName);
+        createIndexTemplateRequest.setEntity(templateJSON);
+        client.performRequest(createIndexTemplateRequest);
+    }
+
     /**
      * Execute the given policy and return the generated snapshot name
      */
@@ -787,22 +799,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             fail("failed to perform search:" + e.getMessage());
         }
 
-    }
-
-    @SuppressWarnings("unchecked")
-    private void assertHistoryIndexWaitingForRollover() throws IOException {
-        Response response = client().performRequest(new Request("GET", "/_data_stream/" + SLM_HISTORY_DATA_STREAM));
-        assertOK(response);
-        List<Object> dataStreams = (List<Object>) entityAsMap(response).get("data_streams");
-        assertEquals(1, dataStreams.size());
-        Map<String, Object> ds = (Map<String, Object>) dataStreams.get(0);
-        List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");
-        assertEquals(1, indices.size());
-
-        Step.StepKey stepKey = getStepKeyForIndex(client(), indices.get(0).get("index_name"));
-        assertEquals("hot", stepKey.phase());
-        assertEquals(RolloverAction.NAME, stepKey.action());
-        assertEquals(WaitForRolloverReadyStep.NAME, stepKey.name());
     }
 
     private void createSnapshotPolicy(

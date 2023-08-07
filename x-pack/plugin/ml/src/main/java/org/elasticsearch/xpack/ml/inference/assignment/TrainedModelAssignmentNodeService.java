@@ -412,11 +412,28 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                         logger.error(format("going to start draining queue for %s", currentNode));
 
                         // TODO kick off async draining work
+                        // TODO remove this
+                        TrainedModelDeploymentTask task = deploymentIdToTask.remove(trainedModelAssignment.getDeploymentId());
+                        if (task != null) {
+                            stopDeploymentAsync(
+                                task,
+                                NODE_NO_LONGER_REFERENCED,
+                                ActionListener.wrap(
+                                    r -> logger.error(() -> "[" + task.getDeploymentId() + "] stopped deployment after draining queue"),
+                                    e -> logger.error(
+                                        () -> "[" + task.getDeploymentId() + "] failed to fully stop deployment after draining queue",
+                                        e
+                                    )
+                                )
+                            );
+                        }
                     }
                 }
 
                 // This model is not routed to the current node at all
                 if (routingInfo == null) {
+
+                    logger.error("routing info was null");
                     TrainedModelDeploymentTask task = deploymentIdToTask.remove(trainedModelAssignment.getDeploymentId());
                     if (task != null) {
                         stopDeploymentAsync(

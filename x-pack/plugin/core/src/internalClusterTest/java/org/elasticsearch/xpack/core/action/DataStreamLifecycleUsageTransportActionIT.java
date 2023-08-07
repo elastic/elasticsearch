@@ -90,19 +90,21 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
             Map<String, DataStream> dataStreamMap = new HashMap<>();
             for (int dataStreamCount = 0; dataStreamCount < randomInt(200); dataStreamCount++) {
                 boolean hasLifecycle = randomBoolean();
-                long retentionMillis;
+                Long retentionMillis;
                 if (hasLifecycle) {
-                    retentionMillis = randomLongBetween(1000, 100000);
+                    retentionMillis = randomBoolean() ? randomLongBetween(1000, 100000) : null;
                     count.incrementAndGet();
-                    totalRetentionTimes.addAndGet(retentionMillis);
-                    if (retentionMillis < minRetention.get()) {
-                        minRetention.set(retentionMillis);
-                    }
-                    if (retentionMillis > maxRetention.get()) {
-                        maxRetention.set(retentionMillis);
+                    if (retentionMillis != null) {
+                        totalRetentionTimes.addAndGet(retentionMillis);
+                        if (retentionMillis < minRetention.get()) {
+                            minRetention.set(retentionMillis);
+                        }
+                        if (retentionMillis > maxRetention.get()) {
+                            maxRetention.set(retentionMillis);
+                        }
                     }
                 } else {
-                    retentionMillis = 0;
+                    retentionMillis =  0L;
                 }
                 List<Index> indices = new ArrayList<>();
                 for (int indicesCount = 0; indicesCount < randomIntBetween(1, 10); indicesCount++) {

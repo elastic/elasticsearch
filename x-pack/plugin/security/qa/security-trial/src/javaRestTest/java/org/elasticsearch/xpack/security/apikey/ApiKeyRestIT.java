@@ -1431,14 +1431,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final EncodedApiKey apiKey2 = createApiKey("key-2", Collections.emptyMap(), TimeValue.timeValueNanos(1));
 
         {
-            final Map<String, String> parameters = new HashMap<>();
-            parameters.put("active_only", "true");
-            if (randomBoolean()) {
-                parameters.put("username", MANAGE_OWN_API_KEY_USER);
-            }
-
-            final GetApiKeyResponse response = getApiKeysWithRequestParams(parameters);
-
+            final GetApiKeyResponse response = getApiKeysWithRequestParams(Map.of("active_only", "true"));
             assertResponseContainsApiKeyIds(response, apiKey0.id, apiKey1.id);
         }
         {
@@ -1446,25 +1439,14 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             if (randomBoolean()) {
                 parameters.put("active_only", "false");
             }
-            if (randomBoolean()) {
-                parameters.put("username", MANAGE_OWN_API_KEY_USER);
-            }
-
             final GetApiKeyResponse response = getApiKeysWithRequestParams(parameters);
-
             assertResponseContainsApiKeyIds(response, apiKey0.id, apiKey1.id, apiKey2.id);
         }
 
         getSecurityClient().invalidateApiKeys(apiKey0.id);
+
         {
-            final Map<String, String> parameters = new HashMap<>();
-            parameters.put("active_only", "true");
-            if (randomBoolean()) {
-                parameters.put("username", MANAGE_OWN_API_KEY_USER);
-            }
-
-            final GetApiKeyResponse response = getApiKeysWithRequestParams(parameters);
-
+            final GetApiKeyResponse response = getApiKeysWithRequestParams(Map.of("active_only", "true"));
             assertResponseContainsApiKeyIds(response, apiKey1.id);
         }
         {
@@ -1472,22 +1454,67 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             if (randomBoolean()) {
                 parameters.put("active_only", "false");
             }
-            if (randomBoolean()) {
-                parameters.put("username", MANAGE_OWN_API_KEY_USER);
-            }
-
             final GetApiKeyResponse response = getApiKeysWithRequestParams(parameters);
-
             assertResponseContainsApiKeyIds(response, apiKey0.id, apiKey1.id, apiKey2.id);
         }
 
         getSecurityClient().invalidateApiKeys(apiKey1.id);
-        // Active-only returns empty when no keys found
+
         {
             final GetApiKeyResponse response = getApiKeysWithRequestParams(Map.of("active_only", "true"));
-
             assertThat(response.getApiKeyInfos(), emptyArray());
         }
+    }
+
+    public void testGetActiveOnlyApiKeysWithMultipleUsers() throws Exception {
+        final String manageOwnApiKeyUserApiKeyId = createApiKey("key-0", Collections.emptyMap()).id;
+
+        final var createApiKeyRequest = new Request("POST", "_security/api_key");
+        createApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(Map.of("name", "key-1"), XContentType.JSON).utf8ToString());
+        setUserForRequest(createApiKeyRequest, MANAGE_API_KEY_USER, END_USER_PASSWORD);
+        final String manageApiKeyUserApiKeyId = assertOKAndCreateObjectPath(client().performRequest(createApiKeyRequest)).evaluate("id");
+
+        // Two active API keys
+        assertResponseContainsApiKeyIds(
+            getApiKeysWithRequestParams(Map.of("active_only", Boolean.toString(randomBoolean()))),
+            manageOwnApiKeyUserApiKeyId,
+            manageApiKeyUserApiKeyId
+        );
+        assertResponseContainsApiKeyIds(
+            getApiKeysWithRequestParams(Map.of("active_only", Boolean.toString(randomBoolean()), "username", MANAGE_API_KEY_USER)),
+            manageApiKeyUserApiKeyId
+        );
+        assertResponseContainsApiKeyIds(
+            getApiKeysWithRequestParams(Map.of("active_only", Boolean.toString(randomBoolean()), "username", MANAGE_OWN_API_KEY_USER)),
+            manageOwnApiKeyUserApiKeyId
+        );
+
+        // One active API key
+        invalidateApiKeysForUser(MANAGE_OWN_API_KEY_USER);
+
+        assertResponseContainsApiKeyIds(getApiKeysWithRequestParams(Map.of("active_only", "true")), manageApiKeyUserApiKeyId);
+        assertResponseContainsApiKeyIds(
+            getApiKeysWithRequestParams(Map.of("active_only", "true", "username", MANAGE_API_KEY_USER)),
+            manageApiKeyUserApiKeyId
+        );
+        assertThat(
+            getApiKeysWithRequestParams(Map.of("active_only", "true", "username", MANAGE_OWN_API_KEY_USER)).getApiKeyInfos(),
+            emptyArray()
+        );
+
+        // No more active API keys
+        invalidateApiKeysForUser(MANAGE_API_KEY_USER);
+
+        assertThat(
+            getApiKeysWithRequestParams(Map.of("active_only", "true", "username", randomFrom(MANAGE_API_KEY_USER, MANAGE_OWN_API_KEY_USER)))
+                .getApiKeyInfos(),
+            emptyArray()
+        );
+        assertResponseContainsApiKeyIds(
+            getApiKeysWithRequestParams(Map.of("active_only", "false")),
+            manageOwnApiKeyUserApiKeyId,
+            manageApiKeyUserApiKeyId
+        );
     }
 
     private static GetApiKeyResponse getApiKeysWithRequestParams(Map<String, String> requestParams) throws IOException {
@@ -1513,7 +1540,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         return client().performRequest(request);
     }
 
-    @SuppressWarnings("unchecked")
     private void fetchAndAssertApiKeyContainsWorkflows(String apiKeyId, String roleName, String... expectedWorkflows) throws IOException {
         Response getApiKeyResponse = fetchApiKey(apiKeyId);
         List<String> actualWorkflows = assertOKAndCreateObjectPath(getApiKeyResponse).evaluate(
@@ -1522,7 +1548,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(actualWorkflows, containsInAnyOrder(expectedWorkflows));
     }
 
-    @SuppressWarnings("unchecked")
     private void fetchAndAssertApiKeyDoesNotContainWorkflows(String apiKeyId, String roleName) throws IOException {
         Response getApiKeyResponse = fetchApiKey(apiKeyId);
         Map<String, ?> restriction = assertOKAndCreateObjectPath(getApiKeyResponse).evaluate(

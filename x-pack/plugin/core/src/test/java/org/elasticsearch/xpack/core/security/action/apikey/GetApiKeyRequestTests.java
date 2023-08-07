@@ -93,6 +93,8 @@ public class GetApiKeyRequestTests extends ESTestCase {
         String[][] inputs = new String[][] {
             { randomNullOrEmptyString(), "user", "api-kid", "api-kname", "false", "true" },
             { "realm", randomNullOrEmptyString(), "api-kid", "api-kname", "false", "true" },
+            { randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), "api-kname", "false", "true" },
+            { randomNullOrEmptyString(), randomNullOrEmptyString(), "api-kid", randomNullOrEmptyString(), "false", "true" },
             { "realm", "user", "api-kid", randomNullOrEmptyString(), "false", "false" },
             { randomNullOrEmptyString(), randomNullOrEmptyString(), "api-kid", "api-kname", "false", "false" },
             { "realm", randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), "true", "false" },
@@ -106,6 +108,8 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 "username or realm name must not be specified when the api key id or api key name is specified",
                 "only one of [api key id, api key name] can be specified",
                 "active_only must not be [true] when the api key id or api key name is specified" },
+            { "active_only must not be [true] when the api key id or api key name is specified" },
+            { "active_only must not be [true] when the api key id or api key name is specified" },
             { "username or realm name must not be specified when the api key id or api key name is specified" },
             { "only one of [api key id, api key name] can be specified" },
             { "neither username nor realm-name may be specified when retrieving owned API keys" },

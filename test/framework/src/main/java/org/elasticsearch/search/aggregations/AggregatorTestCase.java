@@ -930,7 +930,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 IndexSearcher.getDefaultQueryCachingPolicy(),
                 randomBoolean(),
                 this.threadPoolExecutor,
-                false,
                 1, // forces multiple slices
                 this.threadPoolExecutor.getMaximumPoolSize()
             );

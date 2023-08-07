@@ -75,7 +75,6 @@ public class DfsPhaseTests extends ESTestCase {
                 IndexSearcher.getDefaultQueryCachingPolicy(),
                 randomBoolean(),
                 threadPoolExecutor,
-                randomBoolean(),
                 1,
                 threadPoolExecutor.getMaximumPoolSize()
             );

@@ -169,10 +169,9 @@ final class DefaultSearchContext extends SearchContext {
                 engineSearcher.getQueryCachingPolicy(),
                 lowLevelCancellation,
                 executor,
-                forceSequentialCollection,
                 minimumDocsPerSlice,
                 // TODO is there a better way that does not require casting the executor?
-                ((ThreadPoolExecutor) executor).getMaximumPoolSize()
+                forceSequentialCollection ? 1 : ((ThreadPoolExecutor) executor).getMaximumPoolSize()
             );
         }
         releasables.addAll(List.of(engineSearcher, searcher));

@@ -209,7 +209,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
     }
 
     /**
-     * Check that knn queries rewrite parallelizes on the number of segments if there are enough threads in the pool.
+     * Check that knn queries rewrite parallelizes on the number of segments
      */
     public void testConcurrentRewrite() throws Exception {
         try (Directory directory = newDirectory()) {
@@ -226,16 +226,14 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         executeCalls.incrementAndGet();
                         command.run();
                     },
-                    randomBoolean(),
                     randomIntBetween(1, Integer.MAX_VALUE),
                     randomIntBetween(1, Integer.MAX_VALUE)
                 );
-                // check that we calculate one slice per segment
+                // check that we create one slice per segment
                 int numSegments = directoryReader.getContext().leaves().size();
                 assertEquals(numSegments, searcher.slices(directoryReader.getContext().leaves()).length);
-
                 KnnFloatVectorQuery vectorQuery = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, 10, null);
-                Query rewrittenQuery = vectorQuery.rewrite(searcher);
+                vectorQuery.rewrite(searcher);
                 // Note: we expect one execute calls less than segments since the last is executed on the caller thread.
                 // For details see QueueSizeBasedExecutor#processTask
                 assertEquals(numSegments - 1, executeCalls.get());
@@ -249,6 +247,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
     public void testConcurrentCollection() throws IOException {
         try (Directory directory = newDirectory()) {
             int numDocs = indexDocs(directory);
+            int maxNumSlices = randomIntBetween(1, 100);
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
                 AtomicInteger executeCalls = new AtomicInteger(0);
                 ContextIndexSearcher searcher = new ContextIndexSearcher(
@@ -261,13 +260,12 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         executeCalls.incrementAndGet();
                         command.run();
                     },
-                    false,
                     1,
-                    randomIntBetween(1, 100)
+                    maxNumSlices
                 );
                 Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager());
                 assertEquals(numDocs, totalHits.intValue());
-                int numExpectedTasks = searcher.getSlicesForCollection().length;
+                int numExpectedTasks = ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), maxNumSlices, 1).length;
                 // check that each slice goes to the executor, no matter the queue size or the number of slices
                 assertEquals(numExpectedTasks, executeCalls.get());
             }
@@ -477,7 +475,6 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     IndexSearcher.getDefaultQueryCachingPolicy(),
                     true,
                     executor,
-                    false,
                     1,
                     executor == null ? -1 : executor.getMaximumPoolSize()
                 );
@@ -534,10 +531,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
     /**
      * Simulate one or more exceptions being thrown while collecting, through a custom query that throws IOException in its Weight#scorer.
-     * Verify that the slices that had to wait because there were no free slots in the pool are not started following the exception which
-     * triggers a cancellation of all the tasks that are part of the running search.
+     * Verify that the slices that had to wait because there were no available threads in the pool are not started following the exception,
+     * which triggers a cancellation of all the tasks that are part of the running search.
      * Simulate having N threads busy doing other work (e.g. other searches) otherwise all slices can be executed directly, given that
-     * the number of slices is dependent on the max pool size (which is equal to the wrapper executor bound).
+     * the number of slices is dependent on the max pool size.
      */
     public void testCancelSliceTasksOnException() throws Exception {
         try (Directory dir = newDirectory()) {
@@ -548,12 +545,12 @@ public class ContextIndexSearcherTests extends ESTestCase {
             ThreadPoolExecutor executor = EsExecutors.newFixed(
                 ContextIndexSearcherTests.class.getName(),
                 numThreads,
-                numThreads,
+                -1,
                 EsExecutors.daemonThreadFactory(""),
                 new ThreadContext(Settings.EMPTY),
                 EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             );
-            ExecutorTestWrapper boundedExecutor = new ExecutorTestWrapper(executor, numBusyThreads);
+            ExecutorTestWrapper executorTestWrapper = new ExecutorTestWrapper(executor, numBusyThreads);
             try (DirectoryReader directoryReader = DirectoryReader.open(dir)) {
                 Set<LeafReaderContext> throwingLeaves = new HashSet<>();
                 Set<LeafReaderContext> scoredLeaves = new CopyOnWriteArraySet<>();
@@ -567,8 +564,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         IndexSearcher.getDefaultQueryCache(),
                         IndexSearcher.getDefaultQueryCachingPolicy(),
                         true,
-                        boundedExecutor,
-                        false,
+                        executorTestWrapper,
                         1,
                         executor.getMaximumPoolSize()
                     )
@@ -586,8 +582,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                                 @Override
                                 public Scorer scorer(LeafReaderContext context) throws IOException {
                                     if (throwingLeaves.contains(context)) {
-                                        // a random segment of some random slices throws exception. Other slices may or may not have
-                                        // started.
+                                        // a random segment of some random slices throws exception. Other slices may or may not have started
                                         throw new IOException();
                                     }
                                     scoredLeaves.add(context);
@@ -665,11 +660,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 }
                 // The slice that threw exception is not counted. The others that could be executed directly are, but they may have been
                 // cancelled before they could even start, hence we are going to score at most the segments that the slices that can be
-                // executed straight-away (before reaching the executor bound) are made of. We can't guarantee that we score all of them.
+                // executed straight-away (before reaching the max pool size) are made of. We can't guarantee that we score all of them.
                 // We do want to guarantee that the remaining slices won't even start and none of their leaves are scored.
                 assertTrue(expectedScoredLeaves.containsAll(scoredLeaves));
             } finally {
-                boundedExecutor.stopBusyThreads();
+                executorTestWrapper.stopBusyThreads();
                 terminate(executor);
             }
         }
@@ -677,10 +672,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
     /**
      * Simulate one or more timeout being thrown while collecting, through a custom query that times out in its Weight#scorer.
-     * Verify that the slices that had to wait because there were no free slots in the pool are not started following the timeout which
-     * triggers a cancellation of all the tasks that are part of the running search.
+     * Verify that the slices that had to wait because there were no available threads in the pool are not started following the timeout,
+     * which triggers a cancellation of all the tasks that are part of the running search.
      * Simulate having N threads busy doing other work (e.g. other searches) otherwise all slices can be executed directly, given that
-     * the number of slices is dependent on the max pool size (which is equal to the wrapper executor bound).
+     * the number of slices is dependent on the max pool size.
      */
     public void testCancelSliceTasksOnTimeout() throws Exception {
         try (Directory dir = newDirectory()) {
@@ -691,12 +686,12 @@ public class ContextIndexSearcherTests extends ESTestCase {
             ThreadPoolExecutor executor = EsExecutors.newFixed(
                 ContextIndexSearcherTests.class.getName(),
                 numThreads,
-                numThreads,
+                -1,
                 EsExecutors.daemonThreadFactory(""),
                 new ThreadContext(Settings.EMPTY),
                 EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             );
-            ExecutorTestWrapper boundedExecutor = new ExecutorTestWrapper(executor, numBusyThreads);
+            ExecutorTestWrapper executorTestWrapper = new ExecutorTestWrapper(executor, numBusyThreads);
             try (DirectoryReader directoryReader = DirectoryReader.open(dir)) {
                 Set<LeafReaderContext> throwingLeaves = new HashSet<>();
                 Set<LeafReaderContext> scoredLeaves = new CopyOnWriteArraySet<>();
@@ -710,8 +705,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         IndexSearcher.getDefaultQueryCache(),
                         IndexSearcher.getDefaultQueryCachingPolicy(),
                         true,
-                        boundedExecutor,
-                        false,
+                        executorTestWrapper,
                         1,
                         executor.getMaximumPoolSize()
                     )
@@ -801,13 +795,13 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         expectedScoredLeaves.add(context);
                     }
                 }
-                // The slice that threw exception is not counted. The others that could be executed directly are, but they may have been
+                // The slice that timed out is not counted. The others that could be executed directly are, but they may have been
                 // cancelled before they could even start, hence we are going to score at most the segments that the slices that can be
-                // executed straight-away (before reaching the executor bound) are made of. We can't guarantee that we score all of them.
+                // executed straight-away (before reaching the max pool size) are made of. We can't guarantee that we score all of them.
                 // We do want to guarantee that the remaining slices won't even start and none of their leaves are scored.
                 assertTrue(expectedScoredLeaves.containsAll(scoredLeaves));
             } finally {
-                boundedExecutor.stopBusyThreads();
+                executorTestWrapper.stopBusyThreads();
                 terminate(executor);
             }
         }
@@ -820,9 +814,9 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
         ExecutorTestWrapper(ThreadPoolExecutor executor, int numBusyThreads) {
             this.executor = executor;
-            // keep some of the threads occupied to simulate the situation where the slices tasks don't all fit in the executor directly.
+            // keep some of the threads occupied to simulate the situation where the slices tasks get queued up.
             // This is a realistic scenario that does not get tested otherwise by executing a single concurrent search, given that the
-            // number of slices is capped by max pool size, and so is the executor bound.
+            // number of slices is capped by max pool size.
             for (int i = 0; i < numBusyThreads; i++) {
                 execute(() -> {
                     try {
@@ -846,7 +840,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     /*
                     There could be tasks that complete quickly before the exception is handled, which leaves room for new tasks that are
                     about to get cancelled to start before their cancellation becomes effective. We can accept that cancellation may or may
-                    not be effective for the slices that belong to the first batch (until the executor bound is reached) and adjust the
+                    not be effective for the slices that belong to the first batch of tasks until all threads are busy and adjust the
                     test expectations accordingly, but for the subsequent slices, we want to assert that they are cancelled and never
                     executed. The only way to guarantee that is waiting for cancellation to kick in.
                     */

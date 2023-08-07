@@ -23,6 +23,8 @@ import org.elasticsearch.test.MockLogAppender;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedTransferQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING;
@@ -363,5 +365,20 @@ public class ThreadPoolTests extends ESTestCase {
         } finally {
             assertTrue(terminate(threadPool));
         }
+    }
+
+    public void testSearchWorkedThreadPool() {
+        final int allocatedProcessors = randomIntBetween(1, EsExecutors.allocatedProcessors(Settings.EMPTY));
+        final ThreadPool threadPool = new TestThreadPool(
+            "test",
+            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), allocatedProcessors).build()
+        );
+        ExecutorService executor = threadPool.executor(ThreadPool.Names.SEARCH_WORKER);
+        assertThat(executor, instanceOf(ThreadPoolExecutor.class));
+        ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) executor;
+        int expectedPoolSize = allocatedProcessors * 3 / 2 + 1;
+        assertEquals(expectedPoolSize, threadPoolExecutor.getCorePoolSize());
+        assertEquals(expectedPoolSize, threadPoolExecutor.getMaximumPoolSize());
+        assertThat(threadPoolExecutor.getQueue(), instanceOf(LinkedTransferQueue.class));
     }
 }

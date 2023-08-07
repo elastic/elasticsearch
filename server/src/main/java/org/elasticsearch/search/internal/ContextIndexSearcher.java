@@ -100,18 +100,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCachingPolicy queryCachingPolicy,
         boolean wrapWithExitableDirectoryReader
     ) throws IOException {
-        this(
-            reader,
-            similarity,
-            queryCache,
-            queryCachingPolicy,
-            new MutableQueryTimeout(),
-            wrapWithExitableDirectoryReader,
-            null,
-            true,
-            -1,
-            -1
-        );
+        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader, null, -1, -1);
     }
 
     /** constructor for concurrent search */
@@ -122,7 +111,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCachingPolicy queryCachingPolicy,
         boolean wrapWithExitableDirectoryReader,
         Executor executor,
-        boolean forceSequentialCollection,
         int minimumDocsPerSlice,
         int maximumNumberOfSlices
     ) throws IOException {
@@ -134,7 +122,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             new MutableQueryTimeout(),
             wrapWithExitableDirectoryReader,
             executor,
-            forceSequentialCollection,
             minimumDocsPerSlice,
             maximumNumberOfSlices
         );
@@ -148,7 +135,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         MutableQueryTimeout cancellable,
         boolean wrapWithExitableDirectoryReader,
         Executor executor,
-        boolean forceSequentialCollection,
         int minimumDocsPerSlice,
         int maximumNumberOfSlices
     ) throws IOException {
@@ -163,14 +149,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (executor == null) {
             this.leafSlices = null;
         } else {
-            if (forceSequentialCollection) {
-                // we offload to the executor unconditionally, including requests that don't support concurrency
-                // TODO are we good offloading aggs that don't support concurrency to the concurrent executor or is postCollect an issue?
-                this.leafSlices = new LeafSlice[] { new LeafSlice(new ArrayList<>(getLeafContexts())) };
-            } else {
-                this.leafSlices = computeSlices(getLeafContexts(), maximumNumberOfSlices, minimumDocsPerSlice);
-                assert this.leafSlices.length <= maximumNumberOfSlices : "more slices created than the maximum allowed";
-            }
+            // we offload to the executor unconditionally, including requests that don't support concurrency
+            // TODO are we good offloading aggs that don't support concurrency to the concurrent executor or is postCollect an issue?
+            this.leafSlices = computeSlices(getLeafContexts(), maximumNumberOfSlices, minimumDocsPerSlice);
+            assert this.leafSlices.length <= maximumNumberOfSlices : "more slices created than the maximum allowed";
         }
     }
 
@@ -269,7 +251,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * returned by {@link IndexSearcher#getSlices()}. The former are used for parallelizing the collection, while the latter are used
      * for now to parallelize rewrite (e.g. knn query rewrite)
      */
-    public LeafSlice[] getSlicesForCollection() {
+    final LeafSlice[] getSlicesForCollection() {
         return leafSlices;
     }
 

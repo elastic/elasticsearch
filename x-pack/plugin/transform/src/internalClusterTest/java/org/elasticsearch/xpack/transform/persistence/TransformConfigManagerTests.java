@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -35,6 +34,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointTests;
@@ -753,7 +753,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             IndexMetadata.Builder builder = new IndexMetadata.Builder(index).settings(
                 Settings.builder()
                     .put(TransformInternalIndex.settings(Settings.EMPTY))
-                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), TransformConfigVersion.CURRENT)
                     .build()
             ).numberOfReplicas(0).numberOfShards(1).putMapping(Strings.toString(TransformInternalIndex.mappings()));
             final var indexMetadata = builder.build();

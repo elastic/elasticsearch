@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.Source
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -58,7 +59,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
      * Whenever defaults change, we must re-write the config on update in a way it
      * does not change behavior.
      */
-    public static final Version CONFIG_VERSION_LAST_DEFAULTS_CHANGED = Version.V_7_15_0;
+    public static final TransformConfigVersion CONFIG_VERSION_LAST_DEFAULTS_CHANGED = TransformConfigVersion.V_7_15_0;
     public static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
     /** Version in which {@code FieldCapabilitiesRequest.runtime_fields} field was introduced. */
@@ -96,7 +97,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
     // headers store the user context from the creating user, which allows us to run the transform as this user
     // the header only contains name, groups and other context but no authorization keys
     private Map<String, String> headers;
-    private Version transformVersion;
+    private TransformConfigVersion transformVersion;
     private Instant createTime;
 
     private final PivotConfig pivotConfig;
@@ -239,7 +240,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
             throw new IllegalArgumentException("[description] must be less than 1000 characters in length.");
         }
         this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
-        this.transformVersion = version == null ? null : Version.fromString(version);
+        this.transformVersion = version == null ? null : TransformConfigVersion.fromString(version);
     }
 
     public TransformConfig(final StreamInput in) throws IOException {
@@ -253,7 +254,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         description = in.readOptionalString();
         syncConfig = in.readOptionalNamedWriteable(SyncConfig.class);
         createTime = in.readOptionalInstant();
-        transformVersion = in.readBoolean() ? Version.readVersion(in) : null;
+        transformVersion = in.readBoolean() ? TransformConfigVersion.readVersion(in) : null;
         settings = new SettingsConfig(in);
         metadata = in.readMap();
         retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
@@ -288,11 +289,11 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         return this;
     }
 
-    public Version getVersion() {
+    public TransformConfigVersion getVersion() {
         return transformVersion;
     }
 
-    public TransformConfig setVersion(Version version) {
+    public TransformConfig setVersion(TransformConfigVersion version) {
         this.transformVersion = version;
         return this;
     }
@@ -419,7 +420,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         out.writeOptionalInstant(createTime);
         if (transformVersion != null) {
             out.writeBoolean(true);
-            Version.writeVersion(transformVersion, out);
+            TransformConfigVersion.writeVersion(transformVersion, out);
         } else {
             out.writeBoolean(false);
         }
@@ -604,7 +605,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         }
 
         // 2. set dates_as_epoch_millis to true for transforms < 7.11 to keep BWC
-        if (builder.getVersion() != null && builder.getVersion().before(Version.V_7_11_0)) {
+        if (builder.getVersion() != null && builder.getVersion().before(TransformConfigVersion.V_7_11_0)) {
             builder.setSettings(
                 new SettingsConfig(
                     builder.getSettings().getMaxPageSearchSize(),
@@ -620,7 +621,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         }
 
         // 3. set align_checkpoints to false for transforms < 7.15 to keep BWC
-        if (builder.getVersion() != null && builder.getVersion().before(Version.V_7_15_0)) {
+        if (builder.getVersion() != null && builder.getVersion().before(TransformConfigVersion.V_7_15_0)) {
             builder.setSettings(
                 new SettingsConfig(
                     builder.getSettings().getMaxPageSearchSize(),
@@ -635,7 +636,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
             );
         }
 
-        return builder.setVersion(Version.CURRENT).build();
+        return builder.setVersion(TransformConfigVersion.CURRENT).build();
     }
 
     public static Builder builder() {
@@ -650,7 +651,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         private SyncConfig syncConfig;
         private String description;
         private Map<String, String> headers;
-        private Version transformVersion;
+        private TransformConfigVersion transformVersion;
         private Instant createTime;
         private PivotConfig pivotConfig;
         private LatestConfig latestConfig;
@@ -775,12 +776,12 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
             return latestConfig;
         }
 
-        Builder setVersion(Version version) {
+        Builder setVersion(TransformConfigVersion version) {
             this.transformVersion = version;
             return this;
         }
 
-        Version getVersion() {
+        TransformConfigVersion getVersion() {
             return transformVersion;
         }
 

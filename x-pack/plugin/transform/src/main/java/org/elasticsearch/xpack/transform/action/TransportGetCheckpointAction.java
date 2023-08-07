@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -32,6 +31,7 @@ import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Response;
@@ -106,7 +106,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             }
             if (shard.assignedToNode() && nodes.get(shard.currentNodeId()) != null) {
                 // special case: a node that holds the shard is on an old version
-                if (nodes.get(shard.currentNodeId()).getVersion().before(Version.V_8_2_0)) {
+                if (TransformConfigVersion.fromNode(nodes.get(shard.currentNodeId())).before(TransformConfigVersion.V_8_2_0)) {
                     throw new ActionNotFoundTransportException(GetCheckpointNodeAction.NAME);
                 }
 

@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.junit.Before;
@@ -53,7 +53,7 @@ public class TransformDestIndexIT extends TransformRestTestCase {
 
         Map<?, ?> mappingAsMap = entityAsMap(mappingResponse);
         assertEquals(
-            Version.CURRENT.toString(),
+            TransformConfigVersion.CURRENT.toString(),
             XContentMapValues.extractValue("pivot_reviews.mappings._meta._transform.version.created", mappingAsMap)
         );
         assertTrue(

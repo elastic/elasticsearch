@@ -79,6 +79,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 out.writeOptionalString(apiKeyName);
                 out.writeOptionalBoolean(ownedByAuthenticatedUser);
                 out.writeBoolean(randomBoolean());
+                out.writeBoolean(randomBoolean());
             }
         }
 
@@ -143,6 +144,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 .apiKeyId(apiKeyId)
                 .ownedByAuthenticatedUser(true)
                 .withLimitedBy(randomBoolean())
+                .activeOnly(randomBoolean())
                 .build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
@@ -157,17 +159,46 @@ public class GetApiKeyRequestTests extends ESTestCase {
             assertThat(requestFromInputStream.ownedByAuthenticatedUser(), is(true));
             // old version so the default for `withLimitedBy` is false
             assertThat(requestFromInputStream.withLimitedBy(), is(false));
+            // old version so the default for `activeOnly` is false
+            assertThat(requestFromInputStream.activeOnly(), is(false));
         }
         {
-            final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(randomBoolean()).build();
+            final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder()
+                .apiKeyId(apiKeyId)
+                .ownedByAuthenticatedUser(randomBoolean())
+                .withLimitedBy(randomBoolean())
+                .activeOnly(randomBoolean())
+                .build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_8_5_0, TransportVersion.current()));
+            TransportVersion beforeActiveOnly = TransportVersion.V_8_500_051;
+            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_8_5_0, beforeActiveOnly));
+            getApiKeyRequest.writeTo(out);
+
+            InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
+            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_8_5_0, beforeActiveOnly));
+            GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
+
+            assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest.getApiKeyId()));
+            assertThat(requestFromInputStream.ownedByAuthenticatedUser(), is(getApiKeyRequest.ownedByAuthenticatedUser()));
+            assertThat(requestFromInputStream.withLimitedBy(), is(getApiKeyRequest.withLimitedBy()));
+            // old version so the default for `activeOnly` is false
+            assertThat(requestFromInputStream.activeOnly(), is(false));
+        }
+        {
+            final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder()
+                .apiKeyId(apiKeyId)
+                .withLimitedBy(randomBoolean())
+                .activeOnly(randomBoolean())
+                .build();
+            ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+            OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_8_500_052, TransportVersion.current()));
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
             inputStreamStreamInput.setTransportVersion(
-                randomVersionBetween(random(), TransportVersion.V_8_5_0, TransportVersion.current())
+                randomVersionBetween(random(), TransportVersion.V_8_500_052, TransportVersion.current())
             );
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 

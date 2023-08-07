@@ -365,7 +365,9 @@ public abstract class NlpTokenizer implements Releasable {
                 // and the sequence ending in a long word that tokenizes
                 // to a number of elements greater than the difference
                 // between span and 2nd sequence length
-                throw new IllegalStateException("tokenization cannot be satisfied with the current span setting");
+                throw new IllegalStateException(
+                    "Tokenization cannot be satisfied with the current span setting. Consider decreasing the span setting"
+                );
             }
 
             // try to back up our split so that it starts at the first whole word

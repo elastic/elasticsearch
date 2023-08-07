@@ -807,7 +807,7 @@ public class BertTokenizerTests extends ESTestCase {
         BertTokenizer tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, tokenization).build();
 
         var e = expectThrows(IllegalStateException.class, () -> tokenizer.tokenize(question, context, Tokenization.Truncate.NONE, span, 0));
-        assertThat(e.getMessage(), containsString("tokenization cannot be satisfied with the current span setting"));
+        assertThat(e.getMessage(), containsString("Tokenization cannot be satisfied with the current span setting"));
 
     }
 }

@@ -39,6 +39,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -189,7 +190,11 @@ public abstract class TransportInstanceSingleOperationAction<
                 shardActionName,
                 request,
                 transportOptions(),
-                new ActionListenerResponseHandler<>(listener, TransportInstanceSingleOperationAction.this::newResponse) {
+                new ActionListenerResponseHandler<>(
+                    listener,
+                    TransportInstanceSingleOperationAction.this::newResponse,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                ) {
                     @Override
                     public void handleException(TransportException exp) {
                         final Throwable cause = exp.unwrapCause();

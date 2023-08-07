@@ -177,7 +177,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         );
     }
 
-    public void testPublishImmediatelyIfBigChangeIsDetected() {
+    public void testPublishImmediatelyIfBigChangeIsDetected() throws Exception {
 
         var shardId1 = new ShardId("index-1", "_na_", 0);
         var shardId2 = new ShardId("index-2", "_na_", 0);
@@ -186,12 +186,17 @@ public class ShardSizesCollectorTests extends ESTestCase {
 
         // scheduling is disabled to test immediate sending
         when(statsReader.getShardSize(eq(shardId1), any())).thenReturn(smallSize);
-        service.detectShardSize(shardId1);
-        verify(publisher, never()).publishSearchShardDiskUsage(eq("search_node_1"), any(), any());
-
         when(statsReader.getShardSize(eq(shardId2), any())).thenReturn(bigSize);
+
+        service.detectShardSize(shardId1);
         service.detectShardSize(shardId2);
-        verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, smallSize, shardId2, bigSize)), any());
+
+        assertBusy(() -> {
+            // not publishing immediately after small change in shardId1
+            verify(publisher, never()).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, smallSize)), any());
+            // publishing all once big change detected in shardId2
+            verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, smallSize, shardId2, bigSize)), any());
+        });
     }
 
     public void testPublishAllDataIfMasterChanged() throws Exception {

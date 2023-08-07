@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.slm.action;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
@@ -34,6 +36,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  * Internally it uses {@link TransportPutSnapshotLifecycleAction} and
  * {@link TransportDeleteSnapshotLifecycleAction} to add, update and delete ILM policies.
  */
+@ServerlessScope(Scope.INTERNAL)
 public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<SnapshotLifecyclePolicy>> {
 
     public static final String NAME = "slm";

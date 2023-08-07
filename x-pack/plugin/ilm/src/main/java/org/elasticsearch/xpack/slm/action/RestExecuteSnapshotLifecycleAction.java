@@ -12,12 +12,15 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestExecuteSnapshotLifecycleAction extends BaseRestHandler {
 
     @Override

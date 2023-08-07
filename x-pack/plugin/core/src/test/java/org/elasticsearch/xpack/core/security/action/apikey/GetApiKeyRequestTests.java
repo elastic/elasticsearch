@@ -22,7 +22,10 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
 import static org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest.TRANSPORT_VERSION_ACTIVE_ONLY;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GetApiKeyRequestTests extends ESTestCase {
 

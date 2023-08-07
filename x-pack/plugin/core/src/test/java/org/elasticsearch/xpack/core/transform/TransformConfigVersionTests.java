@@ -104,9 +104,7 @@ public class TransformConfigVersionTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("have the same version number"));
     }
 
-    private static final Set<DiscoveryNodeRole> ROLES_WITH_TRANSFORM = Set.of(
-        DiscoveryNodeRole.TRANSFORM_ROLE
-    );
+    private static final Set<DiscoveryNodeRole> ROLES_WITH_TRANSFORM = Set.of(DiscoveryNodeRole.TRANSFORM_ROLE);
 
     public void testGetMinMaxTransformConfigVersion() {
         Map<String, String> nodeAttr1 = Map.of(

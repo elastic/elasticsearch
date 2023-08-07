@@ -31,6 +31,7 @@ public final class GetApiKeyRequest extends ActionRequest {
     private final String apiKeyName;
     private final boolean ownedByAuthenticatedUser;
     private final boolean withLimitedBy;
+    private final boolean activeOnly;
 
     public GetApiKeyRequest(StreamInput in) throws IOException {
         super(in);
@@ -48,6 +49,11 @@ public final class GetApiKeyRequest extends ActionRequest {
         } else {
             withLimitedBy = false;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_052)) {
+            activeOnly = in.readBoolean();
+        } else {
+            activeOnly = false;
+        }
     }
 
     private GetApiKeyRequest(
@@ -56,7 +62,8 @@ public final class GetApiKeyRequest extends ActionRequest {
         @Nullable String apiKeyId,
         @Nullable String apiKeyName,
         boolean ownedByAuthenticatedUser,
-        boolean withLimitedBy
+        boolean withLimitedBy,
+        boolean activeOnly
     ) {
         this.realmName = textOrNull(realmName);
         this.userName = textOrNull(userName);
@@ -64,6 +71,7 @@ public final class GetApiKeyRequest extends ActionRequest {
         this.apiKeyName = textOrNull(apiKeyName);
         this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
         this.withLimitedBy = withLimitedBy;
+        this.activeOnly = activeOnly;
     }
 
     private static String textOrNull(@Nullable String arg) {
@@ -92,6 +100,10 @@ public final class GetApiKeyRequest extends ActionRequest {
 
     public boolean withLimitedBy() {
         return withLimitedBy;
+    }
+
+    public boolean activeOnly() {
+        return activeOnly;
     }
 
     @Override
@@ -167,6 +179,7 @@ public final class GetApiKeyRequest extends ActionRequest {
         private String apiKeyName = null;
         private boolean ownedByAuthenticatedUser = false;
         private boolean withLimitedBy = false;
+        private boolean activeOnly = false;
 
         public Builder realmName(String realmName) {
             this.realmName = realmName;
@@ -206,8 +219,13 @@ public final class GetApiKeyRequest extends ActionRequest {
             return this;
         }
 
+        public Builder activeOnly(boolean activeOnly) {
+            this.activeOnly = activeOnly;
+            return this;
+        }
+
         public GetApiKeyRequest build() {
-            return new GetApiKeyRequest(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser, withLimitedBy);
+            return new GetApiKeyRequest(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser, withLimitedBy, activeOnly);
         }
     }
 }

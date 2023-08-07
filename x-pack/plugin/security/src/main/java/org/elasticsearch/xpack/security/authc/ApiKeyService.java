@@ -1893,6 +1893,7 @@ public class ApiKeyService {
         String apiKeyName,
         String[] apiKeyIds,
         boolean withLimitedBy,
+        boolean activeOnly,
         ActionListener<GetApiKeyResponse> listener
     ) {
         ensureEnabled();
@@ -1901,8 +1902,8 @@ public class ApiKeyService {
             username,
             apiKeyName,
             apiKeyIds,
-            false,
-            false,
+            activeOnly,
+            activeOnly,
             hit -> convertSearchHitToApiKeyInfo(hit, withLimitedBy),
             ActionListener.wrap(apiKeyInfos -> {
                 if (apiKeyInfos.isEmpty()) {

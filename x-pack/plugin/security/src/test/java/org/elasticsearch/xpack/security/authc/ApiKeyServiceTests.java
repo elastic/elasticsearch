@@ -283,7 +283,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         String apiKeyName = randomFrom(randomAlphaOfLengthBetween(3, 8), null);
         String[] apiKeyIds = generateRandomStringArray(4, 4, true, true);
         PlainActionFuture<GetApiKeyResponse> getApiKeyResponsePlainActionFuture = new PlainActionFuture<>();
-        service.getApiKeys(realmNames, username, apiKeyName, apiKeyIds, randomBoolean(), getApiKeyResponsePlainActionFuture);
+        final boolean activeOnly = false;
+        service.getApiKeys(realmNames, username, apiKeyName, apiKeyIds, randomBoolean(), activeOnly, getApiKeyResponsePlainActionFuture);
         final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", "api_key"));
         if (realmNames != null && realmNames.length > 0) {
             if (realmNames.length == 1) {
@@ -1157,7 +1158,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(roleWithoutRestriction.getRestriction().getWorkflows(), nullValue());
     }
 
-    public void testApiKeyServiceDisabled() throws Exception {
+    public void testApiKeyServiceDisabled() {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), false).build();
         final ApiKeyService service = createApiKeyService(settings);
 
@@ -1168,6 +1169,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 randomAlphaOfLength(8),
                 null,
                 null,
+                randomBoolean(),
                 randomBoolean(),
                 new PlainActionFuture<>()
             )

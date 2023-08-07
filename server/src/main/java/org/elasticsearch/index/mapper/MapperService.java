@@ -398,9 +398,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                         }
                         case "subobjects" -> {
                             if (oldValue.equals(newValue) == false) {
-                                throw new MapperParsingException(
-                                    "Failed to parse mappings: contradicting subobjects settings provided for field: " + parent
-                                );
+                                throw new MapperParsingException("contradicting subobjects settings provided for field: " + parent);
+                            }
+                        }
+                        case "required" -> {
+                            if ("_routing".equals(parent) && oldValue != newValue) {
+                                throw new MapperParsingException("contradicting `_routing.required` settings");
                             }
                         }
                     }

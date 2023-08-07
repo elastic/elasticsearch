@@ -463,7 +463,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
             MapperParsingException.class,
             () -> mapperService.merge("_doc", List.of(mapping2, mapping1, subobjectsTrueExplicitly), MergeReason.INDEX_TEMPLATE)
         );
-        assertEquals("Failed to parse mappings: contradicting subobjects settings provided for field: _doc", e.getMessage());
+        assertEquals("contradicting subobjects settings provided for field: _doc", e.getMessage());
     }
 
     private static CompressedXContent createTestMapping1() throws IOException {

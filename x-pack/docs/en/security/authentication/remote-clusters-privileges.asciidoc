@@ -33,10 +33,10 @@ On the remote cluster that contains the leader index, the {ccr} role requires
 the `read_ccr` cluster privilege, and `monitor` and `read` privileges on the
 leader index.
 
-NOTE: If requests will be authenticated with an <<security-api-create-api-key, API key>>, the API key
+NOTE: If requests are authenticated with an <<security-api-create-api-key, API key>>, the API key
 requires the above privileges on the **local** cluster, instead of the remote.
 
-NOTE: If requests will be issued <<run-as-privilege,on behalf of other users>>,
+NOTE: If requests are issued <<run-as-privilege,on behalf of other users>>,
 then the authenticating user must have the `run_as` privilege on the remote
 cluster.
 
@@ -136,10 +136,10 @@ local and remote clusters, and then create a user with the required roles.
 On the remote cluster, the {ccs} role requires the `read` and
 `read_cross_cluster` privileges for the target indices.
 
-NOTE: If requests will be authenticated with an <<security-api-create-api-key, API key>>, the API key
+NOTE: If requests are authenticated with an <<security-api-create-api-key, API key>>, the API key
 requires the above privileges on the **local** cluster, instead of the remote.
 
-NOTE: If requests will be issued <<run-as-privilege,on behalf of other users>>,
+NOTE: If requests are issued <<run-as-privilege,on behalf of other users>>,
 then the authenticating user must have the `run_as` privilege on the remote
 cluster.
 

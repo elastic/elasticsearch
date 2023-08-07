@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -85,7 +86,7 @@ public class TransformIndexTests extends ESTestCase {
         TransformIndex.isDestinationIndexCreatedByTransform(
             client,
             DEST_INDEX,
-            new LatchedActionListener<>(ActionListener.wrap(Assert::assertFalse, e -> fail(e.getMessage())), latch)
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(Assert::assertFalse), latch)
         );
         assertTrue(latch.await(10, TimeUnit.SECONDS));
     }
@@ -99,7 +100,7 @@ public class TransformIndexTests extends ESTestCase {
             client,
             DEST_INDEX,
             new LatchedActionListener<>(
-                ActionListener.wrap(value -> assertThat(value, is(equalTo(expectedValue))), e -> fail(e.getMessage())),
+                ActionTestUtils.assertNoFailureListener(value -> assertThat(value, is(equalTo(expectedValue)))),
                 latch
             )
         );
@@ -146,7 +147,7 @@ public class TransformIndexTests extends ESTestCase {
             client,
             TransformConfigTests.randomTransformConfig(TRANSFORM_ID),
             TransformIndex.createTransformDestIndexSettings(new HashMap<>(), TRANSFORM_ID, clock),
-            ActionListener.wrap(Assert::assertTrue, e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(Assert::assertTrue)
         );
 
         ArgumentCaptor<CreateIndexRequest> createIndexRequestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
@@ -172,7 +173,7 @@ public class TransformIndexTests extends ESTestCase {
             .setDest(new DestConfig("my-dest", null, null))
             .build();
 
-        TransformIndex.setUpDestinationAliases(client, config, ActionListener.wrap(Assert::assertTrue, e -> fail(e.getMessage())));
+        TransformIndex.setUpDestinationAliases(client, config, ActionTestUtils.assertNoFailureListener(Assert::assertTrue));
 
         verifyNoMoreInteractions(client);
     }
@@ -185,7 +186,7 @@ public class TransformIndexTests extends ESTestCase {
             .setDest(new DestConfig("my-dest", List.of(), null))
             .build();
 
-        TransformIndex.setUpDestinationAliases(client, config, ActionListener.wrap(Assert::assertTrue, e -> fail(e.getMessage())));
+        TransformIndex.setUpDestinationAliases(client, config, ActionTestUtils.assertNoFailureListener(Assert::assertTrue));
 
         verifyNoMoreInteractions(client);
     }
@@ -199,7 +200,7 @@ public class TransformIndexTests extends ESTestCase {
             .setDest(new DestConfig(destIndex, List.of(new DestAlias(".all", false), new DestAlias(".latest", true)), null))
             .build();
 
-        TransformIndex.setUpDestinationAliases(client, config, ActionListener.wrap(Assert::assertTrue, e -> fail(e.getMessage())));
+        TransformIndex.setUpDestinationAliases(client, config, ActionTestUtils.assertNoFailureListener(Assert::assertTrue));
 
         ArgumentCaptor<IndicesAliasesRequest> indicesAliasesRequestCaptor = ArgumentCaptor.forClass(IndicesAliasesRequest.class);
         verify(client).execute(eq(IndicesAliasesAction.INSTANCE), indicesAliasesRequestCaptor.capture(), any());

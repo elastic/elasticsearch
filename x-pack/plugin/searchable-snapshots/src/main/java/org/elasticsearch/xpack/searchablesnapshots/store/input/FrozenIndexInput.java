@@ -91,13 +91,23 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             headerBlobCacheByteRange,
             footerBlobCacheByteRange
         );
-        this.cacheFile = cacheFile;
+        this.cacheFile = cacheFile.copy();
     }
 
     @Override
     protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
         final long position = getAbsolutePosition();
         final int length = b.remaining();
+        if (cacheFile.tryRead(b, position)) {
+            // fast-path succeeded, increment stats and return
+            stats.addCachedBytesRead(length);
+            return;
+        }
+        readWithoutBlobCacheSlow(b, position, length);
+    }
+
+    // slow path for readWithoutBlobCache, extracted to a separate method to make the fast-path inline better
+    private void readWithoutBlobCacheSlow(ByteBuffer b, long position, int length) throws Exception {
         // Semaphore that, when all permits are acquired, ensures that async callbacks (such as those used by readCacheFile) are not
         // accessing the byte buffer anymore that was passed to readWithoutBlobCache
         // In particular, it's important to acquire all permits before adapting the ByteBuffer's offset
@@ -161,11 +171,6 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
-    public FrozenIndexInput clone() {
-        return (FrozenIndexInput) super.clone();
-    }
-
-    @Override
     protected MetadataCachingIndexInput doSlice(
         String sliceName,
         long sliceOffset,
@@ -180,7 +185,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             fileInfo,
             context,
             stats,
-            this.offset + sliceOffset,
+            sliceOffset,
             sliceCompoundFileOffset,
             sliceLength,
             cacheFileReference,

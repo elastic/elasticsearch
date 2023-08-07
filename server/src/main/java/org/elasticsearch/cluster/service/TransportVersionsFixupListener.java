@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -112,6 +113,11 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         }
     }
 
+    @SuppressForbidden(reason = "maintaining ClusterState#transportVersions requires reading them")
+    private static Map<String, TransportVersion> getTransportVersions(ClusterState clusterState) {
+        return clusterState.transportVersions();
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster() == false) return; // only if we're master
@@ -123,9 +129,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             && event.state().getMinTransportVersion().equals(INFERRED_TRANSPORT_VERSION)) {
 
             // find all the relevant nodes
-            Set<String> nodes = event.state()
-                .transportVersions()
-                .entrySet()
+            Set<String> nodes = getTransportVersions(event.state()).entrySet()
                 .stream()
                 .filter(e -> e.getValue().equals(INFERRED_TRANSPORT_VERSION))
                 .map(Map.Entry::getKey)

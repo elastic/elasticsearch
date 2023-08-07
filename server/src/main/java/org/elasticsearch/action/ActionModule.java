@@ -251,13 +251,19 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.synonyms.DeleteSynonymRuleAction;
 import org.elasticsearch.action.synonyms.DeleteSynonymsAction;
+import org.elasticsearch.action.synonyms.GetSynonymRuleAction;
 import org.elasticsearch.action.synonyms.GetSynonymsAction;
 import org.elasticsearch.action.synonyms.GetSynonymsSetsAction;
+import org.elasticsearch.action.synonyms.PutSynonymRuleAction;
 import org.elasticsearch.action.synonyms.PutSynonymsAction;
+import org.elasticsearch.action.synonyms.TransportDeleteSynonymRuleAction;
 import org.elasticsearch.action.synonyms.TransportDeleteSynonymsAction;
+import org.elasticsearch.action.synonyms.TransportGetSynonymRuleAction;
 import org.elasticsearch.action.synonyms.TransportGetSynonymsAction;
 import org.elasticsearch.action.synonyms.TransportGetSynonymsSetsAction;
+import org.elasticsearch.action.synonyms.TransportPutSynonymRuleAction;
 import org.elasticsearch.action.synonyms.TransportPutSynonymsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
@@ -443,11 +449,13 @@ import org.elasticsearch.rest.action.search.RestKnnSearchAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
+import org.elasticsearch.rest.action.synonyms.RestDeleteSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestDeleteSynonymsAction;
+import org.elasticsearch.rest.action.synonyms.RestGetSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestGetSynonymsAction;
 import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
+import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
-import org.elasticsearch.synonyms.SynonymsAPI;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
@@ -566,7 +574,7 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).toList()
         );
         headersToCopy = headers;
-        restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer, serverlessEnabled);
+        restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
     }
 
@@ -578,7 +586,7 @@ public class ActionModule extends AbstractModule {
     public void copyRequestHeadersToThreadContext(HttpPreRequest request, ThreadContext threadContext) {
         // the request's thread-context must always be populated (by calling this method) before undergoing any request related processing
         // we use this opportunity to first record the request processing start time
-        threadContext.putTransient(Task.TRACE_START_TIME, Instant.ofEpochMilli(threadPool.absoluteTimeInMillis()));
+        threadContext.putTransient(Task.TRACE_START_TIME, Instant.ofEpochMilli(System.currentTimeMillis()));
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getHeaders().get(name);
@@ -790,12 +798,13 @@ public class ActionModule extends AbstractModule {
         actions.register(FetchHealthInfoCacheAction.INSTANCE, FetchHealthInfoCacheAction.TransportAction.class);
 
         // Synonyms
-        if (SynonymsAPI.isEnabled()) {
-            actions.register(PutSynonymsAction.INSTANCE, TransportPutSynonymsAction.class);
-            actions.register(GetSynonymsAction.INSTANCE, TransportGetSynonymsAction.class);
-            actions.register(DeleteSynonymsAction.INSTANCE, TransportDeleteSynonymsAction.class);
-            actions.register(GetSynonymsSetsAction.INSTANCE, TransportGetSynonymsSetsAction.class);
-        }
+        actions.register(PutSynonymsAction.INSTANCE, TransportPutSynonymsAction.class);
+        actions.register(GetSynonymsAction.INSTANCE, TransportGetSynonymsAction.class);
+        actions.register(DeleteSynonymsAction.INSTANCE, TransportDeleteSynonymsAction.class);
+        actions.register(GetSynonymsSetsAction.INSTANCE, TransportGetSynonymsSetsAction.class);
+        actions.register(PutSynonymRuleAction.INSTANCE, TransportPutSynonymRuleAction.class);
+        actions.register(GetSynonymRuleAction.INSTANCE, TransportGetSynonymRuleAction.class);
+        actions.register(DeleteSynonymRuleAction.INSTANCE, TransportDeleteSynonymRuleAction.class);
 
         return unmodifiableMap(actions.getRegistry());
     }
@@ -1007,12 +1016,13 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCatAction(catActions));
 
         // Synonyms
-        if (SynonymsAPI.isEnabled()) {
-            registerHandler.accept(new RestPutSynonymsAction());
-            registerHandler.accept(new RestGetSynonymsAction());
-            registerHandler.accept(new RestDeleteSynonymsAction());
-            registerHandler.accept(new RestGetSynonymsSetsAction());
-        }
+        registerHandler.accept(new RestPutSynonymsAction());
+        registerHandler.accept(new RestGetSynonymsAction());
+        registerHandler.accept(new RestDeleteSynonymsAction());
+        registerHandler.accept(new RestGetSynonymsSetsAction());
+        registerHandler.accept(new RestPutSynonymRuleAction());
+        registerHandler.accept(new RestGetSynonymRuleAction());
+        registerHandler.accept(new RestDeleteSynonymRuleAction());
     }
 
     /**

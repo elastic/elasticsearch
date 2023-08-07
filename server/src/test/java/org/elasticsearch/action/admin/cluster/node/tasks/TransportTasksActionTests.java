@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -150,10 +149,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             return new NodeRequest(request);
         }
 
-        @Override
-        protected NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
-            return new NodeResponse(in);
-        }
     }
 
     static class TestTaskResponse implements Writeable {

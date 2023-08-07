@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterServerInfo;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -111,7 +112,7 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
                             return nodeInfo.getNode().withTransportAddress(remoteClusterServerInfo.getAddress().publishAddress());
                         }).filter(Objects::nonNull).toList();
                         l.onResponse(new Response(remoteClusterNodes));
-                    }), NodesInfoResponse::new)
+                    }), NodesInfoResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
                 );
             }
         }

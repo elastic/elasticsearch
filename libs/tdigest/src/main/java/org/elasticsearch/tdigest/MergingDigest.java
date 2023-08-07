@@ -24,7 +24,6 @@ package org.elasticsearch.tdigest;
 import java.util.AbstractCollection;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.List;
 
 /**
  * Maintains a t-digest by collecting new points in a buffer that is then sorted occasionally and merged
@@ -234,56 +233,6 @@ public class MergingDigest extends AbstractTDigest {
         }
     }
 
-    private void add(double[] m, double[] w, int count) {
-        if (m.length != w.length) {
-            throw new IllegalArgumentException("Arrays not same length");
-        }
-        if (m.length < count + lastUsedCell) {
-            // make room to add existing centroids
-            double[] m1 = new double[count + lastUsedCell];
-            System.arraycopy(m, 0, m1, 0, count);
-            m = m1;
-            double[] w1 = new double[count + lastUsedCell];
-            System.arraycopy(w, 0, w1, 0, count);
-            w = w1;
-        }
-        double total = 0;
-        for (int i = 0; i < count; i++) {
-            total += w[i];
-        }
-        merge(m, w, count, null, total, false, compression);
-    }
-
-    @Override
-    public void add(List<? extends TDigest> others) {
-        if (others.size() == 0) {
-            return;
-        }
-        int size = 0;
-        for (TDigest other : others) {
-            other.compress();
-            size += other.centroidCount();
-        }
-
-        double[] m = new double[size];
-        double[] w = new double[size];
-        int offset = 0;
-        for (TDigest other : others) {
-            if (other instanceof MergingDigest md) {
-                System.arraycopy(md.mean, 0, m, offset, md.lastUsedCell);
-                System.arraycopy(md.weight, 0, w, offset, md.lastUsedCell);
-                offset += md.lastUsedCell;
-            } else {
-                for (Centroid centroid : other.centroids()) {
-                    m[offset] = centroid.mean();
-                    w[offset] = centroid.count();
-                    offset++;
-                }
-            }
-        }
-        add(m, w, size);
-    }
-
     private void mergeNewValues() {
         mergeNewValues(compression);
     }
@@ -313,8 +262,6 @@ public class MergingDigest extends AbstractTDigest {
     ) {
         // when our incoming buffer fills up, we combine our existing centroids with the incoming data,
         // and then reduce the centroids by merging if possible
-        assert lastUsedCell <= 0 || weight[0] == 1;
-        assert lastUsedCell <= 0 || weight[lastUsedCell - 1] == 1;
         System.arraycopy(mean, 0, incomingMean, incomingCount, lastUsedCell);
         System.arraycopy(weight, 0, incomingWeight, incomingCount, lastUsedCell);
         incomingCount += lastUsedCell;

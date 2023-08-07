@@ -1,0 +1,6 @@
+pr: 97251
+summary: Chunk the GET _ilm/policy response
+area: ILM+SLM
+type: enhancement
+issues:
+ - 96569

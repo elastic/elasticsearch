@@ -130,9 +130,9 @@ public class IndexVersionTests extends ESTestCase {
     public void testMin() {
         assertEquals(
             IndexVersionUtils.getPreviousVersion(),
-            IndexVersion.min(IndexVersion.CURRENT, IndexVersionUtils.getPreviousVersion())
+            IndexVersion.min(IndexVersion.current(), IndexVersionUtils.getPreviousVersion())
         );
-        assertEquals(IndexVersion.fromId(1_01_01_99), IndexVersion.min(IndexVersion.fromId(1_01_01_99), IndexVersion.CURRENT));
+        assertEquals(IndexVersion.fromId(1_01_01_99), IndexVersion.min(IndexVersion.fromId(1_01_01_99), IndexVersion.current()));
         IndexVersion version = IndexVersionUtils.randomVersion();
         IndexVersion version1 = IndexVersionUtils.randomVersion();
         if (version.id() <= version1.id()) {
@@ -143,8 +143,8 @@ public class IndexVersionTests extends ESTestCase {
     }
 
     public void testMax() {
-        assertEquals(IndexVersion.CURRENT, IndexVersion.max(IndexVersion.CURRENT, IndexVersionUtils.getPreviousVersion()));
-        assertEquals(IndexVersion.CURRENT, IndexVersion.max(IndexVersion.fromId(1_01_01_99), IndexVersion.CURRENT));
+        assertEquals(IndexVersion.current(), IndexVersion.max(IndexVersion.current(), IndexVersionUtils.getPreviousVersion()));
+        assertEquals(IndexVersion.current(), IndexVersion.max(IndexVersion.fromId(1_01_01_99), IndexVersion.current()));
         IndexVersion version = IndexVersionUtils.randomVersion();
         IndexVersion version1 = IndexVersionUtils.randomVersion();
         if (version.id() >= version1.id()) {
@@ -155,8 +155,8 @@ public class IndexVersionTests extends ESTestCase {
     }
 
     public void testVersionConstantPresent() {
-        Set<IndexVersion> ignore = Set.of(IndexVersion.ZERO, IndexVersion.CURRENT, IndexVersion.MINIMUM_COMPATIBLE);
-        assertThat(IndexVersion.CURRENT, sameInstance(IndexVersion.fromId(IndexVersion.CURRENT.id())));
+        Set<IndexVersion> ignore = Set.of(IndexVersion.ZERO, IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE);
+        assertThat(IndexVersion.current(), sameInstance(IndexVersion.fromId(IndexVersion.current().id())));
         final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
             IndexVersion version = IndexVersionUtils.randomVersion(ignore);
@@ -166,7 +166,7 @@ public class IndexVersionTests extends ESTestCase {
     }
 
     public void testCURRENTIsLatest() {
-        assertThat(Collections.max(IndexVersion.getAllVersions()), is(IndexVersion.CURRENT));
+        assertThat(Collections.max(IndexVersion.getAllVersions()), is(IndexVersion.current()));
     }
 
     public void testToString() {

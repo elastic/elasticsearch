@@ -12,10 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.AsyncBiFunction;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,15 +52,13 @@ final class TransportKeepAlive implements Closeable {
     private final CounterMetric successfulPings = new CounterMetric();
     private final CounterMetric failedPings = new CounterMetric();
     private final ConcurrentMap<TimeValue, ScheduledPing> pingIntervals = ConcurrentCollections.newConcurrentMap();
-    private final Lifecycle lifecycle = new Lifecycle();
     private final ThreadPool threadPool;
     private final AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender;
+    private volatile boolean isClosed;
 
     TransportKeepAlive(ThreadPool threadPool, AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender) {
         this.threadPool = threadPool;
         this.pingSender = pingSender;
-
-        this.lifecycle.moveToStarted();
     }
 
     void registerNodeConnection(List<TcpChannel> nodeChannels, ConnectionProfile connectionProfile) {
@@ -124,13 +121,10 @@ final class TransportKeepAlive implements Closeable {
 
     @Override
     public void close() {
-        synchronized (lifecycle) {
-            lifecycle.moveToStopped();
-            lifecycle.moveToClosed();
-        }
+        isClosed = true;
     }
 
-    private class ScheduledPing extends AbstractLifecycleRunnable {
+    private class ScheduledPing extends AbstractRunnable {
 
         private final TimeValue pingInterval;
 
@@ -140,7 +134,6 @@ final class TransportKeepAlive implements Closeable {
         private volatile long lastPingRelativeMillis;
 
         private ScheduledPing(TimeValue pingInterval) {
-            super(lifecycle, logger);
             this.pingInterval = pingInterval;
             this.lastPingRelativeMillis = threadPool.relativeTimeInMillis();
         }
@@ -160,7 +153,11 @@ final class TransportKeepAlive implements Closeable {
         }
 
         @Override
-        protected void doRunInLifecycle() {
+        protected void doRun() throws Exception {
+            if (isClosed) {
+                return;
+            }
+
             for (TcpChannel channel : channels) {
                 // In the future it is possible that we may want to kill a channel if we have not read from
                 // the channel since the last ping. However, this will need to be backwards compatible with
@@ -173,7 +170,11 @@ final class TransportKeepAlive implements Closeable {
         }
 
         @Override
-        protected void onAfterInLifecycle() {
+        public void onAfter() {
+            if (isClosed) {
+                return;
+            }
+
             threadPool.scheduleUnlessShuttingDown(pingInterval, ThreadPool.Names.GENERIC, this);
         }
 

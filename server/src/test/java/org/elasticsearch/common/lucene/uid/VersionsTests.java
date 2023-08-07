@@ -231,7 +231,7 @@ public class VersionsTests extends ESTestCase {
 
         Document doc = new Document();
         doc.add(new StringField(IdFieldMapper.NAME, "1", Field.Store.YES));
-        doc.add(new LongPoint(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 1_000));
+        doc.add(new LongPoint(DataStream.TIMESTAMP_FIELD_NAME, 1_000));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, 0L));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 1L));
@@ -239,7 +239,7 @@ public class VersionsTests extends ESTestCase {
 
         doc = new Document();
         doc.add(new StringField(IdFieldMapper.NAME, "2", Field.Store.YES));
-        doc.add(new LongPoint(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 10_000));
+        doc.add(new LongPoint(DataStream.TIMESTAMP_FIELD_NAME, 10_000));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, 0L));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 1L));

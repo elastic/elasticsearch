@@ -28,6 +28,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -56,6 +57,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -154,7 +156,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected IndexVersion getVersion() {
-        return IndexVersion.CURRENT;
+        return IndexVersion.current();
     }
 
     protected final MapperService createMapperService(Settings settings, XContentBuilder mappings) throws IOException {
@@ -172,7 +174,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected final MapperService createMapperService(Settings settings, String mappings) throws IOException {
-        MapperService mapperService = createMapperService(IndexVersion.CURRENT, settings, () -> true, mapping(b -> {}));
+        MapperService mapperService = createMapperService(IndexVersion.current(), settings, () -> true, mapping(b -> {}));
         merge(mapperService, mappings);
         return mapperService;
     }
@@ -214,7 +216,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                 throw new UnsupportedOperationException();
             },
             indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
-            this::compileScript
+            this::compileScript,
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
         );
     }
 
@@ -227,7 +230,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected static IndexSettings createIndexSettings(IndexVersion version, Settings settings) {
-        settings = indexSettings(1, 0).put(settings).put("index.version.created", version.id()).build();
+        settings = indexSettings(1, 0).put(settings).put("index.version.created", version).build();
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
         return new IndexSettings(meta, settings);
     }
@@ -273,7 +276,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
+        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates, false);
     }
 
     /**
@@ -425,6 +428,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             public IndexSettings getIndexSettings() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ClusterSettings getClusterSettings() {
                 throw new UnsupportedOperationException();
             }
 
@@ -630,17 +638,22 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         final SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         final long nowInMillis = randomNonNegativeLong();
-        return new SearchExecutionContext(0, 0, indexSettings, new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
+        return new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
+            new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
+                @Override
+                public void onCache(ShardId shardId, Accountable accountable) {
 
-            }
+                }
 
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
+                @Override
+                public void onRemoval(ShardId shardId, Accountable accountable) {
 
-            }
-        }),
+                }
+            }),
             (ft, fdc) -> ft.fielddataBuilder(fdc).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),
@@ -700,7 +713,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         try (Directory roundTripDirectory = newDirectory()) {
             RandomIndexWriter roundTripIw = new RandomIndexWriter(random(), roundTripDirectory);
             roundTripIw.addDocument(
-                mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON, null, Map.of())).rootDoc()
+                mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON, null, Map.of(), false)).rootDoc()
             );
             roundTripIw.close();
             try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {

@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -36,6 +36,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -89,6 +90,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTestCase {
 
@@ -295,6 +297,10 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
     }
 
     public void testRetryBulkShardOperations() throws Exception {
+        final var threadpool = mock(ThreadPool.class);
+        final var transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadpool);
+
         try (ReplicationGroup leaderGroup = createLeaderGroup(between(0, 1))) {
             leaderGroup.startAll();
             try (ReplicationGroup followerGroup = createFollowGroup(leaderGroup, between(1, 3))) {
@@ -344,7 +350,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
                             followingPrimary,
                             logger,
-                            new PostWriteRefresh(mock(TransportService.class))
+                            new PostWriteRefresh(transportService)
                         );
                     for (IndexShard replica : randomSubsetOf(followerGroup.getReplicas())) {
                         final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
@@ -515,7 +521,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     new RecoverySource.SnapshotRecoverySource(
                         UUIDs.randomBase64UUID(),
                         snapshot,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         new IndexId("test", UUIDs.randomBase64UUID(random()))
                     )
                 );
@@ -713,7 +719,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     retentionLeaseId,
                     followerGlobalCheckpoint.getAsLong(),
                     "ccr",
-                    ActionListener.wrap(response::onResponse, e -> fail(e.toString()))
+                    ActionTestUtils.assertNoFailureListener(response::onResponse)
                 );
                 response.actionGet();
                 return threadPool.scheduleWithFixedDelay(
@@ -798,6 +804,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
             primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME);
             final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
+            final var threadpool = mock(ThreadPool.class);
+            final var transportService = mock(TransportService.class);
+            when(transportService.getThreadPool()).thenReturn(threadpool);
             try (Releasable ignored = permitFuture.get()) {
                 ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(
                     primary.shardId(),
@@ -806,7 +815,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     request.getMaxSeqNoOfUpdatesOrDeletes(),
                     primary,
                     logger,
-                    new PostWriteRefresh(mock(TransportService.class))
+                    new PostWriteRefresh(transportService)
                 );
                 TransportWriteActionTestHelper.performPostWriteActions(primary, request, ccrResult.location, logger);
             } catch (InterruptedException | ExecutionException | IOException e) {

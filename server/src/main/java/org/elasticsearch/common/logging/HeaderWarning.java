@@ -89,8 +89,8 @@ public class HeaderWarning {
         Locale.ROOT,
         "299 Elasticsearch-%s%s-%s",
         Version.CURRENT.toString(),
-        Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
-        Build.CURRENT.hash()
+        Build.current().isSnapshot() ? "-SNAPSHOT" : "",
+        Build.current().hash()
     );
 
     private static BitSet doesNotNeedEncoding;

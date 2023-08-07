@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
-import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -75,11 +74,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.cluster.metadata.DataLifecycle.DLM_ORIGIN;
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -431,8 +431,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             InternalUsers.XPACK_USER,
             ASYNC_SEARCH_ORIGIN,
             InternalUsers.ASYNC_SEARCH_USER,
-            DLM_ORIGIN,
-            InternalUsers.DLM_USER
+            DATA_STREAM_LIFECYCLE_ORIGIN,
+            InternalUsers.DATA_STREAM_LIFECYCLE_USER
         );
 
         final String origin = randomFrom(originToUserMap.keySet());
@@ -497,6 +497,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 threadContext.wrapRestorable(storedContext),
                 new TransportResponseHandler.Empty() {
                     @Override
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
+                    @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         assertEquals("bar", threadContext.getTransient("foo"));
                         assertEquals("value", threadContext.getHeader("key"));
@@ -526,6 +531,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             handler = new TransportService.ContextRestoreResponseHandler<>(
                 threadContext.newRestorableContext(true),
                 new TransportResponseHandler.Empty() {
+                    @Override
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         assertEquals("different_bar", threadContext.getTransient("foo"));
@@ -624,6 +634,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final AtomicBoolean calledHandleException = new AtomicBoolean(false);
         final AtomicReference<TransportException> actualException = new AtomicReference<>();
         sender.sendRequest(connection, "action", mock(TransportRequest.class), null, new TransportResponseHandler<>() {
+            @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
             @Override
             public void handleResponse(TransportResponse response) {
                 fail("should not receive a response");
@@ -792,6 +807,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
         sender.sendRequest(connection, action, request, null, new TransportResponseHandler<>() {
             @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
+            @Override
             public void handleResponse(TransportResponse response) {
                 // Headers should get restored before handle response is called
                 assertThat(securityContext.getAuthentication(), equalTo(authentication));
@@ -931,17 +951,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .user(
-                new User(
-                    randomAlphaOfLengthBetween(3, 10),
-                    randomArray(
-                        0,
-                        4,
-                        String[]::new,
-                        () -> randomValueOtherThanMany(ReservedRolesStore::isReserved, () -> randomAlphaOfLengthBetween(1, 20))
-                    )
-                )
-            )
+            .user(new User(randomAlphaOfLengthBetween(3, 10), randomArray(0, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 20))))
             .realm()
             .build();
         authentication.writeToContext(threadContext);
@@ -994,6 +1004,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final AtomicBoolean calledHandleException = new AtomicBoolean(false);
         final AtomicReference<TransportException> actualException = new AtomicReference<>();
         sender.sendRequest(connection, "action", mock(TransportRequest.class), null, new TransportResponseHandler<>() {
+            @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
             @Override
             public void handleResponse(TransportResponse response) {
                 fail("should not receive a response");
@@ -1090,6 +1105,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
         final var actualException = new AtomicReference<Throwable>();
         sender.sendRequest(connection, "action", mock(TransportRequest.class), null, new TransportResponseHandler<>() {
+            @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
             @Override
             public void handleResponse(TransportResponse response) {
                 fail("should not success");

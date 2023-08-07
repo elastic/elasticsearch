@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.migration;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Collections;
@@ -89,7 +89,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
     private static GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus createFeatureStatus() {
         return new GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
             randomAlphaOfLengthBetween(3, 20),
-            randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+            randomFrom(IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE),
             randomFrom(org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.values()),
             randomList(4, GetFeatureUpgradeStatusResponseTests::getIndexInfo)
         );
@@ -98,7 +98,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
     private static GetFeatureUpgradeStatusResponse.IndexInfo getIndexInfo() {
         return new GetFeatureUpgradeStatusResponse.IndexInfo(
             randomAlphaOfLengthBetween(3, 20),
-            randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+            randomFrom(IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE),
             null
         );
     }

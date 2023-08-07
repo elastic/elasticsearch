@@ -65,9 +65,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String field = "foo";
         indexRandom(true, client().prepareIndex().setIndex(index).setSource(field, "bar"));
 
-        GetFieldMappingsResponse response = client().admin()
-            .indices()
-            .prepareGetFieldMappings()
+        GetFieldMappingsResponse response = indicesAdmin().prepareGetFieldMappings()
             .addIndices("logstash-*")
             .setFields("*")
             .includeDefaults(true)
@@ -89,11 +87,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String field = "foo";
         indexRandom(true, client().prepareIndex().setIndex(index).setSource(field, "bar"));
 
-        ValidateQueryResponse response = client().admin()
-            .indices()
-            .prepareValidateQuery(index)
-            .setQuery(QueryBuilders.termQuery(field, "bar"))
-            .get();
+        ValidateQueryResponse response = indicesAdmin().prepareValidateQuery(index).setQuery(QueryBuilders.termQuery(field, "bar")).get();
         assertThat(response.isValid(), is(true));
 
         response = client().filterWithHeader(
@@ -133,7 +127,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String field = "foo";
         indexRandom(true, client().prepareIndex().setIndex(index).setSource(field, "bar"));
 
-        GetIndexResponse response = client().admin().indices().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex().setIndices(index).get();
         assertThat(response.getIndices(), arrayContaining(index));
 
         response = client().filterWithHeader(

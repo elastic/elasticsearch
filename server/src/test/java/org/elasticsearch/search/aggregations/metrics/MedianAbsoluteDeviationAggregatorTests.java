@@ -127,7 +127,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
                 writer.addDocument(Arrays.asList(new IntPoint(FIELD_NAME, point), new SortedNumericDocValuesField(FIELD_NAME, point)));
             }
         }, agg -> {
-            assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(filteredSample)));
+            assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(filteredSample), 0.2));
             assertTrue(AggregationInspectionHelper.hasValue(agg));
         });
     }

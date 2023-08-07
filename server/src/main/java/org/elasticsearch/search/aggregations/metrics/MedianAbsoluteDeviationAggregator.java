@@ -92,7 +92,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
                 TDigestState valueSketch = valueSketches.get(bucket);
                 if (valueSketch == null) {
-                    valueSketch = TDigestState.create(compression);
+                    valueSketch = TDigestState.create(compression, executionHint);
                     valueSketches.set(bucket, valueSketch);
                 }
 

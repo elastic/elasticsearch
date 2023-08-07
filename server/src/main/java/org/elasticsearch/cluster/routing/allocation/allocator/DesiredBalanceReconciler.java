@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -22,11 +21,13 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -145,7 +146,7 @@ public class DesiredBalanceReconciler {
 
             final var shardCounts = allocation.metadata().stream().filter(indexMetadata ->
             // skip any pre-7.2 closed indices which have no routing table entries at all
-            indexMetadata.getCreationVersion().onOrAfter(Version.V_7_2_0)
+            indexMetadata.getCreationVersion().onOrAfter(IndexVersion.V_7_2_0)
                 || indexMetadata.getState() == IndexMetadata.State.OPEN
                 || MetadataIndexStateService.isIndexVerifiedBeforeClosed(indexMetadata))
                 .flatMap(
@@ -378,7 +379,7 @@ public class DesiredBalanceReconciler {
                 final var moveTarget = findRelocationTarget(shardRouting, assignment.nodeIds());
                 if (moveTarget != null) {
                     logger.debug("Moving shard {} from {} to {}", shardRouting.shardId(), shardRouting.currentNodeId(), moveTarget.getId());
-                    routingNodes.relocateOrReinitializeShard(
+                    routingNodes.relocateShard(
                         shardRouting,
                         moveTarget.getId(),
                         allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
@@ -443,7 +444,7 @@ public class DesiredBalanceReconciler {
                         rebalanceTarget.getId()
                     );
 
-                    routingNodes.relocateOrReinitializeShard(
+                    routingNodes.relocateShard(
                         shardRouting,
                         rebalanceTarget.getId(),
                         allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
@@ -461,11 +462,11 @@ public class DesiredBalanceReconciler {
             if (allAllocations > 0 && undesiredAllocations > undesiredAllocationsLogThreshold * allAllocations) {
                 undesiredAllocationLogInterval.maybeExecute(
                     () -> logger.warn(
-                        "[{}%] of assigned shards ({}/{}) are not on their desired nodes, which exceeds the warn threshold of [{}%]",
-                        100.0 * undesiredAllocations / allAllocations,
+                        "[{}] of assigned shards ({}/{}) are not on their desired nodes, which exceeds the warn threshold of [{}]",
+                        Strings.format1Decimals(100.0 * undesiredAllocations / allAllocations, "%"),
                         undesiredAllocations,
                         allAllocations,
-                        100.0 * undesiredAllocationsLogThreshold
+                        Strings.format1Decimals(100.0 * undesiredAllocationsLogThreshold, "%")
                     )
                 );
             }

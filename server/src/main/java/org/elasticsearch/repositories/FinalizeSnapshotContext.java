@@ -9,12 +9,12 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 
@@ -41,7 +41,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
 
     private final SnapshotInfo snapshotInfo;
 
-    private final Version repositoryMetaVersion;
+    private final IndexVersion repositoryMetaVersion;
 
     private final Consumer<SnapshotInfo> onDone;
 
@@ -61,7 +61,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         long repositoryStateId,
         Metadata clusterMetadata,
         SnapshotInfo snapshotInfo,
-        Version repositoryMetaVersion,
+        IndexVersion repositoryMetaVersion,
         ActionListener<RepositoryData> listener,
         Consumer<SnapshotInfo> onDone
     ) {
@@ -86,7 +86,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         return snapshotInfo;
     }
 
-    public Version repositoryMetaVersion() {
+    public IndexVersion repositoryMetaVersion() {
         return repositoryMetaVersion;
     }
 

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -37,6 +36,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
@@ -86,7 +86,7 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GEN
  */
 public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXContentObject {
 
-    private static final Version RUNTIME_MAPPINGS_INTRODUCED = Version.V_7_11_0;
+    private static final MlConfigVersion RUNTIME_MAPPINGS_INTRODUCED = MlConfigVersion.V_7_11_0;
 
     public static final int DEFAULT_SCROLL_SIZE = 1000;
 
@@ -340,7 +340,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return scrollSize;
     }
 
-    public Optional<Tuple<Version, String>> minRequiredClusterVersion() {
+    public Optional<Tuple<MlConfigVersion, String>> minRequiredConfigVersion() {
         return runtimeMappings.isEmpty()
             ? Optional.empty()
             : Optional.of(Tuple.tuple(RUNTIME_MAPPINGS_INTRODUCED, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()));

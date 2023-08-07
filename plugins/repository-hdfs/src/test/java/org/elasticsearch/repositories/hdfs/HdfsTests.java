@@ -143,7 +143,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testMissingUri() {
         try {
-            client().admin().cluster().preparePutRepository("test-repo").setType("hdfs").setSettings(Settings.EMPTY).get();
+            clusterAdmin().preparePutRepository("test-repo").setType("hdfs").setSettings(Settings.EMPTY).get();
             fail();
         } catch (RepositoryException e) {
             assertTrue(e.getCause() instanceof IllegalArgumentException);
@@ -153,9 +153,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testEmptyUri() {
         try {
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository("test-repo")
                 .setType("hdfs")
                 .setSettings(Settings.builder().put("uri", "/path").build())
                 .get();
@@ -168,9 +166,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testNonHdfsUri() {
         try {
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository("test-repo")
                 .setType("hdfs")
                 .setSettings(Settings.builder().put("uri", "file:///").build())
                 .get();
@@ -183,9 +179,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testPathSpecifiedInHdfs() {
         try {
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository("test-repo")
                 .setType("hdfs")
                 .setSettings(Settings.builder().put("uri", "hdfs:///some/path").build())
                 .get();
@@ -198,9 +192,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testMissingPath() {
         try {
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository("test-repo")
                 .setType("hdfs")
                 .setSettings(Settings.builder().put("uri", "hdfs:///").build())
                 .get();
@@ -208,6 +200,80 @@ public class HdfsTests extends ESSingleNodeTestCase {
         } catch (RepositoryException e) {
             assertTrue(e.getCause() instanceof IllegalArgumentException);
             assertTrue(e.getCause().getMessage().contains("No 'path' defined for hdfs"));
+        }
+    }
+
+    public void testReplicationFactorBelowOne() {
+        try {
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(Settings.builder().put("uri", "hdfs:///").put("replication_factor", "0").put("path", "foo").build())
+                .get();
+            fail();
+        } catch (RepositoryException e) {
+            assertTrue(e.getCause() instanceof RepositoryException);
+            assertTrue(e.getCause().getMessage().contains("Value of replication_factor [0] must be >= 1"));
+        }
+    }
+
+    public void testReplicationFactorOverMaxShort() {
+        try {
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(Settings.builder().put("uri", "hdfs:///").put("replication_factor", "32768").put("path", "foo").build())
+                .get();
+            fail();
+        } catch (RepositoryException e) {
+            assertTrue(e.getCause() instanceof RepositoryException);
+            assertTrue(e.getCause().getMessage().contains("Value of replication_factor [32768] must be <= 32767"));
+        }
+    }
+
+    public void testReplicationFactorBelowReplicationMin() {
+        try {
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(
+                    Settings.builder()
+                        .put("uri", "hdfs:///")
+                        .put("replication_factor", "4")
+                        .put("path", "foo")
+                        .put("conf.dfs.replication.min", "5")
+                        .build()
+                )
+                .get();
+            fail();
+        } catch (RepositoryException e) {
+            assertTrue(e.getCause() instanceof RepositoryException);
+            assertTrue(e.getCause().getMessage().contains("Value of replication_factor [4] must be >= dfs.replication.min [5]"));
+        }
+    }
+
+    public void testReplicationFactorOverReplicationMax() {
+        try {
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(
+                    Settings.builder()
+                        .put("uri", "hdfs:///")
+                        .put("replication_factor", "600")
+                        .put("path", "foo")
+                        .put("conf.dfs.replication.max", "512")
+                        .build()
+                )
+                .get();
+            fail();
+        } catch (RepositoryException e) {
+            assertTrue(e.getCause() instanceof RepositoryException);
+            assertTrue(e.getCause().getMessage().contains("Value of replication_factor [600] must be <= dfs.replication.max [512]"));
         }
     }
 

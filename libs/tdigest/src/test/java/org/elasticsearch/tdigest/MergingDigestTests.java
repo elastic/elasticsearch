@@ -62,9 +62,7 @@ public class MergingDigestTests extends TDigestTests {
 
         // Merge all mds one at a time into md.
         for (int i = 0; i < M; ++i) {
-            List<MergingDigest> singleton = new ArrayList<>();
-            singleton.add(mds.get(i));
-            md.add(singleton);
+            md.add(mds.get(i));
         }
         Assert.assertFalse(Double.isNaN(md.quantile(0.01)));
 

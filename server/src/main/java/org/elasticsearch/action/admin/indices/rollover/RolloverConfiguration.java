@@ -26,8 +26,8 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * This class holds the configuration of the rollover conditions as they are defined in DLM lifecycle. Currently, it can handle automatic
- * configuration for the max index age condition.
+ * This class holds the configuration of the rollover conditions as they are defined in data stream lifecycle. Currently, it can handle
+ * automatic configuration for the max index age condition.
  */
 public class RolloverConfiguration implements Writeable, ToXContentObject {
 

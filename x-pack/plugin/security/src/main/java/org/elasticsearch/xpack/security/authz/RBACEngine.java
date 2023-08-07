@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.AliasesRequest;
@@ -142,14 +143,19 @@ public class RBACEngine implements AuthorizationEngine {
     @Override
     public void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener) {
         final Authentication authentication = requestInfo.getAuthentication();
-        rolesStore.getRoles(
-            authentication,
-            listener.delegateFailureAndWrap((l, roleTuple) -> l.onResponse(new RBACAuthorizationInfo(roleTuple.v1(), roleTuple.v2())))
-        );
+        rolesStore.getRoles(authentication, listener.delegateFailureAndWrap((l, roleTuple) -> {
+            if (roleTuple.v1() == Role.EMPTY_RESTRICTED_BY_WORKFLOW || roleTuple.v2() == Role.EMPTY_RESTRICTED_BY_WORKFLOW) {
+                l.onFailure(new ElasticsearchRoleRestrictionException("access restricted by workflow"));
+            } else {
+                l.onResponse(new RBACAuthorizationInfo(roleTuple.v1(), roleTuple.v2()));
+            }
+        }));
     }
 
     @Override
     public void resolveAuthorizationInfo(Subject subject, ActionListener<AuthorizationInfo> listener) {
+        // TODO: When we expand support of workflows restriction to broader use cases (other than API keys for Search Application),
+        // we should revisit this method and handle workflows in a consistent way.
         rolesStore.getRole(subject, listener.map(role -> new RBACAuthorizationInfo(role, role)));
     }
 

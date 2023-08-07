@@ -253,7 +253,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put("location", randomRepoPath()))
             .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
-        client().admin().cluster().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
+        clusterAdmin().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
 
         verify(snapshot("snap2", "test1", "test2"), true);
         verify(restore("snap1", "test1", "test2"), true);
@@ -370,7 +370,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put("location", randomRepoPath()))
             .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
-        client().admin().cluster().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
+        clusterAdmin().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
 
         IndicesOptions options = IndicesOptions.fromOptions(false, false, true, false);
         verify(snapshot("snap2", "foo*", "bar*").setIndicesOptions(options), true);

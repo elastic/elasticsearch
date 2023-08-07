@@ -71,6 +71,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static java.lang.Math.min;
 import static org.elasticsearch.index.IndexMode.TIME_SERIES;
 import static org.elasticsearch.index.mapper.TimeSeriesParams.MetricType.POSITION;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -236,13 +237,13 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             sortValues[i] = i;
         }
 
-        int lineSize = Math.min(numPoints, size);
+        int lineSize = min(numPoints, size);
         // re-sort line to be ascending
         long[] linePoints = Arrays.copyOf(points, lineSize);
         double[] lineSorts = Arrays.copyOf(sortValues, lineSize);
         PathArraySorter.forOrder(SortOrder.ASC).apply(linePoints, lineSorts).sort();
 
-        lines.put(groupOrd, new InternalGeoLine("track", linePoints, lineSorts, null, complete, true, SortOrder.ASC, size));
+        lines.put(groupOrd, new InternalGeoLine("track", linePoints, lineSorts, null, complete, true, SortOrder.ASC, size, false, false));
 
         testCase(aggregationBuilder, iw -> {
             for (int i = 0; i < points.length; i++) {
@@ -431,9 +432,11 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
     private void assertGeoLine(SortOrder sortOrder, String group, InternalGeoLine geoLine, TestTSAssertionResults tsx, boolean complete) {
         long[] expectedAggPoints = tsx.expectedAggPoints.get(group);
         double[] expectedAggSortValues = tsx.expectedAggSortValues.get(group);
-        String prefix = "GeoLine[sort=" + sortOrder + ", use-timestamps=" + tsx.useTimestampField + "]";
+        String prefix = "GeoLine[sort=" + sortOrder + ", use-timestamps=" + tsx.useTimeSeriesAggregation + ", group='" + group + "']";
         assertThat(prefix + " is complete", geoLine.isComplete(), is(complete));
-        assertThat(prefix + " contents", geoLine.line(), isGeoLine(tsx.useTimestampField, expectedAggPoints));
+        // old geo_line has a bug whereby it can produce lines with truncation happening in the middle instead of the end
+        int checkCount = tsx.useTimeSeriesAggregation ? expectedAggPoints.length : min(expectedAggPoints.length / 2, geoLine.line().length);
+        assertThat(prefix + " contents", geoLine.line(), isGeoLine(checkCount, expectedAggPoints));
         double[] sortValues = geoLine.sortVals();
         for (int i = 1; i < sortValues.length; i++) {
             Matcher<Double> sortMatcher = switch (sortOrder) {
@@ -442,26 +445,26 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             };
             assertThat(prefix + " expect ordered '" + sortOrder + "' sort values", sortValues[i], sortMatcher);
         }
-        if (tsx.useTimestampField) {
+        if (checkCount == expectedAggSortValues.length) {
             assertArrayEquals(prefix + " sort values", expectedAggSortValues, sortValues, 0d);
         } else {
-            for (int i = 0; i < Math.min(expectedAggSortValues.length, sortValues.length); i++) {
+            for (int i = 0; i < checkCount; i++) {
                 assertThat(prefix + " sort value " + i, expectedAggSortValues[i], equalTo(sortValues[i]));
             }
         }
     }
 
-    private Matcher<long[]> isGeoLine(boolean matchLength, long[] line) {
-        return new TestGeoLineLongArrayMatcher(matchLength, line);
+    private Matcher<long[]> isGeoLine(int checkCount, long[] line) {
+        return new TestGeoLineLongArrayMatcher(checkCount, line);
     }
 
     private static class TestGeoLineLongArrayMatcher extends BaseMatcher<long[]> {
-        private final boolean matchLength;
+        private final int checkCount;
         private final long[] expectedLine;
         private final ArrayList<String> failures = new ArrayList<>();
 
-        private TestGeoLineLongArrayMatcher(boolean matchLength, long[] expectedLine) {
-            this.matchLength = matchLength;
+        private TestGeoLineLongArrayMatcher(int checkCount, long[] expectedLine) {
+            this.checkCount = checkCount;
             this.expectedLine = expectedLine;
         }
 
@@ -469,10 +472,10 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         public boolean matches(Object actualObj) {
             failures.clear();
             if (actualObj instanceof long[] actualLine) {
-                if (matchLength && actualLine.length != expectedLine.length) {
+                if (checkCount == expectedLine.length && actualLine.length != expectedLine.length) {
                     failures.add("Expected length " + expectedLine.length + " but got " + actualLine.length);
                 }
-                for (int i = 0; i < Math.min(expectedLine.length, actualLine.length); i++) {
+                for (int i = 0; i < checkCount; i++) {
                     Point actual = asPoint(actualLine[i]);
                     Point expected = asPoint(expectedLine[i]);
                     if (actual.equals(expected) == false) {
@@ -515,11 +518,11 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
      * Wrapper for points and sort fields that is also usable in the GeometrySimplifier library,
      * allowing us to track which points will survive geometry simplification during geo_line aggregations.
      */
-    private static class TestSimplifiablePoint extends StreamingGeometrySimplifier.PointError {
+    static class TestSimplifiablePoint extends StreamingGeometrySimplifier.PointError {
         private final double sortField;
         private final long encoded;
 
-        private TestSimplifiablePoint(int index, double x, double y, double sortField) {
+        TestSimplifiablePoint(int index, double x, double y, double sortField) {
             super(index, quantizeX(x), quantizeY(y));
             this.sortField = sortField;
             this.encoded = encode(x(), y());
@@ -551,9 +554,9 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
     }
 
     /** Allow test to use own objects for internal use in geometry simplifier, so we can track the sort-fields together with the points */
-    private static class TestLine implements Geometry {
-        private final long[] encodedPoints;
-        private final double[] sortValues;
+    static class TestLine implements Geometry {
+        final long[] encodedPoints;
+        final double[] sortValues;
 
         private TestLine(int length, StreamingGeometrySimplifier.PointError[] points) {
             this.encodedPoints = new long[length];
@@ -593,9 +596,9 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private static class TestGeometrySimplifierMonitor implements StreamingGeometrySimplifier.Monitor {
-        private int addedCount;
-        private int removedCount;
+    static class TestGeometrySimplifierMonitor implements StreamingGeometrySimplifier.Monitor {
+        int addedCount;
+        int removedCount;
 
         public void reset() {
             addedCount = 0;
@@ -628,8 +631,8 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
     }
 
     /** Wrapping the Streaming GeometrySimplifier allowing the test to extract expected points and their sort fields after simplification */
-    private static class TestGeometrySimplifier extends StreamingGeometrySimplifier<TestLine> {
-        private TestGeometrySimplifier(int maxPoints, TestGeometrySimplifierMonitor monitor) {
+    static class TestGeometrySimplifier extends StreamingGeometrySimplifier<TestLine> {
+        TestGeometrySimplifier(int maxPoints, TestGeometrySimplifierMonitor monitor) {
             super("TestGeometrySimplifier", maxPoints, SimplificationErrorCalculator.TRIANGLE_AREA, monitor);
         }
 
@@ -646,22 +649,19 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         int missingTimestampFactor,
         int groupCount,
         SortOrder sortOrder,
-        boolean useTimestamp
+        boolean useTimeSeriesAggregation
     ) {
-        private String sortField() {
-            return useTimestamp ? "@timestamp" : "time_field";
-        }
-
         @SuppressWarnings("SameParameterValue")
         private GeoLineAggregationBuilder lineAggregationBuilder(String name, String valueField, String sortField) {
             MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName(valueField).build();
             GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder(name).point(valueConfig)
                 .sortOrder(sortOrder)
                 .size(maxPoints);
-            if (useTimestamp) {
+            if (useTimeSeriesAggregation) {
                 // In time-series we do not set the sort field
                 return lineAggregationBuilder;
             } else {
+                // Without a time-series aggregation, we need to specify the sort-field
                 MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName(sortField).build();
                 return lineAggregationBuilder.sort(sortConfig);
             }
@@ -698,7 +698,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 // TSDB provides docs in DESC time order, so we generate the data that way to simplify assertions
                 for (int i = t.docCount - 1; i >= 0; i--) {
                     double lat = startLat + i * 0.1 + randomDoubleBetween(-0.1, 0.1, false);
-                    double lon = startLon + i * 0.1 + randomDoubleBetween(-0.1, 0.1, false);
+                    double lon = startLon - g * 10 + i * 0.1 + randomDoubleBetween(-0.1, 0.1, false);
                     GeoPoint point = (t.missingPointFactor > 0 && i % t.missingPointFactor == 0) ? null : new GeoPoint(lat, lon);
                     Long timestamp = (t.missingTimestampFactor > 0 && i % t.missingTimestampFactor == 0) ? null : startTime + 1000L * i;
                     points.add(point);
@@ -723,7 +723,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                         lessThanOrEqualTo(points.size() - deletedAtLeast)
                     );
                 }
-                if (t.useTimestamp && t.maxPoints < t.docCount) {
+                if (t.useTimeSeriesAggregation && t.maxPoints < t.docCount) {
                     // The aggregation will simplify the line in reverse order, so we need to anticipate the same simplification in the
                     // tests
                     TestGeometrySimplifierMonitor monitor = new TestGeometrySimplifierMonitor();
@@ -738,7 +738,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                     expectedAggSortValues.put(groups[g], line.sortValues);
                 } else {
                     // The aggregation will NOT simplify the line, so we should only anticipate the removal of invalid documents
-                    int pointCount = Math.min(t.maxPoints, expectedAggPointsList.size());  // possible truncation if !useTimestampField
+                    int pointCount = min(t.maxPoints, expectedAggPointsList.size());  // possible truncation if !useTimestampField
                     int offset = t.sortOrder == SortOrder.DESC ? 0 : Math.max(0, expectedAggPointsList.size() - pointCount);
                     long[] xp = new long[pointCount];
                     double[] xv = new double[pointCount];
@@ -771,13 +771,13 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
 
     private record TestTSAssertionResults(
         MultiBucketsAggregation ts,
-        boolean useTimestampField,
+        boolean useTimeSeriesAggregation,
         String[] groups,
         Map<String, long[]> expectedAggPoints,
         Map<String, double[]> expectedAggSortValues
     ) {
         private TestTSAssertionResults(MultiBucketsAggregation ts, TestConfig testConfig, TestData testData) {
-            this(ts, testConfig.useTimestamp, testData.groups, testData.expectedAggPoints, testData.expectedAggSortValues);
+            this(ts, testConfig.useTimeSeriesAggregation, testData.groups, testData.expectedAggPoints, testData.expectedAggSortValues);
         }
     }
 
@@ -853,7 +853,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 points[i] = lonLat;
                 sortValues[i] = i;
             }
-            int lineSize = Math.min(numPoints, size);
+            int lineSize = min(numPoints, size);
             // re-sort line to be ascending
             long[] linePoints = Arrays.copyOf(points, lineSize);
             double[] lineSorts = Arrays.copyOf(sortValues, lineSize);
@@ -865,7 +865,10 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             }
             PathArraySorter.forOrder(sortOrder).apply(linePoints, lineSorts).sort();
 
-            lines.put(String.valueOf(groupOrd), new InternalGeoLine("track", linePoints, lineSorts, null, complete, true, sortOrder, size));
+            lines.put(
+                String.valueOf(groupOrd),
+                new InternalGeoLine("track", linePoints, lineSorts, null, complete, true, sortOrder, size, false, false)
+            );
 
             for (int i = 0; i < randomIntBetween(1, numPoints); i++) {
                 int idx1 = randomIntBetween(0, numPoints - 1);
@@ -942,12 +945,12 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             if (timeSeries) {
                 fieldTypes.add(TimeSeriesIdFieldMapper.FIELD_TYPE);
                 fieldTypes.add(new DateFieldMapper.DateFieldType("@timestamp"));
-                fieldTypes.add(new DateFieldMapper.DateFieldType("time_field"));
                 var metricType = randomBoolean() ? POSITION : null; // metric type does not affect geo_line behaviour
                 fieldTypes.add(new GeoPointFieldMapper.GeoPointFieldType("value_field", metricType, TIME_SERIES));
             } else {
                 fieldTypes.add(new GeoPointFieldMapper.GeoPointFieldType("value_field"));
             }
+            fieldTypes.add(new DateFieldMapper.DateFieldType("time_field"));
             fieldTypes.add(new KeywordFieldMapper.KeywordFieldType("group_id", false, true, Collections.emptyMap()));
             fieldTypes.add(new NumberFieldMapper.NumberFieldType("sort_field", NumberFieldMapper.NumberType.LONG));
             AggTestConfig aggTestConfig = new AggTestConfig(aggregationBuilder, fieldTypes.toArray(new MappedFieldType[0]));

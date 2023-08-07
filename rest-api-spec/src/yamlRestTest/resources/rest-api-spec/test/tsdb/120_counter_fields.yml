@@ -1,8 +1,8 @@
 ---
 "avg aggregation on counter field":
   - skip:
-      version: " - 8.6.99"
-      reason: "counter field support added in 8.7"
+      version: " - 8.9.99"
+      reason: "counter field support added in 8.7, but exception message changed in 8.10.0"
 
   - do:
       indices.create:
@@ -43,7 +43,7 @@
   - match: { aggregations.the_counter_avg.value: null }
 
   - do:
-      catch: /Field \[counter_field\] of type \[long\] is not supported for aggregation \[avg\]/
+      catch: /Field \[counter_field\] of type \[long\]\[counter\] is not supported for aggregation \[avg\]/
       search:
         index: myindex2
         body:

@@ -6,7 +6,6 @@
 
 Returns the hot threads on each selected node in the cluster.
 
-
 [[cluster-nodes-hot-threads-api-request]]
 ==== {api-request-title}
 
@@ -53,7 +52,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 `threads`::
 		(Optional, integer) Specifies the number of hot threads to provide 
-		information for. Defaults to `3`.
+                information for. Defaults to `3`. If you are using this API for
+                troubleshooting, set this parameter to a large number (e.g.
+                `9999`) to get information about all the threads in the system.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 

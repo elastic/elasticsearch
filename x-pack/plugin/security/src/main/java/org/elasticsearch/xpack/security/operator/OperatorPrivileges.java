@@ -135,10 +135,8 @@ public class OperatorPrivileges {
                 return null;
             }
             final User user = authentication.getEffectiveSubject().getUser();
-            // Let internal users pass (also check run_as, it is impossible to run_as internal users, but just to be extra safe)
-            if (user instanceof InternalUser && false == authentication.isRunAs()) {
-                return null;
-            }
+
+            // internal user is also an operator
             if (false == isOperator(threadContext)) {
                 // Only check whether request is operator-only when user is NOT an operator
                 logger.trace("Checking operator-only violation for user [{}] and action [{}]", user, action);

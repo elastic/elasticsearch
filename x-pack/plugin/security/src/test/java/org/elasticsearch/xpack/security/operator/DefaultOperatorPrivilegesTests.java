@@ -151,8 +151,6 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
             AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR,
             threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
         );
-        // assertNull(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
-        // verify(fileOperatorUsersStore, never()).isOperatorUser(any());
 
         // Will skip if header already exist
         threadContext = new ThreadContext(settings);
@@ -195,16 +193,14 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         assertNull(operatorPrivilegesService.check(authentication, nonOperatorAction, mock(TransportRequest.class), threadContext));
     }
 
-    public void testCheckWillPassForInternalUsers() {
+    public void testCheckWillPassForInternalUsersBecauseTheyHaveOperatorPrivileges() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
+
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);
         final Authentication internalAuth = AuthenticationTestHelper.builder().internal().build();
         assertNull(
-            operatorPrivilegesService.check(
-                internalAuth,
-                randomAlphaOfLengthBetween(20, 30),
-                mock(TransportRequest.class),
-                new ThreadContext(Settings.EMPTY)
-            )
+            operatorPrivilegesService.check(internalAuth, randomAlphaOfLengthBetween(20, 30), mock(TransportRequest.class), threadContext)
         );
         verify(operatorOnlyRegistry, never()).check(anyString(), any());
     }

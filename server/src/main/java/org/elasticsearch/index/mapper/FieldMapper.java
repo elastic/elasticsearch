@@ -60,9 +60,15 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting(
         "index.mapping.ignore_malformed",
         false,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
-    public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", false, Property.IndexScope);
+    public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting(
+        "index.mapping.coerce",
+        false,
+        Property.IndexScope,
+        Property.ServerlessPublic
+    );
 
     protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
     @SuppressWarnings("rawtypes")
@@ -285,7 +291,18 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     @Override
     public Iterator<Mapper> iterator() {
+        return multiFieldsIterator();
+    }
+
+    protected Iterator<Mapper> multiFieldsIterator() {
         return Iterators.forArray(multiFields.mappers);
+    }
+
+    /**
+     * @return a mapper iterator of all fields that use this field's source path as their source path
+     */
+    public Iterator<Mapper> sourcePathUsedBy() {
+        return multiFieldsIterator();
     }
 
     @Override

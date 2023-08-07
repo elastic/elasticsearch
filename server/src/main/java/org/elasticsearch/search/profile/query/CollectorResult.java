@@ -64,10 +64,14 @@ public class CollectorResult extends ProfilerCollectorResult implements ToXConte
         out.writeString(getName());
         out.writeString(getReason());
         out.writeLong(getTime());
-        out.writeList(getCollectorResults());
+        out.writeList(getChildrenResults());
     }
 
-    public List<CollectorResult> getCollectorResults() {
+    /**
+     * Exposes a list of children collector results. Same as {@link ProfilerCollectorResult#getProfiledChildren()} with each
+     * item in the list being cast to a {@link CollectorResult}
+     */
+    public List<CollectorResult> getChildrenResults() {
         return super.getProfiledChildren().stream().map(profilerCollectorResult -> (CollectorResult) profilerCollectorResult).toList();
     }
 
@@ -80,12 +84,12 @@ public class CollectorResult extends ProfilerCollectorResult implements ToXConte
         return getName().equals(other.getName())
             && getReason().equals(other.getReason())
             && getTime() == other.getTime()
-            && getCollectorResults().equals(other.getCollectorResults());
+            && getChildrenResults().equals(other.getChildrenResults());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getName(), getReason(), getTime(), getCollectorResults());
+        return Objects.hash(getName(), getReason(), getTime(), getChildrenResults());
     }
 
     @Override
@@ -105,7 +109,7 @@ public class CollectorResult extends ProfilerCollectorResult implements ToXConte
 
         if (getProfiledChildren().isEmpty() == false) {
             builder = builder.startArray(CHILDREN.getPreferredName());
-            for (CollectorResult child : getCollectorResults()) {
+            for (CollectorResult child : getChildrenResults()) {
                 builder = child.toXContent(builder, params);
             }
             builder = builder.endArray();

@@ -12,6 +12,7 @@ import org.elasticsearch.test.cluster.util.Version;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
+import java.io.InputStream;
 import java.util.function.Supplier;
 
 public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends ClusterHandle> implements ElasticsearchCluster {
@@ -54,6 +55,12 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
     }
 
     @Override
+    public void stopNode(int index) {
+        checkHandle();
+        handle.stopNode(index);
+    }
+
+    @Override
     public void restart(boolean forcibly) {
         checkHandle();
         handle.restart(forcibly);
@@ -81,6 +88,18 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
     public String getHttpAddress(int index) {
         checkHandle();
         return handle.getHttpAddress(index);
+    }
+
+    @Override
+    public String getName(int index) {
+        checkHandle();
+        return handle.getName(index);
+    }
+
+    @Override
+    public long getPid(int index) {
+        checkHandle();
+        return handle.getPid(index);
     }
 
     @Override
@@ -117,6 +136,12 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
     public void upgradeToVersion(Version version) {
         checkHandle();
         handle.upgradeToVersion(version);
+    }
+
+    @Override
+    public InputStream getNodeLog(int index, LogType logType) {
+        checkHandle();
+        return handle.getNodeLog(index, logType);
     }
 
     private void checkHandle() {

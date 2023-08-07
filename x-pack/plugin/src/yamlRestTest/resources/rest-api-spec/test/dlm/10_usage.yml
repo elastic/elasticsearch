@@ -1,8 +1,8 @@
 ---
-"Test DLM usage stats":
+"Test data stream lifecycle usage stats":
   - skip:
       version: "- 8.8.99"
-      reason: "the dlm stats were only added to the usage api in 8.9"
+      reason: "the data stream lifecycle stats were only added to the usage api in 8.9"
       features: allowed_warnings
 
   - do:

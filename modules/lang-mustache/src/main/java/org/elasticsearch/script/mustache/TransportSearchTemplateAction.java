@@ -67,13 +67,9 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         try {
             SearchRequest searchRequest = convert(request, response, scriptService, xContentRegistry, searchUsageHolder);
             if (searchRequest != null) {
-                client.search(searchRequest, listener.delegateFailure((l, searchResponse) -> {
-                    try {
-                        response.setResponse(searchResponse);
-                        l.onResponse(response);
-                    } catch (Exception t) {
-                        l.onFailure(t);
-                    }
+                client.search(searchRequest, listener.delegateFailureAndWrap((l, searchResponse) -> {
+                    response.setResponse(searchResponse);
+                    l.onResponse(response);
                 }));
             } else {
                 listener.onResponse(response);

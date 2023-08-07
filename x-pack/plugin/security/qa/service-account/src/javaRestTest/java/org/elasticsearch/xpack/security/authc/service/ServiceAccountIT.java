@@ -84,7 +84,8 @@ public class ServiceAccountIT extends ESRestTestCase {
         {
               "cluster": [
                 "monitor",
-                "manage_own_api_key"
+                "manage_own_api_key",
+                "read_fleet_secrets"
               ],
               "indices": [
                 {
@@ -93,7 +94,8 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "metrics-*",
                     "traces-*",
                     ".logs-endpoint.diagnostic.collection-*",
-                    ".logs-endpoint.action.responses-*"
+                    ".logs-endpoint.action.responses-*",
+                    ".logs-endpoint.heartbeat-*"
                   ],
                   "privileges": [
                     "write",
@@ -135,7 +137,105 @@ public class ServiceAccountIT extends ESRestTestCase {
                 },
                 {
                   "names": [
-                    ".fleet-*"
+                    ".fleet-actions*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-agents*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-artifacts*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-enrollment-api-keys*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-policies*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-policies-leader*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-servers*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-fileds*"
                   ],
                   "privileges": [
                     "read",

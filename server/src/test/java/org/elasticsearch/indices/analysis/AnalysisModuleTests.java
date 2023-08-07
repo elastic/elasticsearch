@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.Analysis;
@@ -75,7 +76,7 @@ public class AnalysisModuleTests extends ESTestCase {
 
     public IndexAnalyzers getIndexAnalyzers(AnalysisRegistry registry, Settings settings) throws IOException {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        return registry.build(idxSettings);
+        return registry.build(IndexCreationContext.CREATE_INDEX, idxSettings);
     }
 
     public AnalysisRegistry getNewRegistry(Settings settings) {
@@ -272,7 +273,7 @@ public class AnalysisModuleTests extends ESTestCase {
                 .put("index.analysis.analyzer.lucene_version.char_filter", "lucene_version")
                 .put("index.analysis.analyzer.index_version.tokenizer", "keyword")
                 .put("index.analysis.analyzer.index_version.char_filter", "index_version")
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build()
         );
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] { "testno_version" });
@@ -341,7 +342,7 @@ public class AnalysisModuleTests extends ESTestCase {
                 .put("index.analysis.analyzer.lucene_version.filter", "lucene_version")
                 .put("index.analysis.analyzer.index_version.tokenizer", "standard")
                 .put("index.analysis.analyzer.index_version.filter", "index_version")
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build()
         );
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] { "testno_version" });
@@ -425,7 +426,7 @@ public class AnalysisModuleTests extends ESTestCase {
                 .put("index.analysis.analyzer.no_version.tokenizer", "no_version")
                 .put("index.analysis.analyzer.lucene_version.tokenizer", "lucene_version")
                 .put("index.analysis.analyzer.index_version.tokenizer", "index_version")
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build()
         );
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] { "no_version" });

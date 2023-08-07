@@ -170,35 +170,32 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
             b.startObject();
             b.startArray("snapshots");
             return b;
-        }),
-            getSnapshots().stream().map(snapshotInfo -> (ToXContent) snapshotInfo::toXContentExternal).iterator(),
-            Iterators.single((b, p) -> {
-                b.endArray();
-                if (failures.isEmpty() == false) {
-                    b.startObject("failures");
-                    for (Map.Entry<String, ElasticsearchException> error : failures.entrySet()) {
-                        b.field(error.getKey(), (bb, pa) -> {
-                            bb.startObject();
-                            error.getValue().toXContent(bb, pa);
-                            bb.endObject();
-                            return bb;
-                        });
-                    }
-                    b.endObject();
-                }
-                if (next != null) {
-                    b.field("next", next);
-                }
-                if (total >= 0) {
-                    b.field("total", total);
-                }
-                if (remaining >= 0) {
-                    b.field("remaining", remaining);
+        }), Iterators.map(getSnapshots().iterator(), snapshotInfo -> snapshotInfo::toXContentExternal), Iterators.single((b, p) -> {
+            b.endArray();
+            if (failures.isEmpty() == false) {
+                b.startObject("failures");
+                for (Map.Entry<String, ElasticsearchException> error : failures.entrySet()) {
+                    b.field(error.getKey(), (bb, pa) -> {
+                        bb.startObject();
+                        error.getValue().toXContent(bb, pa);
+                        bb.endObject();
+                        return bb;
+                    });
                 }
                 b.endObject();
-                return b;
-            })
-        );
+            }
+            if (next != null) {
+                b.field("next", next);
+            }
+            if (total >= 0) {
+                b.field("total", total);
+            }
+            if (remaining >= 0) {
+                b.field("remaining", remaining);
+            }
+            b.endObject();
+            return b;
+        }));
     }
 
     public static GetSnapshotsResponse fromXContent(XContentParser parser) throws IOException {

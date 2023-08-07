@@ -2,15 +2,15 @@
 "Explain backing index lifecycle":
   - skip:
       version: " - 8.8.99"
-      reason: "Explain data lifecycle API was added in 8.9"
+      reason: "Explain data stream lifecycle API was added in 8.9"
       features: allowed_warnings
   - do:
       allowed_warnings:
-        - "index template [template-with-lifecycle] has index patterns [dlm-managed-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-with-lifecycle] will take precedence during new index creation"
+        - "index template [template-with-lifecycle] has index patterns [managed-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-with-lifecycle] will take precedence during new index creation"
       indices.put_index_template:
         name: template-with-lifecycle
         body:
-          index_patterns: [ dlm-managed-data-stream ]
+          index_patterns: [ managed-data-stream ]
           template:
             settings:
               index.number_of_replicas: 0
@@ -19,16 +19,16 @@
           data_stream: { }
   - do:
       indices.create_data_stream:
-        name: dlm-managed-data-stream
+        name: managed-data-stream
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: "dlm-managed-data-stream"
-  - match: { data_streams.0.name: dlm-managed-data-stream }
+        name: "managed-data-stream"
+  - match: { data_streams.0.name: managed-data-stream }
   - match: { data_streams.0.generation: 1 }
   - length: { data_streams.0.indices: 1 }
-  - match: { data_streams.0.indices.0.index_name: '/\.ds-dlm-managed-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-managed-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
   - set:
       data_streams.0.indices.0.index_name: backing_index
 

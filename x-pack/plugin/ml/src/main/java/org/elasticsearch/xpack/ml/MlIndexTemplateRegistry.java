@@ -23,14 +23,13 @@ import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
-    private static final String ROOT_RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/";
+    private static final String ROOT_RESOURCE_PATH = "/ml/";
     private static final String ANOMALY_DETECTION_PATH = ROOT_RESOURCE_PATH + "anomalydetection/";
     private static final String VERSION_PATTERN = "xpack.ml.version";
     private static final String VERSION_ID_PATTERN = "xpack.ml.version.id";
@@ -132,18 +131,22 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
         return composableIndexTemplateConfigs;
     }
 
-    private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
-        new LifecyclePolicyConfig(ML_SIZE_BASED_ILM_POLICY_NAME, ROOT_RESOURCE_PATH + "size_based_ilm_policy.json").load(
-            LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
-        )
+    private static final LifecyclePolicyConfig LIFECYCLE_POLICY_CONFIG = new LifecyclePolicyConfig(
+        ML_SIZE_BASED_ILM_POLICY_NAME,
+        ROOT_RESOURCE_PATH + "size_based_ilm_policy.json"
     );
 
     @Override
-    protected List<LifecyclePolicy> getPolicyConfigs() {
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return List.of(LIFECYCLE_POLICY_CONFIG);
+    }
+
+    @Override
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
         if (useIlm == false) {
-            return Collections.emptyList();
+            return List.of();
         }
-        return LIFECYCLE_POLICIES;
+        return lifecyclePolicies;
     }
 
     @Override

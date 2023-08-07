@@ -77,6 +77,12 @@ include::repository-shared-settings.asciidoc[]
     the pattern with the hostname of the node at runtime (see
     link:repository-hdfs-security-runtime[Creating the Secure Repository]).
 
+`replication_factor`::
+
+    The replication factor for all new HDFS files created by this repository.
+    Must be greater or equal to `dfs.replication.min` and less or equal to `dfs.replication.max` HDFS option.
+    Defaults to using HDFS cluster setting.
+
 [[repository-hdfs-availability]]
 [discrete]
 ===== A note on HDFS availability

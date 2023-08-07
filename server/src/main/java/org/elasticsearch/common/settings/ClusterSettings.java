@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -72,6 +72,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.action.TransportHealthNodeAction;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
@@ -501,6 +502,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ResourceWatcherService.RELOAD_INTERVAL_LOW,
         SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
         SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING,
+        SearchModule.SEARCH_CONCURRENCY_ENABLED,
         ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
         ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING,
         ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING,
@@ -567,7 +569,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.TCP_NO_DELAY : null,
         TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.TCP_REUSE_ADDRESS : null,
         TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.TCP_SEND_BUFFER_SIZE : null,
-        DataLifecycle.isEnabled() ? DataLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING : null,
+        HealthPeriodicLogger.POLL_INTERVAL_SETTING,
+        HealthPeriodicLogger.ENABLED_SETTING,
+        DataStreamLifecycle.isFeatureEnabled() ? DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING : null,
         IndicesClusterStateService.SHARD_LOCK_RETRY_INTERVAL_SETTING,
         IndicesClusterStateService.SHARD_LOCK_RETRY_TIMEOUT_SETTING,
         IngestSettings.GROK_WATCHDOG_INTERVAL,

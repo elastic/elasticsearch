@@ -54,7 +54,7 @@ public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .feature(FeatureFlag.DLM_ENABLED)
+        .feature(FeatureFlag.DATA_STREAM_LIFECYCLE_ENABLED)
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")

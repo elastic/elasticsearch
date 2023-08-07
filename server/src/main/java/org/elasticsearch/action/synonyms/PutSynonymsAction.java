@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.synonyms;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -21,6 +22,7 @@ import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -61,7 +63,11 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
 
         public Request(String synonymsSetId, BytesReference content, XContentType contentType) throws IOException {
             this.synonymsSetId = synonymsSetId;
-            this.synonymRules = PARSER.apply(XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType), null);
+            try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType)) {
+                this.synonymRules = PARSER.apply(parser, null);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Failed to parse: " + content.utf8ToString(), e);
+            }
         }
 
         Request(String synonymsSetId, SynonymRule[] synonymRules) {

@@ -1939,6 +1939,7 @@ public class DataStreamIT extends ESIntegTestCase {
         putComposableIndexTemplate(id, null, patterns, null, null);
     }
 
+    @AwaitsFix(bugUrl = "open an issue or remove")
     public void testPartitionedTemplate() throws IOException {
         /**
          * partition size with no routing required

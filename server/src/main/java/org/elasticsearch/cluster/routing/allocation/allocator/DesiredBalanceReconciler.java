@@ -248,8 +248,9 @@ public class DesiredBalanceReconciler {
                 nextShard: for (int i = 0; i < primaryLength; i++) {
                     final var shard = primary[i];
                     final var assignment = desiredBalance.getAssignment(shard.shardId());
+                    final boolean ignored = assignment == null || isIgnored(routingNodes, shard, assignment);
                     final var isThrottled = new AtomicBoolean(false);
-                    if (assignment != null && assignment.isIgnored(shard.primary()) == false) {
+                    if (ignored == false) {
                         for (final var nodeIdIterator : List.of(
                             getDesiredNodesIds(shard, assignment),
                             getFallbackNodeIds(shard, isThrottled)
@@ -298,7 +299,7 @@ public class DesiredBalanceReconciler {
                     logger.debug("No eligible node found to assign shard [{}] amongst [{}]", shard, assignment);
 
                     final UnassignedInfo.AllocationStatus allocationStatus;
-                    if (assignment == null || assignment.isIgnored(shard.primary())) {
+                    if (ignored) {
                         allocationStatus = UnassignedInfo.AllocationStatus.NO_ATTEMPT;
                     } else if (isThrottled.get()) {
                         allocationStatus = UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED;
@@ -339,6 +340,26 @@ public class DesiredBalanceReconciler {
                     return Collections.emptyIterator();
                 }
             };
+        }
+
+        private boolean isIgnored(RoutingNodes routingNodes, ShardRouting shard, ShardAssignment assignment) {
+            if (assignment.ignored() == 0) {
+                return false;
+            }
+            if (assignment.ignored() == assignment.total()) {
+                return true;
+            }
+            if (assignment.total() - assignment.ignored() == 1) {
+                return shard.primary() == false;
+            }
+            int assigned = 0;
+            for (RoutingNode routingNode : routingNodes) {
+                var assignedShard = routingNode.getByShardId(shard.shardId());
+                if (assignedShard != null) {
+                    assigned++;
+                }
+            }
+            return assignment.total() - assignment.ignored() <= assigned;
         }
 
         private void moveShards() {

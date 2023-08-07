@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -45,6 +44,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
@@ -245,10 +245,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                 remoteClusterService.getRegisteredRemoteClusterNames(),
                                 remoteIndices
                             );
-                            checkRemoteClusterVersions(
+                            checkRemoteConfigVersions(
                                 datafeedConfigHolder.get(),
                                 remoteAliases,
-                                (cn) -> remoteClusterService.getConnection(cn).getVersion()
+                                (cn) -> MlConfigVersion.fromVersion(remoteClusterService.getConnection(cn).getVersion())
                             );
                             createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
                         }
@@ -295,20 +295,20 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), null, datafeedListener);
     }
 
-    static void checkRemoteClusterVersions(
+    static void checkRemoteConfigVersions(
         DatafeedConfig config,
         List<String> remoteClusters,
-        Function<String, Version> clusterVersionSupplier
+        Function<String, MlConfigVersion> configVersionSupplier
     ) {
-        Optional<Tuple<Version, String>> minVersionAndReason = config.minRequiredClusterVersion();
+        Optional<Tuple<MlConfigVersion, String>> minVersionAndReason = config.minRequiredConfigVersion();
         if (minVersionAndReason.isPresent() == false) {
             return;
         }
         final String reason = minVersionAndReason.get().v2();
-        final Version minVersion = minVersionAndReason.get().v1();
+        final MlConfigVersion minVersion = minVersionAndReason.get().v1();
 
         List<String> clustersTooOld = remoteClusters.stream()
-            .filter(cn -> clusterVersionSupplier.apply(cn).before(minVersion))
+            .filter(cn -> configVersionSupplier.apply(cn).before(minVersion))
             .collect(Collectors.toList());
         if (clustersTooOld.isEmpty()) {
             return;

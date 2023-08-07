@@ -93,8 +93,7 @@ public final class MappingParser {
      * @throws MapperParsingException in case of parsing error
      */
     @SuppressWarnings("unchecked")
-    Mapping parse(@Nullable String type, Map<String, Object> mappingSource)
-        throws MapperParsingException {
+    Mapping parse(@Nullable String type, Map<String, Object> mappingSource) throws MapperParsingException {
         if (mappingSource.isEmpty()) {
             if (type == null) {
                 throw new MapperParsingException("malformed mappingSource, no type name found");

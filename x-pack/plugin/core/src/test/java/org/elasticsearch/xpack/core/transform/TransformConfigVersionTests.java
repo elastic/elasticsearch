@@ -265,7 +265,7 @@ public class TransformConfigVersionTests extends ESTestCase {
     }
 
     public void testToVersion() {
-        TransformConfigVersion TransformConfigVersion_V_7_7_0 = TransformConfigVersion.V_7_0_0;
+        TransformConfigVersion TransformConfigVersion_V_7_7_0 = TransformConfigVersion.V_7_7_0;
         Version version_V_7_7_0 = TransformConfigVersion.toVersion(TransformConfigVersion_V_7_7_0);
         assertEquals(version_V_7_7_0.id, TransformConfigVersion_V_7_7_0.id());
 

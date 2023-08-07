@@ -56,6 +56,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1466,6 +1467,37 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
             assertResponseContainsApiKeyIds(response, apiKey0.id, apiKey1.id, apiKey2.id);
         }
+
+        // Active-only throws if used with id for existing but non-active API keys
+        {
+            final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
+            request.addParameter("id", randomFrom(apiKey0, apiKey2).id);
+            request.addParameter("active_only", "true");
+
+            final ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(request));
+
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        }
+        {
+            final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
+            request.addParameter("id", apiKey1.id);
+            request.addParameter("active_only", "true");
+
+            final GetApiKeyResponse response = GetApiKeyResponse.fromXContent(getParser(adminClient().performRequest(request)));
+
+            assertResponseContainsApiKeyIds(response, apiKey1.id);
+        }
+
+        getSecurityClient().invalidateApiKeys(apiKey1.id);
+        // Active-only returns empty when no keys found
+        {
+            final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
+            request.addParameter("active_only", "true");
+
+            final GetApiKeyResponse response = GetApiKeyResponse.fromXContent(getParser(adminClient().performRequest(request)));
+
+            assertThat(response.getApiKeyInfos(), emptyArray());
+        }
     }
 
     private static void assertResponseContainsApiKeyIds(GetApiKeyResponse response, String... ids) {
@@ -1653,6 +1685,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             fetchRequest = new Request("GET", "/_security/api_key");
             fetchRequest.addParameter("id", apiKeyId);
             fetchRequest.addParameter("with_limited_by", String.valueOf(randomBoolean()));
+            if (randomBoolean()) {
+                fetchRequest.addParameter("active_only", "false");
+            }
+
         } else {
             fetchRequest = new Request("GET", "/_security/_query/api_key");
             fetchRequest.addParameter("with_limited_by", String.valueOf(randomBoolean()));

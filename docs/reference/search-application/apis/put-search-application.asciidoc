@@ -79,7 +79,7 @@ Search Application `<name>` exists and `create` is `true`.
 [[put-search-application-example]]
 ==== {api-examples-title}
 
-The following example creates a new Search Application called `my-app`:
+The following example creates or updates a new Search Application called `my-app`:
 
 ////
 [source,console]
@@ -89,13 +89,52 @@ PUT /index1
 PUT /index2
 
 PUT /index3
+
+PUT _application/search_application/my-app?create
+{
+  "indices": [ "index1", "index2" ],
+  "template": {
+    "script": {
+      "source": {
+        "query": {
+          "query_string": {
+            "query": "{{query_string}}",
+            "default_field": "{{default_field}}"
+          }
+        }
+      },
+      "params": {
+        "query_string": "*",
+        "default_field": "*"
+      }
+    },
+    "dictionary": {
+      "properties": {
+        "query_string": {
+          "type": "string"
+        },
+        "default_field": {
+          "type": "string",
+          "enum": [
+            "title",
+            "description"
+          ]
+        },
+        "additionalProperties": false
+      },
+      "required": [
+        "query_string"
+      ]
+    }
+  }
+}
 ----
 // TESTSETUP
 ////
 
 [source,console]
 ----
-PUT _application/search_application/my-app?create
+PUT _application/search_application/my-app
 {
   "indices": [ "index1", "index2" ],
   "template": {
@@ -152,7 +191,7 @@ POST _application/search_application/my-app/_search
   }
 }
 ----
-// TEST[continued]
+// TEST[catch:bad_request]
 
 In the above example, the value of the `default_field` parameter is not valid, therefore Elasticsearch will return an error:
 

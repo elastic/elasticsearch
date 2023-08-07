@@ -87,7 +87,7 @@ PUT _application/search_application/my-app
 POST _application/search_application/my-app/_render_query
 {
   "params": {
-    "value": "my first query",
+    "query_string": "my first query",
     "text_fields": [
         {
             "name": "title",
@@ -107,17 +107,18 @@ A sample response:
 [source,console-result]
 ----
 {
-    "size": 10,
     "from": 0,
+    "size": 10,
     "query": {
         "multi_match": {
             "query": "my first query",
             "fields": [
-                "title^10",
-                "text^1"
+                "text^1.0",
+                "title^10.0"
             ]
         }
-    }
+    },
+    "explain": false
 }
 ----
 // TEST[continued]

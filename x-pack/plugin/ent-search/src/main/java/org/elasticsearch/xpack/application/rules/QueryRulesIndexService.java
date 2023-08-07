@@ -175,26 +175,30 @@ public class QueryRulesIndexService {
      */
     public void getQueryRuleset(String resourceName, ActionListener<QueryRuleset> listener) {
         final GetRequest getRequest = new GetRequest(QUERY_RULES_ALIAS_NAME).id(resourceName).realtime(true);
-        clientWithOrigin.get(getRequest, new DelegatingIndexNotFoundActionListener<>(resourceName, listener, (l, getResponse) -> {
-            if (getResponse.isExists() == false) {
-                l.onFailure(new ResourceNotFoundException(resourceName));
-                return;
-            }
-            final Map<String, Object> source = getResponse.getSource();
-            @SuppressWarnings("unchecked")
-            final List<QueryRule> rules = ((List<Map<String, Object>>) source.get(QueryRuleset.RULES_FIELD.getPreferredName())).stream()
-                .map(
-                    rule -> new QueryRule(
-                        (String) rule.get(QueryRule.ID_FIELD.getPreferredName()),
-                        QueryRuleType.queryRuleType((String) rule.get(QueryRule.TYPE_FIELD.getPreferredName())),
-                        parseCriteria((List<Map<String, Object>>) rule.get(QueryRule.CRITERIA_FIELD.getPreferredName())),
-                        (Map<String, Object>) rule.get(QueryRule.ACTIONS_FIELD.getPreferredName())
+        try {
+            clientWithOrigin.get(getRequest, new DelegatingIndexNotFoundActionListener<>(resourceName, listener, (l, getResponse) -> {
+                if (getResponse.isExists() == false) {
+                    l.onFailure(new ResourceNotFoundException(resourceName));
+                    return;
+                }
+                final Map<String, Object> source = getResponse.getSource();
+                @SuppressWarnings("unchecked")
+                final List<QueryRule> rules = ((List<Map<String, Object>>) source.get(QueryRuleset.RULES_FIELD.getPreferredName())).stream()
+                    .map(
+                        rule -> new QueryRule(
+                            (String) rule.get(QueryRule.ID_FIELD.getPreferredName()),
+                            QueryRuleType.queryRuleType((String) rule.get(QueryRule.TYPE_FIELD.getPreferredName())),
+                            parseCriteria((List<Map<String, Object>>) rule.get(QueryRule.CRITERIA_FIELD.getPreferredName())),
+                            (Map<String, Object>) rule.get(QueryRule.ACTIONS_FIELD.getPreferredName())
+                        )
                     )
-                )
-                .collect(Collectors.toList());
-            final QueryRuleset res = new QueryRuleset(resourceName, rules);
-            l.onResponse(res);
-        }));
+                    .collect(Collectors.toList());
+                final QueryRuleset res = new QueryRuleset(resourceName, rules);
+                l.onResponse(res);
+            }));
+        } catch (IndexNotFoundException e) {
+            listener.onFailure(new ResourceNotFoundException(resourceName));
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -263,6 +267,8 @@ public class QueryRulesIndexService {
                     l.onResponse(deleteResponse);
                 })
             );
+        } catch (IndexNotFoundException e) {
+            listener.onFailure(new ResourceNotFoundException(resourceName));
         } catch (Exception e) {
             listener.onFailure(e);
         }

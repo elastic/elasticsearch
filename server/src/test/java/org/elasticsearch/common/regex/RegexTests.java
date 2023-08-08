@@ -81,7 +81,7 @@ public class RegexTests extends ESTestCase {
     public void testArbitraryWildcardMatch() {
         final String prefix = randomAlphaOfLengthBetween(1, 20);
         final String suffix = randomAlphaOfLengthBetween(1, 20);
-        final String pattern1 = "*".repeat(randomIntBetween(1, 1000));
+        final String pattern1 = repeat("*", randomIntBetween(1, 1000));
         // dd***
         assertTrue(Regex.simpleMatch(prefix + pattern1, prefix + randomAlphaOfLengthBetween(10, 20), randomBoolean()));
         // ***dd
@@ -90,7 +90,7 @@ public class RegexTests extends ESTestCase {
         assertTrue(Regex.simpleMatch(prefix + pattern1 + suffix, prefix + randomAlphaOfLengthBetween(10, 20) + suffix, randomBoolean()));
         // dd***dd***dd
         final String middle = randomAlphaOfLengthBetween(1, 20);
-        final String pattern2 = "*".repeat(randomIntBetween(1, 1000));
+        final String pattern2 = repeat("*", randomIntBetween(1, 1000));
         assertTrue(
             Regex.simpleMatch(
                 prefix + pattern1 + middle + pattern2 + suffix,
@@ -210,5 +210,13 @@ public class RegexTests extends ESTestCase {
         for (String s : strings) {
             assertFalse(run.run(s));
         }
+    }
+
+    private String repeat(String str, int count) {
+        StringBuilder sb = new StringBuilder(str.length() * count);
+        for (int i = 0; i < count; i++) {
+            sb.append(str);
+        }
+        return sb.toString();
     }
 }

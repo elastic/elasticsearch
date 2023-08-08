@@ -281,6 +281,13 @@ public class SearchModule {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> SEARCH_CONCURRENCY_ENABLED = Setting.boolSetting(
+        "search.concurrency_enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final Map<String, Highlighter> highlighters;
 
     private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();

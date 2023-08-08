@@ -33,7 +33,6 @@ public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("analysis-common")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.DATA_STREAM_LIFECYCLE_ENABLED)
-        .feature(FeatureFlag.SYNONYMS_ENABLED)
         .build();
 
     public ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

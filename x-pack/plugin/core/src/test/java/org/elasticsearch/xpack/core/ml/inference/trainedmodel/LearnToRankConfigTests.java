@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlLTRNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilderTests;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -43,7 +45,7 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
             randomBoolean() ? null : randomIntBetween(0, 10),
             randomBoolean()
                 ? null
-                : Stream.generate(() -> new TestValueExtractor(randomAlphaOfLength(10))).limit(randomInt(5)).collect(Collectors.toList())
+                : Stream.generate(QueryExtractorBuilderTests::randomInstance).limit(randomInt(5)).collect(Collectors.toList())
         );
     }
 
@@ -117,6 +119,7 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        namedWriteables.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
         namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
@@ -128,7 +131,7 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
         return new NamedWriteableRegistry(namedWriteables);
     }
 
-    static class TestValueExtractor implements LearnToRankFeatureExtractorBuilder {
+    private static class TestValueExtractor implements LearnToRankFeatureExtractorBuilder {
         public static final ParseField NAME = new ParseField("test");
         private final String featureName;
 
@@ -183,6 +186,9 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
         }
 
         @Override
+        public void validate() throws Exception {}
+
+        @Override
         public String getName() {
             return NAME.getPreferredName();
         }
@@ -198,6 +204,11 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
         @Override
         public int hashCode() {
             return Objects.hash(featureName);
+        }
+
+        @Override
+        public TestValueExtractor rewrite(QueryRewriteContext ctx) throws IOException {
+            return this;
         }
     }
 }

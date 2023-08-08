@@ -212,7 +212,7 @@ public final class IndexPrivilege extends Privilege {
             entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
             entry("manage_leader_index", MANAGE_LEADER_INDEX),
             entry("manage_ilm", MANAGE_ILM),
-            DataStreamLifecycle.isEnabled() ? entry("manage_data_stream_lifecycle", MANAGE_DATA_STREAM_LIFECYCLE) : null,
+            DataStreamLifecycle.isFeatureEnabled() ? entry("manage_data_stream_lifecycle", MANAGE_DATA_STREAM_LIFECYCLE) : null,
             entry("maintenance", MAINTENANCE),
             entry("auto_configure", AUTO_CONFIGURE),
             TcpTransport.isUntrustedRemoteClusterEnabled() ? entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION) : null,

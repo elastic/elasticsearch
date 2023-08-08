@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
-import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
 import java.util.Collections;
 import java.util.List;
@@ -79,18 +78,21 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
         return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
     }
 
-    private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
-        new LifecyclePolicyConfig(SLM_POLICY_NAME, "/slm-history-ilm-policy.json").load(
-            new NamedXContentRegistry(IndexLifecycle.NAMED_X_CONTENT_ENTRIES)
-        )
+    private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
+        new LifecyclePolicyConfig(SLM_POLICY_NAME, "/slm-history-ilm-policy.json")
     );
 
     @Override
-    protected List<LifecyclePolicy> getPolicyConfigs() {
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
         if (slmHistoryEnabled == false) {
             return Collections.emptyList();
         }
-        return LIFECYCLE_POLICIES;
+        return lifecyclePolicies;
+    }
+
+    @Override
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return LIFECYCLE_POLICY_CONFIGS;
     }
 
     @Override
@@ -106,7 +108,7 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
         Optional<Map<String, LifecyclePolicy>> maybePolicies = Optional.<IndexLifecycleMetadata>ofNullable(
             state.metadata().custom(IndexLifecycleMetadata.TYPE)
         ).map(IndexLifecycleMetadata::getPolicies);
-        Set<String> policyNames = getPolicyConfigs().stream().map(LifecyclePolicy::getName).collect(Collectors.toSet());
+        Set<String> policyNames = getLifecyclePolicies().stream().map(LifecyclePolicy::getName).collect(Collectors.toSet());
 
         boolean allPoliciesPresent = maybePolicies.map(policies -> policies.keySet().containsAll(policyNames)).orElse(false);
         return allTemplatesPresent && allPoliciesPresent;

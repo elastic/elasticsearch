@@ -103,7 +103,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         );
         assertThat(disabledRegistry.getComponentTemplateConfigs(), anEmptyMap());
         assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
-        assertThat(disabledRegistry.getPolicyConfigs(), hasSize(0));
+        assertThat(disabledRegistry.getLifecyclePolicies(), hasSize(0));
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() throws Exception {
@@ -179,12 +179,15 @@ public class StackTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(8));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutComponentTemplateAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutLifecycleAction) {
@@ -247,12 +250,15 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(8));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutComponentTemplateAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutLifecycleAction) {

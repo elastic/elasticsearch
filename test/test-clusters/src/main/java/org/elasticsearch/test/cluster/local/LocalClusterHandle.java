@@ -129,14 +129,14 @@ public class LocalClusterHandle implements ClusterHandle {
     }
 
     @Override
-    public String getRemoteClusterServerEndpoint() {
+    public String getRemoteClusterServerEndpoints() {
         start();
         return execute(() -> nodes.parallelStream().map(Node::getRemoteClusterServerEndpoint).collect(Collectors.joining(",")));
     }
 
     @Override
     public String getRemoteClusterServerEndpoint(int index) {
-        return getRemoteClusterServerEndpoint().split(",")[index];
+        return getRemoteClusterServerEndpoints().split(",")[index];
     }
 
     @Override

@@ -79,7 +79,7 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
+import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
@@ -419,7 +419,7 @@ public class Security extends Plugin
         MapperPlugin,
         ExtensiblePlugin,
         SearchPlugin,
-        RestInterceptorActionPlugin {
+        RestServerActionPlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
 
@@ -905,7 +905,7 @@ public class Security extends Plugin
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms, extensionComponents);
 
         // operator privileges are enabled either explicitly via the setting or if running serverless
-        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings) || DiscoveryNode.isServerless();
+        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(environment.settings()) || DiscoveryNode.isServerless();
 
         if (operatorPrivilegesEnabled) {
             logger.info("operator privileges are enabled");

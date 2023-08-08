@@ -79,8 +79,8 @@ public class FakeThreadPoolMasterService extends MasterService {
         AckListener ackListener,
         ActionListener<Void> publicationListener
     ) {
-        // fork the publication to add a little extra room for concurrent activity here
-        threadPool.generic().execute(threadPool.getThreadContext().preserveContext(new Runnable() {
+        // allow to fork the publication to add a little extra room for concurrent activity here
+        taskExecutor.accept(threadPool.getThreadContext().preserveContext(new Runnable() {
             @Override
             public void run() {
                 FakeThreadPoolMasterService.super.publish(clusterStatePublicationEvent, wrapAckListener(ackListener), publicationListener);

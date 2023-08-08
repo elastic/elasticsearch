@@ -46,7 +46,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -74,7 +73,6 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -475,8 +473,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchResponse> listener,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer
     ) {
-        // TODO pick a more appropriate executor for this work - see https://github.com/elastic/elasticsearch/issues/97997
-        final var remoteClientResponseExecutor = EsExecutors.DIRECT_EXECUTOR_SERVICE;
+        final var remoteClientResponseExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         if (localIndices == null && remoteIndices.size() == 1) {
             // if we are searching against a single remote cluster, we simply forward the original search request to such cluster
             // and we directly perform final reduction in the remote cluster
@@ -663,6 +660,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 ) {
                     @Override
                     void innerOnResponse(SearchShardsResponse searchShardsResponse) {
+                        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
                         searchShardsResponses.put(clusterAlias, searchShardsResponse);
                     }
 
@@ -676,6 +674,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 skipUnavailable == false,
                 ActionListener.wrap(connection -> {
                     final String[] indices = entry.getValue().indices();
+                    final Executor responseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
                     // TODO: support point-in-time
                     if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
                         SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
@@ -692,11 +691,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             SearchShardsAction.NAME,
                             searchShardsRequest,
                             TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(
-                                singleListener,
-                                SearchShardsResponse::new,
-                                TransportResponseHandler.TRANSPORT_WORKER
-                            )
+                            new ActionListenerResponseHandler<>(singleListener, SearchShardsResponse::new, responseExecutor)
                         );
                     } else {
                         ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices).indicesOptions(
@@ -710,7 +705,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             new ActionListenerResponseHandler<>(
                                 singleListener.map(SearchShardsResponse::fromLegacyResponse),
                                 ClusterSearchShardsResponse::new,
-                                TransportResponseHandler.TRANSPORT_WORKER
+                                responseExecutor
                             )
                         );
                     }

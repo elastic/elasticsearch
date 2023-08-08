@@ -134,7 +134,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             "enum_field",
             true,
             m -> toType(m).enumField,
-            DummyEnumType.NAME1,
+            () -> DummyEnumType.NAME1,
             DummyEnumType.class
         );
 
@@ -142,7 +142,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             "restricted_enum_field",
             true,
             m -> toType(m).restrictedEnumField,
-            DummyEnumType.NAME1,
+            () -> DummyEnumType.NAME1,
             DummyEnumType.class,
             EnumSet.of(DummyEnumType.NAME1, DummyEnumType.NAME2)
         );

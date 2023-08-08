@@ -373,7 +373,18 @@ public final class DocumentParser {
             context = context.createChildContext(objectMapper);
             parseObjectOrNested(context);
         } else if (mapper instanceof FieldMapper fieldMapper) {
-            fieldMapper.parse(context);
+            if (fieldMapper.canParseObjects()) {
+                fieldMapper.parse(context);
+            } else if (canToBeFlatten(context)) {
+                // We need to remove the last path and add it as dottedFieldName
+                String dottedFieldName = context.path().remove();
+                context.path().addDottedFieldName(dottedFieldName);
+                parseObjectOrNested(context);
+                context.path().removeDottedFieldName();
+                context.path().add(dottedFieldName);
+            } else {
+                fieldMapper.parse(context);
+            }
             if (context.isWithinCopyTo() == false) {
                 List<String> copyToFields = fieldMapper.copyTo().copyToFields();
                 if (copyToFields.isEmpty() == false) {
@@ -390,6 +401,10 @@ public final class DocumentParser {
         } else {
             throwOnUnrecognizedMapperType(mapper);
         }
+    }
+
+    private static boolean canToBeFlatten(DocumentParserContext context) {
+        return context.parser().currentToken() == XContentParser.Token.START_OBJECT && context.parent().subobjects() == false;
     }
 
     private static void throwOnUnrecognizedMapperType(Mapper mapper) {
@@ -430,14 +445,17 @@ public final class DocumentParser {
             context.path().setWithinLeafObject(false);
             context.path().remove();
         } else {
-            DynamicTemplate dynamicTemplate = context.findDynamicTemplate(currentFieldName, DynamicTemplate.XContentFieldType.OBJECT);
-            if (context.parent().subobjects() || dynamicTemplate != null) {
+            if (context.parent().subobjects()) {
                 parseObjectDynamic(context, currentFieldName);
             } else {
-                context.parser().nextToken(); // Skipping Object-start
-                context.path().addDottedFieldName(currentFieldName);
-                innerParseObject(context);
-                context.path().removeDottedFieldName();
+                DynamicTemplate dynamicTemplate = context.findDynamicTemplate(currentFieldName, DynamicTemplate.XContentFieldType.OBJECT);
+                if (dynamicTemplate != null) {
+                    parseObjectDynamic(context, currentFieldName);
+                } else {
+                    context.path().addDottedFieldName(currentFieldName);
+                    parseObjectOrNested(context);
+                    context.path().removeDottedFieldName();
+                }
             }
         }
     }

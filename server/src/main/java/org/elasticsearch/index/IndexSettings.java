@@ -193,10 +193,10 @@ public final class IndexSettings {
      * mode of the unified highlighter.
      */
     public static final Setting<Boolean> WEIGHT_MATCHES_MODE_ENABLED_SETTING = Setting.boolSetting(
-            "index.highlight.weight_matches_mode.enabled",
-            true,
-            Property.Dynamic,
-            Property.IndexScope
+        "index.highlight.weight_matches_mode.enabled",
+        true,
+        Property.Dynamic,
+        Property.IndexScope
     );
 
     /**

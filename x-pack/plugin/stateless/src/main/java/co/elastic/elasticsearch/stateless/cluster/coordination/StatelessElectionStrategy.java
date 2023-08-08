@@ -34,6 +34,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
@@ -273,5 +274,20 @@ public class StatelessElectionStrategy extends ElectionStrategy {
             }
             return result;
         }
+    }
+
+    @Override
+    public boolean nodeMayWinElection(ClusterState lastAcceptedState, DiscoveryNode node) {
+        /*
+         * Refuse to participate in elections if we are marked for shutdown.
+         *
+         * Note that this only really works in serverless where it's possible to stand up a new master-eligible node, with no shutdown
+         * marker, that will read the latest state from the blob store. In stateful ES this is dangerous because the shutdown markers are
+         * part of the persistent cluster state and if all master nodes are marked for shutdown then no elections will take place. If we
+         * want something similar in stateful ES then we'd need to allow the shutting-down nodes to win elections if there are no other
+         * viable nodes.
+         */
+        return super.nodeMayWinElection(lastAcceptedState, node)
+            && PluginShutdownService.shutdownNodes(lastAcceptedState).contains(node.getId()) == false;
     }
 }

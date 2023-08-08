@@ -21,7 +21,6 @@ import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -61,11 +60,10 @@ public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
 
         public Request(String synonymsSetId, String synonymRuleId, BytesReference content, XContentType contentType) throws IOException {
             this.synonymsSetId = synonymsSetId;
-            try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType)) {
-                this.synonymRule = PARSER.apply(parser, synonymRuleId);
-            } catch (Exception e) {
-                throw new IllegalArgumentException("Failed to parse: " + content.utf8ToString(), e);
-            }
+            this.synonymRule = PARSER.apply(
+                XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType),
+                synonymRuleId
+            );
         }
 
         Request(String synonymsSetId, SynonymRule synonymRule) {

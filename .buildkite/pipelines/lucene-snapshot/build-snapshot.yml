@@ -1,0 +1,15 @@
+steps:
+  - label: Build and upload lucene snapshot
+    command: .buildkite/scripts/lucene-snapshot/build-snapshot.sh
+    timeout_in_minutes: 120
+    env:
+      USE_LUCENE_SNAPSHOT_CREDS: "true"
+      UPDATE_ES_LUCENE_SNAPSHOT: "true"
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk
+  - wait
+  - trigger: "elasticsearch-lucene-snapshot-tests"
+    async: true

@@ -1908,11 +1908,12 @@ public class ApiKeyService {
             ActionListener.wrap(apiKeyInfos -> {
                 if (apiKeyInfos.isEmpty()) {
                     logger.debug(
-                        "No api keys found for realms {}, user [{}], api key name [{}] and api key ids {}",
+                        "No api keys found for realms {}, user [{}], api key name [{}], api key ids {}, and active_only flag [{}]",
                         Arrays.toString(realmNames),
                         username,
                         apiKeyName,
-                        Arrays.toString(apiKeyIds)
+                        Arrays.toString(apiKeyIds),
+                        activeOnly
                     );
                     listener.onResponse(GetApiKeyResponse.emptyResponse());
                 } else {

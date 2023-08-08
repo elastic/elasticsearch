@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.transport.TcpTransport;
@@ -822,6 +823,11 @@ public class SecuritySystemIndices {
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, 1000)
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_PROFILE_INDEX_FORMAT)
+            // The profiles functionality is intrinsically related to Kibana. Only Kibana uses this index (via dedicated APIs).
+            // Since the regular ".kibana" index is marked "fast_refresh", we opt to mark the user profiles index as "fast_refresh" too.
+            // This way the profiles index has the same availability and latency characteristics as the regular ".kibana" index, so APIs
+            // touching either of the two indices are more predictable.
+            .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true)
             .put("analysis.filter.email.type", "pattern_capture")
             .put("analysis.filter.email.preserve_original", true)
             .putList("analysis.filter.email.patterns", List.of("([^@]+)", "(\\p{L}+)", "(\\d+)", "@(.+)"))

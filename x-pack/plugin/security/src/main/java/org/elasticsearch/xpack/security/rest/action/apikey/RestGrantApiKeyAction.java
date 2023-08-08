@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -94,6 +95,10 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
             final GrantApiKeyRequest grantRequest = PARSER.parse(parser, null);
             if (refresh != null) {
                 grantRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refresh));
+            } else if (DiscoveryNode.isStateless(settings)) {
+                grantRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            } else {
+                grantRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
             }
             return channel -> client.execute(
                 GrantApiKeyAction.INSTANCE,

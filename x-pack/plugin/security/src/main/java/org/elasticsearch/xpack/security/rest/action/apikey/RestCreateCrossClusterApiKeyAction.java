@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.security.rest.action.apikey;
 
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
@@ -75,6 +77,11 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final CreateCrossClusterApiKeyRequest createCrossClusterApiKeyRequest = PARSER.parse(request.contentParser(), null);
+        if (DiscoveryNode.isStateless(settings)) {
+            createCrossClusterApiKeyRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        } else {
+            createCrossClusterApiKeyRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
+        }
         return channel -> client.execute(
             CreateCrossClusterApiKeyAction.INSTANCE,
             createCrossClusterApiKeyRequest,

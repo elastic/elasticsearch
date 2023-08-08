@@ -36,6 +36,7 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -563,7 +564,11 @@ public class ApiKeyService {
         }
 
         logger.trace("Executing bulk request to update [{}] API keys", bulkRequestBuilder.numberOfActions());
-        bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+        if (DiscoveryNode.isStateless(settings)) {
+            bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        } else {
+            bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+        }
         securityIndex.prepareIndexIfNeededThenExecute(
             ex -> listener.onFailure(traceLog("prepare security index before update", ex)),
             () -> executeAsyncWithOrigin(
@@ -1677,7 +1682,11 @@ public class ApiKeyService {
                     .request();
                 bulkRequestBuilder.add(request);
             }
-            bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+            if (DiscoveryNode.isStateless(settings)) {
+                bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+            } else {
+                bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+            }
             securityIndex.prepareIndexIfNeededThenExecute(
                 ex -> listener.onFailure(traceLog("prepare security index", ex)),
                 () -> executeAsyncWithOrigin(

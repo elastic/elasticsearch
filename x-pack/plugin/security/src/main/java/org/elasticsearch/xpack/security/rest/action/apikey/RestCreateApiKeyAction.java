@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
 
 import java.io.IOException;
@@ -51,14 +51,18 @@ public final class RestCreateApiKeyAction extends ApiKeyBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        String refresh = request.param("refresh");
         CreateApiKeyRequestBuilder builder = new CreateApiKeyRequestBuilder(client).source(
             request.requiredContent(),
             request.getXContentType()
-        )
-            .setRefreshPolicy(
-                (refresh != null) ? WriteRequest.RefreshPolicy.parse(request.param("refresh")) : CreateApiKeyRequest.DEFAULT_REFRESH_POLICY
-            );
+        );
+        String refresh = request.param("refresh");
+        if (refresh != null) {
+            builder.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(request.param("refresh")));
+        } else if (DiscoveryNode.isStateless(settings)) {
+            builder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        } else {
+            builder.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
+        }
         return channel -> builder.execute(new RestToXContentListener<>(channel));
     }
 }

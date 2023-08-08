@@ -508,7 +508,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING,
         ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING,
         FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
-        CustomUnifiedHighlighter.WEIGHT_MATCHES_MODE_ENABLE_SETTING,
         Node.BREAKER_TYPE_KEY,
         OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
         IndexGraveyard.SETTING_MAX_TOMBSTONES,

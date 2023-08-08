@@ -28,7 +28,6 @@ import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
@@ -53,15 +52,6 @@ import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighligh
  * Supports both returning empty snippets and non highlighted snippets when no highlighting can be performed.
  */
 public class CustomUnifiedHighlighter extends UnifiedHighlighter {
-    /**
-     * A cluster setting to enable/disable the {@link HighlightFlag#WEIGHT_MATCHES} mode of the unified highlighter.
-     */
-    public static final Setting<Boolean> WEIGHT_MATCHES_MODE_ENABLE_SETTING = Setting.boolSetting(
-        "search.highlight.weight_matches_mode.enabled",
-        true,
-        Setting.Property.NodeScope
-    );
-
     public static final char MULTIVAL_SEP_CHAR = (char) 0;
     private static final Snippet[] EMPTY_SNIPPET = new Snippet[0];
 
@@ -77,7 +67,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
      *
-     * @param settings the {@link Settings} of the node.
      * @param builder the {@link UnifiedHighlighter.Builder} for the underlying highlighter.
      * @param offsetSource the {@link OffsetSource} to used for offsets retrieval.
      * @param breakIteratorLocale the {@link Locale} to use for dividing text into passages.
@@ -89,9 +78,9 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      * @param maxPassages the maximum number of passes to highlight
      * @param maxAnalyzedOffset if the field is more than this long we'll refuse to use the ANALYZED
      *                          offset source for it because it'd be super slow
+     * @param weightMatchesEnabled whether the {@link HighlightFlag#WEIGHT_MATCHES} should be enabled
      */
     public CustomUnifiedHighlighter(
-        Settings settings,
         Builder builder,
         OffsetSource offsetSource,
         @Nullable Locale breakIteratorLocale,
@@ -102,7 +91,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         int maxPassages,
         int maxAnalyzedOffset,
         Integer queryMaxAnalyzedOffset,
-        boolean requireFieldMatch
+        boolean requireFieldMatch,
+        boolean weightMatchesEnabled
     ) {
         super(builder);
         this.offsetSource = offsetSource;
@@ -112,7 +102,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         this.noMatchSize = noMatchSize;
         this.maxAnalyzedOffset = maxAnalyzedOffset;
         this.queryMaxAnalyzedOffset = queryMaxAnalyzedOffset;
-        if (WEIGHT_MATCHES_MODE_ENABLE_SETTING.get(settings) == false || requireFieldMatch == false || weightMatchesUnsupported(query)) {
+        if (weightMatchesEnabled == false || requireFieldMatch == false || weightMatchesUnsupported(query)) {
             getFlags(field).remove(HighlightFlag.WEIGHT_MATCHES);
         }
         fieldHighlighter = (CustomFieldHighlighter) getFieldHighlighter(field, query, extractTerms(query), maxPassages);

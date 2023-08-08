@@ -140,7 +140,6 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                 builder.withFieldMatcher(name -> "text".equals(name));
                 builder.withFormatter(new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()));
                 CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
-                    Settings.EMPTY,
                     builder,
                     offsetSource,
                     locale,
@@ -151,6 +150,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                     expectedPassages.length,
                     maxAnalyzedOffset,
                     queryMaxAnalyzedOffset,
+                    true,
                     true
                 );
                 final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);

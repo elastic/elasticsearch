@@ -103,6 +103,7 @@ public class DefaultHighlighter implements Highlighter {
             : HighlightUtils.Encoders.DEFAULT;
 
         int maxAnalyzedOffset = indexSettings.getHighlightMaxAnalyzedOffset();
+        boolean weightMatchesEnabled = indexSettings.isWeightMatchesEnabled();
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
         Integer queryMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzedOffset();
         Analyzer analyzer = wrapAnalyzer(
@@ -135,7 +136,6 @@ public class DefaultHighlighter implements Highlighter {
         builder.withFieldMatcher(fieldMatcher(fieldContext));
         builder.withFormatter(passageFormatter);
         return new CustomUnifiedHighlighter(
-            indexSettings.getSettings(),
             builder,
             offsetSource,
             fieldContext.field.fieldOptions().boundaryScannerLocale(),
@@ -146,7 +146,8 @@ public class DefaultHighlighter implements Highlighter {
             highlighterNumberOfFragments,
             maxAnalyzedOffset,
             fieldContext.field.fieldOptions().maxAnalyzedOffset(),
-            fieldContext.field.fieldOptions().requireFieldMatch()
+            fieldContext.field.fieldOptions().requireFieldMatch(),
+            weightMatchesEnabled
         );
     }
 

@@ -137,7 +137,6 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                 builder.withFieldMatcher(name -> "text".equals(name));
                 builder.withFormatter(passageFormatter);
                 CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
-                    Settings.EMPTY,
                     builder,
                     UnifiedHighlighter.OffsetSource.ANALYSIS,
                     locale,
@@ -148,6 +147,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                     expectedPassages.length,
                     maxAnalyzedOffset,
                     queryMaxAnalyzedOffset,
+                    true,
                     true
                 );
                 highlighter.setFieldMatcher((name) -> "text".equals(name));

@@ -36,7 +36,11 @@ import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
 import java.io.IOException;
 import java.text.BreakIterator;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
@@ -49,7 +53,15 @@ public class DefaultHighlighter implements Highlighter {
 
     @Override
     public HighlightField highlight(FieldHighlightContext fieldContext) throws IOException {
-        CustomUnifiedHighlighter highlighter = buildHighlighter(fieldContext);
+        @SuppressWarnings("unchecked")
+        Map<String, CustomUnifiedHighlighter> cache = (Map<String, CustomUnifiedHighlighter>) fieldContext.cache.computeIfAbsent(
+                UnifiedHighlighter.class.getName(),
+                k -> new HashMap<>()
+        );
+        if (cache.containsKey(fieldContext.fieldName) == false) {
+            cache.put(fieldContext.fieldName, buildHighlighter(fieldContext));
+        }
+        CustomUnifiedHighlighter highlighter = cache.get(fieldContext.fieldName);
         MappedFieldType fieldType = fieldContext.fieldType;
         SearchHighlightContext.Field field = fieldContext.field;
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
@@ -95,15 +107,6 @@ public class DefaultHighlighter implements Highlighter {
     }
 
     CustomUnifiedHighlighter buildHighlighter(FieldHighlightContext fieldContext) {
-        @SuppressWarnings("unchecked")
-        Map<String, CustomUnifiedHighlighter> cache = (Map<String, CustomUnifiedHighlighter>) fieldContext.cache.computeIfAbsent(
-                UnifiedHighlighter.class.getName(),
-                k -> new HashMap<>()
-        );
-        if (cache.containsKey(fieldContext.fieldName) == false) {
-            cache.put(fieldContext.fieldName, buildHighlighter(fieldContext));
-        }
-        CustomUnifiedHighlighter highlighter = cache.get(fieldContext.fieldName);
         IndexSettings indexSettings = fieldContext.context.getSearchExecutionContext().getIndexSettings();
         Encoder encoder = fieldContext.field.fieldOptions().encoder().equals("html")
             ? HighlightUtils.Encoders.HTML

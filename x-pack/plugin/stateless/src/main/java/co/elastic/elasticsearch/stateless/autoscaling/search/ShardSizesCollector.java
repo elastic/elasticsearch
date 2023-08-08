@@ -105,8 +105,8 @@ public class ShardSizesCollector implements ClusterStateListener {
         private long interactiveSizeDiffInBytes = 0L;
 
         private synchronized boolean add(ShardId shardId, ShardSize size) {
-            var previousSize = pastPublications.getOrDefault(shardId, ShardSize.EMPTY);
-            long delta = size.interactiveSizeInBytes() - previousSize.interactiveSizeInBytes();
+            var previousSize = pastPublications.get(shardId);
+            long delta = size.interactiveSizeInBytes() - (previousSize != null ? previousSize.interactiveSizeInBytes() : 0L);
             if (Objects.equals(previousSize, size) == false) {
                 shards.put(shardId, size);
             }

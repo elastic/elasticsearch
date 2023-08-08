@@ -153,6 +153,17 @@ public class ShardSizesCollectorTests extends ESTestCase {
         });
     }
 
+    public void testEmptyShardSizeIsPublished() throws Exception {
+        var shardId = new ShardId("index-1", "_na_", 0);
+        var size = ShardSize.EMPTY;
+
+        when(statsReader.getShardSize(eq(shardId), any())).thenReturn(size);
+        service.detectShardSize(shardId);
+        service.doStart();
+
+        assertBusy(() -> { verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId, size)), any()); });
+    }
+
     public void testPublicationIsRetried() throws Exception {
 
         var shardId1 = new ShardId("index-1", "_na_", 0);

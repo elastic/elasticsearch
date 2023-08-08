@@ -1338,7 +1338,7 @@ public class MetadataCreateIndexService {
         }
         allMappings.addAll(mappings);
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, allMappings, MergeReason.INDEX_TEMPLATE);
-        
+
         indexMode.validateTimestampFieldMapping(request.dataStreamName() != null, mapperService.mappingLookup());
 
         if (sourceMetadata == null) {

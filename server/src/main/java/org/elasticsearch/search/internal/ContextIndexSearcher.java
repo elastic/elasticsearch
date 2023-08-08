@@ -345,7 +345,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (getExecutor() == null) {
             search(leafContexts, weight, firstCollector);
             return collectorManager.reduce(Collections.singletonList(firstCollector));
-        } else if (leafSlices.length == 0){
+        } else if (leafSlices.length == 0) {
             assert leafContexts.isEmpty();
             return collectorManager.reduce(Collections.singletonList(firstCollector));
         } else {

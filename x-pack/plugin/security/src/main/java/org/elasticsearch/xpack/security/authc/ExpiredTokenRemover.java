@@ -95,6 +95,9 @@ final class ExpiredTokenRemover extends AbstractRunnable {
                 )
         );
         logger.trace(() -> "Removing old tokens: [" + Strings.toString(expiredDbq) + "]");
+        // After {@code TokenService#VERSION_GET_TOKEN_DOC_FOR_REFRESH} tokens are created in documents without refreshing the index.
+        // In addition, the tokens index, if created after {@code Version#V_8_10_0}, has automatic refreshes disabled, meaning all
+        // searches must first issue an explicit refresh.
         executeAsyncWithOrigin(
             client,
             SECURITY_ORIGIN,
@@ -112,8 +115,8 @@ final class ExpiredTokenRemover extends AbstractRunnable {
                     ActionListener.wrap(bulkResponse -> {
                         debugDbqResponse(bulkResponse);
                         // tokens can still linger on the main index for their maximum lifetime after the tokens index has been created,
-                        // because
-                        // only after the tokens index has been created all nodes will store tokens there and not on the main security index
+                        // because only after the tokens index has been created all nodes will store tokens there and not on the
+                        // main security index
                         if (checkMainIndexForExpiredTokens
                             && securityTokensIndex.indexExists()
                             && securityTokensIndex.getCreationTime().isBefore(now.minus(MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))

@@ -1,8 +1,9 @@
 ---
 setup:
   - skip:
-      version: " - 8.6.99"
-      reason: "counter field support added in 8.7"
+      version: " - 8.9.0"
+      reason: "additional counter field aggregations back-ported from 8.10 to 8.9.1"
+      features: close_to
 
   - do:
       indices.create:

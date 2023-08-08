@@ -13,6 +13,16 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import java.util.Objects;
 import java.util.function.BiFunction;
 
+/**
+ * Unlike the parent class {@link GenerateUniqueIndexNameStep} which generates unique names
+ * for indices, here we override the index name generation in such a way that index names are not random.
+ * This is necessary because downsampling uses the persistent task framework and we need the
+ * ability to restart a persistent downsample task in case of failures. Moreover, we need to start
+ * from the latest 'tsid' the task wrote in the target index before failing. For these reasons we need the
+ * name of the target index to be 'predictable' so that we can resume a task writing to the
+ * same (existing) index and so that we do not leave half empty indices around when restarting a persistent
+ * task.
+ */
 public class GenerateDownsampleIndexNameStep extends GenerateUniqueIndexNameStep {
 
     public static final String NAME = "generate-downsample-index-name";

@@ -206,7 +206,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
                 }
             })).start();
 
-            if (startRollupTask(sourceIndex, rollupIndex, config, disruptionStart, disruptionEnd) == false) {
+            if (maybeStartRollupTaskDuringDisruption(sourceIndex, rollupIndex, config, disruptionStart, disruptionEnd) == false) {
                 return;
             }
             waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
@@ -270,7 +270,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
                 }
             })).start();
 
-            if (startRollupTask(sourceIndex, rollupIndex, config, disruptionStart, disruptionEnd) == false) {
+            if (maybeStartRollupTaskDuringDisruption(sourceIndex, rollupIndex, config, disruptionStart, disruptionEnd) == false) {
                 return;
             }
             waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
@@ -279,7 +279,18 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         }
     }
 
-    private boolean startRollupTask(
+    /**
+     * Starts a downsample operation.
+     *
+     * @param sourceIndex the idex to read data from
+     * @param rollupIndex the idnex to write downsampled data to
+     * @param config the downsample configuration including the downsample granularity
+     * @param disruptionStart a latch to synchronize on the disruption starting
+     * @param disruptionEnd a latch to synchronize on the disruption ending
+     * @return true if the downsample task was actually started, false if an error happened before being able to start it
+     * @throws InterruptedException if the thread is interrupted while waiting
+     */
+    private boolean maybeStartRollupTaskDuringDisruption(
         final String sourceIndex,
         final String rollupIndex,
         final DownsampleConfig config,
@@ -353,7 +364,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
                 }
             })).start();
 
-            if (startRollupTask(sourceIndex, rollupIndex, config, disruptionStart, disruptionEnd) == false) {
+            if (maybeStartRollupTaskDuringDisruption(sourceIndex, rollupIndex, config, disruptionStart, disruptionEnd) == false) {
                 return;
             }
             waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());

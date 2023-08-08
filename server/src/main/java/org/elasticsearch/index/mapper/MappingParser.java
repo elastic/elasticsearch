@@ -84,8 +84,7 @@ public final class MappingParser {
     }
 
     /**
-     * A method to parse mapping from a source in a map form, that allows to specify explicit/implicit {@code subobjects} configuration.
-     * Since parsing is affected by the {@code subobjects} setting, the resulted mapping may change according to this setting.
+     * A method to parse mapping from a source in a map form.
      *
      * @param type          the mapping type
      * @param mappingSource mapping source already converted to a map form, but not yet processed otherwise

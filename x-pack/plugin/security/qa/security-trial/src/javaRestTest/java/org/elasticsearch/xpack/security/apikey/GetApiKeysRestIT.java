@@ -11,6 +11,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.XContentTestUtils;
@@ -36,6 +37,7 @@ import javax.annotation.Nullable;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.equalTo;
 
 public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
     private static final SecureString END_USER_PASSWORD = new SecureString("end-user-password".toCharArray());
@@ -145,6 +147,11 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
             ).getApiKeyInfos(),
             emptyArray()
         );
+        var ex = expectThrows(
+            ResponseException.class,
+            () -> getApiKeysWithRequestParams(MANAGE_OWN_API_KEY_USER, Map.of("active_only", "true", "owner", "false"))
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertResponseContainsApiKeyIds(
             getApiKeysWithRequestParams(randomBoolean() ? Map.of() : Map.of("active_only", "false")),
             manageOwnApiKeyUserApiKeyId,

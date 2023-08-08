@@ -90,7 +90,7 @@ setup:
                 search_analyzer: my_analyzer1
 
   - do:
-      catch: /Synonyms set \[test-get-synonyms\] cannot be deleted as it is used in the following indices:\ my_index1/
+      catch: /synonyms set \[test-get-synonyms\] cannot be deleted as it is used in the following indices:\ my_index1/
       synonyms.delete:
         synonyms_set: test-get-synonyms
 

@@ -22,6 +22,7 @@ import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -40,7 +41,9 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
     protected final BlockingQueue<T> queue;
     private final AtomicReference<Exception> error = new AtomicReference<>();
 
-    private volatile boolean running = true;
+    // private volatile boolean running = true;
+    private final AtomicBoolean running = new AtomicBoolean(true);
+    private volatile boolean shouldShutdownAfterCompletingWork = false;
 
     /**
      * @param contextHolder the thread context holder
@@ -70,9 +73,15 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
         shutdown();
     }
 
+    public boolean shutdownAfterCompletingWork(long timeout, TimeUnit unit) throws InterruptedException {
+        shouldShutdownAfterCompletingWork = true;
+        return awaitTermination(timeout, unit);
+    }
+
     @Override
     public void shutdown() {
-        running = false;
+        // running = false;
+        running.set(false);
     }
 
     @Override
@@ -82,7 +91,8 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
 
     @Override
     public boolean isShutdown() {
-        return running == false;
+        // return running == false;
+        return running.get();
     }
 
     @Override
@@ -97,7 +107,7 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
 
     public void start() {
         try {
-            while (running) {
+            while (running.get()) {
                 Runnable runnable = queue.poll(500, TimeUnit.MILLISECONDS);
                 if (runnable != null) {
                     try {
@@ -106,6 +116,8 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
                         logger.error(() -> "error handling process [" + processName + "] operation", e);
                     }
                     EsExecutors.rethrowErrors(ThreadContext.unwrap(runnable));
+                } else if (shouldShutdownAfterCompletingWork) {
+                    running.set(false);
                 }
             }
 

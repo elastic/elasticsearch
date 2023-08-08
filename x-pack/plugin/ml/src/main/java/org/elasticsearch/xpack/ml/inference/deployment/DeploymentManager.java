@@ -57,6 +57,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -94,11 +95,6 @@ public class DeploymentManager {
         this.executorServiceForDeployment = threadPool.executor(UTILITY_THREAD_POOL_NAME);
         this.executorServiceForProcess = threadPool.executor(MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME);
         this.maxProcesses = maxProcesses;
-    }
-
-    // TODO
-    public void waitForQueueToDrain() {
-
     }
 
     public Optional<ModelStats> getStats(TrainedModelDeploymentTask task) {
@@ -252,6 +248,21 @@ public class DeploymentManager {
             processContext.stopProcess();
         } else {
             logger.warn("[{}] No process context to stop", task.getDeploymentId());
+        }
+    }
+
+    // TODO
+    public void stopAfterCompletingPendingWork(TrainedModelDeploymentTask task) throws InterruptedException {
+        ProcessContext processContext = processContextByAllocation.remove(task.getId());
+        if (processContext != null) {
+            logger.info(
+                "[{}] Stopping deployment gracefully****, reason [{}]",
+                task.getDeploymentId(),
+                task.stoppedReason().orElse("unknown")
+            );
+            processContext.stopProcessAfterCompletingPendingWork();
+        } else {
+            logger.warn("[{}] No process context to stop gracefully****", task.getDeploymentId());
         }
     }
 
@@ -459,6 +470,31 @@ public class DeploymentManager {
             } else {
                 priorityProcessWorker.shutdown();
             }
+            killProcessIfPresent();
+            if (nlpTaskProcessor.get() != null) {
+                nlpTaskProcessor.get().close();
+            }
+        }
+
+        synchronized void stopProcessAfterCompletingPendingWork() throws InterruptedException {
+            isStopped = true;
+            // TODO need to make changes here too
+            resultProcessor.stop();
+            stateStreamer.cancel();
+
+            if (priorityProcessWorker.isShutdown()) {
+                // most likely there was a crash or exception that caused the
+                // thread to stop. Notify any waiting requests in the work queue
+                priorityProcessWorker.notifyQueueRunnables();
+            } else {
+                boolean stoppedGracefully = priorityProcessWorker.shutdownAfterCompletingWork(2, TimeUnit.MINUTES);
+
+                if (stoppedGracefully == false) {
+                    // TODO
+                    stopProcess();
+                }
+            }
+            // TODO is there a graceful way to let the process complete? Or tell it to shutdown
             killProcessIfPresent();
             if (nlpTaskProcessor.get() != null) {
                 nlpTaskProcessor.get().close();

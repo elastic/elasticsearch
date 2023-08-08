@@ -179,7 +179,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
-                deploymentManager.stopDeployment(task);
+                deploymentManager.stopAfterCompletingPendingWork(task);
                 taskManager.unregister(task);
                 deploymentIdToTask.remove(task.getDeploymentId());
                 listener.onResponse(null);
@@ -266,11 +266,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         loadingModels.addAll(loadingToRetry);
     }
 
-    public void stopDeploymentAndNotifyStraightToStopped(
-        TrainedModelDeploymentTask task,
-        String reason,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
+    public void stopGracefully(TrainedModelDeploymentTask task, String reason, ActionListener<AcknowledgedResponse> listener) {
         final RoutingInfoUpdate updateToStopped = RoutingInfoUpdate.updateStateAndReason(
             new RoutingStateAndReason(RoutingState.STOPPED, reason)
         );
@@ -278,11 +274,11 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         ActionListener<Void> notifyDeploymentOfStopped = ActionListener.wrap(
             _void -> updateStoredState(task.getDeploymentId(), updateToStopped, listener),
             failed -> { // if we failed to stop the process, something strange is going on, but we should still notify of stop
-                logger.warn(() -> "[" + task.getDeploymentId() + "] failed to stop due to error", failed);
+                logger.warn(() -> "[" + task.getDeploymentId() + "] failed to stop gracefully due to error", failed);
                 updateStoredState(task.getDeploymentId(), updateToStopped, listener);
             }
         );
-        stopDeploymentAsync(task, reason, notifyDeploymentOfStopped);
+        drainNodeRequestsAsync(task, reason, notifyDeploymentOfStopped);
     }
 
     public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason, ActionListener<AcknowledgedResponse> listener) {
@@ -434,7 +430,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                         // TODO remove this
                         TrainedModelDeploymentTask task = deploymentIdToTask.remove(trainedModelAssignment.getDeploymentId());
                         if (task != null) {
-                            stopDeploymentAndNotifyStraightToStopped(
+                            stopGracefully(
                                 task,
                                 NODE_NO_LONGER_REFERENCED,
                                 ActionListener.wrap(

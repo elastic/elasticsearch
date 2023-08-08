@@ -1,0 +1,5 @@
+pr: 98296
+summary: Add setting to scale the processor count used in the model assignment planner
+area: Machine Learning
+type: enhancement
+issues: []

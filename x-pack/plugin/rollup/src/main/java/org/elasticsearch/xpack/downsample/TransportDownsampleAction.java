@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
@@ -318,30 +319,42 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             RollupShardTask.TASK_NAME,
                             params,
                             ActionListener.wrap(
-                                startedTask -> persistentTasksService.waitForPersistentTaskCondition(startedTask.getId(), runningTask -> {
-                                    if (runningTask == null) {
-                                        // NOTE: don't need to wait if the persistent task completed and was removed
-                                        return true;
-                                    }
-                                    RollupShardPersistentTaskState runningPersistentTaskState = (RollupShardPersistentTaskState) runningTask
-                                        .getState();
-                                    return runningPersistentTaskState != null && runningPersistentTaskState.done();
-                                },
-                                    request.getTimeout(),
-                                    new DownsamplePersistentTaskCompletionListener(
-                                        numberOfShards,
-                                        sourceIndexMetadata,
-                                        listener,
-                                        client,
-                                        parentTask,
-                                        rollupIndexName,
-                                        request.masterNodeTimeout(),
-                                        taskQueue
-                                    )
+                                startedTask -> waitForDownsamplePersistentTaskCompletion(
+                                    request,
+                                    listener,
+                                    sourceIndexMetadata,
+                                    rollupIndexName,
+                                    parentTask,
+                                    numberOfShards,
+                                    startedTask.getId()
                                 ),
-                                e -> listener.onFailure(
-                                    new ElasticsearchException("Task [" + persistentRollupTaskId + "] already exists", e)
-                                )
+                                e -> {
+                                    if (e instanceof ResourceAlreadyExistsException) {
+                                        logger.warn(
+                                            "A downsample task ["
+                                                + persistentRollupTaskId
+                                                + "]  for index ["
+                                                + rollupIndexName
+                                                + "]  already exists. Waiting for completion."
+                                        );
+                                        waitForDownsamplePersistentTaskCompletion(
+                                            request,
+                                            listener,
+                                            sourceIndexMetadata,
+                                            rollupIndexName,
+                                            parentTask,
+                                            numberOfShards,
+                                            persistentRollupTaskId
+                                        );
+                                    } else {
+                                        listener.onFailure(
+                                            new ElasticsearchException(
+                                                "Starting downsample persistent task [" + persistentRollupTaskId + "] failed",
+                                                e
+                                            )
+                                        );
+                                    }
+                                }
                             )
                         );
                     }
@@ -350,6 +363,37 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 }
             }, listener::onFailure));
         }, listener::onFailure));
+    }
+
+    private void waitForDownsamplePersistentTaskCompletion(
+        final DownsampleAction.Request request,
+        final ActionListener<AcknowledgedResponse> listener,
+        final IndexMetadata sourceIndexMetadata,
+        final String rollupIndexName,
+        final TaskId parentTask,
+        int numberOfShards,
+        final String persistentRollupTaskId
+    ) {
+        persistentTasksService.waitForPersistentTaskCondition(persistentRollupTaskId, runningTask -> {
+            if (runningTask == null) {
+                // NOTE: don't need to wait if the persistent task completed and was removed
+                return true;
+            }
+            RollupShardPersistentTaskState runningPersistentTaskState = (RollupShardPersistentTaskState) runningTask.getState();
+            return runningPersistentTaskState != null && runningPersistentTaskState.done();
+        },
+            request.getTimeout(),
+            new DownsamplePersistentTaskCompletionListener(
+                numberOfShards,
+                sourceIndexMetadata,
+                listener,
+                client,
+                parentTask,
+                rollupIndexName,
+                request.masterNodeTimeout(),
+                taskQueue
+            )
+        );
     }
 
     private static RollupShardTaskParams createRollupShardTaskParams(

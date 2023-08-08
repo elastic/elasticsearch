@@ -115,9 +115,9 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
     }
 
     @Override
-    public String getRemoteClusterServerEndpoint() {
+    public String getRemoteClusterServerEndpoints() {
         checkHandle();
-        return handle.getRemoteClusterServerEndpoint();
+        return handle.getRemoteClusterServerEndpoints();
     }
 
     @Override

@@ -43,12 +43,13 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
     private IndexTemplateConfig stateTemplate() {
         Map<String, String> variables = new HashMap<>();
         variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
+        // In serverless a different version of "state_index_template.json" is shipped that won't substitute the ILM policy variable
         variables.put(INDEX_LIFECYCLE_NAME, ML_SIZE_BASED_ILM_POLICY_NAME);
         variables.put(INDEX_LIFECYCLE_ROLLOVER_ALIAS, AnomalyDetectorsIndex.jobStateIndexWriteAlias());
 
         return new IndexTemplateConfig(
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
-            ANOMALY_DETECTION_PATH + ((useIlm == false) ? "state_index_template_no_ilm.json" : "state_index_template.json"),
+            ANOMALY_DETECTION_PATH + "state_index_template.json",
             Version.CURRENT.id,
             VERSION_PATTERN,
             variables
@@ -87,12 +88,13 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
         Map<String, String> variables = new HashMap<>();
         variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
         variables.put("xpack.ml.stats.mappings", MlStatsIndex.mapping());
+        // In serverless a different version of "stats_index_template.json" is shipped that won't substitute the ILM policy variable
         variables.put(INDEX_LIFECYCLE_NAME, ML_SIZE_BASED_ILM_POLICY_NAME);
         variables.put(INDEX_LIFECYCLE_ROLLOVER_ALIAS, MlStatsIndex.writeAlias());
 
         return new IndexTemplateConfig(
             MlStatsIndex.TEMPLATE_NAME,
-            ROOT_RESOURCE_PATH + ((useIlm == false) ? "stats_index_template_no_ilm.json" : "stats_index_template.json"),
+            ROOT_RESOURCE_PATH + "stats_index_template.json",
             Version.CURRENT.id,
             VERSION_PATTERN,
             variables

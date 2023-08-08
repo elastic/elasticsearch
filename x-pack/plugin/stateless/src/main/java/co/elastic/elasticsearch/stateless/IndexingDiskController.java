@@ -29,6 +29,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
@@ -54,12 +55,11 @@ public class IndexingDiskController extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(IndexingDiskController.class);
 
-    /** A fixed reserved disk space (default: 20gb) **/
-    public static final Setting<ByteSizeValue> INDEXING_DISK_RESERVED_BYTES_SETTING = Setting.byteSizeSetting(
+    /** How much of total disk space should be reserved before flushing shards (default: 20%) **/
+    public static final Setting<RelativeByteSizeValue> INDEXING_DISK_RESERVED_BYTES_SETTING = new Setting<>(
         "indices.disk.reserved_bytes",
-        ByteSizeValue.ofGb(20L), // TODO make this dependent of available disk space
-        ByteSizeValue.ZERO,
-        ByteSizeValue.ofBytes(Long.MAX_VALUE),
+        "20%",
+        (s) -> RelativeByteSizeValue.parseRelativeByteSizeValue(s, "indices.disk.reserved_bytes"),
         Setting.Property.NodeScope
     );
 
@@ -110,8 +110,15 @@ public class IndexingDiskController extends AbstractLifecycleComponent {
         this.indicesService = Objects.requireNonNull(indicesService);
         this.commitService = Objects.requireNonNull(commitService);
 
-        final ByteSizeValue reservedBytes = INDEXING_DISK_RESERVED_BYTES_SETTING.get(settings);
+        final ByteSizeValue reservedBytes;
         final ByteSizeValue totalBytes = totalBytes();
+
+        var relativeDiskReservedBytes = INDEXING_DISK_RESERVED_BYTES_SETTING.get(settings);
+        if (relativeDiskReservedBytes.isAbsolute()) {
+            reservedBytes = relativeDiskReservedBytes.getAbsolute();
+        } else {
+            reservedBytes = relativeDiskReservedBytes.calculateValue(totalBytes, null);
+        }
         if (reservedBytes.getBytes() >= totalBytes.getBytes()) {
             throw new IllegalStateException(
                 "Reserved disk space ["
@@ -204,6 +211,10 @@ public class IndexingDiskController extends AbstractLifecycleComponent {
             }
         }
         return available;
+    }
+
+    ByteSizeValue getReservedBytes() {
+        return reservedBytes;
     }
 
     record ShardDiskUsage(IndexShard shard, long directorySizeInBytes, long indexBufferRAMBytesUsed) {

@@ -9,6 +9,8 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -27,7 +29,8 @@ import java.util.Map;
 public class DiskThresholdSettings {
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.disk.threshold_enabled",
-        true,
+        settings -> DiscoveryNode.isStateless(settings) ? Boolean.FALSE.toString() : Boolean.TRUE.toString(),
+        new ThresholdEnabledValidator(),
         Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
     );
@@ -193,6 +196,40 @@ public class DiskThresholdSettings {
         );
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
+    }
+
+    static class ThresholdEnabledValidator implements Setting.Validator<Boolean> {
+
+        // this setting is not registered and only declared here so that its value is available in validation methods
+        private static final Setting<Boolean> UNREGISTERED_STATELESS_ENABLED = Setting.boolSetting(
+            DiscoveryNode.STATELESS_ENABLED_SETTING_NAME,
+            false,
+            Setting.Property.NodeScope
+        );
+
+        @Override
+        public void validate(Boolean value) {}
+
+        @Override
+        public void validate(Boolean value, Map<Setting<?>, Object> settings, boolean isPresent) {
+            var statelessEnabled = (Boolean) settings.get(UNREGISTERED_STATELESS_ENABLED);
+            if (statelessEnabled != null && statelessEnabled) {
+                if (value) {
+                    throw new IllegalArgumentException(
+                        "setting ["
+                            + CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()
+                            + "=true] cannot be enabled when setting ["
+                            + UNREGISTERED_STATELESS_ENABLED.getKey()
+                            + "] is [true]"
+                    );
+                }
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return Iterators.single(UNREGISTERED_STATELESS_ENABLED);
+        }
     }
 
     /**

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -20,6 +21,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class DiskThresholdSettingsTests extends ESTestCase {
 
@@ -998,4 +1000,57 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         doTestDescriptions(false);
     }
 
+    public void testThresholdEnabledValidation() {
+        {
+            var nodeSettings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+            var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            var diskThresholdSettings = new DiskThresholdSettings(nodeSettings, clusterSettings);
+            assertThat(diskThresholdSettings.isEnabled(), is(false));
+        }
+
+        {
+            var nodeSettings = Settings.builder()
+                .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
+                .build();
+            var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            var exception = expectThrows(IllegalArgumentException.class, () -> new DiskThresholdSettings(nodeSettings, clusterSettings));
+            assertThat(
+                exception.getMessage(),
+                equalTo(
+                    "setting [cluster.routing.allocation.disk.threshold_enabled=true] cannot be enabled "
+                        + "when setting [stateless.enabled] is [true]"
+                )
+            );
+        }
+
+        {
+            var nodeSettings = Settings.builder()
+                .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+                .build();
+            var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            new DiskThresholdSettings(nodeSettings, clusterSettings); // register settings consumers
+
+            var exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> clusterSettings.applySettings(
+                    Settings.builder()
+                        .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
+                        .build()
+                )
+            );
+            assertThat(
+                exception.getMessage(),
+                equalTo("illegal value can't update [cluster.routing.allocation.disk.threshold_enabled] from [false] to [true]")
+            );
+            assertThat(
+                exception.getCause().getMessage(),
+                equalTo(
+                    "setting [cluster.routing.allocation.disk.threshold_enabled=true] cannot be enabled "
+                        + "when setting [stateless.enabled] is [true]"
+                )
+            );
+        }
+    }
 }

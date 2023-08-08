@@ -32,6 +32,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class MlLifeCycleService {
 
     /**
@@ -103,6 +105,7 @@ public class MlLifeCycleService {
 
         // If the shutdown has taken too long then any remaining tasks will just be cut off when the node dies
         if (shutdownStartTime != null && shutdownStartTime.isBefore(clock.instant().minus(MAX_GRACEFUL_SHUTDOWN_TIME))) {
+            logger.error("flagging as safe to shutdown because it is taking too long to shutdown safely");
             return true;
         }
 
@@ -113,12 +116,14 @@ public class MlLifeCycleService {
         boolean nodeHasDrainingQueues = metadata.allAssignments().values().stream().anyMatch(assignment -> {
             if (assignment.isRoutedToNode(nodeId)) {
                 RoutingInfo routingInfo = assignment.getNodeRoutingTable().get(nodeId);
-
+                logger.error(format("assignment is routed to shutting down nodeId %s state: %s", nodeId, routingInfo.getState()))
                 return routingInfo.getState() == RoutingState.STOPPING;
             }
 
             return false;
         });
+
+        logger.error(format("nodeHasDrainingQueues: %s", nodeHasDrainingQueues));
 
         // TODO: currently only considering anomaly detection jobs - could extend in the future
         // Ignore failed jobs - the persistent task still exists to remember the failure (because no

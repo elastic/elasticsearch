@@ -149,7 +149,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             this.leafSlices = null;
         } else {
             // we offload to the executor unconditionally, including requests that don't support concurrency
-            //the few cases that don't support offloading entirely won't get an executor
+            // the few cases that don't support offloading entirely won't get an executor
             this.leafSlices = computeSlices(getLeafContexts(), maximumNumberOfSlices, minimumDocsPerSlice);
             assert this.leafSlices.length <= maximumNumberOfSlices : "more slices created than the maximum allowed";
         }

@@ -101,7 +101,10 @@ public class IngestMetricsService implements ClusterStateListener {
 
             for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
                 if (isIndexNode(removedNode)) {
-                    nodesIngestLoad.get(removedNode.getId()).setQualityToMinimum();
+                    var removedNodeIngestLoad = nodesIngestLoad.get(removedNode.getId());
+                    if (removedNodeIngestLoad != null) {
+                        removedNodeIngestLoad.setQualityToMinimum();
+                    }
                 }
             }
         }

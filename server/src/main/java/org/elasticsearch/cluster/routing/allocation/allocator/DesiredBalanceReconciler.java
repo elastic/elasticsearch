@@ -344,14 +344,19 @@ public class DesiredBalanceReconciler {
 
         private boolean isIgnored(RoutingNodes routingNodes, ShardRouting shard, ShardAssignment assignment) {
             if (assignment.ignored() == 0) {
+                // no shards are ignored
                 return false;
             }
             if (assignment.ignored() == assignment.total()) {
+                // all shards are ignored
                 return true;
             }
             if (assignment.total() - assignment.ignored() == 1) {
+                // all shard copies except primary are ignored
                 return shard.primary() == false;
             }
+            // only some of the replicas might be ignored
+            // please note: it is not safe to use routing table here as it is not updated with changes from routing nodes yet
             int assigned = 0;
             for (RoutingNode routingNode : routingNodes) {
                 var assignedShard = routingNode.getByShardId(shard.shardId());

@@ -15,59 +15,8 @@ You can have as many synonyms sets as you need.
 
 In order to use synonyms sets in {es}, you need to:
 
-* <<synonyms-define-synonyms>>
 * <<synonyms-store-synonyms>>
-* <<synonyms-synonym-analyzers>>
-
-[discrete]
-[[synonyms-define-synonyms]]
-=== Define synonyms sets
-
-Synonyms in a synonyms set are defined using *synonym rules*.
-Each synonym rule contains words that are synonyms.
-
-You can use two formats to define synonym rules: Solr and WordNet.
-
-[discrete]
-[[synonyms-define-synonyms-solr]]
-==== Solr format
-
-This format uses two different definitions:
-
-* Equivalent synonyms: Define groups of words that are equivalent. Words are separated by commas. Example:
-[source,synonyms]
-----
-ipod, i-pod, i pod
-computer, pc, laptop
-----
-* Explicit mappings: Matches a group of words to other words. Words on the left hand side of the rule definition are expanded into all the possibilities described on the right hand side. Example:
-
-[source,synonyms]
-----
-personal computer => pc
-sea biscuit, sea biscit => seabiscuit
-----
-
-[discrete]
-[[synonyms-define-synonyms-wordnet]]
-==== WordNet format
-
-https://wordnet.princeton.edu/[WordNet] defines synonyms sets spanning multiple lines. Each line contains the following information:
-
-* Synonyms set numeric identifier
-* Ordinal of the synonym in the synonyms set
-* Synonym word
-* Word type identifier: Noun (n), verb (v), adjective (a) or adverb (b).
-* Depth of the word in the synonym net
-
-The following example defines a synonym set for the words "come", "advance" and "approach":
-
-[source,synonyms]
-----
-s(100000002,1,'come',v,1,0).
-s(100000002,2,'advance',v,1,0).
-s(100000002,3,'approach',v,1,0).""";
-----
+* <<synonyms-synonym-token-filters>>
 
 [discrete]
 [[synonyms-store-synonyms]]
@@ -121,12 +70,8 @@ A large number of inline synonyms increases cluster size unnecessarily and can l
 ======
 
 [discrete]
-[[synonyms-synonym-analyzers]]
-=== Configure your analyzers to use synonyms sets
-
-[discrete]
 [[synonyms-synonym-token-filters]]
-==== Configure synonyms token filters
+=== Configure synonyms token filters and analyzers
 
 Once your synonyms sets are created, you can start configuring your token filters and analyzers to use them.
 
@@ -136,74 +81,7 @@ You can use two types of <<analysis-tokenfilters,token filter>> to include synon
 * <<analysis-synonym-graph-tokenfilter>>: It is recommended to use it, as it can correctly handle multi-word synonyms ("hurriedly", "in a hurry").
 * <<analysis-synonym-tokenfilter>>: Not recommended if you need to use multi-word synonyms.
 
-Use `synonyms_set` configuration option to provide a synonym set created via Synonyms Management APIs:
-
-[source,JSON]
-----
-  "filter": {
-    "synonyms_filter": {
-      "type": "synonym_graph",
-      "synonyms_set": "my-synonym-set"
-    }
-  }
-----
-
-Use `synonyms_path` to provide a synonym file :
-
-[source,JSON]
-----
-  "filter": {
-    "synonyms_filter": {
-      "type": "synonym_graph",
-      "synonyms_path": "analysis/synonym-set.txt"
-    }
-  }
-----
-
-Use `synonyms` to define inline synonyms:
-
-[source,JSON]
-----
-  "filter": {
-    "synonyms_filter": {
-      "type": "synonym_graph",
-      "synonyms": ["pc => personal computer", "computer, pc, laptop"]
-    }
-  }
-----
-
-[discrete]
-[[synonyms-analizers-configure]]
-==== Configure analyzers with synonym token filters
-
-To apply synonyms, you will need to include one of the above synonym token filters into an analyzer, like the following:
-
-[source,JSON]
-----
-      "analyzer": {
-        "my_analyzer": {
-          "type": "custom",
-          "tokenizer": "standard",
-          "filter": ["lowercase", "synonyms_filter"]
-        }
-      }
-----
-
-Order is important for your token filters.
-Text will be processed first through filters preceding the synonym filter before being processed by the synonym filter.
-
-In the above example, text will be lowercased by the `lowercase` filter before being processed by the `synonyms_filter`.
-This means that all the synonyms defined there needs to be in lowercase, or they won't be found by the synonyms filter.
-
-The synonym rules should not contain words that are removed by a filter that appears later in the chain (like a `stop` filter).
-Removing a term from a synonym rule means there will be no matching for it at query time.
-
-Because entries in the synonym map cannot have stacked positions, some token filters may cause issues here.
-Token filters that produce multiple versions of a token may choose which version of the token to emit when parsing synonyms.
-For example, `asciifolding` will only produce the folded version of the token.
-Others, like `multiplexer`, `word_delimiter_graph` or `ngram` will throw an error.
-
-If you need to build analyzers that include both multi-token filters and synonym filters, consider using the <<analysis-multiplexer-tokenfilter,multiplexer>> filter, with the multi-token filters in one branch and the synonym filter in the other.
+Check each synonym token filter documentation for configuration details and instructions on adding it to an analyzer.
 
 [discrete]
 [[synonyms-test-analyzer]]
@@ -243,7 +121,7 @@ Synonyms sets created using the <<synonyms-store-synonyms-api,synonyms API>> can
 
 You can specify the analyzer that contains your synonyms set as a <<specify-search-analyzer,search time analyzer>> or as an <<specify-index-time-analyzer,index time analyzer>>.
 
-The following example adds the previous analyzer as a search analyzer to the `title` field in an index mapping:
+The following example adds `my_analyzer` as a search analyzer to the `title` field in an index mapping:
 
 [source,JSON]
 ----

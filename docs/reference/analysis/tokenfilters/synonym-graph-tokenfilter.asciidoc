@@ -19,39 +19,57 @@ only. If you want to apply synonyms during indexing please use the
 standard <<analysis-synonym-tokenfilter,synonym token filter>>.
 ===============================
 
+[discrete]
+[[analysis-synonym-graph-define-synonyms]]
+==== Define synonyms sets
+
+include::synonyms-format.asciidoc[]
+
+[discrete]
+[[analysis-synonym-graph-configure-sets]]
+==== Configure synonyms sets
+
 Synonyms can be configured using the <<synonyms-store-synonyms-api,synonyms API>>, a <<synonyms-store-synonyms-file,synonyms file>>, or directly <<synonyms-store-synonyms-inline,inlined>> in the token filter configuration.
 See <<synonyms-store-synonyms,store your synonyms set>> for more details on each option.
 
-An example synonyms file configuration:
+Use `synonyms_set` configuration option to provide a synonym set created via Synonyms Management APIs:
 
-[source,console]
---------------------------------------------------
-PUT /test_index
-{
-  "settings": {
-    "index": {
-      "analysis": {
-        "analyzer": {
-          "search_synonyms": {
-            "tokenizer": "whitespace",
-            "filter": [ "graph_synonyms" ]
-          }
-        },
-        "filter": {
-          "graph_synonyms": {
-            "type": "synonym_graph",
-            "synonyms_path": "analysis/synonym.txt"
-          }
-        }
-      }
+[source,JSON]
+----
+  "filter": {
+    "synonyms_filter": {
+      "type": "synonym",
+      "synonyms_set": "my-synonym-set"
     }
   }
-}
---------------------------------------------------
+----
 
-The above configures a `search_synonyms` filter, with a path of
-`analysis/synonym.txt` (relative to the `config` location). The
-`search_synonyms` analyzer is then configured with the filter.
+Use `synonyms_path` to provide a synonym file :
+
+[source,JSON]
+----
+  "filter": {
+    "synonyms_filter": {
+      "type": "synonym",
+      "synonyms_path": "analysis/synonym-set.txt"
+    }
+  }
+----
+
+The above configures a `synonym` filter, with a path of
+`analysis/synonym-set.txt` (relative to the `config` location).
+
+Use `synonyms` to define inline synonyms:
+
+[source,JSON]
+----
+  "filter": {
+    "synonyms_filter": {
+      "type": "synonym",
+      "synonyms": ["pc => personal computer", "computer, pc, laptop"]
+    }
+  }
+----
 
 Additional settings are:
 
@@ -101,11 +119,45 @@ stop word.
 
 [discrete]
 [[synonym-graph-tokenizer-ignore_case-deprecated]]
-==== `tokenizer` and `ignore_case` are deprecated
+===== `tokenizer` and `ignore_case` are deprecated
 
 The `tokenizer` parameter controls the tokenizers that will be used to
 tokenize the synonym, this parameter is for backwards compatibility for indices that created before 6.0.
 The `ignore_case` parameter works with `tokenizer` parameter only.
 
-See <<synonyms-define-synonyms,define your synonyms>> for the available formats to define synonyms.
+[discrete]
+[[analysis-synonym-graph-analizers-configure]]
+==== Configure analyzers with synonym graph token filters
 
+To apply synonyms, you will need to include a synonym graph token filter into an analyzer:
+
+[source,JSON]
+----
+      "analyzer": {
+        "my_analyzer": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase", "synonym_graph"]
+        }
+      }
+----
+
+[discrete]
+[[analysis-synonym-graph-token-order]]
+===== Token filters ordering
+
+Order is important for your token filters.
+Text will be processed first through filters preceding the synonym filter before being processed by the synonym filter.
+
+In the above example, text will be lowercased by the `lowercase` filter before being processed by the `synonyms_filter`.
+This means that all the synonyms defined there needs to be in lowercase, or they won't be found by the synonyms filter.
+
+The synonym rules should not contain words that are removed by a filter that appears later in the chain (like a `stop` filter).
+Removing a term from a synonym rule means there will be no matching for it at query time.
+
+Because entries in the synonym map cannot have stacked positions, some token filters may cause issues here.
+Token filters that produce multiple versions of a token may choose which version of the token to emit when parsing synonyms.
+For example, `asciifolding` will only produce the folded version of the token.
+Others, like `multiplexer`, `word_delimiter_graph` or `ngram` will throw an error.
+
+If you need to build analyzers that include both multi-token filters and synonym filters, consider using the <<analysis-multiplexer-tokenfilter,multiplexer>> filter, with the multi-token filters in one branch and the synonym filter in the other.

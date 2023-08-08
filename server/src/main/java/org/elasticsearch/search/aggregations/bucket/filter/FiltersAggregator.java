@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -289,6 +290,10 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
         @Override
         protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+            if (filters().isEmpty() || (filters().size() == 1 && filters().get(0).query() instanceof MatchNoDocsQuery)) {
+                return LeafBucketCollector.NO_OP_COLLECTOR;
+            }
+
             IntPredicate[] docFilters = new IntPredicate[filters().size()];
             for (int filterOrd = 0; filterOrd < filters().size(); filterOrd++) {
                 docFilters[filterOrd] = filters().get(filterOrd).matchingDocIds(aggCtx.getLeafReaderContext());

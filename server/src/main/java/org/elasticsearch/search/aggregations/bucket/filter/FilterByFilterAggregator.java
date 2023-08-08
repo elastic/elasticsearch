@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.Bits;
@@ -233,7 +234,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         assert scoreMode().needsScores() == false;
-        if (filters().size() == 0) {
+        if (filters().isEmpty() || (filters().size() == 1 && filters().get(0).query() instanceof MatchNoDocsQuery)) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         Bits live = aggCtx.getLeafReaderContext().reader().getLiveDocs();

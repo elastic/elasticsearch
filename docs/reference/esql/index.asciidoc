@@ -6,6 +6,9 @@
 
 [partintro]
 --
+
+preview::[]
+
 The {es} Query Language ({esql}) is a query language that enables the iterative
 exploration of data.
 
@@ -108,11 +111,14 @@ with the time filter.
 - `alias`
 - `boolean`
 - `date`
+- `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
 - `ip`
-- `keyword` family (`keyword`, `constant_keyword`, and `wildcard`)
-- `double`/`float`/`half_float` (represented as `double`)
+- `keyword` family including `keyword`, `constant_keyword`, and `wildcard`
+- `int` (`short` and `byte` are represented as `int`)
 - `long`
-- `int`/`short`/`byte` (represented as `int`)
+- `null`
+- `text`
+- `unsigned_long`
 - `version`
 --
 

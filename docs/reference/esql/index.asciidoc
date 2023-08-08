@@ -6,6 +6,9 @@
 
 [partintro]
 --
+
+preview::[]
+
 The {es} Query Language ({esql}) is a query language that enables the iterative
 exploration of data.
 

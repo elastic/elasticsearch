@@ -14,7 +14,6 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 
@@ -38,9 +37,7 @@ public class RestGetRollupIndexCapsAction extends BaseRestHandler {
         String index = restRequest.param(INDEX.getPreferredName());
         IndicesOptions options = IndicesOptions.fromRequest(restRequest, IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED);
         GetRollupIndexCapsAction.Request request = new GetRollupIndexCapsAction.Request(Strings.splitStringByCommaToArray(index), options);
-        return channel -> client.threadPool()
-            .executor(ThreadPool.Names.MANAGEMENT)
-            .execute(() -> client.execute(GetRollupIndexCapsAction.INSTANCE, request, new RestToXContentListener<>(channel)));
+        return channel -> client.execute(GetRollupIndexCapsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

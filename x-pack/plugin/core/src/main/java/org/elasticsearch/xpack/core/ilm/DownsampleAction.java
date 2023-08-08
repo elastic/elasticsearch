@@ -44,9 +44,9 @@ public class DownsampleAction implements LifecycleAction {
     public static final String CONDITIONAL_TIME_SERIES_CHECK_KEY = BranchingStep.NAME + "-on-timeseries-check";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
     public static final String GENERATE_DOWNSAMPLE_STEP_NAME = "generate-downsampled-index-name";
-    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.DAYS);
+    public static final TimeValue DEFAULT_WAIT_TIMEOUT = new TimeValue(1, TimeUnit.DAYS);
     private static final ParseField FIXED_INTERVAL_FIELD = new ParseField(DownsampleConfig.FIXED_INTERVAL);
-    private static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
+    private static final ParseField WAIT_TIMEOUT_FIELD = new ParseField("wait_timeout");
 
     private static final ConstructingObjectParser<DownsampleAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -62,33 +62,33 @@ public class DownsampleAction implements LifecycleAction {
         );
         PARSER.declareField(
             optionalConstructorArg(),
-            p -> TimeValue.parseTimeValue(p.textOrNull(), TIMEOUT_FIELD.getPreferredName()),
-            TIMEOUT_FIELD,
+            p -> TimeValue.parseTimeValue(p.textOrNull(), WAIT_TIMEOUT_FIELD.getPreferredName()),
+            WAIT_TIMEOUT_FIELD,
             ObjectParser.ValueType.STRING
         );
     }
 
     private final DateHistogramInterval fixedInterval;
-    private final TimeValue timeout;
+    private final TimeValue waitTimeout;
 
     public static DownsampleAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public DownsampleAction(final DateHistogramInterval fixedInterval, final TimeValue timeout) {
+    public DownsampleAction(final DateHistogramInterval fixedInterval, final TimeValue waitTimeout) {
         if (fixedInterval == null) {
             throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL_FIELD.getPreferredName() + "] is required.");
         }
         this.fixedInterval = fixedInterval;
-        this.timeout = timeout == null ? DEFAULT_TIMEOUT : timeout;
+        this.waitTimeout = waitTimeout == null ? DEFAULT_WAIT_TIMEOUT : waitTimeout;
     }
 
     public DownsampleAction(StreamInput in) throws IOException {
         this(
             new DateHistogramInterval(in),
             in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_054)
-                ? TimeValue.parseTimeValue(in.readString(), TIMEOUT_FIELD.getPreferredName())
-                : DEFAULT_TIMEOUT
+                ? TimeValue.parseTimeValue(in.readString(), WAIT_TIMEOUT_FIELD.getPreferredName())
+                : DEFAULT_WAIT_TIMEOUT
         );
     }
 
@@ -96,9 +96,9 @@ public class DownsampleAction implements LifecycleAction {
     public void writeTo(StreamOutput out) throws IOException {
         fixedInterval.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_054)) {
-            out.writeString(timeout.getStringRep());
+            out.writeString(waitTimeout.getStringRep());
         } else {
-            out.writeString(DEFAULT_TIMEOUT.getStringRep());
+            out.writeString(DEFAULT_WAIT_TIMEOUT.getStringRep());
         }
     }
 
@@ -106,7 +106,7 @@ public class DownsampleAction implements LifecycleAction {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FIXED_INTERVAL_FIELD.getPreferredName(), fixedInterval.toString());
-        builder.field(TIMEOUT_FIELD.getPreferredName(), timeout.getStringRep());
+        builder.field(WAIT_TIMEOUT_FIELD.getPreferredName(), waitTimeout.getStringRep());
         builder.endObject();
         return builder;
     }
@@ -120,8 +120,8 @@ public class DownsampleAction implements LifecycleAction {
         return fixedInterval;
     }
 
-    public TimeValue timeout() {
-        return timeout;
+    public TimeValue waitTimeout() {
+        return waitTimeout;
     }
 
     @Override
@@ -178,7 +178,7 @@ public class DownsampleAction implements LifecycleAction {
             (indexMetadata) -> indexMetadata.getLifecycleExecutionState().downsampleIndexName()
         );
 
-        // Generate a unique downsample index name and store it in the ILM execution state
+        // Generate a predictable downsample index name and store it in the ILM execution state
         GenerateUniqueIndexNameStep generateDownsampleIndexNameStep = new GenerateDownsampleIndexNameStep(
             generateDownsampleIndexNameKey,
             downsampleKey,
@@ -194,7 +194,7 @@ public class DownsampleAction implements LifecycleAction {
             cleanupDownsampleIndexKey,
             client,
             fixedInterval,
-            timeout
+            waitTimeout
         );
 
         // Wait until the downsampled index is recovered. We again wait until the configured threshold is breached and

@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -54,8 +53,6 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.persistent.PersistentTaskParams;
-import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -81,8 +78,6 @@ import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
@@ -158,42 +153,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     private long startTime;
     private int docCount, numOfShards, numOfReplicas;
     private List<String> dimensionValues;
-
-    @Override
-    protected NamedWriteableRegistry writableRegistry() {
-        return new NamedWriteableRegistry(
-            List.of(
-                new NamedWriteableRegistry.Entry(
-                    RollupShardPersistentTaskState.class,
-                    RollupShardPersistentTaskState.NAME,
-                    RollupShardPersistentTaskState::readFromStream
-                ),
-                new NamedWriteableRegistry.Entry(
-                    PersistentTaskParams.class,
-                    RollupShardTaskParams.NAME,
-                    RollupShardTaskParams::readFromStream
-                )
-            )
-        );
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(
-            List.of(
-                new NamedXContentRegistry.Entry(
-                    PersistentTaskState.class,
-                    new ParseField(RollupShardPersistentTaskState.NAME),
-                    RollupShardPersistentTaskState::fromXContent
-                ),
-                new NamedXContentRegistry.Entry(
-                    PersistentTaskParams.class,
-                    new ParseField(RollupShardTaskParams.NAME),
-                    RollupShardTaskParams::fromXContent
-                )
-            )
-        );
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

@@ -24,10 +24,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DownsampleActionTests extends AbstractActionTestCase<DownsampleAction> {
 
-    public static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
+    public static final TimeValue WAIT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
     static DownsampleAction randomInstance() {
-        return new DownsampleAction(ConfigTestHelpers.randomInterval(), TIMEOUT);
+        return new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT);
     }
 
     @Override
@@ -57,7 +57,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
 
     @Override
     public void testToSteps() {
-        DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval(), TIMEOUT);
+        DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT);
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
@@ -134,11 +134,11 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
     }
 
     DownsampleAction copy(DownsampleAction downsampleAction) {
-        return new DownsampleAction(downsampleAction.fixedInterval(), downsampleAction.timeout());
+        return new DownsampleAction(downsampleAction.fixedInterval(), downsampleAction.waitTimeout());
     }
 
     DownsampleAction notCopy(DownsampleAction downsampleAction) {
         DateHistogramInterval fixedInterval = randomValueOtherThan(downsampleAction.fixedInterval(), ConfigTestHelpers::randomInterval);
-        return new DownsampleAction(fixedInterval, TIMEOUT);
+        return new DownsampleAction(fixedInterval, WAIT_TIMEOUT);
     }
 }

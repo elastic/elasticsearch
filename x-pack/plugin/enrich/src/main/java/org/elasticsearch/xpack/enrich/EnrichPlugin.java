@@ -275,17 +275,14 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             ),
             null
         );
-        Set<String> indexableFieldTypes = mapperParsers.entrySet().stream()
-            .filter(entry -> {
-                Mapper.TypeParser typeParser = entry.getValue();
-                if (typeParser instanceof FieldMapper.TypeParser fieldParser) {
-                    FieldMapper.Builder builder = fieldParser.parse("enrich_field", Map.of(), dummyContext);
-                    return Arrays.stream(builder.getParameters()).anyMatch(parameter -> parameter.name.equals("index"));
-                }
-                return false;
-            })
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toSet());
+        Set<String> indexableFieldTypes = mapperParsers.entrySet().stream().filter(entry -> {
+            Mapper.TypeParser typeParser = entry.getValue();
+            if (typeParser instanceof FieldMapper.TypeParser fieldParser) {
+                FieldMapper.Builder builder = fieldParser.parse("enrich_field", Map.of(), dummyContext);
+                return Arrays.stream(builder.getParameters()).anyMatch(parameter -> parameter.name.equals("index"));
+            }
+            return false;
+        }).map(Map.Entry::getKey).collect(Collectors.toSet());
         logger.info("Detected the following fields with [index] parameter: " + indexableFieldTypes);
         return indexableFieldTypes;
     }

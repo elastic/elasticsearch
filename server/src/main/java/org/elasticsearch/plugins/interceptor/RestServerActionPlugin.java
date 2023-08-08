@@ -8,16 +8,22 @@
 
 package org.elasticsearch.plugins.interceptor;
 
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.usage.UsageService;
 
 import java.util.function.UnaryOperator;
 
 /**
  * An action plugin that intercepts incoming the REST requests.
  */
-public interface RestInterceptorActionPlugin extends ActionPlugin {
+public interface RestServerActionPlugin extends ActionPlugin {
 
     /**
      * Returns a function used to intercept each rest request before handling the request.
@@ -41,4 +47,19 @@ public interface RestInterceptorActionPlugin extends ActionPlugin {
      * Note: Only one installed plugin may implement a rest interceptor.
      */
     UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext);
+
+    /**
+     * Returns a replacement {@link RestController} to be used in the server.
+     * Note: Only one installed plugin may override the rest controller.
+     */
+    @Nullable
+    default RestController getRestController(
+        @Nullable UnaryOperator<RestHandler> handlerWrapper,
+        NodeClient client,
+        CircuitBreakerService circuitBreakerService,
+        UsageService usageService,
+        Tracer tracer
+    ) {
+        return null;
+    }
 }

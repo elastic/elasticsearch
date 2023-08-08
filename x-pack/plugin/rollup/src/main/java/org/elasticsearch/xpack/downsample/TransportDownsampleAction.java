@@ -353,6 +353,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                                 }),
                                 e -> {
                                     if (e instanceof ResourceAlreadyExistsException) {
+                                        logger.info("Task [" + persistentRollupTaskId + "] already exists. Waiting.");
                                         waitForPersistentTask(
                                             request,
                                             listener,
@@ -365,7 +366,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                                         );
                                     } else {
                                         listener.onFailure(
-                                            new ElasticsearchException("Task [" + persistentRollupTaskId + "] already exists", e)
+                                            new ElasticsearchException("Task [" + persistentRollupTaskId + "] failed starting", e)
                                         );
                                     }
                                 }

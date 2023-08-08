@@ -245,6 +245,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
 `deleted`::
 (integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
+
+`total_dense_vector`::
+(integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=total-dense-vector]
 =======
 
 `store`::

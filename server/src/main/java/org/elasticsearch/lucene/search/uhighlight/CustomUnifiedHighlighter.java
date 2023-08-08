@@ -28,7 +28,6 @@ import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
@@ -258,6 +257,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                 if (leafQuery instanceof AbstractScriptFieldQuery) {
                     /**
                      * Queries on runtime fields don't support the matches API.
+                     * TODO: We should add the support for keyword runtime fields.
+                     *
                      */
                     hasUnknownLeaf[0] = true;
                 }
@@ -269,6 +270,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                 if (leafQuery instanceof AbstractScriptFieldQuery) {
                     /**
                      * Queries on runtime fields don't support the matches API.
+                     * TODO: We should add the support for keyword runtime fields.
                      */
                     hasUnknownLeaf[0] = true;
                 }

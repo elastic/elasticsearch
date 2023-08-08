@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.remotecluster;
 
 import org.apache.http.HttpHost;
+import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -31,7 +32,9 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -111,6 +114,24 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         }
     }
 
+    protected static String headerFromRandomAuthMethod(final String username, final SecureString password) throws IOException {
+        final boolean useBearerTokenAuth = randomBoolean();
+        if (useBearerTokenAuth) {
+            final Request request = new Request(HttpPost.METHOD_NAME, "/_security/oauth2/token");
+            request.setJsonEntity(String.format(Locale.ROOT, """
+                {
+                  "grant_type":"password",
+                  "username":"%s",
+                  "password":"%s"
+                }
+                """, username, password));
+            final Map<String, Object> responseBody = entityAsMap(adminClient().performRequest(request));
+            return "Bearer " + responseBody.get("access_token");
+        } else {
+            return basicAuthHeaderValue(username, password);
+        }
+    }
+
     @Override
     protected String getTestRestCluster() {
         return queryCluster.getHttpAddress(0);
@@ -187,7 +208,6 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         updateClusterSettings(builder.build());
 
         // Ensure remote cluster is connected
-        final int numberOfFcNodes = targetFulfillingCluster.getHttpAddresses().split(",").length;
         final Request remoteInfoRequest = new Request("GET", "/_remote/info");
         assertBusy(() -> {
             final Response remoteInfoResponse = adminClient().performRequest(remoteInfoRequest);
@@ -195,6 +215,13 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
             final ObjectPath remoteInfoObjectPath = assertOKAndCreateObjectPath(remoteInfoResponse);
             assertThat(remoteInfoObjectPath.evaluate(clusterAlias + ".connected"), is(true));
             if (false == isProxyMode) {
+                int numberOfFcNodes = (int) Arrays.stream(targetFulfillingCluster.getRemoteClusterServerEndpoints().split(","))
+                    .filter(endpoint -> endpoint.length() > 0)
+                    .count();
+                if (numberOfFcNodes == 0) {
+                    // The cluster is an RCS 1.0 remote cluster
+                    numberOfFcNodes = targetFulfillingCluster.getTransportEndpoints().split(",").length;
+                }
                 assertThat(remoteInfoObjectPath.evaluate(clusterAlias + ".num_nodes_connected"), equalTo(numberOfFcNodes));
             }
             final String credentialsValue = remoteInfoObjectPath.evaluate(clusterAlias + ".cluster_credentials");

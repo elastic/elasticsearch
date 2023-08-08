@@ -10,6 +10,7 @@ package org.elasticsearch.blobcache.common;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -151,23 +152,7 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
     @Override
     public final int readVInt() throws IOException {
         if (5 <= buffer.remaining()) {
-            byte b = buffer.get();
-            if (b >= 0) return b;
-            int i = b & 0x7F;
-            b = buffer.get();
-            i |= (b & 0x7F) << 7;
-            if (b >= 0) return i;
-            b = buffer.get();
-            i |= (b & 0x7F) << 14;
-            if (b >= 0) return i;
-            b = buffer.get();
-            i |= (b & 0x7F) << 21;
-            if (b >= 0) return i;
-            b = buffer.get();
-            // Warning: the next ands use 0x0F / 0xF0 - beware copy/paste errors:
-            i |= (b & 0x0F) << 28;
-            if ((b & 0xF0) == 0) return i;
-            throw new IOException("Invalid vInt detected (too many bits)");
+            return ByteBufferStreamInput.readVInt(buffer);
         } else {
             return super.readVInt();
         }
@@ -176,34 +161,7 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
     @Override
     public final long readVLong() throws IOException {
         if (9 <= buffer.remaining()) {
-            byte b = buffer.get();
-            if (b >= 0) return b;
-            long i = b & 0x7FL;
-            b = buffer.get();
-            i |= (b & 0x7FL) << 7;
-            if (b >= 0) return i;
-            b = buffer.get();
-            i |= (b & 0x7FL) << 14;
-            if (b >= 0) return i;
-            b = buffer.get();
-            i |= (b & 0x7FL) << 21;
-            if (b >= 0) return i;
-            b = buffer.get();
-            i |= (b & 0x7FL) << 28;
-            if (b >= 0) return i;
-            b = buffer.get();
-            i |= (b & 0x7FL) << 35;
-            if (b >= 0) return i;
-            b = buffer.get();
-            i |= (b & 0x7FL) << 42;
-            if (b >= 0) return i;
-            b = buffer.get();
-            i |= (b & 0x7FL) << 49;
-            if (b >= 0) return i;
-            b = buffer.get();
-            i |= (b & 0x7FL) << 56;
-            if (b >= 0) return i;
-            throw new IOException("Invalid vLong detected (negative values disallowed)");
+            return ByteBufferStreamInput.readVLong(buffer);
         } else {
             return super.readVLong();
         }
@@ -254,6 +212,63 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
     public final long readLong(long pos) throws IOException {
         long index = resolvePositionInBuffer(pos, Long.BYTES);
         return buffer.getLong((int) index);
+    }
+
+    @Override
+    public void readFloats(float[] dst, int offset, int len) throws IOException {
+        int remainingDst = len;
+        while (remainingDst > 0) {
+            int cnt = Math.min(buffer.remaining() / Float.BYTES, remainingDst);
+            buffer.asFloatBuffer().get(dst, offset + len - remainingDst, cnt);
+            buffer.position(buffer.position() + Float.BYTES * cnt);
+            remainingDst -= cnt;
+            if (remainingDst > 0) {
+                if (buffer.hasRemaining()) {
+                    dst[offset + len - remainingDst] = Float.intBitsToFloat(readInt());
+                    --remainingDst;
+                } else {
+                    refill();
+                }
+            }
+        }
+    }
+
+    @Override
+    public void readLongs(long[] dst, int offset, int len) throws IOException {
+        int remainingDst = len;
+        while (remainingDst > 0) {
+            int cnt = Math.min(buffer.remaining() / Long.BYTES, remainingDst);
+            buffer.asLongBuffer().get(dst, offset + len - remainingDst, cnt);
+            buffer.position(buffer.position() + Long.BYTES * cnt);
+            remainingDst -= cnt;
+            if (remainingDst > 0) {
+                if (buffer.hasRemaining()) {
+                    dst[offset + len - remainingDst] = readLong();
+                    --remainingDst;
+                } else {
+                    refill();
+                }
+            }
+        }
+    }
+
+    @Override
+    public void readInts(int[] dst, int offset, int len) throws IOException {
+        int remainingDst = len;
+        while (remainingDst > 0) {
+            int cnt = Math.min(buffer.remaining() / Integer.BYTES, remainingDst);
+            buffer.asIntBuffer().get(dst, offset + len - remainingDst, cnt);
+            buffer.position(buffer.position() + Integer.BYTES * cnt);
+            remainingDst -= cnt;
+            if (remainingDst > 0) {
+                if (buffer.hasRemaining()) {
+                    dst[offset + len - remainingDst] = readInt();
+                    --remainingDst;
+                } else {
+                    refill();
+                }
+            }
+        }
     }
 
     protected void refill() throws IOException {

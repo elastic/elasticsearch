@@ -592,7 +592,7 @@ public class MachineLearning extends Plugin
         "xpack.ml.allocated_processors_scale",
         1,
         1,
-        Property.OperatorDynamic,
+        Property.Dynamic,
         Property.NodeScope
     );
 

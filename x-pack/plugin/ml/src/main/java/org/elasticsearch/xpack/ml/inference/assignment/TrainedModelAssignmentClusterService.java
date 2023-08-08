@@ -522,40 +522,43 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             checkModelIsFullyAllocatedIfScalingIsNotPossible(modelToAdd.get().getDeploymentId(), rebalanced, nodes);
         }
 
-        for (TrainedModelAssignment assignment : metadata.allAssignments().values()) {
-            boolean foundShuttingDownNodeForAssignment = false;
-            var nodeIds = assignment.getNodeRoutingTable().keySet();
-            TrainedModelAssignment.Builder assignmentBuilder = rebalanced.hasModelDeployment(assignment.getDeploymentId())
-                ? rebalanced.getAssignment(assignment.getDeploymentId())
-                : TrainedModelAssignment.Builder.fromAssignment(assignment);
+        if (currentState.metadata().nodeShutdowns().getAllNodeIds().isEmpty() == false) {
+            for (TrainedModelAssignment assignment : metadata.allAssignments().values()) {
+                boolean foundShuttingDownNodeForAssignment = false;
+                var nodeIds = assignment.getNodeRoutingTable().keySet();
+                TrainedModelAssignment.Builder assignmentBuilder = rebalanced.hasModelDeployment(assignment.getDeploymentId())
+                    ? rebalanced.getAssignment(assignment.getDeploymentId())
+                    : TrainedModelAssignment.Builder.fromAssignment(assignment);
 
-            for (String nodeId : nodeIds) {
-                RoutingState state = assignment.getNodeRoutingTable().get(nodeId).getState();
-                logger.error(format("checking for shutting down node id: %s state: %s", nodeId, state));
+                for (String nodeId : nodeIds) {
+                    RoutingState state = assignment.getNodeRoutingTable().get(nodeId).getState();
+                    logger.error(format("checking for shutting down node id: %s state: %s", nodeId, state));
 
-                if (currentState.metadata().nodeShutdowns().contains(nodeId)
-                    && state.isAnyOf(RoutingState.STARTED, RoutingState.STARTING)) {
-                    foundShuttingDownNodeForAssignment = true;
-                    logger.error(format("found a shutting down node while rebalancing node id: %s state: %s", nodeId, state));
+                    if (currentState.metadata().nodeShutdowns().contains(nodeId)
+                        && state.isAnyOf(RoutingState.STARTED, RoutingState.STARTING)) {
+                        foundShuttingDownNodeForAssignment = true;
+                        logger.error(format("found a shutting down node while rebalancing node id: %s state: %s", nodeId, state));
 
-                    var routeUpdate = RoutingInfoUpdate.updateStateAndReason(
-                        new RoutingStateAndReason(RoutingState.STOPPING, "node is shutting down")
-                    );
+                        var routeUpdate = RoutingInfoUpdate.updateStateAndReason(
+                            new RoutingStateAndReason(RoutingState.STOPPING, "node is shutting down")
+                        );
 
-                    var newRoutingInfo = routeUpdate.apply(assignment.getNodeRoutingTable().get(nodeId));
+                        var newRoutingInfo = routeUpdate.apply(assignment.getNodeRoutingTable().get(nodeId));
 
-                    assignmentBuilder.addRoutingEntry(nodeId, newRoutingInfo);
+                        assignmentBuilder.addRoutingEntry(nodeId, newRoutingInfo);
+                    }
                 }
-            }
 
-            if (foundShuttingDownNodeForAssignment) {
-                if (rebalanced.hasModelDeployment(assignment.getDeploymentId())) {
-                    rebalanced.updateAssignment(assignment.getDeploymentId(), assignmentBuilder);
-                } else {
-                    rebalanced.addNewAssignment(assignment.getDeploymentId(), assignmentBuilder);
+                if (foundShuttingDownNodeForAssignment) {
+                    if (rebalanced.hasModelDeployment(assignment.getDeploymentId())) {
+                        rebalanced.updateAssignment(assignment.getDeploymentId(), assignmentBuilder);
+                    } else {
+                        rebalanced.addNewAssignment(assignment.getDeploymentId(), assignmentBuilder);
+                    }
                 }
             }
         }
+
         return rebalanced;
     }
 

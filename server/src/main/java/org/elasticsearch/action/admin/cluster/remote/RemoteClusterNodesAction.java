@@ -44,13 +44,11 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
     }
 
     public static class Request extends ActionRequest {
+        public static final Request ALL_NODES = new Request(false);
+        public static final Request REMOTE_CLUSTER_SERVER_NODES = new Request(true);
         private final boolean remoteClusterServer;
 
-        public Request() {
-            this.remoteClusterServer = false;
-        }
-
-        public Request(boolean remoteClusterServer) {
+        private Request(boolean remoteClusterServer) {
             this.remoteClusterServer = remoteClusterServer;
         }
 
@@ -95,7 +93,6 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
     }
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
-
         private final TransportService transportService;
 
         @Inject

@@ -23,11 +23,12 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -35,7 +36,7 @@ import static org.hamcrest.Matchers.is;
 public class RemoteClusterSecurityTopologyRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
-    private static final AtomicBoolean NODE2_RCS_SERVER_ENABLED = new AtomicBoolean();
+    private static final AtomicBoolean NODE1_RCS_SERVER_ENABLED = new AtomicBoolean();
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
@@ -49,7 +50,7 @@ public class RemoteClusterSecurityTopologyRestIT extends AbstractRemoteClusterSe
             .setting("xpack.security.authc.token.enabled", "true")
             .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
             .node(0, spec -> spec.setting("remote_cluster_server.enabled", "true"))
-            .node(1, spec -> spec.setting("remote_cluster_server.enabled", String.valueOf(NODE2_RCS_SERVER_ENABLED.get())))
+            .node(1, spec -> spec.setting("remote_cluster_server.enabled", () -> String.valueOf(NODE1_RCS_SERVER_ENABLED.get())))
             // at least one remote node has server disabled
             .node(2, spec -> spec.setting("remote_cluster_server.enabled", "false"))
             .build();
@@ -84,7 +85,7 @@ public class RemoteClusterSecurityTopologyRestIT extends AbstractRemoteClusterSe
 
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(new RunnableTestRuleAdapter(() -> {
-        NODE2_RCS_SERVER_ENABLED.set(randomBoolean());
+        NODE1_RCS_SERVER_ENABLED.set(randomBoolean());
     })).around(fulfillingCluster).around(queryCluster);
 
     public void testCrossClusterScrollWithSniffModeWhenSomeRemoteNodesAreNotDirectlyAccessible() throws Exception {
@@ -124,26 +125,31 @@ public class RemoteClusterSecurityTopologyRestIT extends AbstractRemoteClusterSe
 
         // Query cluster
         {
+            final var documentFieldValues = new HashSet<>();
             final var searchRequest = new Request("GET", "/my_remote_cluster:*/_search?scroll=1h&size=1");
             final SearchResponse searchResponse = SearchResponse.fromXContent(
                 responseAsParser(performRequestWithRemoteMetricUser(searchRequest))
             );
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(6L));
+            assertThat(Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).toList(), contains("shared-metrics"));
+            documentFieldValues.add(searchResponse.getHits().getHits()[0].getSourceAsMap().get("name"));
 
+            // Scroll should be able to fetch all documents from all nodes even when some nodes are not directly accessible in sniff mode
             final String scrollId = searchResponse.getScrollId();
             final Request scrollRequest = new Request("GET", "/_search/scroll");
             scrollRequest.setJsonEntity(Strings.format("""
                 { "scroll_id": "%s" }
                 """, scrollId));
-            final SearchResponse scrollResponse = SearchResponse.fromXContent(
-                responseAsParser(performRequestWithRemoteMetricUser(scrollRequest))
-            );
-
-            // Scroll should be able to fetch all documents from all nodes even when some nodes are not directly accessible in sniff mode
-            assertThat(scrollResponse.getHits().getTotalHits().value, equalTo(6L));
-            assertThat(
-                Arrays.stream(scrollResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toSet()),
-                containsInAnyOrder("shared-metrics")
-            );
+            // Fetch all documents
+            for (int i = 0; i < 5; i++) {
+                final SearchResponse scrollResponse = SearchResponse.fromXContent(
+                    responseAsParser(performRequestWithRemoteMetricUser(scrollRequest))
+                );
+                assertThat(scrollResponse.getHits().getTotalHits().value, equalTo(6L));
+                assertThat(Arrays.stream(scrollResponse.getHits().getHits()).map(SearchHit::getIndex).toList(), contains("shared-metrics"));
+                documentFieldValues.add(scrollResponse.getHits().getHits()[0].getSourceAsMap().get("name"));
+            }
+            assertThat(documentFieldValues, containsInAnyOrder("metric1", "metric2", "metric3", "metric4", "metric5", "metric6"));
 
             // Scroll from all nodes should be freed
             final Request deleteScrollRequest = new Request("DELETE", "/_search/scroll");

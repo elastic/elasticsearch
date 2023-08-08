@@ -123,7 +123,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
         );
 
         final PlainActionFuture<RemoteClusterNodesAction.Response> future = new PlainActionFuture<>();
-        action.doExecute(mock(Task.class), new RemoteClusterNodesAction.Request(true), future);
+        action.doExecute(mock(Task.class), RemoteClusterNodesAction.Request.REMOTE_CLUSTER_SERVER_NODES, future);
 
         final List<DiscoveryNode> actualNodes = future.actionGet().getNodes();
         assertThat(Set.copyOf(actualNodes), equalTo(expectedRemoteServerNodes));
@@ -192,7 +192,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
         );
 
         final PlainActionFuture<RemoteClusterNodesAction.Response> future = new PlainActionFuture<>();
-        action.doExecute(mock(Task.class), new RemoteClusterNodesAction.Request(false), future);
+        action.doExecute(mock(Task.class), RemoteClusterNodesAction.Request.ALL_NODES, future);
 
         final List<DiscoveryNode> actualNodes = future.actionGet().getNodes();
         assertThat(Set.copyOf(actualNodes), equalTo(expectedRemoteNodes));

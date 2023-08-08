@@ -48,8 +48,8 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
     private static final AtomicReference<Map<String, Object>> REST_API_KEY_MAP_REF = new AtomicReference<>();
     private static final AtomicBoolean SSL_ENABLED_REF = new AtomicBoolean();
+    private static final AtomicBoolean NODE1_RCS_SERVER_ENABLED = new AtomicBoolean();
     private static final AtomicBoolean NODE2_RCS_SERVER_ENABLED = new AtomicBoolean();
-    private static final AtomicBoolean NODE3_RCS_SERVER_ENABLED = new AtomicBoolean();
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
@@ -57,20 +57,20 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             .nodes(3)
             .apply(commonClusterConfig)
             .setting("remote_cluster.port", "0")
-            .setting("xpack.security.remote_cluster_server.ssl.enabled", String.valueOf(SSL_ENABLED_REF.get()))
+            .setting("xpack.security.remote_cluster_server.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
             .setting("xpack.security.authc.token.enabled", "true")
             .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
             .node(0, spec -> spec.setting("remote_cluster_server.enabled", "true"))
-            .node(1, spec -> spec.setting("remote_cluster_server.enabled", String.valueOf(NODE2_RCS_SERVER_ENABLED.get())))
-            .node(2, spec -> spec.setting("remote_cluster_server.enabled", String.valueOf(NODE3_RCS_SERVER_ENABLED.get())))
+            .node(1, spec -> spec.setting("remote_cluster_server.enabled", () -> String.valueOf(NODE1_RCS_SERVER_ENABLED.get())))
+            .node(2, spec -> spec.setting("remote_cluster_server.enabled", () -> String.valueOf(NODE2_RCS_SERVER_ENABLED.get())))
             .build();
 
         queryCluster = ElasticsearchCluster.local()
             .name("query-cluster")
             .apply(commonClusterConfig)
-            .setting("xpack.security.remote_cluster_client.ssl.enabled", String.valueOf(SSL_ENABLED_REF.get()))
+            .setting("xpack.security.remote_cluster_client.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .setting("xpack.security.authc.token.enabled", "true")
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
@@ -119,8 +119,8 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
     // We set it here, since randomization methods are not available in the static initialize context above
     public static TestRule clusterRule = RuleChain.outerRule(new RunnableTestRuleAdapter(() -> {
         SSL_ENABLED_REF.set(usually());
+        NODE1_RCS_SERVER_ENABLED.set(randomBoolean());
         NODE2_RCS_SERVER_ENABLED.set(randomBoolean());
-        NODE3_RCS_SERVER_ENABLED.set(randomBoolean());
     })).around(fulfillingCluster).around(queryCluster);
 
     public void testCrossClusterSearch() throws Exception {
@@ -366,12 +366,14 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
 
         assertThat(ObjectPath.eval("_nodes.total", responseMap), equalTo(3));
         final Map<String, Object> nodes = ObjectPath.eval("nodes", responseMap);
-        nodes.forEach((k, v) -> {
-            final Map<String, Object> node = (Map<String, Object>) v;
+        int numberOfRemoteClusterServerNodes = 0;
+        for (Map.Entry<String, Object> entry : nodes.entrySet()) {
+            final Map<String, Object> node = (Map<String, Object>) entry.getValue();
             // remote cluster is not reported in transport profiles
             assertThat(ObjectPath.eval("transport.profiles", node), anEmptyMap());
 
             if (Boolean.parseBoolean(ObjectPath.eval("settings.remote_cluster_server.enabled", node))) {
+                numberOfRemoteClusterServerNodes += 1;
                 final List<String> boundAddresses = ObjectPath.eval("remote_cluster_server.bound_address", node);
                 assertThat(boundAddresses, notNullValue());
                 assertThat(boundAddresses, not(empty()));
@@ -380,7 +382,11 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             } else {
                 assertThat(ObjectPath.eval("remote_cluster_server", node), nullValue());
             }
-        });
+        }
+        assertThat(
+            numberOfRemoteClusterServerNodes,
+            equalTo(1 + (NODE1_RCS_SERVER_ENABLED.get() ? 1 : 0) + (NODE2_RCS_SERVER_ENABLED.get() ? 1 : 0))
+        );
     }
 
     private Response performRequestWithRemoteSearchUser(final Request request) throws IOException {

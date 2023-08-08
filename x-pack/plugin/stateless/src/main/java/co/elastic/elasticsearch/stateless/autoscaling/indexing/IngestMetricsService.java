@@ -40,7 +40,7 @@ public class IngestMetricsService implements ClusterStateListener {
     // Ingest load samples older than this value will be considered not exact ingest loads.
     public static final Setting<TimeValue> ACCURATE_LOAD_WINDOW = Setting.timeSetting(
         "serverless.autoscaling.ingest_metrics.accurate_load_window",
-        TimeValue.timeValueSeconds(25),
+        TimeValue.timeValueSeconds(35),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

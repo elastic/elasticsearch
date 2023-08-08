@@ -77,8 +77,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         if (elementType != ElementType.FLOAT) {
             b.field("element_type", elementType.toString());
         }
-        // TODO This is needed or testDeprecatedBoost() will fail, as it creates an index version that treats
-        // indexed as needed when similarity is used. Hints welcome!
         b.field("index", indexed);
         if (indexed) {
             b.field("similarity", "dot_product");

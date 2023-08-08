@@ -160,6 +160,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.shard.StoreRecovery.bootstrap;
 
@@ -252,7 +253,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         var settings = Settings.builder().put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), StatelessElectionStrategy.NAME);
         if (sharedCachedSettingExplicitlySet == false) {
             if (hasSearchRole) {
-                settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "75%")
+                settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "90%")
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), "250GB");
             }
             if (hasIndexRole) {
@@ -272,7 +273,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         } else {
             throw new IllegalArgumentException("Directly setting [" + nodeMemoryAttrName + "] is not permitted - it is reserved.");
         }
-
+        settings.put(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false);
         return settings.build();
     }
 
@@ -842,6 +843,13 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             .collect(Collectors.toSet());
         if (nonStatelessDataNodeRoles.isEmpty() == false) {
             throw new IllegalArgumentException(NAME + " does not support roles " + nonStatelessDataNodeRoles);
+        }
+        if (CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.exists(settings)) {
+            if (CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings)) {
+                throw new IllegalArgumentException(
+                    CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey() + " cannot be enabled"
+                );
+            }
         }
         logger.info("{} is enabled", NAME);
         if (Objects.equals(SHARDS_ALLOCATOR_TYPE_SETTING.get(settings), DESIRED_BALANCE_ALLOCATOR) == false) {

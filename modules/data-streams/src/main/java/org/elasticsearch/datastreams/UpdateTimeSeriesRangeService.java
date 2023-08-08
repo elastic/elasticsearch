@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -210,6 +211,11 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
                 taskContext.success(() -> taskContext.getTask().listener().accept(null));
             }
             return result;
+        }
+
+        @Override
+        public String describeTasks(List<UpdateTimeSeriesTask> tasks) {
+            return ""; // tasks are equivalent and idempotent, no need to list them out
         }
     }
 }

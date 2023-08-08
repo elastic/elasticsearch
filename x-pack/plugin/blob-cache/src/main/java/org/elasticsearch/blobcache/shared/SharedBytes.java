@@ -314,11 +314,4 @@ public class SharedBytes extends AbstractRefCounted {
         }
     }
 
-    public static ByteSizeValue pageAligned(ByteSizeValue val) {
-        final long remainder = val.getBytes() % PAGE_SIZE;
-        if (remainder != 0L) {
-            return ByteSizeValue.ofBytes(val.getBytes() + PAGE_SIZE - remainder);
-        }
-        return val;
-    }
 }

@@ -339,7 +339,6 @@ public class AggregatorFactories {
          * phase. Note: aggregations that don't support parallel collection, may or may not support offloading collection to the search
          * worker threads, depending on what {@link #supportsOffloadingSequentialCollection()} returns.
          */
-        // TODO this is not used yet, it will be used once we enable parallel collection for the query phase
         public boolean supportsParallelCollection() {
             for (AggregationBuilder builder : aggregationBuilders) {
                 if (builder.supportsParallelCollection() == false) {

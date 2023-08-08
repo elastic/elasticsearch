@@ -972,7 +972,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             String name,
             boolean updateable,
             Function<FieldMapper, T> initializer,
-            T defaultValue,
+            Supplier<T> defaultValue,
             Class<T> enumClass
         ) {
             Set<T> acceptedValues = EnumSet.allOf(enumClass);
@@ -993,14 +993,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             String name,
             boolean updateable,
             Function<FieldMapper, T> initializer,
-            T defaultValue,
+            Supplier<T> defaultValue,
             Class<T> enumClass,
             Set<T> acceptedValues
         ) {
             assert acceptedValues.size() > 0;
-            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> {
+            return new Parameter<>(name, updateable, defaultValue, (n, c, o) -> {
                 if (o == null) {
-                    return defaultValue;
+                    return defaultValue.get();
                 }
                 EnumSet<T> enumSet = EnumSet.allOf(enumClass);
                 for (T t : enumSet) {
@@ -1126,7 +1126,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Function<FieldMapper, OnScriptError> initializer,
             Parameter<Script> dependentScriptParam
         ) {
-            return Parameter.enumParam("on_script_error", true, initializer, OnScriptError.FAIL, OnScriptError.class)
+            return Parameter.enumParam("on_script_error", true, initializer, () -> OnScriptError.FAIL, OnScriptError.class)
                 .requiresParameter(dependentScriptParam);
         }
     }

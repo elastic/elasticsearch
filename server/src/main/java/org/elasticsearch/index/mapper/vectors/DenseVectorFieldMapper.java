@@ -59,6 +59,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -121,7 +122,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             m -> toType(m).indexOptions,
             XContentBuilder::field,
             Objects::toString
-        );
+        ).setSerializerCheck((id, ic, v) -> v != null);
         private final Parameter<Boolean> indexed;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -136,12 +137,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "similarity",
                 false,
                 m -> toType(m).similarity,
-                indexed.getValue() ? VectorSimilarity.COSINE : null,
+                () -> indexed.getValue() ? VectorSimilarity.COSINE : null,
                 VectorSimilarity.class
-            );
+            ).setSerializerCheck((id, ic, v) -> v != null);
             this.indexed.addValidator(v -> {
                 if (v == false) {
-                    if ((similarity != null) && similarity.isConfigured()) {
+                    if (similarity.isConfigured()) {
                         throw new IllegalArgumentException(
                             "Field [similarity] can only be specified for a field of type [dense_vector] when it is indexed"
                         );
@@ -158,7 +159,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 this.indexed.requiresParameter(similarity);
                 this.indexOptions.requiresParameter(indexed);
             }
-            this.indexOptions.setSerializerCheck((id, ic, v) -> v != null);
         }
 
         @Override

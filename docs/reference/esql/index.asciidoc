@@ -111,10 +111,11 @@ with the time filter.
 - `alias`
 - `boolean`
 - `date`
-- `double`/`float`/`half_float`/`scaled_float` (represented as `double`)
+- `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
 - `ip`
-- `keyword` family (`keyword`, `constant_keyword`, and `wildcard`)
-- `long`/`int`/`short`/`byte` (represented as `long`)
+- `keyword` family including `keyword`, `constant_keyword`, and `wildcard`
+- `int` (`short` and `byte` are represented as `int`)
+- `long`
 - `null`
 - `text`
 - `unsigned_long`

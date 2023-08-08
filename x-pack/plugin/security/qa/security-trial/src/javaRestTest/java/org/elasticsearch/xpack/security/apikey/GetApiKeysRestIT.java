@@ -53,10 +53,10 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testGetApiKeysWithActiveOnlyFlag() throws Exception {
-        final String apiKeyId0 = createApiKey("key-0", MANAGE_SECURITY_USER);
-        final String apiKeyId1 = createApiKey("key-1", MANAGE_SECURITY_USER);
+        final String apiKeyId0 = createApiKey(MANAGE_SECURITY_USER, "key-0");
+        final String apiKeyId1 = createApiKey(MANAGE_SECURITY_USER, "key-1");
         // Set short enough expiration for the API key to be expired by the time we query for it
-        final String apiKeyId2 = createApiKey("key-2", MANAGE_SECURITY_USER, TimeValue.timeValueNanos(1));
+        final String apiKeyId2 = createApiKey(MANAGE_SECURITY_USER, "key-2", TimeValue.timeValueNanos(1));
 
         assertResponseContainsApiKeyIds(getApiKeysWithRequestParams(Map.of("active_only", "true")), apiKeyId0, apiKeyId1);
         {
@@ -84,8 +84,8 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testGetApiKeysWithActiveOnlyFlagAndMultipleUsers() throws Exception {
-        final String manageOwnApiKeyUserApiKeyId = createApiKey("key-0", MANAGE_OWN_API_KEY_USER);
-        final String manageApiKeyUserApiKeyId = createApiKey("key-1", MANAGE_SECURITY_USER);
+        final String manageOwnApiKeyUserApiKeyId = createApiKey(MANAGE_OWN_API_KEY_USER, "key-0");
+        final String manageApiKeyUserApiKeyId = createApiKey(MANAGE_SECURITY_USER, "key-1");
 
         // Two active API keys
         assertResponseContainsApiKeyIds(
@@ -179,11 +179,11 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
         return XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, responseBody);
     }
 
-    private String createApiKey(String apiKeyName, String creatorUser) throws IOException {
-        return createApiKey(apiKeyName, creatorUser, null);
+    private String createApiKey(String creatorUser, String apiKeyName) throws IOException {
+        return createApiKey(creatorUser, apiKeyName, null);
     }
 
-    private String createApiKey(String apiKeyName, String creatorUser, @Nullable TimeValue expiration) throws IOException {
+    private String createApiKey(String creatorUser, String apiKeyName, @Nullable TimeValue expiration) throws IOException {
         // Sanity check to ensure API key name and creator name aren't flipped
         assert creatorUser.equals(MANAGE_OWN_API_KEY_USER) || creatorUser.equals(MANAGE_SECURITY_USER);
 

@@ -51,7 +51,18 @@ PUT index1
 
 PUT _application/search_application/my-app
 {
-  "indices": [ "index1" ]
+  "indices": [ "index1" ],
+  "template": {
+    "script": {
+      "source": {
+        "query": {
+          "query_string": {
+            "query": "{{query_string}}"
+          }
+        }
+      }
+    }
+  }
 }
 --------------------------------------------------
 // TESTSETUP

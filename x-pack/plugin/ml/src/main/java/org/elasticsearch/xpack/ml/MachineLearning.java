@@ -596,7 +596,7 @@ public class MachineLearning extends Plugin
      * allocations that can be deployed on a node.
      */
     public static final Setting<Integer> ALLOCATED_PROCESSORS_SCALE = Setting.intSetting(
-        "ml.allocated_processors_scale",
+        "xpack.ml.allocated_processors_scale",
         1,
         1,
         Property.OperatorDynamic,
@@ -782,6 +782,7 @@ public class MachineLearning extends Plugin
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
+            ALLOCATED_PROCESSORS_SCALE,
             MachineLearningField.AUTODETECT_PROCESS,
             PROCESS_CONNECT_TIMEOUT,
             CONCURRENT_JOB_ALLOCATIONS,

@@ -171,6 +171,15 @@ public class StatelessCommitService {
         commitUpload.run();
     }
 
+    public boolean hasPendingCommitUploads(ShardId shardId) {
+        try {
+            ShardCommitState commitState = getSafe(fileToBlobFile, shardId);
+            return commitState.pendingUploadGenerations.isEmpty() == false;
+        } catch (AlreadyClosedException ace) {
+            return false;
+        }
+    }
+
     public class CommitUpload extends RetryableAction<StatelessCompoundCommit> {
 
         private final StatelessCommitRef reference;

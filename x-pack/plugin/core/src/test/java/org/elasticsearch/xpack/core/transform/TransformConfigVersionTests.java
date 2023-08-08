@@ -109,7 +109,7 @@ public class TransformConfigVersionTests extends ESTestCase {
     public void testGetMinMaxTransformConfigVersion() {
         Map<String, String> nodeAttr1 = Map.of(
             TransformConfigVersion.TRANSFORM_CONFIG_VERSION_NODE_ATTR,
-            TransformConfigVersion.V_7_1_0.toString()
+            TransformConfigVersion.V_7_2_0.toString()
         );
         Map<String, String> nodeAttr2 = Map.of(
             TransformConfigVersion.TRANSFORM_CONFIG_VERSION_NODE_ATTR,
@@ -152,7 +152,7 @@ public class TransformConfigVersionTests extends ESTestCase {
             )
             .build();
 
-        assertEquals(TransformConfigVersion.V_7_1_0, TransformConfigVersion.getMinTransformConfigVersion(nodes));
+        assertEquals(TransformConfigVersion.V_7_2_0, TransformConfigVersion.getMinTransformConfigVersion(nodes));
         assertEquals(TransformConfigVersion.V_10, TransformConfigVersion.getMaxTransformConfigVersion(nodes));
     }
 
@@ -312,7 +312,7 @@ public class TransformConfigVersionTests extends ESTestCase {
         assertEquals("7.3.0", TransformConfigVersion.V_7_3_0.toString());
         assertEquals("8.6.1", TransformConfigVersion.V_8_6_1.toString());
         assertEquals("8.0.0", TransformConfigVersion.V_8_0_0.toString());
-        assertEquals("7.0.1", TransformConfigVersion.V_7_0_1.toString());
+        assertEquals("7.2.1", TransformConfigVersion.V_7_2_1.toString());
         assertEquals("7.15.1", TransformConfigVersion.V_7_15_1.toString());
         assertEquals("10.0.0", TransformConfigVersion.V_10.toString());
     }

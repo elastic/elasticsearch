@@ -96,11 +96,6 @@ public record TransformConfigVersion(int id) implements VersionId<TransformConfi
     public static final String TRANSFORM_CONFIG_VERSION_NODE_ATTR = "transform.config_version";
 
     public static final TransformConfigVersion ZERO = registerTransformConfigVersion(0, "00000000-0000-0000-0000-000000000000");
-    public static final TransformConfigVersion V_5_4_0 = registerTransformConfigVersion(5_04_00_99, "B917B447-2CC6-4BD8-BEB2-733D157B7B37");
-    public static final TransformConfigVersion V_6_0_0 = registerTransformConfigVersion(6_00_00_99, "E3F1CC55-A992-4CB3-BCE6-EC310D156793");
-    public static final TransformConfigVersion V_7_0_0 = registerTransformConfigVersion(7_00_00_99, "21906C88-0955-4BE3-B4B3-BFB6B9606112");
-    public static final TransformConfigVersion V_7_0_1 = registerTransformConfigVersion(7_00_01_99, "7FF09B06-20B3-40FF-A6E0-EC94F55B8B56");
-    public static final TransformConfigVersion V_7_1_0 = registerTransformConfigVersion(7_01_00_99, "BD49F37F-1E50-4BC1-B227-EE0AC88B677C");
     public static final TransformConfigVersion V_7_2_0 = registerTransformConfigVersion(7_02_00_99, "4DCD30C3-FF6B-4195-AD28-4600D48F4A7B");
     public static final TransformConfigVersion V_7_2_1 = registerTransformConfigVersion(7_02_01_99, "0C6EDC80-77C9-4897-843B-EC4377E997FD");
     public static final TransformConfigVersion V_7_3_0 = registerTransformConfigVersion(7_03_00_99, "69107EE3-48A7-4FC2-BDB3-7440C4B3E0D4");
@@ -179,7 +174,7 @@ public record TransformConfigVersion(int id) implements VersionId<TransformConfi
     public static final TransformConfigVersion V_8_9_0 = registerTransformConfigVersion(8_09_00_99, "C50F56AB-4DB8-48A5-9467-4F5B07365C5C");
 
     // This constant should never be tested externally - it's considered the same as V_10 externally
-    public static final TransformConfigVersion V_8_10_0 = registerTransformConfigVersion(
+    private static final TransformConfigVersion V_8_10_0 = registerTransformConfigVersion(
         8_10_00_99,
         "9315A548-D81B-4FE7-8C0D-0DA81EA00F9E"
     );

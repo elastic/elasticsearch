@@ -318,12 +318,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     private void reportClashingNodeAttribute(String attrName) {
         throw new IllegalArgumentException(
-            "Directly setting ["
-                + attrName
-                + "] is not permitted - "
-                + "it is reserved for the transform plugin. If your intention was to customize the transform plugin, set the ["
-                + attrName.replace("node.attr.", "xpack.")
-                + "] setting instead."
+            "Directly setting [" + attrName + "] is not permitted - " + "it is reserved for the transform plugin."
         );
     }
 

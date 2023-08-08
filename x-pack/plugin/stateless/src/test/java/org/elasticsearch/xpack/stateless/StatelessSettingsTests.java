@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless;
 
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
@@ -72,7 +73,7 @@ public class StatelessSettingsTests extends ESTestCase {
                 .build()
         );
         Settings searchNodeSettings = searchNodeStateless.additionalSettings();
-        assertThat(searchNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey()), equalTo("75%"));
+        assertThat(searchNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey()), equalTo("90%"));
         assertThat(searchNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey()), equalTo("250GB"));
 
         Stateless searchNodeStatelessWithManualSetting = new Stateless(
@@ -95,6 +96,37 @@ public class StatelessSettingsTests extends ESTestCase {
         Settings indexNodeSettings = indexNodeStateless.additionalSettings();
         assertThat(indexNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey()), equalTo("50%"));
         assertThat(indexNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey()), equalTo("-1"));
+    }
+
+    public void testDefaultDiskThresholdEnabledSetting() {
+        {
+            var statelessNode = new Stateless(
+                Settings.builder()
+                    .put(Stateless.STATELESS_ENABLED.getKey(), true)
+                    .put(
+                        NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                        randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()
+                    )
+                    .build()
+            );
+            assertThat(
+                statelessNode.additionalSettings()
+                    .get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()),
+                equalTo("false")
+            );
+        }
+        {
+            var exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new Stateless(
+                    Settings.builder()
+                        .put(Stateless.STATELESS_ENABLED.getKey(), true)
+                        .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
+                        .build()
+                )
+            );
+            assertThat(exception.getMessage(), equalTo("cluster.routing.allocation.disk.threshold_enabled cannot be enabled"));
+        }
     }
 
     private static Settings statelessSettings(Collection<DiscoveryNodeRole> roles) {

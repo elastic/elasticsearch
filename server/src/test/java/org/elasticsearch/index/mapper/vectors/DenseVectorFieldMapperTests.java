@@ -417,7 +417,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString("Field [indexOptions] can only be specified for a field of type [dense_vector] when it is indexed")
+            containsString("Field [index_options] can only be specified for a field of type [dense_vector] when it is indexed")
         );
 
         e = expectThrows(

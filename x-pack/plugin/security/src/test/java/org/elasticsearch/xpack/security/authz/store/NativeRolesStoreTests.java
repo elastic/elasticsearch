@@ -306,7 +306,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final AtomicBoolean methodCalled = new AtomicBoolean(false);
 
-        final SecuritySystemIndices systemIndices = new SecuritySystemIndices();
+        final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
         systemIndices.init(client, clusterService);
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
 
@@ -394,7 +394,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final AtomicBoolean methodCalled = new AtomicBoolean(false);
 
-        final SecuritySystemIndices systemIndices = new SecuritySystemIndices();
+        final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
         systemIndices.init(client, clusterService);
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
 
@@ -441,6 +441,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     private ClusterService mockClusterServiceWithMinNodeVersion(TransportVersion transportVersion) {
         final ClusterService clusterService = mock(ClusterService.class, Mockito.RETURNS_DEEP_STUBS);
         when(clusterService.state().getMinTransportVersion()).thenReturn(transportVersion);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         return clusterService;
     }
 

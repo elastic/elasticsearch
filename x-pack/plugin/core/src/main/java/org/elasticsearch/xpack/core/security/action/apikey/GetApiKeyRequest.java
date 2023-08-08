@@ -118,12 +118,6 @@ public final class GetApiKeyRequest extends ActionRequest {
                     validationException
                 );
             }
-            if (activeOnly) {
-                validationException = addValidationError(
-                    "active_only must not be [true] when the api key id or api key name is specified",
-                    validationException
-                );
-            }
         }
         if (ownedByAuthenticatedUser) {
             if (Strings.hasText(realmName) || Strings.hasText(userName)) {

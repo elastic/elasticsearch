@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nullable;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -58,18 +57,26 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
         // Set short enough expiration for the API key to be expired by the time we query for it
         final String apiKeyId2 = createApiKey(MANAGE_SECURITY_USER, "key-2", TimeValue.timeValueNanos(1));
 
+        // All API keys returned when flag false (implicitly or explicitly)
+        {
+            final Map<String, String> parameters = new HashMap<>();
+            if (randomBoolean()) {
+                parameters.put("active_only", "false");
+            }
+            assertResponseContainsApiKeyIds(getApiKeysWithRequestParams(parameters), apiKeyId0, apiKeyId1, apiKeyId2);
+        }
+
+        // Only active keys returned when flag true
         assertResponseContainsApiKeyIds(getApiKeysWithRequestParams(Map.of("active_only", "true")), apiKeyId0, apiKeyId1);
-        {
-            final Map<String, String> parameters = new HashMap<>();
-            if (randomBoolean()) {
-                parameters.put("active_only", "false");
-            }
-            assertResponseContainsApiKeyIds(getApiKeysWithRequestParams(parameters), apiKeyId0, apiKeyId1, apiKeyId2);
-        }
+        // Also works with `name` filter
+        assertResponseContainsApiKeyIds(
+            getApiKeysWithRequestParams(Map.of("active_only", "true", "name", randomFrom("*", "key-*"))),
+            apiKeyId0,
+            apiKeyId1
+        );
 
+        // Same applies to invalidated key
         getSecurityClient().invalidateApiKeys(apiKeyId0);
-
-        assertResponseContainsApiKeyIds(getApiKeysWithRequestParams(Map.of("active_only", "true")), apiKeyId1);
         {
             final Map<String, String> parameters = new HashMap<>();
             if (randomBoolean()) {
@@ -77,10 +84,23 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
             }
             assertResponseContainsApiKeyIds(getApiKeysWithRequestParams(parameters), apiKeyId0, apiKeyId1, apiKeyId2);
         }
+        assertResponseContainsApiKeyIds(getApiKeysWithRequestParams(Map.of("active_only", "true")), apiKeyId1);
+        // also works with name filter
+        assertResponseContainsApiKeyIds(
+            getApiKeysWithRequestParams(Map.of("active_only", "true", "name", randomFrom("*", "key-*", "key-1"))),
+            apiKeyId1
+        );
 
+        // We get an empty result when no API keys active
         getSecurityClient().invalidateApiKeys(apiKeyId1);
-
         assertThat(getApiKeysWithRequestParams(Map.of("active_only", "true")).getApiKeyInfos(), emptyArray());
+
+        // Using together with id parameter, returns 404 for inactive key
+        var ex = expectThrows(
+            ResponseException.class,
+            () -> getApiKeysWithRequestParams(Map.of("active_only", "true", "id", randomFrom(apiKeyId0, apiKeyId1, apiKeyId2)))
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     public void testGetApiKeysWithActiveOnlyFlagAndMultipleUsers() throws Exception {
@@ -183,6 +203,9 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
         return createApiKey(creatorUser, apiKeyName, null);
     }
 
+    /**
+     * Returns id of created API key.
+     */
     private String createApiKey(String creatorUser, String apiKeyName, @Nullable TimeValue expiration) throws IOException {
         // Sanity check to ensure API key name and creator name aren't flipped
         assert creatorUser.equals(MANAGE_OWN_API_KEY_USER) || creatorUser.equals(MANAGE_SECURITY_USER);

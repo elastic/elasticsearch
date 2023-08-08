@@ -62,7 +62,6 @@ public class GetApiKeyRequestTests extends ESTestCase {
             String apiKeyId;
             String apiKeyName;
             boolean ownedByAuthenticatedUser;
-            boolean activeOnly;
 
             Dummy(String[] a) {
                 realm = a[0];
@@ -70,7 +69,6 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 apiKeyId = a[2];
                 apiKeyName = a[3];
                 ownedByAuthenticatedUser = Boolean.parseBoolean(a[4]);
-                activeOnly = Boolean.parseBoolean(a[5]);
             }
 
             @Override
@@ -87,30 +85,24 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 out.writeOptionalString(apiKeyName);
                 out.writeOptionalBoolean(ownedByAuthenticatedUser);
                 out.writeBoolean(randomBoolean());
-                out.writeBoolean(activeOnly);
+                out.writeBoolean(randomBoolean());
             }
         }
 
         String[][] inputs = new String[][] {
-            { randomNullOrEmptyString(), "user", "api-kid", "api-kname", "false", "true" },
-            { "realm", randomNullOrEmptyString(), "api-kid", "api-kname", "false", "true" },
-            { randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), "api-kname", "false", "true" },
-            { randomNullOrEmptyString(), randomNullOrEmptyString(), "api-kid", randomNullOrEmptyString(), "false", "true" },
-            { "realm", "user", "api-kid", randomNullOrEmptyString(), "false", "false" },
-            { randomNullOrEmptyString(), randomNullOrEmptyString(), "api-kid", "api-kname", "false", "false" },
-            { "realm", randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), "true", "false" },
-            { randomNullOrEmptyString(), "user", randomNullOrEmptyString(), randomNullOrEmptyString(), "true", "false" } };
+            { randomNullOrEmptyString(), "user", "api-kid", "api-kname", "false" },
+            { "realm", randomNullOrEmptyString(), "api-kid", "api-kname", "false" },
+            { "realm", "user", "api-kid", randomNullOrEmptyString(), "false" },
+            { randomNullOrEmptyString(), randomNullOrEmptyString(), "api-kid", "api-kname", "false" },
+            { "realm", randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), "true" },
+            { randomNullOrEmptyString(), "user", randomNullOrEmptyString(), randomNullOrEmptyString(), "true" } };
         String[][] expectedErrorMessages = new String[][] {
             {
                 "username or realm name must not be specified when the api key id or api key name is specified",
-                "only one of [api key id, api key name] can be specified",
-                "active_only must not be [true] when the api key id or api key name is specified" },
+                "only one of [api key id, api key name] can be specified" },
             {
                 "username or realm name must not be specified when the api key id or api key name is specified",
-                "only one of [api key id, api key name] can be specified",
-                "active_only must not be [true] when the api key id or api key name is specified" },
-            { "active_only must not be [true] when the api key id or api key name is specified" },
-            { "active_only must not be [true] when the api key id or api key name is specified" },
+                "only one of [api key id, api key name] can be specified" },
             { "username or realm name must not be specified when the api key id or api key name is specified" },
             { "only one of [api key id, api key name] can be specified" },
             { "neither username nor realm-name may be specified when retrieving owned API keys" },

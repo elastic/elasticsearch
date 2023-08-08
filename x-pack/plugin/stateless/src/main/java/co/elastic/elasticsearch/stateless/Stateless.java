@@ -328,7 +328,10 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         );
         var consistencyService = new StatelessClusterConsistencyService(clusterService, statelessElectionStrategy);
         components.add(consistencyService);
-        var translogReplicator = setAndGet(this.translogReplicator, new TranslogReplicator(threadPool, settings, objectStoreService));
+        var translogReplicator = setAndGet(
+            this.translogReplicator,
+            new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService)
+        );
         components.add(translogReplicator);
         var refreshThrottlingService = setAndGet(this.refreshThrottlingService, new RefreshThrottlingService(settings, clusterService));
         components.add(refreshThrottlingService);
@@ -496,7 +499,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 @Override
                 public void afterIndexShardCreated(IndexShard indexShard) {
                     statelessCommitService.register(indexShard.shardId());
-                    localTranslogReplicator.register(indexShard.shardId());
+                    localTranslogReplicator.register(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
                     // We are pruning the archive for a given generation, only once we know all search shards are
                     // aware of that generation.
                     // TODO: In the context of real-time GET, this might be an overkill and in case of misbehaving

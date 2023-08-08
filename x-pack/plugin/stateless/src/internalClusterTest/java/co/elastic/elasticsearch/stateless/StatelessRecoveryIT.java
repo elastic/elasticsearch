@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -39,6 +40,8 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -50,6 +53,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -77,6 +81,7 @@ import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -92,13 +97,19 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
+import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
+import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
+import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -122,7 +133,14 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
     protected Settings.Builder nodeSettings() {
         // TODO: remove heartbeat setting once ES-6481 is done. It is currently needed for testOngoingIndexShardRelocationAndMasterFailOver.
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
-            .put(HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(5));
+            .put(HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(5))
+            .put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
+            .put(DISCOVERY_FIND_PEERS_INTERVAL_SETTING.getKey(), "100ms")
+            .put(LEADER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .put(LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
+            .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
+            .put(TransportSettings.CONNECT_TIMEOUT.getKey(), "5s");
     }
 
     @Before
@@ -992,6 +1010,120 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         refresh(indexName); // so that any translog ops become visible for searching
         final long totalHits = client().prepareSearch(indexName).get().getHits().getTotalHits().value;
         assertThat(totalHits, greaterThanOrEqualTo((long) docsAcknowledged.get()));
+    }
+
+    public void testRecoverIndexingShardWithStaleIndexingShard() throws Exception {
+        String indexNodeA = startIndexNode();
+        startSearchNode();
+
+        final String indexName = "index-name";
+        createIndex(indexName, indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms").build());
+        ensureGreen(indexName);
+
+        final AtomicInteger docIdGenerator = new AtomicInteger();
+        final AtomicInteger docsAcknowledged = new AtomicInteger();
+        final AtomicInteger docsFailed = new AtomicInteger();
+
+        var bulkRequest = client(indexNodeA).prepareBulk();
+        for (int i = 0; i < 10; i++) {
+            bulkRequest.add(
+                new IndexRequest(indexName).id("doc-" + docIdGenerator.incrementAndGet())
+                    .source("field", randomUnicodeOfCodepointLengthBetween(1, 25))
+            );
+        }
+
+        // Index some operations
+        for (BulkItemResponse itemResponse : bulkRequest.get().getItems()) {
+            if (itemResponse.isFailed()) {
+                docsFailed.incrementAndGet();
+            } else {
+                docsAcknowledged.incrementAndGet();
+            }
+        }
+
+        MockTransportService nodeATransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            indexNodeA
+        );
+        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            internalCluster().getMasterName()
+        );
+
+        String indexNodeB = startIndexNode();
+
+        ensureStableCluster(4);
+
+        long initialPrimaryTerm = getPrimaryTerms(indexName)[0];
+
+        final PlainActionFuture<Void> removedNode = new PlainActionFuture<>();
+        final PlainActionFuture<Void> staleRequestDone = new PlainActionFuture<>();
+        try {
+            final ClusterService masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+            masterClusterService.addListener(clusterChangedEvent -> {
+                if (removedNode.isDone() == false
+                    && clusterChangedEvent.nodesDelta().removedNodes().stream().anyMatch(d -> d.getName().equals(indexNodeA))) {
+                    removedNode.onResponse(null);
+                }
+            });
+            masterTransportService.addUnresponsiveRule(nodeATransportService);
+
+            removedNode.actionGet();
+
+            logger.info("waiting for [{}] to be removed from cluster", indexNodeA);
+            ensureStableCluster(3, internalCluster().getMasterName());
+
+            assertBusy(() -> assertThat(getPrimaryTerms(indexName)[0], greaterThan(initialPrimaryTerm)));
+
+            ClusterHealthRequest healthRequest = new ClusterHealthRequest(indexName).timeout(TimeValue.timeValueSeconds(30))
+                .waitForStatus(ClusterHealthStatus.GREEN)
+                .waitForEvents(Priority.LANGUID)
+                .waitForNoRelocatingShards(true)
+                .waitForNoInitializingShards(true)
+                .waitForNodes(Integer.toString(3));
+
+            clusterAdmin().health(healthRequest).actionGet();
+
+            var staleBulkRequest = client(indexNodeA).prepareBulk();
+            for (int i = 0; i < 10; i++) {
+                staleBulkRequest.add(
+                    new IndexRequest(indexName).id("stale-doc-" + docIdGenerator.incrementAndGet())
+                        .source("field", randomUnicodeOfCodepointLengthBetween(1, 25))
+                );
+            }
+            staleBulkRequest.execute(new ActionListener<>() {
+                @Override
+                public void onResponse(BulkResponse bulkItemResponses) {
+                    for (BulkItemResponse itemResponse : bulkItemResponses.getItems()) {
+                        if (itemResponse.isFailed()) {
+                            docsFailed.incrementAndGet();
+                        } else {
+                            docsAcknowledged.incrementAndGet();
+                        }
+                    }
+                    staleRequestDone.onResponse(null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    staleRequestDone.onFailure(e);
+                }
+            });
+
+            // Slight delay to allow the stale node to potentially process requests before healing
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(200));
+        } finally {
+            masterTransportService.clearAllRules();
+        }
+
+        logger.info("--> [{}] documents acknowledged, [{}] documents failed", docsAcknowledged, docsFailed);
+        ensureGreen(indexName);
+
+        staleRequestDone.actionGet();
+
+        refresh(indexName);
+        final long totalHits = client().prepareSearch(indexName).get().getHits().getTotalHits().value;
+        assertThat(totalHits, equalTo((long) docsAcknowledged.get()));
     }
 
     public void testRecoverSearchShardWithObjectStoreFailures() throws Exception {

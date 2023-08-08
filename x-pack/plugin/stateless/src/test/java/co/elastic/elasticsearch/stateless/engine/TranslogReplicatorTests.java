@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -88,13 +89,21 @@ public class TranslogReplicatorTests extends ESTestCase {
 
     public void testTranslogBytesAreSyncedPeriodically() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
 
         ArrayList<BytesReference> compoundFiles = new ArrayList<>();
         ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
         translogReplicator.doStart();
-        translogReplicator.register(shardId);
+        translogReplicator.register(shardId, primaryTerm);
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -122,13 +131,21 @@ public class TranslogReplicatorTests extends ESTestCase {
 
     public void testTranslogReplicatorReaderMinMaxSeqNo() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
 
         ArrayList<BytesReference> compoundFiles = new ArrayList<>();
         ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
         translogReplicator.doStart();
-        translogReplicator.register(shardId);
+        translogReplicator.register(shardId, primaryTerm);
 
         Translog.Operation[] operations = generateRandomOperations(6);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -187,13 +204,21 @@ public class TranslogReplicatorTests extends ESTestCase {
 
     public void testTranslogReplicatorReaderStartingTranslogFile() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
 
         ArrayList<BytesReference> compoundFiles = new ArrayList<>();
         ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
         translogReplicator.doStart();
-        translogReplicator.register(shardId);
+        translogReplicator.register(shardId, primaryTerm);
 
         Translog.Operation[] operations = generateRandomOperations(6);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -259,15 +284,23 @@ public class TranslogReplicatorTests extends ESTestCase {
 
     public void testListenerThreadContextPreserved() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
         String header = "header";
         String preserved = "preserved";
 
         ArrayList<BytesReference> compoundFiles = new ArrayList<>();
         ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
         translogReplicator.doStart();
-        translogReplicator.register(shardId);
+        translogReplicator.register(shardId, primaryTerm);
 
         BytesArray bytesArray = new BytesArray(new byte[16]);
         Translog.Location location = new Translog.Location(0, 0, bytesArray.length());
@@ -304,9 +337,11 @@ public class TranslogReplicatorTests extends ESTestCase {
 
     public void testTranslogBytesAreSyncedWhenReachingSizeThreshold() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
 
         ArrayList<BytesReference> compoundFiles = new ArrayList<>();
         ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
         TranslogReplicator translogReplicator = new TranslogReplicator(
             threadPool,
@@ -314,10 +349,12 @@ public class TranslogReplicatorTests extends ESTestCase {
                 .put(TranslogReplicator.FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(1))
                 .put(TranslogReplicator.FLUSH_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(64))
                 .build(),
-            objectStoreService
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
         );
         translogReplicator.doStart();
-        translogReplicator.register(shardId);
+        translogReplicator.register(shardId, primaryTerm);
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -344,6 +381,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
     public void testTranslogBytesAreSyncedAfterRetry() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
 
         ArrayList<BytesReference> compoundFiles = new ArrayList<>();
         AtomicInteger attempt = new AtomicInteger(0);
@@ -373,10 +411,17 @@ public class TranslogReplicatorTests extends ESTestCase {
             return compoundFiles.get(index).streamInput();
         }).when(blobContainer).readBlob(any());
         doReturn(blobContainer).when(objectStoreService).getTranslogBlobContainer();
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
         translogReplicator.doStart();
-        translogReplicator.register(shardId);
+        translogReplicator.register(shardId, primaryTerm);
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -403,12 +448,20 @@ public class TranslogReplicatorTests extends ESTestCase {
 
     public void testTranslogBytesAreSyncedEdgeCondition() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
 
         ObjectStoreService objectStoreService = mockObjectStoreService(new ArrayList<>());
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
         translogReplicator.doStart();
-        translogReplicator.register(shardId);
+        translogReplicator.register(shardId, primaryTerm);
 
         BytesArray bytesArray = new BytesArray(new byte[16]);
         Translog.Location location = new Translog.Location(0, 0, bytesArray.length());
@@ -432,6 +485,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
     public void testTranslogSyncOnlyCompletedOnceAllPriorFilesSynced() throws Exception {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
 
         CountDownLatch intermediateStartedLatch = new CountDownLatch(1);
         CountDownLatch finalSyncStartedLatch = new CountDownLatch(1);
@@ -451,10 +505,17 @@ public class TranslogReplicatorTests extends ESTestCase {
             invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
             return null;
         }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
         translogReplicator.doStart();
-        translogReplicator.register(shardId);
+        translogReplicator.register(shardId, primaryTerm);
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -489,14 +550,22 @@ public class TranslogReplicatorTests extends ESTestCase {
     public void testCompoundTranslogFile() throws Exception {
         ShardId shardId1 = new ShardId(new Index("name1", "uuid"), 0);
         ShardId shardId2 = new ShardId(new Index("name2", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
 
         ArrayList<BytesReference> compoundFiles = new ArrayList<>();
         ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
         translogReplicator.doStart();
-        translogReplicator.register(shardId1);
-        translogReplicator.register(shardId2);
+        translogReplicator.register(shardId1, primaryTerm);
+        translogReplicator.register(shardId2, primaryTerm);
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -549,6 +618,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
     public void testCompoundTranslogOldVersionFile() throws Exception {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
 
         ArrayList<BytesReference> compoundFiles = new ArrayList<>();
 
@@ -568,10 +638,17 @@ public class TranslogReplicatorTests extends ESTestCase {
             invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
             return null;
         }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
         translogReplicator.doStart();
-        translogReplicator.register(shardId);
+        translogReplicator.register(shardId, primaryTerm);
 
         Translog.Operation[] operations = generateRandomOperations(2);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -592,13 +669,21 @@ public class TranslogReplicatorTests extends ESTestCase {
 
     public void testSyncAll() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
 
         ArrayList<BytesReference> compoundFiles = new ArrayList<>();
         ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
         translogReplicator.doStart();
-        translogReplicator.register(shardId);
+        translogReplicator.register(shardId, primaryTerm);
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -624,8 +709,46 @@ public class TranslogReplicatorTests extends ESTestCase {
         );
     }
 
+    public void testCheckShardStillAllocated() throws Exception {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm + 1
+        );
+        translogReplicator.doStart();
+        translogReplicator.register(shardId, primaryTerm);
+
+        Translog.Operation[] operations = generateRandomOperations(1);
+        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        long currentLocation = 0;
+        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
+
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        translogReplicator.syncAll(shardId, future);
+
+        assertBusy(() -> {
+            assertThat(compoundFiles.size(), equalTo(1));
+            assertTranslogContains(new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId), operations[0]);
+        });
+
+        // This sync should never complete. The actual sync will be failed when the shard is closed.
+        assertFalse(future.isDone());
+        translogReplicator.unregister(shardId);
+        expectThrows(AlreadyClosedException.class, future::actionGet);
+    }
+
     public void testCompleteListenerWithExceptionWhenShardIsUnregistered() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
 
         CountDownLatch latch = new CountDownLatch(1);
         ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
@@ -634,10 +757,17 @@ public class TranslogReplicatorTests extends ESTestCase {
             invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
             return null;
         }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
         translogReplicator.doStart();
-        translogReplicator.register(shardId);
+        translogReplicator.register(shardId, primaryTerm);
 
         Translog.Operation[] operations = generateRandomOperations(1);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -658,11 +788,19 @@ public class TranslogReplicatorTests extends ESTestCase {
 
     public void testAddThrowsWhenShardUnregistered() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
         ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, getSettings(), objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
         translogReplicator.doStart();
-        translogReplicator.register(shardId);
+        translogReplicator.register(shardId, primaryTerm);
 
         Translog.Operation[] operations = generateRandomOperations(1);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -674,8 +812,19 @@ public class TranslogReplicatorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSchedulesFlushCheck() {
+        long primaryTerm = randomLongBetween(0, 10);
+
         var threadPool = mock(ThreadPool.class);
-        try (var translogReplicator = new TranslogReplicator(threadPool, getSettings(), mock(ObjectStoreService.class))) {
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
+        try (
+            var translogReplicator = new TranslogReplicator(
+                threadPool,
+                getSettings(),
+                mock(ObjectStoreService.class),
+                consistencyService,
+                (sId) -> primaryTerm
+            )
+        ) {
             translogReplicator.doStart();
             verify(threadPool).scheduleWithFixedDelay(any(Runnable.class), eq(TimeValue.timeValueMillis(50)), eq(ThreadPool.Names.GENERIC));
         }
@@ -733,6 +882,16 @@ public class TranslogReplicatorTests extends ESTestCase {
         doReturn(blobContainer).when(objectStoreService).getTranslogBlobContainer();
 
         return objectStoreService;
+    }
+
+    private StatelessClusterConsistencyService mockConsistencyService() {
+        StatelessClusterConsistencyService consistencyService = mock(StatelessClusterConsistencyService.class);
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(0);
+            listener.onResponse(null);
+            return null;
+        }).when(consistencyService).ensureClusterStateConsistentWithRootBlob(any(), any());
+        return consistencyService;
     }
 
     private static void assertTranslogContains(TranslogReplicatorReader reader, Translog.Operation... operations) throws IOException {

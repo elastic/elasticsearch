@@ -74,7 +74,6 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -663,6 +662,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 ) {
                     @Override
                     void innerOnResponse(SearchShardsResponse searchShardsResponse) {
+                        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
                         searchShardsResponses.put(clusterAlias, searchShardsResponse);
                     }
 
@@ -676,6 +676,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 skipUnavailable == false,
                 ActionListener.wrap(connection -> {
                     final String[] indices = entry.getValue().indices();
+                    final Executor responseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
                     // TODO: support point-in-time
                     if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
                         SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
@@ -692,11 +693,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             SearchShardsAction.NAME,
                             searchShardsRequest,
                             TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(
-                                singleListener,
-                                SearchShardsResponse::new,
-                                TransportResponseHandler.TRANSPORT_WORKER
-                            )
+                            new ActionListenerResponseHandler<>(singleListener, SearchShardsResponse::new, responseExecutor)
                         );
                     } else {
                         ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices).indicesOptions(
@@ -710,7 +707,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             new ActionListenerResponseHandler<>(
                                 singleListener.map(SearchShardsResponse::fromLegacyResponse),
                                 ClusterSearchShardsResponse::new,
-                                TransportResponseHandler.TRANSPORT_WORKER
+                                responseExecutor
                             )
                         );
                     }

@@ -22,16 +22,11 @@ import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,19 +37,14 @@ public class MemoryMetricsService implements ClusterStateListener {
     private static final long WORKLOAD_MEMORY_OVERHEAD = ByteSizeValue.ofMb(500).getBytes();
     private volatile boolean initialized = false;
     private final Map<Index, IndexMemoryMetrics> indicesMemoryMetrics = new ConcurrentHashMap<>();
-    private volatile Map<DiscoveryNodeRole, Integer> tierNodesCount = Collections.emptyMap();
 
     public MemoryMetricsService() {}
 
-    public MemoryMetrics getMemoryMetrics(DiscoveryNodeRole nodeTierRole) {
-
-        assert nodeTierRole != null;
-
-        final int nodeCount = tierNodesCount.getOrDefault(nodeTierRole, 0);
+    public MemoryMetrics getMemoryMetrics() {
         final IndexMemoryMetrics totalIndicesMappingSize = getTotalIndicesMappingSize();
 
         final long nodeMemoryInBytes = HeapToSystemMemory.dataNode(INDEX_MEMORY_OVERHEAD * indicesCount() + WORKLOAD_MEMORY_OVERHEAD);
-        final long tierMemoryInBytes = nodeMemoryInBytes * nodeCount + HeapToSystemMemory.dataNode(totalIndicesMappingSize.sizeInBytes);
+        final long tierMemoryInBytes = HeapToSystemMemory.dataNode(totalIndicesMappingSize.sizeInBytes);
 
         return new MemoryMetrics(nodeMemoryInBytes, tierMemoryInBytes, totalIndicesMappingSize.metricQuality);
     }
@@ -103,12 +93,7 @@ public class MemoryMetricsService implements ClusterStateListener {
         if (event.localNodeMaster() == false || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             indicesMemoryMetrics.clear();
             initialized = false;
-            tierNodesCount = Collections.emptyMap();
             return;
-        }
-
-        if (event.nodesChanged()) {
-            updateTierNodesCount(event.state().nodes());
         }
 
         // new master use case: no indices exist in internal map
@@ -116,7 +101,6 @@ public class MemoryMetricsService implements ClusterStateListener {
             for (IndexMetadata indexMetadata : event.state().metadata()) {
                 indicesMemoryMetrics.put(indexMetadata.getIndex(), new IndexMemoryMetrics(0, MetricQuality.MISSING));
             }
-            updateTierNodesCount(event.state().nodes());
             initialized = true;
             return;
         }
@@ -173,19 +157,6 @@ public class MemoryMetricsService implements ClusterStateListener {
 
             }
         }
-    }
-
-    private void updateTierNodesCount(final DiscoveryNodes nodes) {
-        final Map<DiscoveryNodeRole, Integer> nodesCount = new HashMap<>();
-        for (DiscoveryNode node : nodes) {
-            if (node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE)) {
-                nodesCount.compute(DiscoveryNodeRole.INDEX_ROLE, (role, count) -> count == null ? 1 : count + 1);
-            }
-            if (node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE)) {
-                nodesCount.compute(DiscoveryNodeRole.SEARCH_ROLE, (role, count) -> count == null ? 1 : count + 1);
-            }
-        }
-        this.tierNodesCount = Collections.unmodifiableMap(nodesCount);
     }
 
     static class IndexMemoryMetrics {

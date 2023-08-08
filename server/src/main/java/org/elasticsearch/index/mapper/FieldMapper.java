@@ -998,6 +998,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Set<T> acceptedValues
         ) {
             assert acceptedValues.size() > 0;
+            assert defaultValue != null;
             return new Parameter<>(name, updateable, defaultValue, (n, c, o) -> {
                 if (o == null) {
                     return defaultValue.get();

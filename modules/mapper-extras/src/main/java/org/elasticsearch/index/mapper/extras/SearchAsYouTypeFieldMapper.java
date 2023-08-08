@@ -156,7 +156,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
                 index,
                 store,

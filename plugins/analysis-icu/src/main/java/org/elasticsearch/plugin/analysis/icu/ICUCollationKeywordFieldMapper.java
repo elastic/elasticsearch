@@ -272,7 +272,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
                 indexed,
                 hasDocValues,

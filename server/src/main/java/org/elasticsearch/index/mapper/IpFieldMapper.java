@@ -159,7 +159,7 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] { indexed, hasDocValues, stored, ignoreMalformed, nullValue, script, onScriptError, meta, dimension };
         }
 

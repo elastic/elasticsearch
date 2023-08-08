@@ -156,7 +156,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
                 fixed,
                 fixed2,

@@ -949,6 +949,10 @@ public class IndicesService extends AbstractLifecycleComponent
         return circuitBreakerService;
     }
 
+    public MapperRegistry getMapperRegistry() {
+        return mapperRegistry;
+    }
+
     public IndicesQueryCache getIndicesQueryCache() {
         return indicesQueryCache;
     }

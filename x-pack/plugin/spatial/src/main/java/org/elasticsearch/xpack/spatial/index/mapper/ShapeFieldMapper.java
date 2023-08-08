@@ -95,7 +95,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] { indexed, hasDocValues, ignoreMalformed, ignoreZValue, coerce, orientation, meta };
         }
 

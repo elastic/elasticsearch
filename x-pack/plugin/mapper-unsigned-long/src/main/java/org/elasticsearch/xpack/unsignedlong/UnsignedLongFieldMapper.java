@@ -178,7 +178,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] { indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta, dimension, metric };
         }
 

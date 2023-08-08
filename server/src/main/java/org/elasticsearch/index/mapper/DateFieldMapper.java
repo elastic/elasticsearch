@@ -314,7 +314,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] { index, docValues, store, format, locale, nullValue, ignoreMalformed, script, onScriptError, meta };
         }
 

@@ -108,7 +108,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] { meta, docValues, indexed, nullValue, stored, script, onScriptError, ignoreMalformed };
         }
 

@@ -91,7 +91,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] { value, meta };
         }
 

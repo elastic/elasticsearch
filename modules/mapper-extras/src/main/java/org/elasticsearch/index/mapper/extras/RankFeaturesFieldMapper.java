@@ -57,7 +57,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] { positiveScoreImpact, meta };
         }
 

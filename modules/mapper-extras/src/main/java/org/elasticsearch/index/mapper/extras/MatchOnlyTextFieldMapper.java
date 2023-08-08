@@ -113,7 +113,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] { meta };
         }
 

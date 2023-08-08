@@ -138,7 +138,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] { indexed, hasDocValues, stored, ignoreMalformed, ignoreZValue, coerce, orientation, meta };
         }
 

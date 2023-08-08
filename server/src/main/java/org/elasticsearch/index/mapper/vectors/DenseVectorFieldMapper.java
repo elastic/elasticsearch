@@ -144,7 +144,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] { elementType, dims, indexed, similarity, indexOptions, meta };
         }
 

@@ -106,7 +106,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] { eagerGlobalOrdinals, relations, meta };
         }
 

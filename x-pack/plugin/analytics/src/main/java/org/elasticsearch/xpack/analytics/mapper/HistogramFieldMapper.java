@@ -86,7 +86,7 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] { ignoreMalformed, meta };
         }
 

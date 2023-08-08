@@ -6,10 +6,15 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -24,6 +29,12 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.Processor;
@@ -34,6 +45,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
@@ -68,11 +80,14 @@ import org.elasticsearch.xpack.enrich.rest.RestExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestGetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestPutEnrichPolicyAction;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.ENRICH_INDEX_PATTERN;
 
@@ -132,8 +147,10 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
 
     public static final Setting<Long> CACHE_SIZE = Setting.longSetting("enrich.cache_size", 1000, 0, Setting.Property.NodeScope);
 
+    private static final Logger logger = LogManager.getLogger(EnrichPlugin.class);
     private final Settings settings;
     private final EnrichCache enrichCache;
+    private final SetOnce<Set<String>> indexableFieldTypes = new SetOnce<>();
 
     public EnrichPlugin(final Settings settings) {
         this.settings = settings;
@@ -205,6 +222,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         AllocationService allocationService,
         IndicesService indicesService
     ) {
+        indexableFieldTypes.set(evaluateIndexableMappingTypes(indicesService.getMapperRegistry(), settings));
         EnrichPolicyLocks enrichPolicyLocks = new EnrichPolicyLocks();
         EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(
             settings,
@@ -230,6 +248,46 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             enrichPolicyExecutor,
             enrichCache
         );
+    }
+
+    private Set<String> evaluateIndexableMappingTypes(MapperRegistry registry, Settings settings) {
+        Map<String, Mapper.TypeParser> mapperParsers = registry.getMapperParsers();
+        final MappingParserContext dummyContext = new MappingParserContext(
+            null,
+            null,
+            null,
+            IndexVersion.current(),
+            TransportVersion::current,
+            null,
+            ScriptCompiler.NONE,
+            null,
+            new IndexSettings(
+                IndexMetadata.builder("enrich_executor")
+                    .settings(
+                        Settings.builder()
+                            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current().id())
+                            .build()
+                    )
+                    .build(),
+                settings
+            ),
+            null
+        );
+        Set<String> indexableFieldTypes = mapperParsers.entrySet().stream()
+            .filter(entry -> {
+                Mapper.TypeParser typeParser = entry.getValue();
+                if (typeParser instanceof FieldMapper.TypeParser fieldParser) {
+                    FieldMapper.Builder builder = fieldParser.parse("enrich_field", Map.of(), dummyContext);
+                    return Arrays.stream(builder.getParameters()).anyMatch(parameter -> parameter.name.equals("index"));
+                }
+                return false;
+            })
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
+        logger.info("Detected the following fields with [index] parameter: " + indexableFieldTypes);
+        return indexableFieldTypes;
     }
 
     @Override

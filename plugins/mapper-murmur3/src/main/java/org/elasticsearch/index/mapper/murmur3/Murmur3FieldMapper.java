@@ -58,7 +58,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] { stored, meta };
         }
 

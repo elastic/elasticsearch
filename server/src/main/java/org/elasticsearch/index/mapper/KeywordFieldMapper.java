@@ -252,7 +252,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
                 indexed,
                 hasDocValues,

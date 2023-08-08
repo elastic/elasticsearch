@@ -44,7 +44,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] { required };
         }
 

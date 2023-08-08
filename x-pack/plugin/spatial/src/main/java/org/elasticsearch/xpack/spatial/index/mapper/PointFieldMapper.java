@@ -78,7 +78,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         }
 
         @Override
-        protected Parameter<?>[] getParameters() {
+        public Parameter<?>[] getParameters() {
             return new Parameter<?>[] { indexed, hasDocValues, stored, ignoreMalformed, ignoreZValue, nullValue, meta };
         }
 

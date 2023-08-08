@@ -373,12 +373,16 @@ public class ThreadPoolTests extends ESTestCase {
             "test",
             Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), allocatedProcessors).build()
         );
-        ExecutorService executor = threadPool.executor(ThreadPool.Names.SEARCH_WORKER);
-        assertThat(executor, instanceOf(ThreadPoolExecutor.class));
-        ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) executor;
-        int expectedPoolSize = allocatedProcessors * 3 / 2 + 1;
-        assertEquals(expectedPoolSize, threadPoolExecutor.getCorePoolSize());
-        assertEquals(expectedPoolSize, threadPoolExecutor.getMaximumPoolSize());
-        assertThat(threadPoolExecutor.getQueue(), instanceOf(LinkedTransferQueue.class));
+        try {
+            ExecutorService executor = threadPool.executor(ThreadPool.Names.SEARCH_WORKER);
+            assertThat(executor, instanceOf(ThreadPoolExecutor.class));
+            ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) executor;
+            int expectedPoolSize = allocatedProcessors * 3 / 2 + 1;
+            assertEquals(expectedPoolSize, threadPoolExecutor.getCorePoolSize());
+            assertEquals(expectedPoolSize, threadPoolExecutor.getMaximumPoolSize());
+            assertThat(threadPoolExecutor.getQueue(), instanceOf(LinkedTransferQueue.class));
+        } finally {
+            assertTrue(terminate(threadPool));
+        }
     }
 }

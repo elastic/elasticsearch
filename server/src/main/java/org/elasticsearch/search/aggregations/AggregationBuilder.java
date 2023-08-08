@@ -226,12 +226,15 @@ public abstract class AggregationBuilder
      * depending on what {@link #supportsOffloadingSequentialCollection()} returns.
      */
     public boolean supportsConcurrentExecution() {
+        if (isInSortOrderExecutionRequired()) {
+            return false;
+        }
         for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
             if (builder.supportsOffloadingSequentialCollection() == false || builder.supportsConcurrentExecution() == false) {
                 return false;
             }
         }
-        return isInSortOrderExecutionRequired() == false;
+        return true;
     }
 
     /**
@@ -241,6 +244,9 @@ public abstract class AggregationBuilder
      * Note: aggregations that don't support offloading sequential collection, don't support concurrency by definition.
      */
     public boolean supportsOffloadingSequentialCollection() {
+        if (isInSortOrderExecutionRequired()) {
+            return false;
+        }
         for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
             if (builder.supportsOffloadingSequentialCollection() == false) {
                 return false;

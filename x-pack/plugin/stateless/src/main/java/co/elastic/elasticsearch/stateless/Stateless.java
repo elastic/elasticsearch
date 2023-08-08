@@ -147,6 +147,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -292,13 +293,17 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         AllocationService allocationService,
         IndicesService indicesService
     ) {
+        final Collection<Object> components = new ArrayList<>();
         // use the settings that include additional settings.
         Settings settings = environment.settings();
         var objectStoreService = setAndGet(
             this.objectStoreService,
-            new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService)
+            createObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService)
         );
-        setAndGet(this.commitService, createStatelessCommitService(objectStoreService, clusterService, client));
+        components.add(objectStoreService);
+        var commitService = createStatelessCommitService(objectStoreService, clusterService, client);
+        setAndGet(this.commitService, commitService);
+        // TODO: figure out a better/correct threadpool for this
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(
             // TODO: figure out a better/correct threadpool for this
             setAndGet(
@@ -306,7 +311,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 new SharedBlobCacheService<>(nodeEnvironment, settings, threadPool, ThreadPool.Names.GENERIC)
             )
         );
-
+        components.add(sharedBlobCacheServiceSupplier);
         var statelessElectionStrategy = setAndGet(
             this.electionStrategy,
             new StatelessElectionStrategy(objectStoreService::getTermLeaseBlobContainer, threadPool)
@@ -321,8 +326,11 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             )
         );
         var consistencyService = new StatelessClusterConsistencyService(clusterService, statelessElectionStrategy);
+        components.add(consistencyService);
         var translogReplicator = setAndGet(this.translogReplicator, new TranslogReplicator(threadPool, settings, objectStoreService));
+        components.add(translogReplicator);
         var refreshThrottlingService = setAndGet(this.refreshThrottlingService, new RefreshThrottlingService(settings, clusterService));
+        components.add(refreshThrottlingService);
 
         // autoscaling
         // memory
@@ -338,8 +346,11 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 settings
             )
         );
+        components.add(indicesMappingSizeCollector);
+
         var memoryMetricsService = new MemoryMetricsService();
         clusterService.addListener(memoryMetricsService);
+        components.add(memoryMetricsService);
 
         // ingest
         var ingestLoadPublisher = new IngestLoadPublisher(client, threadPool);
@@ -354,12 +365,14 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             settings,
             clusterService
         );
+        components.add(ingestLoadSampler);
         var ingestMetricService = new IngestMetricsService(
             clusterService.getClusterSettings(),
             threadPool::relativeTimeInNanos,
             memoryMetricsService
         );
         clusterService.addListener(ingestMetricService);
+        components.add(ingestMetricService);
         // search
         var shardSizeStatsReader = new ShardSizeStatsReader(threadPool, indicesService);
         var shardSizesPublisher = new ShardSizesPublisher(client);
@@ -374,30 +387,31 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 hasSearchRole
             )
         );
+        components.add(shardSizesCollector);
         var searchMetricsService = SearchMetricsService.create(
             clusterService.getClusterSettings(),
             threadPool,
             clusterService,
             memoryMetricsService
         );
+        components.add(searchMetricsService);
 
         StatelessUpgrader statelessUpgrader = new StatelessUpgrader(client, clusterService);
         clusterService.addListener(statelessUpgrader);
 
-        return List.of(
-            objectStoreService,
-            translogReplicator,
-            sharedBlobCacheServiceSupplier,
-            refreshThrottlingService,
-            // autoscaling
-            memoryMetricsService,
-            indicesMappingSizeCollector,
-            ingestLoadSampler,
-            ingestMetricService,
-            shardSizesCollector,
-            searchMetricsService,
-            consistencyService
-        );
+        if (hasIndexRole) {
+            components.add(new IndexingDiskController(nodeEnvironment, settings, threadPool, indicesService, commitService));
+        }
+        return components;
+    }
+
+    protected ObjectStoreService createObjectStoreService(
+        Settings settings,
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        ThreadPool threadPool,
+        ClusterService clusterService
+    ) {
+        return new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService);
     }
 
     /**
@@ -461,7 +475,9 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             ShardSizesCollector.BOOST_WINDOW_SETTING,
             ShardSizesCollector.PUSH_INTERVAL_SETTING,
             ShardSizesCollector.PUSH_DELTA_THRESHOLD_SETTING,
-            SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING
+            SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING,
+            IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
+            IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING
         );
     }
 

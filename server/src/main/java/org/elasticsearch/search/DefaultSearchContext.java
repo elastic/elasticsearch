@@ -170,8 +170,7 @@ final class DefaultSearchContext extends SearchContext {
                 lowLevelCancellation,
                 executor,
                 minimumDocsPerSlice,
-                // TODO is there a better way that does not require casting the executor?
-                forceSequentialCollection ? 1 : ((ThreadPoolExecutor) executor).getMaximumPoolSize()
+                forceSequentialCollection == false && executor instanceof ThreadPoolExecutor tpe ? tpe.getMaximumPoolSize() : 1
             );
         }
         releasables.addAll(List.of(engineSearcher, searcher));

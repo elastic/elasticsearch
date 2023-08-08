@@ -1403,8 +1403,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 .put(NODE_NAME_SETTING.getKey(), nodeName)
                 .put(PATH_HOME_SETTING.getKey(), tempDir.resolve(nodeName).toAbsolutePath())
                 .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo").toAbsolutePath())
-                // disable shard search concurrency entirely as it requires a ThreadPoolExecutor which this test does not provide
-                .put(SearchService.SEARCH_WORKER_THREADS_ENABLED.getKey(), false)
                 .putList(
                     ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
                     ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY)

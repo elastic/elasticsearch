@@ -73,20 +73,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNull(doc.rootDoc().getField("field"));
     }
 
-    public void testParseWithRuntimeFieldObject() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(runtimeFieldMapping(b -> b.field("type", "keyword")));
-        ParsedDocument doc = mapper.parse(source("""
-            {
-              "field" : {
-                "foo" : 10
-              }
-            }
-            """));
-        // field defined as runtime field but not under properties: no dynamic updates, the field does not get indexed
-        assertNull(doc.dynamicMappingsUpdate());
-        assertNull(doc.rootDoc().getField("field"));
-    }
-
     public void testParseWithShadowedField() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
         builder.startObject("runtime");

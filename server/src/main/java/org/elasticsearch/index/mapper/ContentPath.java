@@ -54,12 +54,14 @@ public final class ContentPath {
         dottedFieldName = newDottedFieldName;
     }
 
-    public void remove() {
-        path[index--] = null;
+    public String remove() {
+        String removedPath = path[--index];
+        path[index] = null;
+        return removedPath;
     }
 
     public void removeDottedFieldName() {
-        dottedFieldName[dottedFieldNameIndex--] = null;
+        dottedFieldName[--dottedFieldNameIndex] = null;
     }
 
     public void setWithinLeafObject(boolean withinLeafObject) {

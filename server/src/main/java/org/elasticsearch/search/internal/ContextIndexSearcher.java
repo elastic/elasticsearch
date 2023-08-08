@@ -149,7 +149,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             this.leafSlices = null;
         } else {
             // we offload to the executor unconditionally, including requests that don't support concurrency
-            // TODO are we good offloading aggs that don't support concurrency to the concurrent executor or is postCollect an issue?
+            //the few cases that don't support offloading entirely won't get an executor
             this.leafSlices = computeSlices(getLeafContexts(), maximumNumberOfSlices, minimumDocsPerSlice);
             assert this.leafSlices.length <= maximumNumberOfSlices : "more slices created than the maximum allowed";
         }
@@ -368,7 +368,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     if (state.compareAndSet(0, 1)) {
                         // A slice throws exception or times out: cancel all the tasks, to prevent slices that haven't started yet from
                         // starting and performing needless computation.
-                        // TODO we will also want to cancel tasks that have already started, reusing the search cancellation mechanics.
+                        // TODO we will also want to cancel tasks that have already started, reusing the timeout mechanism
                         try {
                             search(Arrays.asList(leaves), weight, collector);
                             if (timeExceeded) {

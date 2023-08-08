@@ -2698,7 +2698,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 "range" : {
                     "max" : 500,
                     "min" : 1
-                }
+                },
+                "all.time.high": 499
               }
             }
             """));
@@ -2708,10 +2709,12 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(mappingsUpdate.getRoot().getMapper("time.measured"));
         assertNotNull(mappingsUpdate.getRoot().getMapper("time.range.min"));
         assertNotNull(mappingsUpdate.getRoot().getMapper("time.range.max"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("time.all.time.high"));
 
         assertNotNull(doc.rootDoc().getField("time.measured"));
         assertNotNull(doc.rootDoc().getField("time.range.min"));
         assertNotNull(doc.rootDoc().getField("time.range.max"));
+        assertNotNull(doc.rootDoc().getField("time.all.time.high"));
     }
 
     public void testSubobjectsFalseRootAndChildWithInnerObjectAndDottedNames() throws Exception {

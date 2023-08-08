@@ -230,11 +230,11 @@ public abstract class AggregationBuilder
             return false;
         }
         for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
-            if (builder.supportsOffloadingSequentialCollection() == false || builder.supportsConcurrentExecution() == false) {
+            if (builder.supportsConcurrentExecution() == false) {
                 return false;
             }
         }
-        return true;
+        return supportsOffloadingSequentialCollection();
     }
 
     /**

@@ -68,8 +68,8 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         assertTrue(bucketBuilder.supportsConcurrentExecution());
         bucketBuilder.subAggregation(builder);
         assertThat(bucketBuilder.supportsConcurrentExecution(), equalTo(supportsConcurrency));
-        if (bucketBuilder.supportsConcurrentExecution() == false) {
-            assertFalse(bucketBuilder.supportsOffloadingSequentialCollection());
+        if (bucketBuilder.supportsConcurrentExecution()) {
+            assertTrue(bucketBuilder.supportsOffloadingSequentialCollection());
         }
     }
 

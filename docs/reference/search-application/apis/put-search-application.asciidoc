@@ -213,13 +213,15 @@ In the above example, the value of the `default_field` parameter is not valid, t
     "root_cause": [
       {
         "type": "validation_exception",
-        "reason": "Validation Failed: 1: $.default_field: does not have a value in the enumeration [title, description];"
+        "reason": "Validation Failed: 1: $.default_field: does not have a value in the enumeration [title, description];",
+        "stack_trace": ...
       }
     ],
     "type": "validation_exception",
-    "reason": "Validation Failed: 1: $.default_field: does not have a value in the enumeration [title, description];"
+    "reason": "Validation Failed: 1: $.default_field: does not have a value in the enumeration [title, description];",
+    "stack_trace": ...
   },
   "status": 400
 }
 ----
-// TEST[skip:example of a bad response]
+// TEST[skip:example only]

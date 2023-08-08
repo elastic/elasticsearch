@@ -227,7 +227,7 @@ public abstract class AggregationBuilder
      */
     public boolean supportsConcurrentExecution() {
         for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
-            if (builder.supportsOffloadingSequentialCollection() || builder.supportsConcurrentExecution() == false) {
+            if (builder.supportsOffloadingSequentialCollection() == false || builder.supportsConcurrentExecution() == false) {
                 return false;
             }
         }

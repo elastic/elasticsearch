@@ -111,8 +111,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCachingPolicy queryCachingPolicy,
         boolean wrapWithExitableDirectoryReader,
         Executor executor,
-        int minimumDocsPerSlice,
-        int maximumNumberOfSlices
+        int maximumNumberOfSlices,
+        int minimumDocsPerSlice
     ) throws IOException {
         this(
             reader,
@@ -122,8 +122,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             new MutableQueryTimeout(),
             wrapWithExitableDirectoryReader,
             executor,
-            minimumDocsPerSlice,
-            maximumNumberOfSlices
+            maximumNumberOfSlices,
+            minimumDocsPerSlice
         );
     }
 
@@ -135,8 +135,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         MutableQueryTimeout cancellable,
         boolean wrapWithExitableDirectoryReader,
         Executor executor,
-        int minimumDocsPerSlice,
-        int maximumNumberOfSlices
+        int maximumNumberOfSlices,
+        int minimumDocsPerSlice
     ) throws IOException {
         // we need to pass the executor up so it can potentially be used as a sliceExecutor by knn search
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);

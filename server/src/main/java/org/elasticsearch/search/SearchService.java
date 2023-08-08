@@ -131,6 +131,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1063,7 +1064,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 reader.indexShard().shardId(),
                 request.getClusterAlias()
             );
-            ExecutorService executor = threadPool.executor(Names.SEARCH_WORKER);
+            ExecutorService executor = this.enableSearchWorkerThreads
+                && supportsOffloadingSequentialCollection(resultsType, request.source()) ? threadPool.executor(Names.SEARCH_WORKER) : null;
+            int maximumNumberOfSlices = executor instanceof ThreadPoolExecutor tpe
+                && supportsParallelCollection(resultsType, request.source()) ? tpe.getMaximumPoolSize() : 1;
             searchContext = new DefaultSearchContext(
                 reader,
                 request,
@@ -1072,8 +1076,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 timeout,
                 fetchPhase,
                 lowLevelCancellation,
-                this.enableSearchWorkerThreads ? executor : null,
-                supportsConcurrency(resultsType, request.source()) == false,
+                executor,
+                maximumNumberOfSlices,
                 minimumDocsPerSlice
             );
             // we clone the query shard context here just for rewriting otherwise we
@@ -1094,7 +1098,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return searchContext;
     }
 
-    static boolean supportsConcurrency(ResultsType resultsType, SearchSourceBuilder source) {
+    static boolean supportsOffloadingSequentialCollection(ResultsType resultsType, SearchSourceBuilder source) {
+        // enable offloading of sequential collection at all times, besides the few cases where aggs don't support it
+        if (resultsType == ResultsType.QUERY) {
+            return source == null || source.aggregations() == null || source.aggregations().supportsOffloadingSequentialCollection();
+        }
+        return true;
+    }
+
+    static boolean supportsParallelCollection(ResultsType resultsType, SearchSourceBuilder source) {
         if (resultsType == ResultsType.DFS) {
             return true; // only enable concurrent collection for DFS phase for now
         }

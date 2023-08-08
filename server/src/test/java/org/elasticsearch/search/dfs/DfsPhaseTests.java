@@ -75,8 +75,8 @@ public class DfsPhaseTests extends ESTestCase {
                 IndexSearcher.getDefaultQueryCachingPolicy(),
                 randomBoolean(),
                 threadPoolExecutor,
-                1,
-                threadPoolExecutor.getMaximumPoolSize()
+                threadPoolExecutor.getMaximumPoolSize(),
+                1
             );
 
             Query query = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, numDocs, null);

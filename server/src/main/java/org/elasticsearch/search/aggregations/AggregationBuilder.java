@@ -225,12 +225,12 @@ public abstract class AggregationBuilder
      * Note: aggregations that don't support concurrency, may or may not support offloading their collection to the search worker threads,
      * depending on what {@link #supportsOffloadingSequentialCollection()} returns.
      */
-    public boolean supportsConcurrentExecution() {
+    public boolean supportsParallelCollection() {
         if (isInSortOrderExecutionRequired()) {
             return false;
         }
         for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
-            if (builder.supportsConcurrentExecution() == false) {
+            if (builder.supportsParallelCollection() == false) {
                 return false;
             }
         }

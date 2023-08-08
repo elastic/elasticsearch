@@ -334,15 +334,34 @@ public class AggregatorFactories {
         }
 
         /**
-         * Return false if this aggregation or any of the child aggregations does not support concurrent search
+         * Return false if this aggregation or any of the child aggregations does not support concurrent search.
+         * As a result, such aggregation will always be executed sequentially despite concurrency is enabled for the query phase.
+         * Note: aggregations that don't support concurrency, may or may not support offloading their collection to the search worker threads,
+         * depending on what {@link #supportsOffloadingSequentialCollection()} returns.
          */
-        public boolean supportsConcurrentExecution() {
+        // TODO this is not used yet, it will be used once we enable parallel collection for the query phase
+        public boolean supportsParallelCollection() {
             for (AggregationBuilder builder : aggregationBuilders) {
-                if (builder.supportsConcurrentExecution() == false) {
+                if (builder.supportsParallelCollection() == false) {
                     return false;
                 }
             }
-            return isInSortOrderExecutionRequired() == false;
+            return true;
+        }
+
+        /**
+         * Returns false if this aggregation or any of its child aggregations does not support offloading its sequential collection
+         * to a separate thread. As a result, such aggregation will always be executed sequentially, and fully in the search thread,
+         * without offloading its collection to the search worker threads.
+         * Note: aggregations that don't support offloading sequential collection, don't support concurrency by definition.
+         */
+        public boolean supportsOffloadingSequentialCollection() {
+            for (AggregationBuilder builder : aggregationBuilders) {
+                if (builder.supportsOffloadingSequentialCollection() == false) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         public Builder addAggregator(AggregationBuilder factory) {

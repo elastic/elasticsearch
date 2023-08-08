@@ -145,7 +145,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 null,
                 false,
                 null,
-                false,
+                randomInt(),
                 randomInt()
             );
             contextWithoutScroll.from(300);
@@ -185,7 +185,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 null,
                 false,
                 null,
-                false,
+                randomInt(),
                 randomInt()
             );
             context1.from(300);
@@ -260,7 +260,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 null,
                 false,
                 null,
-                false,
+                randomInt(),
                 randomInt()
             );
 
@@ -297,7 +297,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 null,
                 false,
                 null,
-                false,
+                randomInt(),
                 randomInt()
             );
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
@@ -324,7 +324,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 null,
                 false,
                 null,
-                false,
+                randomInt(),
                 randomInt()
             );
             context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess();
@@ -392,7 +392,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 null,
                 false,
                 null,
-                false,
+                randomInt(),
                 randomInt()
             );
 

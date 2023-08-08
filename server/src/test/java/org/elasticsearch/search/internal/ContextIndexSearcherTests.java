@@ -260,8 +260,8 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         executeCalls.incrementAndGet();
                         command.run();
                     },
-                    1,
-                    maxNumSlices
+                    maxNumSlices,
+                    1
                 );
                 Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager());
                 assertEquals(numDocs, totalHits.intValue());
@@ -475,8 +475,8 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     IndexSearcher.getDefaultQueryCachingPolicy(),
                     true,
                     executor,
-                    1,
-                    executor == null ? -1 : executor.getMaximumPoolSize()
+                    executor == null ? -1 : executor.getMaximumPoolSize(),
+                    1
                 );
                 boolean[] called = new boolean[1];
                 CollectorManager<Collector, Void> manager = new CollectorManager<>() {
@@ -565,8 +565,8 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         IndexSearcher.getDefaultQueryCachingPolicy(),
                         true,
                         executorTestWrapper,
-                        1,
-                        executor.getMaximumPoolSize()
+                        executor.getMaximumPoolSize(),
+                        1
                     )
                 ) {
                     leafSlices = contextIndexSearcher.getSlicesForCollection();
@@ -706,8 +706,8 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         IndexSearcher.getDefaultQueryCachingPolicy(),
                         true,
                         executorTestWrapper,
-                        1,
-                        executor.getMaximumPoolSize()
+                        executor.getMaximumPoolSize(),
+                        1
                     )
                 ) {
                     leafSlices = contextIndexSearcher.getSlicesForCollection();

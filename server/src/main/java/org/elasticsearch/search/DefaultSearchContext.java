@@ -65,7 +65,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.LongSupplier;
 
 final class DefaultSearchContext extends SearchContext {
@@ -141,7 +140,7 @@ final class DefaultSearchContext extends SearchContext {
         FetchPhase fetchPhase,
         boolean lowLevelCancellation,
         Executor executor,
-        boolean forceSequentialCollection,
+        int maximumNumberOfSlices,
         int minimumDocsPerSlice
     ) throws IOException {
         this.readerContext = readerContext;
@@ -169,8 +168,8 @@ final class DefaultSearchContext extends SearchContext {
                 engineSearcher.getQueryCachingPolicy(),
                 lowLevelCancellation,
                 executor,
-                minimumDocsPerSlice,
-                forceSequentialCollection == false && executor instanceof ThreadPoolExecutor tpe ? tpe.getMaximumPoolSize() : 1
+                maximumNumberOfSlices,
+                minimumDocsPerSlice
             );
         }
         releasables.addAll(List.of(engineSearcher, searcher));

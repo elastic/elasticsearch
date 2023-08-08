@@ -79,9 +79,13 @@ import org.elasticsearch.search.SearchService.ResultsType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -1947,10 +1951,10 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Verify that a single slice is created for requests that don't support concurrency, while computation
+     * Verify that a single slice is created for requests that don't support parallel collection, while computation
      * is still offloaded to the worker threads.
      */
-    public void testSupportsConcurrencyAffectsSlicing() throws Exception {
+    public void testSupportsParallelCollectionAffectsSlicing() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY);
         ThreadPoolExecutor executor = (ThreadPoolExecutor) indexService.getThreadPool().executor(ThreadPool.Names.SEARCH_WORKER);
         int numDocs = randomIntBetween(50, 100);
@@ -1960,7 +1964,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 indicesAdmin().prepareRefresh("index").get();
             }
         }
-
         final IndexShard indexShard = indexService.getShard(0);
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
@@ -2020,18 +2023,112 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testSupportsConcurrency() {
+    public void testSupportsParallelCollection() {
         SearchSourceBuilder searchSourceBuilder = randomBoolean() ? null : new SearchSourceBuilder();
         if (searchSourceBuilder != null && randomBoolean()) {
             searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));
         }
-        assertTrue(SearchService.supportsConcurrency(ResultsType.DFS, searchSourceBuilder));
+        assertTrue(SearchService.supportsParallelCollection(ResultsType.DFS, searchSourceBuilder));
         assertFalse(
-            SearchService.supportsConcurrency(
+            SearchService.supportsParallelCollection(
                 randomFrom(randomFrom(ResultsType.QUERY, ResultsType.NONE, ResultsType.FETCH)),
                 searchSourceBuilder
             )
         );
+    }
+
+    public void testSupportsOffloadingSequentialCollection() {
+        assertTrue(SearchService.supportsOffloadingSequentialCollection(randomFrom(ResultsType.values()), null));
+        assertTrue(SearchService.supportsOffloadingSequentialCollection(randomFrom(ResultsType.values()), new SearchSourceBuilder()));
+        assertTrue(
+            SearchService.supportsOffloadingSequentialCollection(
+                randomFrom(ResultsType.values()),
+                new SearchSourceBuilder().aggregation(new TermsAggregationBuilder("terms"))
+            )
+        );
+        assertFalse(
+            SearchService.supportsOffloadingSequentialCollection(
+                ResultsType.QUERY,
+                new SearchSourceBuilder().aggregation(new CardinalityAggregationBuilder("cardinality"))
+            )
+        );
+        assertFalse(
+            SearchService.supportsOffloadingSequentialCollection(
+                ResultsType.QUERY,
+                new SearchSourceBuilder().aggregation(new NestedAggregationBuilder("nested", "path"))
+            )
+        );
+        assertFalse(
+            SearchService.supportsOffloadingSequentialCollection(
+                ResultsType.QUERY,
+                new SearchSourceBuilder().aggregation(
+                    new CompositeAggregationBuilder("composite", Collections.singletonList(new TermsValuesSourceBuilder("name")))
+                )
+            )
+        );
+    }
+
+    /**
+     * Verify that the executor is set to the index searcher only for requests that support offloading sequential collection.
+     */
+    public void testSupportsOffloadingSequentialCollectionAffectsSearchContext() throws Exception {
+        IndexService indexService = createIndex("index", Settings.EMPTY);
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) indexService.getThreadPool().executor(ThreadPool.Names.SEARCH_WORKER);
+        final IndexShard indexShard = indexService.getShard(0);
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            indexService.numberOfShards(),
+            AliasFilter.EMPTY,
+            1f,
+            System.currentTimeMillis(),
+            null
+        );
+        SearchService service = getInstanceFromNode(SearchService.class);
+        try (ReaderContext readerContext = createReaderContext(indexService, indexShard)) {
+            SearchShardTask task = new SearchShardTask(0, "type", "action", "description", null, emptyMap());
+            {
+                SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, true);
+                ContextIndexSearcher searcher = searchContext.searcher();
+                assertNotNull(searcher.getExecutor());
+                assertSame(executor, searcher.getExecutor());
+            }
+            {
+                SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.FETCH, true);
+                ContextIndexSearcher searcher = searchContext.searcher();
+                assertNotNull(searcher.getExecutor());
+                assertSame(executor, searcher.getExecutor());
+            }
+            {
+                SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.NONE, true);
+                ContextIndexSearcher searcher = searchContext.searcher();
+                assertNotNull(searcher.getExecutor());
+                assertSame(executor, searcher.getExecutor());
+            }
+            {
+                SearchRequest queryPhaseRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
+                queryPhaseRequest.source(
+                    new SearchSourceBuilder().aggregation(new CardinalityAggregationBuilder("cardinality").field("field"))
+                );
+                ShardSearchRequest queryPhaseShardRequest = new ShardSearchRequest(
+                    OriginalIndices.NONE,
+                    queryPhaseRequest,
+                    indexShard.shardId(),
+                    0,
+                    indexService.numberOfShards(),
+                    AliasFilter.EMPTY,
+                    1f,
+                    System.currentTimeMillis(),
+                    null
+                );
+                SearchContext searchContext = service.createContext(readerContext, queryPhaseShardRequest, task, ResultsType.QUERY, true);
+                ContextIndexSearcher searcher = searchContext.searcher();
+                assertNull(searcher.getExecutor());
+            }
+        }
     }
 
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {

@@ -51,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -296,6 +297,11 @@ public class JoinHelper {
                                     TransportRequestOptions.of(null, TransportRequestOptions.Type.PING),
                                     new TransportResponseHandler.Empty() {
                                         @Override
+                                        public Executor executor(ThreadPool threadPool) {
+                                            return TransportResponseHandler.TRANSPORT_WORKER;
+                                        }
+
+                                        @Override
                                         public void handleResponse(TransportResponse.Empty response) {
                                             pendingJoinInfo.message = PENDING_JOIN_WAITING_STATE; // only logged if state delayed
                                             pendingOutgoingJoins.remove(dedupKey);
@@ -352,6 +358,11 @@ public class JoinHelper {
         assert startJoinRequest.getSourceNode().isMasterNode()
             : "sending start-join request for master-ineligible " + startJoinRequest.getSourceNode();
         transportService.sendRequest(destination, START_JOIN_ACTION_NAME, startJoinRequest, new TransportResponseHandler.Empty() {
+            @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
             @Override
             public void handleResponse(TransportResponse.Empty response) {
                 logger.debug("successful response to {} from {}", startJoinRequest, destination);

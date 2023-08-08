@@ -1,7 +1,7 @@
 {
   "synonyms.delete": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-synonyms.html",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-synonyms-set.html",
       "description": "Deletes a synonym set"
     },
     "stability": "experimental",

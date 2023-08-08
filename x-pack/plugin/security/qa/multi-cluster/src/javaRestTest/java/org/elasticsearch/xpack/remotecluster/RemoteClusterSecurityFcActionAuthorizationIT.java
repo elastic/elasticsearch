@@ -146,7 +146,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                 threadPool,
                 "my_remote_cluster",
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                threadPool.generic()
             );
 
             // Creating a restore session fails if index is not accessible
@@ -288,7 +288,10 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
 
             final ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> remoteClusterClient.execute(RemoteClusterNodesAction.INSTANCE, RemoteClusterNodesAction.Request.INSTANCE).actionGet()
+                () -> remoteClusterClient.execute(
+                    RemoteClusterNodesAction.INSTANCE,
+                    RemoteClusterNodesAction.Request.REMOTE_CLUSTER_SERVER_NODES
+                ).actionGet()
             );
             assertThat(
                 e.getMessage(),

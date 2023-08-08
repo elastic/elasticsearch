@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.search.SearchRequest;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.License;
@@ -52,6 +52,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
+import org.elasticsearch.xpack.ml.utils.TaskRetriever;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -203,7 +205,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             }
         }
 
-        TrainedModelConfig.Builder trainedModelConfig = new TrainedModelConfig.Builder(config).setVersion(Version.CURRENT)
+        TrainedModelConfig.Builder trainedModelConfig = new TrainedModelConfig.Builder(config).setVersion(MlConfigVersion.CURRENT)
             .setCreateTime(Instant.now())
             .setCreatedBy("api_user")
             .setLicenseLevel(License.OperationMode.PLATINUM.description());
@@ -333,7 +335,8 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             trainedModelConfig.getModelId(),
             request.isWaitForCompletion(),
             listener,
-            handlePackageAndTagsListener
+            handlePackageAndTagsListener,
+            request.timeout()
         );
     }
 
@@ -345,16 +348,17 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         String modelId,
         boolean isWaitForCompletion,
         ActionListener<Response> sendResponseListener,
-        ActionListener<Void> storeModelListener
+        ActionListener<Void> storeModelListener,
+        TimeValue timeout
     ) {
-        getExistingTaskInfo(client, modelId, isWaitForCompletion, ActionListener.wrap(taskInfo -> {
+        TaskRetriever.getDownloadTaskInfo(client, modelId, isWaitForCompletion, ActionListener.wrap(taskInfo -> {
             if (taskInfo != null) {
                 getModelInformation(client, modelId, sendResponseListener);
             } else {
                 // no task exists so proceed with creating the model
                 storeModelListener.onResponse(null);
             }
-        }, sendResponseListener::onFailure));
+        }, sendResponseListener::onFailure), timeout);
     }
 
     private static void getExistingTaskInfo(Client client, String modelId, boolean waitForCompletion, ActionListener<TaskInfo> listener) {

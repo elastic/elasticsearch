@@ -575,6 +575,40 @@ sequence with maxspan=15m
 ----
 
 [discrete]
+[[eql-missing-events]]
+==== Missing events
+
+Use `!` to match missing events: events in a timespan-constrained sequence that
+do not meet a given condition.
+
+[source,eql]
+----
+sequence with maxspan=1h
+  [ event_category_1 where condition_1 ]
+  ![ event_category_2 where condition_2 ]
+  [ event_category_3 where condition_3 ]
+  ...
+----
+
+Missing event clauses can be used at the beginning, at the end, and/or in the
+middle of a sequence, in any combination with positive event clauses. A sequence
+can have multiple missing event clauses, but needs to have at least one positive
+clause. <<eql-with-maxspan-keywords,`with maxspan`>> is mandatory when missing
+event clauses are present.
+
+
+*Example* +
+The following sequence query finds logon events that are not followed within 5
+seconds by a logoff event.
+
+[source,eql]
+----
+sequence by host.name, user.name with maxspan=5s
+  [ authentication where event.code : "4624" ]
+  ![ authentication where event.code : "4647" ]
+----
+
+[discrete]
 [[eql-by-keyword]]
 ==== `by` keyword
 

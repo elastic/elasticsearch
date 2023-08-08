@@ -220,9 +220,9 @@ public abstract class AggregationBuilder
     }
 
     /**
-     * Return false if this aggregation or any of the child aggregations does not support concurrent search.
-     * As a result, such aggregation will always be executed sequentially despite concurrency is enabled for the query phase.
-     * Note: aggregations that don't support concurrency, may or may not support offloading their collection to the search worker threads,
+     * Return false if this aggregation or any of the child aggregations does not support parallel collection.
+     * As a result, a request including such aggregation is always executed sequentially despite concurrency is enabled for the query phase.
+     * Note: aggregations that don't support parallel collection, may or may not support offloading collection to the search worker threads,
      * depending on what {@link #supportsOffloadingSequentialCollection()} returns.
      */
     public boolean supportsParallelCollection() {
@@ -239,9 +239,9 @@ public abstract class AggregationBuilder
 
     /**
      * Returns false if this aggregation or any of its child aggregations does not support offloading its sequential collection
-     * to a separate thread. As a result, such aggregation will always be executed sequentially, and fully in the search thread,
+     * to a separate thread. As a result, a request including such aggregation is always executed sequentially by a search thread,
      * without offloading its collection to the search worker threads.
-     * Note: aggregations that don't support offloading sequential collection, don't support concurrency by definition.
+     * Note: aggregations that don't support offloading sequential collection, don't support parallel collection by definition.
      */
     public boolean supportsOffloadingSequentialCollection() {
         if (isInSortOrderExecutionRequired()) {

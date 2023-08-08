@@ -116,7 +116,7 @@ public class MlLifeCycleService {
         boolean nodeHasDrainingQueues = metadata.allAssignments().values().stream().anyMatch(assignment -> {
             if (assignment.isRoutedToNode(nodeId)) {
                 RoutingInfo routingInfo = assignment.getNodeRoutingTable().get(nodeId);
-                logger.error(format("assignment is routed to shutting down nodeId %s state: %s", nodeId, routingInfo.getState()))
+                logger.error(format("assignment is routed to shutting down nodeId %s state: %s", nodeId, routingInfo.getState()));
                 return routingInfo.getState() == RoutingState.STOPPING;
             }
 

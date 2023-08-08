@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
-import static org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest.TRANSPORT_VERSION_ACTIVE_ONLY;
+import static org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest.API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -185,7 +185,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 .build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            TransportVersion beforeActiveOnly = TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ACTIVE_ONLY);
+            TransportVersion beforeActiveOnly = TransportVersionUtils.getPreviousVersion(API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION);
             out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_8_5_0, beforeActiveOnly));
             getApiKeyRequest.writeTo(out);
 
@@ -207,12 +207,14 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 .build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setTransportVersion(randomVersionBetween(random(), TRANSPORT_VERSION_ACTIVE_ONLY, TransportVersion.current()));
+            out.setTransportVersion(
+                randomVersionBetween(random(), API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION, TransportVersion.current())
+            );
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
             inputStreamStreamInput.setTransportVersion(
-                randomVersionBetween(random(), TRANSPORT_VERSION_ACTIVE_ONLY, TransportVersion.current())
+                randomVersionBetween(random(), API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION, TransportVersion.current())
             );
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 

@@ -25,7 +25,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public final class GetApiKeyRequest extends ActionRequest {
 
-    static TransportVersion TRANSPORT_VERSION_ACTIVE_ONLY = TransportVersion.V_8_500_054;
+    static TransportVersion API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION = TransportVersion.V_8_500_054;
 
     private final String realmName;
     private final String userName;
@@ -51,7 +51,7 @@ public final class GetApiKeyRequest extends ActionRequest {
         } else {
             withLimitedBy = false;
         }
-        if (in.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ACTIVE_ONLY)) {
+        if (in.getTransportVersion().onOrAfter(API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION)) {
             activeOnly = in.readBoolean();
         } else {
             activeOnly = false;
@@ -152,7 +152,7 @@ public final class GetApiKeyRequest extends ActionRequest {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             out.writeBoolean(withLimitedBy);
         }
-        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ACTIVE_ONLY)) {
+        if (out.getTransportVersion().onOrAfter(API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION)) {
             out.writeBoolean(activeOnly);
         }
     }

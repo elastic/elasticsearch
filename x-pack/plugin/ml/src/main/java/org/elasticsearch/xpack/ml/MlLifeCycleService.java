@@ -117,13 +117,13 @@ public class MlLifeCycleService {
             if (assignment.isRoutedToNode(nodeId)) {
                 RoutingInfo routingInfo = assignment.getNodeRoutingTable().get(nodeId);
                 logger.error(format("assignment is routed to shutting down nodeId %s state: %s", nodeId, routingInfo.getState()));
-                return routingInfo.getState() == RoutingState.STOPPING;
+                return routingInfo.getState() != RoutingState.STOPPED;
             }
 
             return false;
         });
 
-        logger.error(format("nodeHasDrainingQueues: %s", nodeHasDrainingQueues));
+        logger.error(format("nodeHasDrainingQueues: %s nodeId %s", nodeHasDrainingQueues, nodeId));
 
         // TODO: currently only considering anomaly detection jobs - could extend in the future
         // Ignore failed jobs - the persistent task still exists to remember the failure (because no

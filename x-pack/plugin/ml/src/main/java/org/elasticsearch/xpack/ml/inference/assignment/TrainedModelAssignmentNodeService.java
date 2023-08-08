@@ -266,6 +266,25 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         loadingModels.addAll(loadingToRetry);
     }
 
+    public void stopDeploymentAndNotifyStraightToStopped(
+        TrainedModelDeploymentTask task,
+        String reason,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        final RoutingInfoUpdate updateToStopped = RoutingInfoUpdate.updateStateAndReason(
+            new RoutingStateAndReason(RoutingState.STOPPED, reason)
+        );
+
+        ActionListener<Void> notifyDeploymentOfStopped = ActionListener.wrap(
+            _void -> updateStoredState(task.getDeploymentId(), updateToStopped, listener),
+            failed -> { // if we failed to stop the process, something strange is going on, but we should still notify of stop
+                logger.warn(() -> "[" + task.getDeploymentId() + "] failed to stop due to error", failed);
+                updateStoredState(task.getDeploymentId(), updateToStopped, listener);
+            }
+        );
+        stopDeploymentAsync(task, reason, notifyDeploymentOfStopped);
+    }
+
     public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason, ActionListener<AcknowledgedResponse> listener) {
         final RoutingInfoUpdate updateToStopped = RoutingInfoUpdate.updateStateAndReason(
             new RoutingStateAndReason(RoutingState.STOPPED, reason)
@@ -415,7 +434,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                         // TODO remove this
                         TrainedModelDeploymentTask task = deploymentIdToTask.remove(trainedModelAssignment.getDeploymentId());
                         if (task != null) {
-                            stopDeploymentAsync(
+                            stopDeploymentAndNotifyStraightToStopped(
                                 task,
                                 NODE_NO_LONGER_REFERENCED,
                                 ActionListener.wrap(
@@ -427,6 +446,19 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                                 )
                             );
                         }
+                        // if (task != null) {
+                        // stopDeploymentAsync(
+                        // task,
+                        // NODE_NO_LONGER_REFERENCED,
+                        // ActionListener.wrap(
+                        // r -> logger.error(() -> "[" + task.getDeploymentId() + "] stopped deployment after draining queue"),
+                        // e -> logger.error(
+                        // () -> "[" + task.getDeploymentId() + "] failed to fully stop deployment after draining queue",
+                        // e
+                        // )
+                        // )
+                        // );
+                        // }
                     }
                 }
 

@@ -411,6 +411,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     protected abstract String contentType();
 
+    protected boolean canParseObjects() {
+        return false;
+    }
+
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of();
     }

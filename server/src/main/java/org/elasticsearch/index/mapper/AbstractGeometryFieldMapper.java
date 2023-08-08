@@ -224,4 +224,9 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     public final boolean parsesArrayValue() {
         return true;
     }
+
+    @Override
+    protected boolean canParseObjects() {
+        return true;
+    }
 }

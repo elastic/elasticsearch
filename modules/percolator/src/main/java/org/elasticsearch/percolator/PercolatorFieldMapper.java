@@ -565,4 +565,9 @@ public class PercolatorFieldMapper extends FieldMapper {
         System.arraycopy(maxEncoded, 0, bytes, BinaryRange.BYTES + offset, maxEncoded.length);
         return bytes;
     }
+
+    @Override
+    protected boolean canParseObjects() {
+        return true;
+    }
 }

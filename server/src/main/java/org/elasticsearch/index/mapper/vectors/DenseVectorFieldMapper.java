@@ -131,7 +131,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public Builder(String name, IndexVersion indexVersionCreated) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
-            boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
+            final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexedByDefault).alwaysSerialize();
             this.similarity = Parameter.enumParam(
                 "similarity",
@@ -139,7 +139,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 m -> toType(m).similarity,
                 () -> indexed.getValue() ? VectorSimilarity.COSINE : null,
                 VectorSimilarity.class
-            ).setSerializerCheck((id, ic, v) -> v != null);
+            ).acceptsNull()
+            .setSerializerCheck((id, ic, v) -> v != null);
             this.indexed.addValidator(v -> {
                 if (v == false) {
                     if (similarity.isConfigured()) {

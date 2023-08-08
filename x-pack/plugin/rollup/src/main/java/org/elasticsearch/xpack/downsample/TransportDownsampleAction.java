@@ -334,48 +334,17 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                                     public void onResponse(
                                         PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask
                                     ) {
-                                        logger.info("Downsampling task [" + persistentTask + " completed for shard " + params.shardId());
-                                        if (countDown.decrementAndGet() != 0) {
-                                            return;
-                                        }
-                                        logger.info("All downsampling tasks completed [" + numberOfShards + "]");
-
-                                        // 4. Make rollup index read-only and set the correct number of replicas
-                                        final Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true);
-                                        // Number of replicas had been previously set to 0 to speed up index population
-                                        if (sourceIndexMetadata.getNumberOfReplicas() > 0) {
-                                            settings.put(
-                                                IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
-                                                sourceIndexMetadata.getNumberOfReplicas()
-                                            );
-                                        }
-                                        // Setting index.hidden has been initially set to true. We revert this to the value of the
-                                        // source index
-                                        if (sourceIndexMetadata.isHidden() == false) {
-                                            if (sourceIndexMetadata.getSettings().keySet().contains(IndexMetadata.SETTING_INDEX_HIDDEN)) {
-                                                settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, false);
-                                            } else {
-                                                settings.putNull(IndexMetadata.SETTING_INDEX_HIDDEN);
-                                            }
-                                        }
-                                        UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(
-                                            settings.build(),
-                                            rollupIndexName
+                                        waitForPersistentTask(
+                                            request,
+                                            listener,
+                                            sourceIndexMetadata,
+                                            rollupIndexName,
+                                            parentTask,
+                                            numberOfShards,
+                                            countDown,
+                                            persistentTask.getId(),
+                                            params
                                         );
-                                        updateSettingsReq.setParentTask(parentTask);
-                                        client.admin()
-                                            .indices()
-                                            .updateSettings(
-                                                updateSettingsReq,
-                                                new UpdateRollupIndexSettingsActionListener(
-                                                    listener,
-                                                    client,
-                                                    parentTask,
-                                                    rollupIndexName,
-                                                    request.getTimeout(),
-                                                    taskQueue
-                                                )
-                                            );
                                     }
 
                                     @Override
@@ -386,16 +355,16 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                                 }),
                                 e -> {
                                     if (e instanceof ResourceAlreadyExistsException) {
-                                        waitForExistingPersistenTask(
-                                            listener,
-                                            parentTask,
-                                            rollupIndexName,
-                                            persistentRollupTaskId,
+                                        waitForPersistentTask(
                                             request,
-                                            params,
-                                            countDown,
+                                            listener,
                                             sourceIndexMetadata,
-                                            numberOfShards
+                                            rollupIndexName,
+                                            parentTask,
+                                            numberOfShards,
+                                            countDown,
+                                            persistentRollupTaskId,
+                                            params
                                         );
                                     } else {
                                         listener.onFailure(
@@ -413,72 +382,46 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }, listener::onFailure));
     }
 
-    private void waitForExistingPersistenTask(
-        final ActionListener<AcknowledgedResponse> failureDelegate,
-        final TaskId parentTask,
-        final String rollupIndexName,
-        final String persistentTaskId,
-        final DownsampleAction.Request request,
-        final RollupShardTaskParams params,
-        final AtomicInteger countDown,
-        final IndexMetadata sourceIndexMetadata,
-        int numberOfTasks
-
+    private void waitForPersistentTask(
+        DownsampleAction.Request request,
+        ActionListener<AcknowledgedResponse> listener,
+        IndexMetadata sourceIndexMetadata,
+        String rollupIndexName,
+        TaskId parentTask,
+        int numberOfShards,
+        AtomicInteger countDown,
+        String persistentRollupTaskId,
+        RollupShardTaskParams params
     ) {
-        persistentTasksService.waitForPersistentTaskCondition(persistentTaskId, existingTask -> {
-            if (existingTask == null) {
-                // NOTE: don't need to wait if the persistent task completed and was removed
-                return true;
-            }
-            RollupShardPersistentTaskState runningPersistentTaskState = (RollupShardPersistentTaskState) existingTask.getState();
-            return runningPersistentTaskState != null && runningPersistentTaskState.done();
-        }, request.getTimeout(), new PersistentTasksService.WaitForPersistentTaskListener<>() {
-            @Override
-            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask) {
-                logger.info("Downsampling task [" + persistentTask + " completed for shard " + params.shardId());
-                if (countDown.decrementAndGet() != 0) {
-                    return;
-                }
-                logger.info("All downsampling tasks completed [" + numberOfTasks + "]");
+        logger.info("Downsampling task [" + persistentRollupTaskId + " completed for shard " + params.shardId());
+        if (countDown.decrementAndGet() != 0) {
+            return;
+        }
+        logger.info("All downsampling tasks completed [" + numberOfShards + "]");
 
-                // 4. Make rollup index read-only and set the correct number of replicas
-                final Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true);
-                // Number of replicas had been previously set to 0 to speed up index population
-                if (sourceIndexMetadata.getNumberOfReplicas() > 0) {
-                    settings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas());
-                }
-                // Setting index.hidden has been initially set to true. We revert this to the value of the
-                // source index
-                if (sourceIndexMetadata.isHidden() == false) {
-                    if (sourceIndexMetadata.getSettings().keySet().contains(IndexMetadata.SETTING_INDEX_HIDDEN)) {
-                        settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, false);
-                    } else {
-                        settings.putNull(IndexMetadata.SETTING_INDEX_HIDDEN);
-                    }
-                }
-                UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(settings.build(), rollupIndexName);
-                updateSettingsReq.setParentTask(parentTask);
-                client.admin()
-                    .indices()
-                    .updateSettings(
-                        updateSettingsReq,
-                        new UpdateRollupIndexSettingsActionListener(
-                            failureDelegate,
-                            client,
-                            parentTask,
-                            rollupIndexName,
-                            request.getTimeout(),
-                            taskQueue
-                        )
-                    );
+        // 4. Make rollup index read-only and set the correct number of replicas
+        final Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true);
+        // Number of replicas had been previously set to 0 to speed up index population
+        if (sourceIndexMetadata.getNumberOfReplicas() > 0) {
+            settings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas());
+        }
+        // Setting index.hidden has been initially set to true. We revert this to the value of the
+        // source index
+        if (sourceIndexMetadata.isHidden() == false) {
+            if (sourceIndexMetadata.getSettings().keySet().contains(IndexMetadata.SETTING_INDEX_HIDDEN)) {
+                settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, false);
+            } else {
+                settings.putNull(IndexMetadata.SETTING_INDEX_HIDDEN);
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("error while waiting for downsampling persistent task", e);
-                failureDelegate.onFailure(e);
-            }
-        });
+        }
+        UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(settings.build(), rollupIndexName);
+        updateSettingsReq.setParentTask(parentTask);
+        client.admin()
+            .indices()
+            .updateSettings(
+                updateSettingsReq,
+                new UpdateRollupIndexSettingsActionListener(listener, client, parentTask, rollupIndexName, request.getTimeout(), taskQueue)
+            );
     }
 
     private static RollupShardTaskParams createRollupShardTaskParams(

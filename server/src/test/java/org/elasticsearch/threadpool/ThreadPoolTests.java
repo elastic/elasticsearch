@@ -334,6 +334,26 @@ public class ThreadPoolTests extends ESTestCase {
         }
     }
 
+    public void testSearchCoordinationThreadPoolSize() {
+        final int expectedSize = randomIntBetween(1, EsExecutors.allocatedProcessors(Settings.EMPTY) / 2);
+        final int allocatedProcessors = Math.min(
+            EsExecutors.allocatedProcessors(Settings.EMPTY),
+            expectedSize * 2 - (randomIntBetween(0, 1))
+        );
+        final ThreadPool threadPool = new TestThreadPool(
+            "test",
+            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), allocatedProcessors).build()
+        );
+        try {
+            ThreadPool.Info info = threadPool.info(ThreadPool.Names.SEARCH_COORDINATION);
+            assertThat(info.getThreadPoolType(), equalTo(ThreadPool.ThreadPoolType.FIXED));
+            assertThat(info.getMin(), equalTo(expectedSize));
+            assertThat(info.getMax(), equalTo(expectedSize));
+        } finally {
+            assertTrue(terminate(threadPool));
+        }
+    }
+
     public void testGetMaxSnapshotCores() {
         int allocatedProcessors = randomIntBetween(1, 16);
         assertThat(

@@ -413,12 +413,23 @@ public final class TokenService {
                 listener.onFailure(traceLog("create token", e));
                 return;
             }
+            final RefreshPolicy tokenCreationRefreshPolicy = tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)
+                ? RefreshPolicy.NONE
+                : RefreshPolicy.WAIT_UNTIL;
             final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
+            logger.debug(
+                () -> format(
+                    "Using refresh policy [%s] when creating token doc [%s] in the security index [%s]",
+                    tokenCreationRefreshPolicy,
+                    documentId,
+                    tokensIndex.aliasName()
+                )
+            );
             final IndexRequest indexTokenRequest = client.prepareIndex(tokensIndex.aliasName())
                 .setId(documentId)
                 .setOpType(OpType.CREATE)
                 .setSource(tokenDocument, XContentType.JSON)
-                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
+                .setRefreshPolicy(tokenCreationRefreshPolicy)
                 .request();
             tokensIndex.prepareIndexIfNeededThenExecute(
                 ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", documentId, ex)),
@@ -836,24 +847,53 @@ public final class TokenService {
     ) {
         final Set<String> idsOfRecentTokens = new HashSet<>();
         final Set<String> idsOfOlderTokens = new HashSet<>();
+        boolean anyOlderTokensBeforeRefreshViaGet = false;
         for (UserToken userToken : userTokens) {
             if (userToken.getTransportVersion().onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
                 idsOfRecentTokens.add(userToken.getId());
             } else {
                 idsOfOlderTokens.add(userToken.getId());
             }
+            anyOlderTokensBeforeRefreshViaGet |= userToken.getTransportVersion().before(VERSION_GET_TOKEN_DOC_FOR_REFRESH);
         }
+        final RefreshPolicy tokensInvalidationRefreshPolicy = anyOlderTokensBeforeRefreshViaGet
+            ? RefreshPolicy.WAIT_UNTIL
+            : RefreshPolicy.NONE;
         if (false == idsOfOlderTokens.isEmpty()) {
-            indexInvalidation(idsOfOlderTokens, securityMainIndex, backoff, srcPrefix, previousResult, ActionListener.wrap(newResult -> {
-                if (false == idsOfRecentTokens.isEmpty()) {
-                    // carry-over result of the invalidation for the tokens security index
-                    indexInvalidation(idsOfRecentTokens, securityTokensIndex, backoff, srcPrefix, newResult, listener);
-                } else {
-                    listener.onResponse(newResult);
-                }
-            }, listener::onFailure));
+            indexInvalidation(
+                idsOfOlderTokens,
+                securityMainIndex,
+                backoff,
+                srcPrefix,
+                previousResult,
+                RefreshPolicy.WAIT_UNTIL,
+                ActionListener.wrap(newResult -> {
+                    if (false == idsOfRecentTokens.isEmpty()) {
+                        // carry-over result of the invalidation for the tokens security index
+                        indexInvalidation(
+                            idsOfRecentTokens,
+                            securityTokensIndex,
+                            backoff,
+                            srcPrefix,
+                            newResult,
+                            tokensInvalidationRefreshPolicy,
+                            listener
+                        );
+                    } else {
+                        listener.onResponse(newResult);
+                    }
+                }, listener::onFailure)
+            );
         } else {
-            indexInvalidation(idsOfRecentTokens, securityTokensIndex, backoff, srcPrefix, previousResult, listener);
+            indexInvalidation(
+                idsOfRecentTokens,
+                securityTokensIndex,
+                backoff,
+                srcPrefix,
+                previousResult,
+                tokensInvalidationRefreshPolicy,
+                listener
+            );
         }
     }
 
@@ -869,6 +909,7 @@ public final class TokenService {
      *                              what type of tokens should be invalidated
      * @param previousResult        if this not the initial attempt for invalidation, it contains the result of invalidating
      *                              tokens up to the point of the retry. This result is added to the result of the current attempt
+     * @param refreshPolicy         the {@link RefreshPolicy} for the indexing op
      * @param listener              the listener to notify upon completion
      */
     private void indexInvalidation(
@@ -877,6 +918,7 @@ public final class TokenService {
         Iterator<TimeValue> backoff,
         String srcPrefix,
         @Nullable TokensInvalidationResult previousResult,
+        RefreshPolicy refreshPolicy,
         ActionListener<TokensInvalidationResult> listener
     ) {
         if (tokenIds.isEmpty()) {
@@ -891,7 +933,15 @@ public final class TokenService {
                     .request();
                 bulkRequestBuilder.add(request);
             }
-            bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+            logger.debug(
+                () -> format(
+                    "Using refresh policy [%s] when updating token docs [%s] for invalidation in the security index [%s]",
+                    refreshPolicy,
+                    tokenIds,
+                    tokensIndexManager.aliasName()
+                )
+            );
+            bulkRequestBuilder.setRefreshPolicy(refreshPolicy);
             tokensIndexManager.prepareIndexIfNeededThenExecute(
                 ex -> listener.onFailure(traceLog("prepare index [" + tokensIndexManager.aliasName() + "]", ex)),
                 () -> executeAsyncWithOrigin(
@@ -950,6 +1000,7 @@ public final class TokenService {
                                         backoff,
                                         srcPrefix,
                                         incompleteResult,
+                                        refreshPolicy,
                                         listener
                                     ),
                                     backoff.next(),
@@ -987,7 +1038,15 @@ public final class TokenService {
                             logger.debug("failed to invalidate tokens, retrying ");
                             client.threadPool()
                                 .schedule(
-                                    () -> indexInvalidation(tokenIds, tokensIndexManager, backoff, srcPrefix, previousResult, listener),
+                                    () -> indexInvalidation(
+                                        tokenIds,
+                                        tokensIndexManager,
+                                        backoff,
+                                        srcPrefix,
+                                        previousResult,
+                                        refreshPolicy,
+                                        listener
+                                    ),
                                     backoff.next(),
                                     GENERIC
                                 );
@@ -1224,10 +1283,20 @@ public final class TokenService {
             }
             assert tokenDoc.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "expected an assigned sequence number";
             assert tokenDoc.primaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
+            final RefreshPolicy tokenRefreshUpdateRefreshPolicy = refreshTokenStatus.getTransportVersion()
+                .onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH) ? RefreshPolicy.NONE : RefreshPolicy.IMMEDIATE;
+            logger.debug(
+                () -> format(
+                    "Using refresh policy [%s] when updating token doc [%s] for refresh in the security index [%s]",
+                    tokenRefreshUpdateRefreshPolicy,
+                    tokenDoc.id(),
+                    refreshedTokenIndex.aliasName()
+                )
+            );
             final UpdateRequestBuilder updateRequest = client.prepareUpdate(refreshedTokenIndex.aliasName(), tokenDoc.id())
                 .setDoc("refresh_token", updateMap)
                 .setFetchSource(logger.isDebugEnabled())
-                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                .setRefreshPolicy(tokenRefreshUpdateRefreshPolicy)
                 .setIfSeqNo(tokenDoc.seqNo())
                 .setIfPrimaryTerm(tokenDoc.primaryTerm());
             refreshedTokenIndex.prepareIndexIfNeededThenExecute(
@@ -1673,19 +1742,29 @@ public final class TokenService {
                 );
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
-                    final SearchRequest request = client.prepareSearch(indicesWithTokens.toArray(new String[0]))
-                        .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
-                        .setQuery(boolQuery)
-                        .setVersion(false)
-                        .setSize(1000)
-                        .setFetchSource(true)
-                        .request();
-                    ScrollHelper.fetchAllByEntity(
-                        client,
-                        request,
-                        new ContextPreservingActionListener<>(supplier, listener),
-                        (SearchHit hit) -> filterAndParseHit(hit, filter)
-                    );
+                    // before searching, refresh the tokens index because tokens created/refreshed/invalidated post
+                    // version {@code #VERSION_GET_TOKEN_DOC_FOR_REFRESH} use {@code RefreshPolicy#NONE}
+                    client.admin()
+                        .indices()
+                        .prepareRefresh(securityTokensIndex.aliasName())
+                        .execute(ActionListener.wrap(refreshResponse -> {
+                            if (refreshResponse.getFailedShards() > 0 && logger.isDebugEnabled()) {
+                                logger.debug("Failure to refresh tokens index {}", Arrays.toString(refreshResponse.getShardFailures()));
+                            }
+                            final SearchRequest request = client.prepareSearch(indicesWithTokens.toArray(new String[0]))
+                                .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
+                                .setQuery(boolQuery)
+                                .setVersion(false)
+                                .setSize(1000)
+                                .setFetchSource(true)
+                                .request();
+                            ScrollHelper.fetchAllByEntity(
+                                client,
+                                request,
+                                new ContextPreservingActionListener<>(supplier, listener),
+                                (SearchHit hit) -> filterAndParseHit(hit, filter)
+                            );
+                        }, listener::onFailure));
                 }
             }
         }, listener::onFailure));

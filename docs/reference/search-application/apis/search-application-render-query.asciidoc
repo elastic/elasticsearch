@@ -80,6 +80,16 @@ PUT _application/search_application/my-app
 }
 ----
 // TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _application/search_application/my-app
+
+DELETE index1
+
+--------------------------------------------------
+// TEARDOWN
+
 ////
 
 [source,console]

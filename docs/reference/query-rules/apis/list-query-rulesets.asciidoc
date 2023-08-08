@@ -143,6 +143,17 @@ PUT _query_rules/ruleset-3
 --------------------------------------------------
 // TESTSETUP
 
+[source,console]
+--------------------------------------------------
+DELETE _query_rules/ruleset-1
+
+DELETE _query_rules/ruleset-2
+
+DELETE _query_rules/ruleset-3
+
+--------------------------------------------------
+// TEARDOWN
+
 ////
 
 [source,console]

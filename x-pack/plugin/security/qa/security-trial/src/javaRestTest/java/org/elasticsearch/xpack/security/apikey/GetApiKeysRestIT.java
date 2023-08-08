@@ -75,6 +75,12 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
             apiKeyId0,
             apiKeyId1
         );
+        // Also works with `realm_name` filter
+        assertResponseContainsApiKeyIds(
+            getApiKeysWithRequestParams(Map.of("active_only", "true", "realm_name", "default_native")),
+            apiKeyId0,
+            apiKeyId1
+        );
 
         // Same applies to invalidated key
         getSecurityClient().invalidateApiKeys(apiKeyId0);
@@ -96,24 +102,36 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
         getSecurityClient().invalidateApiKeys(apiKeyId1);
         assertThat(getApiKeysWithRequestParams(Map.of("active_only", "true")).getApiKeyInfos(), emptyArray());
 
-        // Using together with id parameter, returns 404 for inactive key
-        var ex = expectThrows(
-            ResponseException.class,
-            () -> getApiKeysWithRequestParams(Map.of("active_only", "true", "id", randomFrom(apiKeyId0, apiKeyId1, apiKeyId2)))
-        );
-        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        {
+            // Using together with id parameter, returns 404 for inactive key
+            var ex = expectThrows(
+                ResponseException.class,
+                () -> getApiKeysWithRequestParams(Map.of("active_only", "true", "id", randomFrom(apiKeyId0, apiKeyId1, apiKeyId2)))
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        }
+
+        {
+            // manage_own_api_key prohibits owner=false, even if active_only is set
+            var ex = expectThrows(
+                ResponseException.class,
+                () -> getApiKeysWithRequestParams(MANAGE_OWN_API_KEY_USER, Map.of("active_only", "true", "owner", "false"))
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        }
     }
 
     public void testGetApiKeysWithActiveOnlyFlagAndMultipleUsers() throws Exception {
         final String manageOwnApiKeyUserApiKeyId = createApiKey(MANAGE_OWN_API_KEY_USER, "key-0");
         final String manageApiKeyUserApiKeyId = createApiKey(MANAGE_SECURITY_USER, "key-1");
 
-        // Two active API keys
+        // Both users' API keys are returned
         assertResponseContainsApiKeyIds(
             getApiKeysWithRequestParams(Map.of("active_only", Boolean.toString(randomBoolean()))),
             manageOwnApiKeyUserApiKeyId,
             manageApiKeyUserApiKeyId
         );
+        // Filtering by username works (also via owner flag)
         assertResponseContainsApiKeyIds(
             getApiKeysWithRequestParams(Map.of("active_only", Boolean.toString(randomBoolean()), "username", MANAGE_SECURITY_USER)),
             manageApiKeyUserApiKeyId
@@ -131,9 +149,10 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
             manageOwnApiKeyUserApiKeyId
         );
 
-        // One active API key
+        // One user's API key is active
         invalidateApiKeysForUser(MANAGE_OWN_API_KEY_USER);
 
+        // Filtering by username still works (also via owner flag)
         assertResponseContainsApiKeyIds(getApiKeysWithRequestParams(Map.of("active_only", "true")), manageApiKeyUserApiKeyId);
         assertResponseContainsApiKeyIds(
             getApiKeysWithRequestParams(Map.of("active_only", "true", "username", MANAGE_SECURITY_USER)),
@@ -168,11 +187,7 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
             ).getApiKeyInfos(),
             emptyArray()
         );
-        var ex = expectThrows(
-            ResponseException.class,
-            () -> getApiKeysWithRequestParams(MANAGE_OWN_API_KEY_USER, Map.of("active_only", "true", "owner", "false"))
-        );
-        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        // With flag set to false, we get both inactive keys
         assertResponseContainsApiKeyIds(
             getApiKeysWithRequestParams(randomBoolean() ? Map.of() : Map.of("active_only", "false")),
             manageOwnApiKeyUserApiKeyId,

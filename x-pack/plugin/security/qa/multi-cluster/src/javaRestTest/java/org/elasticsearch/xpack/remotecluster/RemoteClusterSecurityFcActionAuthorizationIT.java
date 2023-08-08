@@ -288,7 +288,10 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
 
             final ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> remoteClusterClient.execute(RemoteClusterNodesAction.INSTANCE, RemoteClusterNodesAction.Request.INSTANCE).actionGet()
+                () -> remoteClusterClient.execute(
+                    RemoteClusterNodesAction.INSTANCE,
+                    RemoteClusterNodesAction.Request.REMOTE_CLUSTER_SERVER_NODES
+                ).actionGet()
             );
             assertThat(
                 e.getMessage(),

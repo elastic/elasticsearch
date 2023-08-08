@@ -25,7 +25,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public final class GetApiKeyRequest extends ActionRequest {
 
-    public static TransportVersion TRANSPORT_VERSION_ACTIVE_ONLY = TransportVersion.V_8_500_053;
+    static TransportVersion TRANSPORT_VERSION_ACTIVE_ONLY = TransportVersion.V_8_500_054;
 
     private final String realmName;
     private final String userName;

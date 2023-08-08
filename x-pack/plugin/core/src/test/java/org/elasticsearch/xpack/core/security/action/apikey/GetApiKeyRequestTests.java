@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -184,7 +185,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 .build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            TransportVersion beforeActiveOnly = TransportVersion.V_8_500_052;
+            TransportVersion beforeActiveOnly = TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ACTIVE_ONLY);
             out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_8_5_0, beforeActiveOnly));
             getApiKeyRequest.writeTo(out);
 

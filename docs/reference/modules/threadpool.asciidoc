@@ -19,9 +19,9 @@ There are several thread pools, but the important ones include:
     `# of allocated processors`>>`pass:[ * ]3) / 2) + 1`, and queue_size of `1000`.
 
 `search_worker`::
-    For count/search operations that can be executed concurrently across segments within
-    the same shard. Thread pool type is `fixed` with a size of `int((`<<node.processors,
-    `# of allocated processors`>>`pass:[ * ]3) / 2) + 1`, and unbounded queue_size .
+    For the heavy workload of count/search operations that may be executed concurrently
+    across segments within the same shard when possible. Thread pool type is `fixed`
+    with a size of `int((`<<node.processors, `# of allocated processors`>>`pass:[ * ]3) / 2) + 1`, and unbounded queue_size .
 
 [[search-throttled]]`search_throttled`::
     For count/search/suggest/get operations on `search_throttled indices`.

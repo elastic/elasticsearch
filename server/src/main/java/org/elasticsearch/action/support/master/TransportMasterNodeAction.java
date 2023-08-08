@@ -43,6 +43,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Optional;
+import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
@@ -64,7 +65,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     private final Writeable.Reader<Response> responseReader;
 
-    protected final String executor;
+    protected final Executor executor;
 
     protected TransportMasterNodeAction(
         String actionName,
@@ -108,7 +109,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.executor = executor;
+        this.executor = threadPool.executor(executor);
         this.responseReader = response;
     }
 
@@ -231,8 +232,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                 delegatedListener.onFailure(t);
                             }
                         });
-                        threadPool.executor(executor)
-                            .execute(ActionRunnable.wrap(delegate, l -> executeMasterOperation(task, request, clusterState, l)));
+                        executor.execute(ActionRunnable.wrap(delegate, l -> executeMasterOperation(task, request, clusterState, l)));
                     }
                 } else {
                     if (nodes.getMasterNode() == null) {

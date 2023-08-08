@@ -36,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
@@ -56,12 +57,14 @@ public final class IndexSettings {
         "index.query.default_field",
         Collections.singletonList("*"),
         Property.IndexScope,
-        Property.Dynamic
+        Property.Dynamic,
+        Property.ServerlessPublic
     );
     public static final Setting<Boolean> QUERY_STRING_LENIENT_SETTING = Setting.boolSetting(
         "index.query_string.lenient",
         false,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
     public static final Setting<Boolean> QUERY_STRING_ANALYZE_WILDCARD = Setting.boolSetting(
         "indices.query.query_string.analyze_wildcard",
@@ -269,12 +272,53 @@ public final class IndexSettings {
         Property.NodeScope
     ); // TODO: remove setting
     public static TimeValue STATELESS_DEFAULT_REFRESH_INTERVAL = TimeValue.timeValueSeconds(10); // TODO: settle on right value
+    public static TimeValue STATELESS_MIN_NON_FAST_REFRESH_INTERVAL = TimeValue.timeValueSeconds(5);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting("index.refresh_interval", (settings) -> {
         if (EXISTING_SHARDS_ALLOCATOR_SETTING.get(settings).equals("stateless") && INDEX_FAST_REFRESH_SETTING.get(settings) == false) {
             return STATELESS_DEFAULT_REFRESH_INTERVAL;
         }
         return DEFAULT_REFRESH_INTERVAL;
-    }, TimeValue.MINUS_ONE, Property.Dynamic, Property.IndexScope);
+    }, new RefreshIntervalValidator(), Property.Dynamic, Property.IndexScope, Property.ServerlessPublic);
+
+    static class RefreshIntervalValidator implements Setting.Validator<TimeValue> {
+        @Override
+        public void validate(TimeValue value) {}
+
+        @Override
+        public void validate(final TimeValue value, final Map<Setting<?>, Object> settings) {
+            final String existingShardsAllocator = (String) settings.get(EXISTING_SHARDS_ALLOCATOR_SETTING);
+            final Boolean fastRefresh = (Boolean) settings.get(INDEX_FAST_REFRESH_SETTING);
+            final IndexVersion indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
+
+            if (existingShardsAllocator.equals("stateless")
+                && fastRefresh == false
+                && value.compareTo(TimeValue.ZERO) > 0
+                && value.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0
+                && indexVersion.after(IndexVersion.V_8_10_0)) {
+                throw new IllegalArgumentException(
+                    "index setting ["
+                        + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+                        + "="
+                        + value
+                        + "] should be either "
+                        + TimeValue.MINUS_ONE
+                        + " or equal to or greater than "
+                        + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return REFRESH_INTERVAL_VALIDATOR_SETTINGS_LIST.iterator();
+        }
+    }
+
+    private static final List<Setting<?>> REFRESH_INTERVAL_VALIDATOR_SETTINGS_LIST = List.of(
+        EXISTING_SHARDS_ALLOCATOR_SETTING,
+        INDEX_FAST_REFRESH_SETTING,
+        SETTING_INDEX_VERSION_CREATED
+    );
 
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.translog.flush_threshold_size",
@@ -454,7 +498,8 @@ public final class IndexSettings {
         IngestService.NOOP_PIPELINE_NAME,
         Function.identity(),
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
 
     public static final Setting<String> FINAL_PIPELINE = new Setting<>(
@@ -462,7 +507,8 @@ public final class IndexSettings {
         IngestService.NOOP_PIPELINE_NAME,
         Function.identity(),
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
 
     /**
@@ -510,7 +556,8 @@ public final class IndexSettings {
         -1,
         -1,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
     public static final String LIFECYCLE_PARSE_ORIGINATION_DATE = "index.lifecycle.parse_origination_date";
     public static final Setting<Boolean> LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING = Setting.boolSetting(
@@ -772,7 +819,7 @@ public final class IndexSettings {
         this.nodeSettings = nodeSettings;
         this.settings = Settings.builder().put(nodeSettings).put(indexMetadata.getSettings()).build();
         this.index = indexMetadata.getIndex();
-        version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+        version = SETTING_INDEX_VERSION_CREATED.get(settings);
         logger = Loggers.getLogger(getClass(), index);
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
@@ -1040,7 +1087,7 @@ public final class IndexSettings {
      */
     public synchronized boolean updateIndexMetadata(IndexMetadata indexMetadata) {
         final Settings newSettings = indexMetadata.getSettings();
-        IndexVersion newIndexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(newSettings);
+        IndexVersion newIndexVersion = SETTING_INDEX_VERSION_CREATED.get(newSettings);
         if (version.equals(newIndexVersion) == false) {
             throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + newIndexVersion);
         }

@@ -169,6 +169,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
             assertEquals(index, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
+            assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
         });
         assertBusy(
@@ -254,6 +255,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
             assertEquals(originalIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
+            assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
         });
     }
@@ -292,6 +294,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
             assertEquals(backingIndexName, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
+            assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
         });
     }

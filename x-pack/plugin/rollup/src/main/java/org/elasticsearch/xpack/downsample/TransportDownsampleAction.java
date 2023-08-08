@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
@@ -110,7 +111,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private static final Set<String> FORBIDDEN_SETTINGS = Set.of(
         IndexSettings.DEFAULT_PIPELINE.getKey(),
         IndexSettings.FINAL_PIPELINE.getKey(),
-        IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()
+        IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(),
+        LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()
     );
 
     private static final Set<String> OVERRIDE_SETTINGS = Set.of(DataTier.TIER_PREFERENCE_SETTING.getKey());

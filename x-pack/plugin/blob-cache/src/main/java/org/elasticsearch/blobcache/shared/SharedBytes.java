@@ -14,7 +14,6 @@ import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -252,9 +251,7 @@ public class SharedBytes extends AbstractRefCounted {
 
     public IO getFileChannel(int sharedBytesPos) {
         assert fileChannel != null;
-        var res = ios[sharedBytesPos];
-        incRef();
-        return res;
+        return ios[sharedBytesPos];
     }
 
     long getPhysicalOffset(long chunkPosition) {
@@ -263,7 +260,7 @@ public class SharedBytes extends AbstractRefCounted {
         return physicalOffset;
     }
 
-    public final class IO implements Releasable {
+    public final class IO {
 
         private final long pageStart;
 
@@ -315,18 +312,6 @@ public class SharedBytes extends AbstractRefCounted {
                 throw new IllegalArgumentException("bad access");
             }
         }
-
-        @Override
-        public void close() {
-            decRef();
-        }
     }
 
-    public static ByteSizeValue pageAligned(ByteSizeValue val) {
-        final long remainder = val.getBytes() % PAGE_SIZE;
-        if (remainder != 0L) {
-            return ByteSizeValue.ofBytes(val.getBytes() + PAGE_SIZE - remainder);
-        }
-        return val;
-    }
 }

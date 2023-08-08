@@ -85,7 +85,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
     }
 
-    public static boolean isEnabled() {
+    public static boolean isFeatureEnabled() {
         return DATA_STREAM_LIFECYCLE_FEATURE_FLAG.isEnabled();
     }
 

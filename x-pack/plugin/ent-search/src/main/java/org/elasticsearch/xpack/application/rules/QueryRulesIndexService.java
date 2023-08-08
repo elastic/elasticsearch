@@ -44,6 +44,8 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -137,7 +139,7 @@ public class QueryRulesIndexService {
                             builder.field("type", "keyword");
                             builder.endObject();
 
-                            builder.startObject(QueryRuleCriteria.VALUE_FIELD.getPreferredName());
+                            builder.startObject(QueryRuleCriteria.VALUES_FIELD.getPreferredName());
                             builder.field("type", "object");
                             builder.field("enabled", false);
                             builder.endObject();
@@ -180,13 +182,13 @@ public class QueryRulesIndexService {
             }
             final Map<String, Object> source = getResponse.getSource();
             @SuppressWarnings("unchecked")
-            final List<QueryRule> rules = ((List<Map<String, Object>>) source.get("rules")).stream()
+            final List<QueryRule> rules = ((List<Map<String, Object>>) source.get(QueryRuleset.RULES_FIELD.getPreferredName())).stream()
                 .map(
                     rule -> new QueryRule(
-                        (String) rule.get("rule_id"),
-                        QueryRuleType.queryRuleType((String) rule.get("type")),
-                        parseCriteria((List<Map<String, Object>>) rule.get("criteria")),
-                        (Map<String, Object>) rule.get("actions")
+                        (String) rule.get(QueryRule.ID_FIELD.getPreferredName()),
+                        QueryRuleType.queryRuleType((String) rule.get(QueryRule.TYPE_FIELD.getPreferredName())),
+                        parseCriteria((List<Map<String, Object>>) rule.get(QueryRule.CRITERIA_FIELD.getPreferredName())),
+                        (Map<String, Object>) rule.get(QueryRule.ACTIONS_FIELD.getPreferredName())
                     )
                 )
                 .collect(Collectors.toList());
@@ -195,14 +197,15 @@ public class QueryRulesIndexService {
         }));
     }
 
+    @SuppressWarnings("unchecked")
     private List<QueryRuleCriteria> parseCriteria(List<Map<String, Object>> rawCriteria) {
         List<QueryRuleCriteria> criteria = new ArrayList<>(rawCriteria.size());
         for (Map<String, Object> entry : rawCriteria) {
             criteria.add(
                 new QueryRuleCriteria(
-                    QueryRuleCriteria.CriteriaType.criteriaType((String) entry.get("type")),
-                    (String) entry.get("metadata"),
-                    entry.get("value")
+                    QueryRuleCriteriaType.type((String) entry.get(QueryRuleCriteria.TYPE_FIELD.getPreferredName())),
+                    (String) entry.get(QueryRuleCriteria.METADATA_FIELD.getPreferredName()),
+                    (List<Object>) entry.get(QueryRuleCriteria.VALUES_FIELD.getPreferredName())
                 )
             );
         }
@@ -277,7 +280,13 @@ public class QueryRulesIndexService {
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
                 .query(new MatchAllQueryBuilder())
-                .fetchSource(new String[] { QueryRuleset.ID_FIELD.getPreferredName(), QueryRuleset.RULES_FIELD.getPreferredName() }, null)
+                .fetchSource(
+                    new String[] {
+                        QueryRuleset.ID_FIELD.getPreferredName(),
+                        QueryRuleset.RULES_FIELD.getPreferredName(),
+                        QueryRuleset.RULES_FIELD.getPreferredName() + "." + QueryRule.TYPE_FIELD.getPreferredName() },
+                    null
+                )
                 .sort(QueryRuleset.ID_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(QUERY_RULES_ALIAS_NAME).source(source);
             clientWithOrigin.search(req, new ActionListener<>() {
@@ -311,9 +320,20 @@ public class QueryRulesIndexService {
         final Map<String, Object> sourceMap = searchHit.getSourceAsMap();
         final String rulesetId = (String) sourceMap.get(QueryRuleset.ID_FIELD.getPreferredName());
         @SuppressWarnings("unchecked")
-        final int numRules = ((List<QueryRule>) sourceMap.get(QueryRuleset.RULES_FIELD.getPreferredName())).size();
+        final List<LinkedHashMap<?, ?>> rules = ((List<LinkedHashMap<?, ?>>) sourceMap.get(QueryRuleset.RULES_FIELD.getPreferredName()));
+        final int numRules = rules.size();
+        final Map<QueryRuleCriteriaType, Integer> queryRuleCriteriaTypeToCountMap = new HashMap<>();
+        for (LinkedHashMap<?, ?> rule : rules) {
+            @SuppressWarnings("unchecked")
+            List<LinkedHashMap<?, ?>> criteriaList = ((List<LinkedHashMap<?, ?>>) rule.get(QueryRule.CRITERIA_FIELD.getPreferredName()));
+            for (LinkedHashMap<?, ?> criteria : criteriaList) {
+                final String criteriaType = ((String) criteria.get(QueryRuleCriteria.TYPE_FIELD.getPreferredName()));
+                final QueryRuleCriteriaType queryRuleCriteriaType = QueryRuleCriteriaType.type(criteriaType);
+                queryRuleCriteriaTypeToCountMap.compute(queryRuleCriteriaType, (k, v) -> v == null ? 1 : v + 1);
+            }
+        }
 
-        return new QueryRulesetListItem(rulesetId, numRules);
+        return new QueryRulesetListItem(rulesetId, numRules, queryRuleCriteriaTypeToCountMap);
     }
 
     static class DelegatingIndexNotFoundActionListener<T, R> extends DelegatingActionListener<T, R> {

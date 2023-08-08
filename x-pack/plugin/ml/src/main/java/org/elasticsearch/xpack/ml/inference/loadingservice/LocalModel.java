@@ -199,6 +199,25 @@ public class LocalModel implements Closeable {
         return result.get();
     }
 
+    public InferenceResults inferLtr(Map<String, Object> fields, InferenceConfig config) {
+        statsAccumulator.incInference();
+        currentInferenceCount.increment();
+
+        // We should never have nested maps in a LTR context as we retrieve values from source value extractor, queries, or doc_values
+        assert fields.values().stream().noneMatch(o -> o instanceof Map<?, ?>);
+        // might resolve fields to their appropriate name
+        LocalModel.mapFieldsIfNecessary(fields, defaultFieldMap);
+        boolean shouldPersistStats = ((currentInferenceCount.sum() + 1) % persistenceQuotient == 0);
+        if (fields.isEmpty()) {
+            statsAccumulator.incMissingFields();
+        }
+        InferenceResults inferenceResults = trainedModelDefinition.infer(fields, config);
+        if (shouldPersistStats) {
+            persistStats(false);
+        }
+        return inferenceResults;
+    }
+
     /**
      * Used for translating field names in according to the passed `fieldMappings` parameter.
      *

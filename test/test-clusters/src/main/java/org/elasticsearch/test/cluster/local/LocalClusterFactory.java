@@ -196,11 +196,15 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         }
 
         public String getRemoteClusterServerEndpoint() {
-            Path portsFile = workingDir.resolve("logs").resolve("remote_cluster.ports");
-            if (Files.notExists(portsFile)) {
-                waitUntilReady();
+            if (spec.isRemoteClusterServerEnabled()) {
+                Path portsFile = workingDir.resolve("logs").resolve("remote_cluster.ports");
+                if (Files.notExists(portsFile)) {
+                    waitUntilReady();
+                }
+                return readPortsFile(portsFile).get(0);
+            } else {
+                return "";
             }
-            return readPortsFile(portsFile).get(0);
         }
 
         public void deletePortsFiles() {
@@ -667,14 +671,18 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             }
 
             String heapSize = System.getProperty("tests.heap.size", "512m");
-            environment.put("ES_JAVA_OPTS", "-Xms" + heapSize + " -Xmx" + heapSize + " -ea -esa "
-            // Support passing in additional JVM arguments
-                + System.getProperty("tests.jvm.argline", "")
-                + " "
-                + featureFlagProperties
-                + systemProperties
-                + jvmArgs
-                + debugArgs);
+            final String esJavaOpts = Stream.of(
+                "-Xms" + heapSize,
+                "-Xmx" + heapSize,
+                "-ea",
+                "-esa",
+                System.getProperty("tests.jvm.argline", ""),
+                featureFlagProperties,
+                systemProperties,
+                jvmArgs,
+                debugArgs
+            ).filter(s -> s.isEmpty() == false).collect(Collectors.joining(" "));
+            environment.put("ES_JAVA_OPTS", esJavaOpts);
 
             return environment;
         }

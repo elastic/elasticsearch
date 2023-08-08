@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -92,19 +95,37 @@ final class ExpiredTokenRemover extends AbstractRunnable {
                 )
         );
         logger.trace(() -> "Removing old tokens: [" + Strings.toString(expiredDbq) + "]");
-        executeAsyncWithOrigin(client, SECURITY_ORIGIN, DeleteByQueryAction.INSTANCE, expiredDbq, ActionListener.wrap(bulkResponse -> {
-            debugDbqResponse(bulkResponse);
-            // tokens can still linger on the main index for their maximum lifetime after the tokens index has been created, because
-            // only after the tokens index has been created all nodes will store tokens there and not on the main security index
-            if (checkMainIndexForExpiredTokens
-                && securityTokensIndex.indexExists()
-                && securityTokensIndex.getCreationTime().isBefore(now.minus(MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))
-                && bulkResponse.getBulkFailures().isEmpty()
-                && bulkResponse.getSearchFailures().isEmpty()) {
-                checkMainIndexForExpiredTokens = false;
-            }
-            markComplete();
-        }, this::onFailure));
+        executeAsyncWithOrigin(
+            client,
+            SECURITY_ORIGIN,
+            RefreshAction.INSTANCE,
+            new RefreshRequest(securityTokensIndex.aliasName()),
+            ActionListener.wrap(refreshResponse -> {
+                if (refreshResponse.getFailedShards() > 0 && logger.isDebugEnabled()) {
+                    logger.debug("Failure to refresh tokens index {}", Arrays.toString(refreshResponse.getShardFailures()));
+                }
+                executeAsyncWithOrigin(
+                    client,
+                    SECURITY_ORIGIN,
+                    DeleteByQueryAction.INSTANCE,
+                    expiredDbq,
+                    ActionListener.wrap(bulkResponse -> {
+                        debugDbqResponse(bulkResponse);
+                        // tokens can still linger on the main index for their maximum lifetime after the tokens index has been created,
+                        // because
+                        // only after the tokens index has been created all nodes will store tokens there and not on the main security index
+                        if (checkMainIndexForExpiredTokens
+                            && securityTokensIndex.indexExists()
+                            && securityTokensIndex.getCreationTime().isBefore(now.minus(MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))
+                            && bulkResponse.getBulkFailures().isEmpty()
+                            && bulkResponse.getSearchFailures().isEmpty()) {
+                            checkMainIndexForExpiredTokens = false;
+                        }
+                        markComplete();
+                    }, this::onFailure)
+                );
+            }, this::onFailure)
+        );
     }
 
     void submit(ThreadPool threadPool) {

@@ -13,8 +13,8 @@ If no matching query rules are defined, the "organic" matches for the query are 
 
 [NOTE]
 ====
-In order to use the rule query, you must have a query ruleset defined with rules to query.
-You can use the <<query-rules-apis, query rules management APIs>> to create and manage query rules.
+To use the rule query, you first need a defined set of query rules.
+Use the <<query-rules-apis, query rules management APIs>> to create and manage query rules.
 For more information and examples see <<search-using-query-rules>>.
 ====
 

@@ -350,6 +350,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return collectorManager.reduce(Collections.singletonList(firstCollector));
         } else if (leafSlices.length == 0) {
             assert leafContexts.isEmpty();
+            doAggregationPostCollection(firstCollector);
             return collectorManager.reduce(Collections.singletonList(firstCollector));
         } else {
             final List<C> collectors = new ArrayList<>(leafSlices.length);
@@ -460,14 +461,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } catch (@SuppressWarnings("unused") TimeExceededException e) {
             timeExceeded = true;
         } finally {
-            if (collector instanceof QueryPhaseCollector queryPhaseCollector) {
-                if (queryPhaseCollector.getAggsCollector() instanceof BucketCollector.BucketCollectorWrapper aggsCollector) {
-                    aggsCollector.bucketCollector().postCollection();
-                }
+            doAggregationPostCollection(collector);
+        }
+    }
+
+    private void doAggregationPostCollection(Collector collector) throws IOException {
+        if (collector instanceof QueryPhaseCollector queryPhaseCollector) {
+            if (queryPhaseCollector.getAggsCollector() instanceof BucketCollector.BucketCollectorWrapper aggsCollector) {
+                aggsCollector.bucketCollector().postCollection();
             }
-            if (collector instanceof InternalProfileCollector profilerCollector) {
-                profilerCollector.doPostCollection();
-            }
+        }
+        if (collector instanceof InternalProfileCollector profilerCollector) {
+            profilerCollector.doPostCollection();
         }
     }
 

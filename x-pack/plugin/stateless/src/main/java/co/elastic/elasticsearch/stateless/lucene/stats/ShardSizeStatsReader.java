@@ -20,8 +20,10 @@ package co.elastic.elasticsearch.stateless.lucene.stats;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -103,6 +105,10 @@ public class ShardSizeStatsReader {
                 logger.warn("Failed to read shard size stats for {}", indexShard.shardId(), e);
                 return null;
             }
+        } catch (ElasticsearchSecurityException e) {
+            // it is currently impossible to obtain a searcher for the system indices such as .security or .kibana
+            // this temporarily assigns 10Mb weight for such indices until the issue is fixed
+            return new ShardSize(ByteSizeValue.ofMb(10).getBytes(), 0);
         } catch (Exception e) {
             logger.warn("Failed to acquire searcher for {}", indexShard.shardId(), e);
             return null;

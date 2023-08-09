@@ -63,10 +63,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
         managementExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(request, l)));
     }
 
-    private void doExecuteForked(
-        IndicesRequest request,
-        ActionListener<GetRollupIndexCapsAction.Response> listener
-    ) {
+    private void doExecuteForked(IndicesRequest request, ActionListener<GetRollupIndexCapsAction.Response> listener) {
         Transports.assertNotTransportThread("retrieving rollup job index caps may be expensive");
         String[] indices = resolver.concreteIndexNames(clusterService.state(), request.indicesOptions(), request);
         Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(

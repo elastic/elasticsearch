@@ -199,11 +199,15 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         }
 
         public String getRemoteClusterServerEndpoint() {
-            Path portsFile = workingDir.resolve("logs").resolve("remote_cluster.ports");
-            if (Files.notExists(portsFile)) {
-                waitUntilReady();
+            if (spec.isRemoteClusterServerEnabled()) {
+                Path portsFile = workingDir.resolve("logs").resolve("remote_cluster.ports");
+                if (Files.notExists(portsFile)) {
+                    waitUntilReady();
+                }
+                return readPortsFile(portsFile).get(0);
+            } else {
+                return "";
             }
-            return readPortsFile(portsFile).get(0);
         }
 
         public void deletePortsFiles() {

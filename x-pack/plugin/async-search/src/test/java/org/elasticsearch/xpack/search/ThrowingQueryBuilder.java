@@ -27,15 +27,36 @@ class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuilder> {
     private final long randomUID;
     private final RuntimeException failure;
     private final int shardId;
+    private final String index;
 
     /**
      * Creates a {@link ThrowingQueryBuilder} with the provided <code>randomUID</code>.
+     *
+     * @param randomUID used solely for identification
+     * @param failure what exception to throw
+     * @param shardId what shardId to throw the exception. If shardId is less than 0, it will throw for all shards.
      */
     ThrowingQueryBuilder(long randomUID, RuntimeException failure, int shardId) {
         super();
         this.randomUID = randomUID;
         this.failure = failure;
         this.shardId = shardId;
+        this.index = null;
+    }
+
+    /**
+     * Creates a {@link ThrowingQueryBuilder} with the provided <code>randomUID</code>.
+     *
+     * @param randomUID used solely for identification
+     * @param failure what exception to throw
+     * @param index what index to throw the exception against (all shards of that index)
+     */
+    ThrowingQueryBuilder(long randomUID, RuntimeException failure, String index) {
+        super();
+        this.randomUID = randomUID;
+        this.failure = failure;
+        this.shardId = Integer.MAX_VALUE;
+        this.index = index;
     }
 
     ThrowingQueryBuilder(StreamInput in) throws IOException {
@@ -43,6 +64,11 @@ class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuilder> {
         this.randomUID = in.readLong();
         this.failure = in.readException();
         this.shardId = in.readVInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_040)) {
+            this.index = in.readOptionalString();
+        } else {
+            this.index = null;
+        }
     }
 
     @Override
@@ -50,6 +76,9 @@ class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuilder> {
         out.writeLong(randomUID);
         out.writeException(failure);
         out.writeVInt(shardId);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_040)) {
+            out.writeOptionalString(index);
+        }
     }
 
     @Override
@@ -64,7 +93,7 @@ class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuilder> {
         return new Query() {
             @Override
             public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-                if (context.getShardId() == shardId) {
+                if (context.getShardId() == shardId || shardId < 0 || context.index().getName().equals(index)) {
                     throw failure;
                 }
                 return delegate.createWeight(searcher, scoreMode, boost);

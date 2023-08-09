@@ -488,7 +488,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(currentState),
             modelToAdd
         );
-        TrainedModelAssignmentMetadata.Builder rebalanced = rebalancer.rebalance();
+        TrainedModelAssignmentMetadata.Builder rebalanced = rebalancer.rebalance(clusterService.getSettings());
         if (modelToAdd.isPresent()) {
             checkModelIsFullyAllocatedIfScalingIsNotPossible(modelToAdd.get().getDeploymentId(), rebalanced, nodes);
         }

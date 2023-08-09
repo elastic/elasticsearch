@@ -541,7 +541,8 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         logger.info("--> restoring partial index [{}] with cache enabled", restoredIndexName);
 
         Settings.Builder indexSettingsBuilder = Settings.builder().put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
-        indexSettingsBuilder.put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.ZERO).putNull(DataTier.TIER_PREFERENCE);
+        indexSettingsBuilder.put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
+            .putNull(DataTier.TIER_PREFERENCE);
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
             restoredIndexName,

@@ -27,7 +27,25 @@ public class TrainedModelSizeStatsTests extends AbstractWireSerializingTestCase<
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
+    // @Override
+    // protected TrainedModelSizeStats mutateInstanceForVersion(TrainedModelSizeStats instance, TransportVersion version) {
+    // TrainedModelSizeStats.Builder builder = new TrainedModelSizeStats.Builder(instance);
+    // if(version.before(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
+    // builder.setPerDeploymentMemoryBytes(0);
+    // builder.setPerAllocationMemoryBytes(0);
+    // } else {
+    // builder.setPerDeploymentMemoryBytes(randomNonNegativeLong());
+    // builder.setPerAllocationMemoryBytes(randomNonNegativeLong());
+    // }
+    // return builder.build();
+    // }
+
     public static TrainedModelSizeStats createRandom() {
-        return new TrainedModelSizeStats(randomNonNegativeLong(), randomNonNegativeLong());
+        return new TrainedModelSizeStats(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
     }
 }

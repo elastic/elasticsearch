@@ -420,7 +420,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         }
 
         public static final MlConfigVersion VERSION_INTRODUCED = MlConfigVersion.V_8_0_0;
-        public static final MlConfigVersion VERSION_PER_ALLOCATION_MEMORY = MlConfigVersion.V_8_8_0;
+        // TODO: Verify this is the correct version to use (v8.10.0)
+        public static final MlConfigVersion VERSION_PER_ALLOCATION_MEMORY = MlConfigVersion.V_8_10_0;
 
         private static final ParseField MODEL_BYTES = new ParseField("model_bytes");
         public static final ParseField NUMBER_OF_ALLOCATIONS = new ParseField("number_of_allocations");

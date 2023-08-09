@@ -2034,69 +2034,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
     }
 
-    /**
-     * Verify that the executor is set to the index searcher only for requests that support offloading sequential collection.
-     */
-    public void testSupportsOffloadingSequentialCollectionAffectsSearchContext() throws Exception {
-        IndexService indexService = createIndex("index", Settings.EMPTY);
-        ThreadPoolExecutor executor = (ThreadPoolExecutor) indexService.getThreadPool().executor(ThreadPool.Names.SEARCH_WORKER);
-        final IndexShard indexShard = indexService.getShard(0);
-        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
-        ShardSearchRequest request = new ShardSearchRequest(
-            OriginalIndices.NONE,
-            searchRequest,
-            indexShard.shardId(),
-            0,
-            indexService.numberOfShards(),
-            AliasFilter.EMPTY,
-            1f,
-            System.currentTimeMillis(),
-            null
-        );
-        SearchService service = getInstanceFromNode(SearchService.class);
-        try (ReaderContext readerContext = createReaderContext(indexService, indexShard)) {
-            SearchShardTask task = new SearchShardTask(0, "type", "action", "description", null, emptyMap());
-            {
-                SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, true);
-                ContextIndexSearcher searcher = searchContext.searcher();
-                assertNotNull(searcher.getExecutor());
-                assertSame(executor, searcher.getExecutor());
-            }
-            {
-                SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.FETCH, true);
-                ContextIndexSearcher searcher = searchContext.searcher();
-                assertNotNull(searcher.getExecutor());
-                assertSame(executor, searcher.getExecutor());
-            }
-            {
-                SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.NONE, true);
-                ContextIndexSearcher searcher = searchContext.searcher();
-                assertNotNull(searcher.getExecutor());
-                assertSame(executor, searcher.getExecutor());
-            }
-            {
-                SearchRequest queryPhaseRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
-                queryPhaseRequest.source(
-                    new SearchSourceBuilder().aggregation(new CardinalityAggregationBuilder("cardinality").field("field"))
-                );
-                ShardSearchRequest queryPhaseShardRequest = new ShardSearchRequest(
-                    OriginalIndices.NONE,
-                    queryPhaseRequest,
-                    indexShard.shardId(),
-                    0,
-                    indexService.numberOfShards(),
-                    AliasFilter.EMPTY,
-                    1f,
-                    System.currentTimeMillis(),
-                    null
-                );
-                SearchContext searchContext = service.createContext(readerContext, queryPhaseShardRequest, task, ResultsType.QUERY, true);
-                ContextIndexSearcher searcher = searchContext.searcher();
-                assertNull(searcher.getExecutor());
-            }
-        }
-    }
-
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {
         return new ReaderContext(
             new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong()),

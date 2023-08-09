@@ -388,14 +388,15 @@ public class ExpressionTests extends ESTestCase {
 
     public void testDatePeriodLiterals() {
         int value = randomInt(Integer.MAX_VALUE);
+        int weeksValue = randomInt(Integer.MAX_VALUE / 7);
 
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0 day"));
         assertEquals(l(Period.ofDays(value), DATE_PERIOD), whereExpression(value + "day"));
         assertEquals(l(Period.ofDays(value), DATE_PERIOD), whereExpression(value + " days"));
 
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0week"));
-        assertEquals(l(Period.ofDays(value * 7), DATE_PERIOD), whereExpression(value + "week"));
-        assertEquals(l(Period.ofDays(value * 7), DATE_PERIOD), whereExpression(value + " weeks"));
+        assertEquals(l(Period.ofDays(weeksValue * 7), DATE_PERIOD), whereExpression(weeksValue + "week"));
+        assertEquals(l(Period.ofDays(weeksValue * 7), DATE_PERIOD), whereExpression(weeksValue + " weeks"));
 
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0 month"));
         assertEquals(l(Period.ofMonths(value), DATE_PERIOD), whereExpression(value + "month"));
@@ -414,6 +415,15 @@ public class ExpressionTests extends ESTestCase {
 
     public void testQualifiedDecimalLiteral() {
         assertParsingException(() -> whereExpression("1.1 hours"), "extraneous input 'hours' expecting <EOF>");
+    }
+
+    public void testOverflowingValueForQualifiedNumbers() {
+        assertParsingException(
+            () -> parse("row x = 15883284301230000000 seconds"),
+            "line 1:10: Number [15883284301230000000] too large for qualifier [seconds]"
+        );
+        assertParsingException(() -> parse("row x = 15883284300 days"), "line 1:10: Number [15883284300] too large for qualifier [days]");
+        assertParsingException(() -> parse("row x = 306783379 weeks"), "line 1:10: Number [306783379] too large for qualifier [weeks]");
     }
 
     public void testWildcardProjectKeepPatterns() {

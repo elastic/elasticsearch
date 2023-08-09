@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
@@ -33,6 +34,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -2018,6 +2020,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(metricsMapper);
         Mapper serviceMapper = ((ObjectMapper) metricsMapper).getMapper("service");
         assertNotNull(serviceMapper);
+        assertNull(((ObjectMapper) serviceMapper).getMapper("time"));
         assertNotNull(((ObjectMapper) serviceMapper).getMapper("time.max"));
         assertNotNull(doc.rootDoc().getField("metrics.service.time.max"));
     }
@@ -2641,16 +2644,18 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """));
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time.max"));
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time.min"));
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.object.field"));
+        assertNull(parsedDocument.rootDoc().getField("metrics.service.time"));
+        for (String s : Arrays.asList("metrics.service.time.max", "metrics.service.time.min", "metrics.object.field")) {
+            assertThat(parsedDocument.rootDoc().getField(s), instanceOf(LongField.class));
+        }
         ObjectMapper metrics = (ObjectMapper) parsedDocument.dynamicMappingsUpdate().getRoot().getMapper("metrics");
         assertEquals(2, metrics.mappers.size());
         ObjectMapper object = (ObjectMapper) metrics.getMapper("object");
-        assertThat(object.getMapper("field"), instanceOf(FieldMapper.class));
+        assertThat(object.getMapper("field"), instanceOf(NumberFieldMapper.class));
         ObjectMapper service = (ObjectMapper) metrics.getMapper("service");
-        assertThat(service.getMapper("time.max"), instanceOf(FieldMapper.class));
-        assertThat(service.getMapper("time.min"), instanceOf(FieldMapper.class));
+        assertNull(service.getMapper("time"));
+        assertThat(service.getMapper("time.max"), instanceOf(NumberFieldMapper.class));
+        assertThat(service.getMapper("time.min"), instanceOf(NumberFieldMapper.class));
     }
 
     public void testSubobjectsFalseRootWithInnerObject() throws Exception {
@@ -2676,17 +2681,17 @@ public class DocumentParserTests extends MapperServiceTestCase {
               "time.min" : 1
             }
             """));
-        assertNotNull(parsedDocument.rootDoc().getField("host.name"));
-        assertNotNull(parsedDocument.rootDoc().getField("host.id"));
-        assertNotNull(parsedDocument.rootDoc().getField("time"));
-        assertNotNull(parsedDocument.rootDoc().getField("time.min"));
-        assertNotNull(parsedDocument.rootDoc().getField("time.max"));
+        assertThat(parsedDocument.rootDoc().getField("host.name"), instanceOf(KeywordFieldMapper.KeywordField.class));
+        assertThat(parsedDocument.rootDoc().getField("host.id"), instanceOf(Field.class));
+        for (String s : Arrays.asList("time", "time.min", "time.max")) {
+            assertThat(parsedDocument.rootDoc().getField(s), instanceOf(LongField.class));
+        }
         RootObjectMapper root = parsedDocument.dynamicMappingsUpdate().getRoot();
         assertEquals(4, root.mappers.size());
-        assertNotNull(root.getMapper("host.id"));
-        assertNotNull(root.getMapper("time"));
-        assertNotNull(root.getMapper("time.min"));
-        assertNotNull(root.getMapper("time.max"));
+        assertThat(root.getMapper("host.id"), instanceOf(TextFieldMapper.class));
+        for (String s : Arrays.asList("time", "time.min", "time.max")) {
+            assertThat(root.getMapper(s), instanceOf(NumberFieldMapper.class));
+        }
     }
 
     public void testSubobjectsFalseRootAndChildWithInnerObject() throws Exception {
@@ -2706,15 +2711,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
         assertNotNull(mappingsUpdate);
-        assertNotNull(mappingsUpdate.getRoot().getMapper("time.measured"));
-        assertNotNull(mappingsUpdate.getRoot().getMapper("time.range.min"));
-        assertNotNull(mappingsUpdate.getRoot().getMapper("time.range.max"));
-        assertNotNull(mappingsUpdate.getRoot().getMapper("time.all.time.high"));
-
-        assertNotNull(doc.rootDoc().getField("time.measured"));
-        assertNotNull(doc.rootDoc().getField("time.range.min"));
-        assertNotNull(doc.rootDoc().getField("time.range.max"));
-        assertNotNull(doc.rootDoc().getField("time.all.time.high"));
+        assertNull(mappingsUpdate.getRoot().getMapper("time"));
+        assertNull(mappingsUpdate.getRoot().getMapper("time.range"));
+        for (String s : Arrays.asList("time.measured", "time.range.min", "time.range.max", "time.all.time.high")) {
+            assertThat(doc.rootDoc().getField(s), instanceOf(LongField.class));
+        }
+        for (String s : Arrays.asList("time.measured", "time.range.min", "time.range.max", "time.all.time.high")) {
+            assertThat(mappingsUpdate.getRoot().getMapper(s), instanceOf(NumberFieldMapper.class));
+        }
     }
 
     public void testSubobjectsFalseRootAndChildWithInnerObjectAndDottedNames() throws Exception {
@@ -2732,20 +2736,29 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """));
+        for (String s : Arrays.asList(
+            "time.foo.measured",
+            "time.foo.old.measure",
+            "time.foo.range.values.min",
+            "time.foo.range.values.max",
+            "time.foo.range.values.legacy.min"
+        )) {
+            assertThat(doc.rootDoc().getField(s), instanceOf(LongField.class));
+        }
 
         Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
         assertNotNull(mappingsUpdate);
-        assertNotNull(mappingsUpdate.getRoot().getMapper("time.foo.measured"));
-        assertNotNull(mappingsUpdate.getRoot().getMapper("time.foo.old.measure"));
-        assertNotNull(mappingsUpdate.getRoot().getMapper("time.foo.range.values.min"));
-        assertNotNull(mappingsUpdate.getRoot().getMapper("time.foo.range.values.max"));
-        assertNotNull(mappingsUpdate.getRoot().getMapper("time.foo.range.values.legacy.min"));
 
-        assertNotNull(doc.rootDoc().getField("time.foo.measured"));
-        assertNotNull(doc.rootDoc().getField("time.foo.old.measure"));
-        assertNotNull(doc.rootDoc().getField("time.foo.range.values.min"));
-        assertNotNull(doc.rootDoc().getField("time.foo.range.values.max"));
-        assertNotNull(doc.rootDoc().getField("time.foo.range.values.legacy.min"));
+        for (String s : Arrays.asList(
+            "time.foo.measured",
+            "time.foo.old.measure",
+            "time.foo.range.values.min",
+            "time.foo.range.values.max",
+            "time.foo.range.values.legacy.min"
+        )) {
+            assertThat(mappingsUpdate.getRoot().getMapper(s), instanceOf(NumberFieldMapper.class));
+        }
+
     }
 
     public void testSubobjectsFalseRootMixedPaths() throws Exception {
@@ -2777,19 +2790,16 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             """));
 
-        assertNotNull(parsedDocument.rootDoc().getField("service.time"));
-        assertNotNull(parsedDocument.rootDoc().getField("service.time.min"));
-        assertNotNull(parsedDocument.rootDoc().getField("service.time.max"));
-        assertNotNull(parsedDocument.rootDoc().getField("service.time.avg"));
-        assertNotNull(parsedDocument.rootDoc().getField("service.host.name"));
-
+        assertThat(parsedDocument.rootDoc().getField("service.host.name"), instanceOf(KeywordFieldMapper.KeywordField.class));
+        for (String s : Arrays.asList("service.time", "service.time.min", "service.time.max", "service.time.avg")) {
+            assertThat(parsedDocument.rootDoc().getField(s), instanceOf(LongField.class));
+        }
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
         RootObjectMapper root = parsedDocument.dynamicMappingsUpdate().getRoot();
         assertEquals(4, root.mappers.size());
-        assertNotNull(root.getMapper("service.time"));
-        assertNotNull(root.getMapper("service.time.min"));
-        assertNotNull(root.getMapper("service.time.max"));
-        assertNotNull(root.getMapper("service.time.avg"));
+        for (String s : Arrays.asList("service.time", "service.time.min", "service.time.max", "service.time.avg")) {
+            assertThat(root.getMapper(s), instanceOf(NumberFieldMapper.class));
+        }
     }
 
     public void testSubobjectsFalseDocWithInnerObjectsNullValues() throws Exception {
@@ -2843,10 +2853,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             """));
 
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time"));
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time.min"));
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time.max"));
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time.avg"));
+        for (String s : Arrays.asList(
+            "metrics.service.time",
+            "metrics.service.time.min",
+            "metrics.service.time.max",
+            "metrics.service.time.avg"
+        )) {
+            assertThat(parsedDocument.rootDoc().getField(s), instanceOf(LongField.class));
+        }
         assertNull(parsedDocument.dynamicMappingsUpdate());
     }
 
@@ -2909,15 +2923,13 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """));
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time.min"));
+        assertThat(parsedDocument.rootDoc().getField("metrics.service.time.min"), instanceOf(LongField.class));
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
         RootObjectMapper root = parsedDocument.dynamicMappingsUpdate().getRoot();
         assertEquals(1, root.mappers.size());
         ObjectMapper metrics = (ObjectMapper) root.getMapper("metrics");
         assertNotNull(metrics);
-        FieldMapper serviceTimeMin = (FieldMapper) metrics.getMapper("service.time.min");
-        assertNotNull(serviceTimeMin);
-        assertTrue(serviceTimeMin instanceof NumberFieldMapper);
+        assertThat((FieldMapper) metrics.getMapper("service.time.min"), instanceOf(NumberFieldMapper.class));
     }
 
     public void testSubobjectsFalseDocsWithMultipleInnerObjectMappedAsNonObject() throws Exception {
@@ -2947,15 +2959,16 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """));
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time.current.min"));
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time.current.max"));
+        assertNull(parsedDocument.rootDoc().getField("metrics.service.time"));
+        assertThat(parsedDocument.rootDoc().getField("metrics.service.time.current.min"), instanceOf(LongField.class));
+        assertThat(parsedDocument.rootDoc().getField("metrics.service.time.current.max"), instanceOf(LongField.class));
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
         RootObjectMapper root = parsedDocument.dynamicMappingsUpdate().getRoot();
         assertEquals(1, root.mappers.size());
         Mapper metrics = root.getMapper("metrics");
         assertNotNull(metrics);
-        assertNotNull(((ObjectMapper) metrics).getMapper("service.time.current.min"));
-        assertNotNull(((ObjectMapper) metrics).getMapper("service.time.current.max"));
+        assertThat(((ObjectMapper) metrics).getMapper("service.time.current.min"), instanceOf(NumberFieldMapper.class));
+        assertThat(((ObjectMapper) metrics).getMapper("service.time.current.max"), instanceOf(NumberFieldMapper.class));
     }
 
     public void testSubobjectsFalseDocsWithInnerObjectThatCanBeParsedNatively() throws Exception {
@@ -2983,10 +2996,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """));
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.location"));
-        Mapper metrics = mapper.mappers().getMapper("metrics.service.location");
-        assertNotNull(metrics);
-        assertTrue(metrics instanceof GeoPointFieldMapper);
+        assertNull(parsedDocument.rootDoc().getField("metrics.service.location.lat"));
+        assertNull(parsedDocument.rootDoc().getField("metrics.service.location.lon"));
+        assertThat(parsedDocument.rootDoc().getField("metrics.service.location"), instanceOf(LatLonPoint.class));
+        assertThat(mapper.mappers().getMapper("metrics.service.location"), instanceOf(GeoPointFieldMapper.class));
     }
 
     public void testSubobjectsFalseArrayOfObjectsMixedPaths() throws Exception {
@@ -3020,20 +3033,23 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             """));
 
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time"));
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time.min"));
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time.max"));
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time.avg"));
+        for (String s : Arrays.asList(
+            "metrics.service.time",
+            "metrics.service.time.min",
+            "metrics.service.time.max",
+            "metrics.service.time.avg"
+        )) {
+            assertThat(parsedDocument.rootDoc().getField(s), instanceOf(LongField.class));
+        }
 
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
         RootObjectMapper root = parsedDocument.dynamicMappingsUpdate().getRoot();
         assertEquals(1, root.mappers.size());
         ObjectMapper metrics = (ObjectMapper) root.getMapper("metrics");
         assertEquals(4, metrics.mappers.size());
-        assertNotNull(metrics.getMapper("service.time"));
-        assertNotNull(metrics.getMapper("service.time.min"));
-        assertNotNull(metrics.getMapper("service.time.max"));
-        assertNotNull(metrics.getMapper("service.time.avg"));
+        for (String s : Arrays.asList("service.time", "service.time.min", "service.time.max", "service.time.avg")) {
+            assertThat(metrics.getMapper(s), instanceOf(NumberFieldMapper.class));
+        }
     }
 
     public void testSubobjectsFalseArrayMixedContent() throws Exception {
@@ -3051,16 +3067,18 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             """));
 
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time"));
-        assertNotNull(parsedDocument.rootDoc().getField("metrics.service.time.max"));
+        for (String s : Arrays.asList("metrics.service.time", "metrics.service.time.max")) {
+            assertThat(parsedDocument.rootDoc().getField(s), instanceOf(LongField.class));
+        }
 
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
         RootObjectMapper root = parsedDocument.dynamicMappingsUpdate().getRoot();
         assertEquals(1, root.mappers.size());
         ObjectMapper metrics = (ObjectMapper) root.getMapper("metrics");
         assertEquals(2, metrics.mappers.size());
-        assertNotNull(metrics.getMapper("service.time"));
-        assertNotNull(metrics.getMapper("service.time.max"));
+        for (String s : Arrays.asList("service.time", "service.time.max")) {
+            assertThat(metrics.getMapper(s), instanceOf(NumberFieldMapper.class));
+        }
     }
 
     public void testSubobjectsFalseDocsWithGeoPointFromDynamicTemplate() throws Exception {
@@ -3094,12 +3112,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             """));
 
-        assertNotNull(parsedDocument.rootDoc().getField("location"));
+        assertThat(parsedDocument.rootDoc().getField("location"), instanceOf(LatLonPoint.class));
         RootObjectMapper root = parsedDocument.dynamicMappingsUpdate().getRoot();
         assertEquals(1, root.mappers.size());
-        Mapper geoPointFieldMapper = root.getMapper("location");
-        assertNotNull(geoPointFieldMapper);
-        assertTrue(geoPointFieldMapper instanceof GeoPointFieldMapper);
+        assertThat(root.getMapper("location"), instanceOf(GeoPointFieldMapper.class));
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
     }
 
@@ -3142,30 +3158,15 @@ public class DocumentParserTests extends MapperServiceTestCase {
               "foo.bar.baz.min" : 1
             }
             """), XContentType.JSON));
-        assertNotNull(doc1.rootDoc().getField("foo.bar.baz.max"));
-        assertNotNull(doc1.rootDoc().getField("foo.bar.baz.min"));
-        RootObjectMapper root1 = doc1.dynamicMappingsUpdate().getRoot();
-        assertNotNull(root1.getMapper("foo.bar.baz.max"));
-        assertNotNull(root1.getMapper("foo.bar.baz.min"));
 
-        assertNotNull(doc2.rootDoc().getField("foo.bar.baz.max"));
-        assertNotNull(doc2.rootDoc().getField("foo.bar.baz.min"));
-        RootObjectMapper root2 = doc2.dynamicMappingsUpdate().getRoot();
-        assertNotNull(root2.getMapper("foo.bar.baz.max"));
-        assertNotNull(root2.getMapper("foo.bar.baz.min"));
+        for (ParsedDocument doc : Arrays.asList(doc1, doc2, doc3, doc4)) {
+            assertNotNull(doc.dynamicMappingsUpdate());
+            for (String s : Arrays.asList("foo.bar.baz.max", "foo.bar.baz.min")) {
+                assertThat(doc.rootDoc().getField(s), instanceOf(LongField.class));
+                assertThat(doc.dynamicMappingsUpdate().getRoot().getMapper(s), instanceOf(NumberFieldMapper.class));
 
-        assertNotNull(doc3.rootDoc().getField("foo.bar.baz.max"));
-        assertNotNull(doc3.rootDoc().getField("foo.bar.baz.min"));
-        RootObjectMapper root3 = doc3.dynamicMappingsUpdate().getRoot();
-        assertNotNull(root3.getMapper("foo.bar.baz.max"));
-        assertNotNull(root3.getMapper("foo.bar.baz.min"));
-
-        assertNotNull(doc4.rootDoc().getField("foo.bar.baz.max"));
-        assertNotNull(doc4.rootDoc().getField("foo.bar.baz.min"));
-        RootObjectMapper root4 = doc4.dynamicMappingsUpdate().getRoot();
-        assertNotNull(root4.getMapper("foo.bar.baz.max"));
-        assertNotNull(root4.getMapper("foo.bar.baz.min"));
-
+            }
+        }
     }
 
     /**

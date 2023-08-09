@@ -221,7 +221,10 @@ public final class TransformNodes {
             if (explain != null) {
                 explain.put(
                     node.getId(),
-                    "node has version: " + TransformConfigVersion.fromNode(node) + " but transform requires at least " + minRequiredVersion
+                    "node supports transform config version: "
+                        + TransformConfigVersion.fromNode(node)
+                        + " but transform requires at least "
+                        + minRequiredVersion
                 );
             }
             return false;

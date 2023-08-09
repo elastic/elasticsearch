@@ -318,7 +318,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     private void reportClashingNodeAttribute(String attrName) {
         throw new IllegalArgumentException(
-            "Directly setting [" + attrName + "] is not permitted - " + "it is reserved for the transform plugin."
+            "Directly setting [" + attrName + "] is not permitted - it is reserved for the transform plugin."
         );
     }
 

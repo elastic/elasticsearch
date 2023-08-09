@@ -1,0 +1,5 @@
+pr: 98307
+summary: Remove RCS 2.0 feature flag for beta release
+area: Security
+type: feature
+issues: []

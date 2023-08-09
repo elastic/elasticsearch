@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.Describable;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -41,6 +44,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
@@ -107,6 +111,8 @@ public class LocalExecutionPlanner {
     private final String sessionId;
     private final CancellableTask parentTask;
     private final BigArrays bigArrays;
+    private final PageCacheRecycler recycler;
+    private final CircuitBreakerService breakerService;
     private final EsqlConfiguration configuration;
     private final ExchangeSourceHandler exchangeSourceHandler;
     private final ExchangeSinkHandler exchangeSinkHandler;
@@ -117,6 +123,8 @@ public class LocalExecutionPlanner {
         String sessionId,
         CancellableTask parentTask,
         BigArrays bigArrays,
+        PageCacheRecycler recycler,
+        CircuitBreakerService breakerService,
         EsqlConfiguration configuration,
         ExchangeSourceHandler exchangeSourceHandler,
         ExchangeSinkHandler exchangeSinkHandler,
@@ -126,6 +134,8 @@ public class LocalExecutionPlanner {
         this.sessionId = sessionId;
         this.parentTask = parentTask;
         this.bigArrays = bigArrays;
+        this.recycler = recycler;
+        this.breakerService = breakerService;
         this.exchangeSourceHandler = exchangeSourceHandler;
         this.exchangeSinkHandler = exchangeSinkHandler;
         this.enrichLookupService = enrichLookupService;
@@ -143,7 +153,9 @@ public class LocalExecutionPlanner {
             configuration.pragmas().taskConcurrency(),
             configuration.pragmas().dataPartitioning(),
             configuration.pragmas().pageSize(),
-            bigArrays
+            bigArrays,
+            recycler,
+            breakerService
         );
 
         PhysicalOperation physicalOperation = plan(node, context);
@@ -652,7 +664,9 @@ public class LocalExecutionPlanner {
         int taskConcurrency,
         DataPartitioning dataPartitioning,
         int configuredPageSize,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        PageCacheRecycler recycler,
+        CircuitBreakerService breakerService
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);
@@ -673,6 +687,13 @@ public class LocalExecutionPlanner {
                 return configuredPageSize;
             }
             return Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize);
+        }
+
+        /**
+         * Builder {@link BlockHash} implementations for grouping grouping aggregations.
+         */
+        BlockHash.Factory blockHashFactory() {
+            return new BlockHash.Factory(bigArrays, recycler, () -> breakerService.getBreaker(CircuitBreaker.REQUEST));
         }
     }
 

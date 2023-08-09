@@ -57,12 +57,22 @@ public class OrdinalsGroupingOperator implements Operator {
         String groupingField,
         List<Factory> aggregators,
         int maxPageSize,
+        BlockHash.Factory blockHashFactory,
         BigArrays bigArrays
     ) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new OrdinalsGroupingOperator(sources, docChannel, groupingField, aggregators, maxPageSize, bigArrays, driverContext);
+            return new OrdinalsGroupingOperator(
+                sources,
+                docChannel,
+                groupingField,
+                aggregators,
+                maxPageSize,
+                blockHashFactory,
+                bigArrays,
+                driverContext
+            );
         }
 
         @Override
@@ -77,6 +87,7 @@ public class OrdinalsGroupingOperator implements Operator {
 
     private final List<Factory> aggregatorFactories;
     private final Map<SegmentID, OrdinalSegmentAggregator> ordinalAggregators;
+    private final BlockHash.Factory blockHashFactory;
     private final BigArrays bigArrays;
 
     private final DriverContext driverContext;
@@ -93,6 +104,7 @@ public class OrdinalsGroupingOperator implements Operator {
         String groupingField,
         List<GroupingAggregator.Factory> aggregatorFactories,
         int maxPageSize,
+        BlockHash.Factory blockHashFactory,
         BigArrays bigArrays,
         DriverContext driverContext
     ) {
@@ -109,6 +121,7 @@ public class OrdinalsGroupingOperator implements Operator {
         this.aggregatorFactories = aggregatorFactories;
         this.ordinalAggregators = new HashMap<>();
         this.maxPageSize = maxPageSize;
+        this.blockHashFactory = blockHashFactory;
         this.bigArrays = bigArrays;
         this.driverContext = driverContext;
     }
@@ -166,7 +179,7 @@ public class OrdinalsGroupingOperator implements Operator {
                     channelIndex,
                     aggregatorFactories,
                     maxPageSize,
-                    bigArrays,
+                    blockHashFactory,
                     driverContext
                 );
             }
@@ -416,13 +429,13 @@ public class OrdinalsGroupingOperator implements Operator {
             int channelIndex,
             List<GroupingAggregator.Factory> aggregatorFactories,
             int maxPageSize,
-            BigArrays bigArrays,
+            BlockHash.Factory blockHashFactory,
             DriverContext driverContext
         ) {
             this.extractor = new ValuesSourceReaderOperator(sources, docChannel, groupingField);
             this.aggregator = new HashAggregationOperator(
                 aggregatorFactories,
-                () -> BlockHash.build(List.of(new GroupSpec(channelIndex, sources.get(0).elementType())), bigArrays, maxPageSize),
+                () -> blockHashFactory.build(List.of(new GroupSpec(channelIndex, sources.get(0).elementType())), maxPageSize),
                 driverContext
             );
         }

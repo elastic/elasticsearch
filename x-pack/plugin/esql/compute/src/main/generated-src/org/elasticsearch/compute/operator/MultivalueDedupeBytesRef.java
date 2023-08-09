@@ -312,14 +312,15 @@ public class MultivalueDedupeBytesRef {
     /**
      * Writes an already deduplicated {@link #work} to a hash.
      */
-    private void hashUniquedWork(BytesRefHash hash, LongBlock.Builder builder) {
+    private void hashUniquedWork(BytesRefHash ordinator, LongBlock.Builder builder) {
         if (w == 1) {
-            hash(builder, hash, work[0]);
+            hash(builder, ordinator, work[0]);
             return;
         }
         builder.beginPositionEntry();
+        // TODO use array flavored add
         for (int i = 0; i < w; i++) {
-            hash(builder, hash, work[i]);
+            hash(builder, ordinator, work[i]);
         }
         builder.endPositionEntry();
     }
@@ -327,18 +328,18 @@ public class MultivalueDedupeBytesRef {
     /**
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashSortedWork(BytesRefHash hash, LongBlock.Builder builder) {
+    private void hashSortedWork(BytesRefHash ordinator, LongBlock.Builder builder) {
         if (w == 1) {
-            hash(builder, hash, work[0]);
+            hash(builder, ordinator, work[0]);
             return;
         }
         builder.beginPositionEntry();
         BytesRef prev = work[0];
-        hash(builder, hash, prev);
+        hash(builder, ordinator, prev);
         for (int i = 1; i < w; i++) {
             if (false == prev.equals(work[i])) {
                 prev = work[i];
-                hash(builder, hash, prev);
+                hash(builder, ordinator, prev);
             }
         }
         builder.endPositionEntry();

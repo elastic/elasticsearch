@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.name.Named;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -20,6 +21,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -28,6 +30,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -1024,17 +1027,22 @@ public class BlockHashTests extends ESTestCase {
         return result[0];
     }
 
-    private void hash(Consumer<OrdsAndKeys> callback, int emitBatchSize, Block... values) {
-        List<HashAggregationOperator.GroupSpec> specs = new ArrayList<>(values.length);
-        for (int c = 0; c < values.length; c++) {
-            specs.add(new HashAggregationOperator.GroupSpec(c, values[c].elementType()));
+    static BlockHash newBlockHash(boolean forcePackedHash, int emitBatchSize, List<ElementType> types) {
+        List<HashAggregationOperator.GroupSpec> specs = new ArrayList<>(types.size());
+        for (int c = 0; c < types.size(); c++) {
+            specs.add(new HashAggregationOperator.GroupSpec(c, types.get(c)));
         }
-        MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
-        try (
-            BlockHash blockHash = forcePackedHash
-                ? new PackedValuesBlockHash(specs, bigArrays, emitBatchSize)
-                : BlockHash.build(specs, bigArrays, emitBatchSize)
-        ) {
+        PageCacheRecycler recycler = new PageCacheRecycler(Settings.EMPTY);
+        CircuitBreakerService breakerService = new NoneCircuitBreakerService();
+        MockBigArrays bigArrays = new MockBigArrays(recycler, breakerService);
+        return forcePackedHash
+            ? new PackedValuesBlockHash(specs, bigArrays, emitBatchSize)
+            : new BlockHash.Factory(bigArrays, recycler, () -> breakerService.getBreaker("test")).build(specs, emitBatchSize);
+    }
+
+    private void hash(Consumer<OrdsAndKeys> callback, int emitBatchSize, Block... values) {
+        List<ElementType> types = Arrays.stream(values).map(Block::elementType).toList();
+        try (BlockHash blockHash = newBlockHash(forcePackedHash, emitBatchSize, types)) {
             hash(true, blockHash, callback, values);
         }
     }

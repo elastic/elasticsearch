@@ -9,7 +9,11 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
@@ -36,6 +40,8 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -58,13 +64,11 @@ import java.util.stream.Stream;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
-@Fork(1)
+@Fork(value = 1, jvmArgsAppend = { "--enable-preview", "--add-modules", "jdk.incubator.vector" })
 public class AggregatorBenchmark {
     static final int BLOCK_LENGTH = 8 * 1024;
     private static final int OP_COUNT = 1024;
     private static final int GROUPS = 5;
-
-    private static final BigArrays BIG_ARRAYS = BigArrays.NON_RECYCLING_INSTANCE;  // TODO real big arrays?
 
     private static final String LONGS = "longs";
     private static final String INTS = "ints";
@@ -96,7 +100,7 @@ public class AggregatorBenchmark {
             for (String grouping : AggregatorBenchmark.class.getField("grouping").getAnnotationsByType(Param.class)[0].value()) {
                 for (String op : AggregatorBenchmark.class.getField("op").getAnnotationsByType(Param.class)[0].value()) {
                     for (String blockType : AggregatorBenchmark.class.getField("blockType").getAnnotationsByType(Param.class)[0].value()) {
-                        run(grouping, op, blockType, 50);
+                        new AggregatorBenchmark().run(grouping, op, blockType, 50);
                     }
                 }
             }
@@ -104,6 +108,14 @@ public class AggregatorBenchmark {
             throw new AssertionError();
         }
     }
+
+    private final PageCacheRecycler recycler = new PageCacheRecycler(Settings.EMPTY);
+    private final CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
+        Settings.EMPTY,
+        List.of(),
+        ClusterSettings.createBuiltInClusterSettings()
+    );
+    private final BigArrays bigArrays = new BigArrays(recycler, breakerService, CircuitBreaker.REQUEST);
 
     @Param({ NONE, LONGS, INTS, DOUBLES, BOOLEANS, BYTES_REFS, TWO_LONGS, LONGS_AND_BYTES_REFS, TWO_LONGS_AND_BYTES_REFS })
     public String grouping;
@@ -114,7 +126,7 @@ public class AggregatorBenchmark {
     @Param({ VECTOR_LONGS, HALF_NULL_LONGS, VECTOR_DOUBLES, HALF_NULL_DOUBLES })
     public String blockType;
 
-    private static Operator operator(String grouping, String op, String dataType) {
+    private Operator operator(String grouping, String op, String dataType) {
         if (grouping.equals("none")) {
             return new AggregationOperator(List.of(supplier(op, dataType, 0).aggregatorFactory(AggregatorMode.SINGLE).get()));
         }
@@ -139,34 +151,35 @@ public class AggregatorBenchmark {
             );
             default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
         };
+        BlockHash.Factory factory = new BlockHash.Factory(bigArrays, recycler, () -> breakerService.getBreaker(CircuitBreaker.REQUEST));
         return new HashAggregationOperator(
             List.of(supplier(op, dataType, groups.size()).groupingAggregatorFactory(AggregatorMode.SINGLE)),
-            () -> BlockHash.build(groups, BIG_ARRAYS, 16 * 1024),
+            () -> factory.build(groups, 16 * 1024),
             new DriverContext()
         );
     }
 
-    private static AggregatorFunctionSupplier supplier(String op, String dataType, int dataChannel) {
+    private AggregatorFunctionSupplier supplier(String op, String dataType, int dataChannel) {
         return switch (op) {
-            case COUNT -> CountAggregatorFunction.supplier(BIG_ARRAYS, List.of(dataChannel));
+            case COUNT -> CountAggregatorFunction.supplier(bigArrays, List.of(dataChannel));
             case COUNT_DISTINCT -> switch (dataType) {
-                case LONGS -> new CountDistinctLongAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel), 3000);
-                case DOUBLES -> new CountDistinctDoubleAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel), 3000);
+                case LONGS -> new CountDistinctLongAggregatorFunctionSupplier(bigArrays, List.of(dataChannel), 3000);
+                case DOUBLES -> new CountDistinctDoubleAggregatorFunctionSupplier(bigArrays, List.of(dataChannel), 3000);
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             case MAX -> switch (dataType) {
-                case LONGS -> new MaxLongAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
-                case DOUBLES -> new MaxDoubleAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
+                case LONGS -> new MaxLongAggregatorFunctionSupplier(bigArrays, List.of(dataChannel));
+                case DOUBLES -> new MaxDoubleAggregatorFunctionSupplier(bigArrays, List.of(dataChannel));
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             case MIN -> switch (dataType) {
-                case LONGS -> new MinLongAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
-                case DOUBLES -> new MinDoubleAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
+                case LONGS -> new MinLongAggregatorFunctionSupplier(bigArrays, List.of(dataChannel));
+                case DOUBLES -> new MinDoubleAggregatorFunctionSupplier(bigArrays, List.of(dataChannel));
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             case SUM -> switch (dataType) {
-                case LONGS -> new SumLongAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
-                case DOUBLES -> new SumDoubleAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
+                case LONGS -> new SumLongAggregatorFunctionSupplier(bigArrays, List.of(dataChannel));
+                case DOUBLES -> new SumDoubleAggregatorFunctionSupplier(bigArrays, List.of(dataChannel));
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             default -> throw new IllegalArgumentException("unsupported op [" + op + "]");
@@ -561,19 +574,20 @@ public class AggregatorBenchmark {
         run(grouping, op, blockType, OP_COUNT);
     }
 
-    private static void run(String grouping, String op, String blockType, int opCount) {
+    private void run(String grouping, String op, String blockType, int opCount) {
         String dataType = switch (blockType) {
             case VECTOR_LONGS, HALF_NULL_LONGS -> LONGS;
             case VECTOR_DOUBLES, HALF_NULL_DOUBLES -> DOUBLES;
             default -> throw new IllegalArgumentException();
         };
 
-        Operator operator = operator(grouping, op, dataType);
-        Page page = page(grouping, blockType);
-        for (int i = 0; i < opCount; i++) {
-            operator.addInput(page);
+        try (Operator operator = operator(grouping, op, dataType)) {
+            Page page = page(grouping, blockType);
+            for (int i = 0; i < opCount; i++) {
+                operator.addInput(page);
+            }
+            operator.finish();
+            checkExpected(grouping, op, blockType, dataType, operator.getOutput(), opCount);
         }
-        operator.finish();
-        checkExpected(grouping, op, blockType, dataType, operator.getOutput(), opCount);
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Page;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
@@ -85,6 +87,8 @@ public class ComputeService {
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
     private final SearchService searchService;
     private final BigArrays bigArrays;
+    private final PageCacheRecycler recycler;
+    private final CircuitBreakerService breakerService;
     private final TransportService transportService;
     private final Executor esqlExecutor;
     private final DriverTaskRunner driverRunner;
@@ -97,11 +101,15 @@ public class ComputeService {
         ExchangeService exchangeService,
         EnrichLookupService enrichLookupService,
         ThreadPool threadPool,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        PageCacheRecycler recycler,
+        CircuitBreakerService breakerService
     ) {
         this.searchService = searchService;
         this.transportService = transportService;
         this.bigArrays = bigArrays.withCircuitBreaking();
+        this.recycler = recycler;
+        this.breakerService = breakerService;
         transportService.registerRequestHandler(
             DATA_ACTION_NAME,
             ESQL_THREAD_POOL_NAME,
@@ -239,6 +247,8 @@ public class ComputeService {
                 context.sessionId,
                 task,
                 bigArrays,
+                recycler,
+                breakerService,
                 context.configuration,
                 context.exchangeSource(),
                 context.exchangeSink(),

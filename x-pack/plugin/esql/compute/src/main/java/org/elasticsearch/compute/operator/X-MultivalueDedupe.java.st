@@ -11,11 +11,12 @@ import org.apache.lucene.util.ArrayUtil;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BytesRefHash;
-$else$
-import org.elasticsearch.common.util.LongHash;
-$endif$
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+$else$
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.blockhash.Ordinator64;
+$endif$
 $if(long)$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
@@ -24,8 +25,8 @@ $else$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.LongBlock;
-$endif$
 
+$endif$
 import java.util.Arrays;
 
 /**
@@ -179,7 +180,7 @@ $endif$
 $if(BytesRef)$
     public MultivalueDedupe.HashResult hash(BytesRefHash hash) {
 $else$
-    public MultivalueDedupe.HashResult hash(LongHash hash) {
+    public MultivalueDedupe.HashResult hash(Ordinator64 hash) {
 $endif$
         LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
         boolean sawNull = false;
@@ -389,17 +390,18 @@ $endif$
      * Writes an already deduplicated {@link #work} to a hash.
      */
 $if(BytesRef)$
-    private void hashUniquedWork(BytesRefHash hash, LongBlock.Builder builder) {
+    private void hashUniquedWork(BytesRefHash ordinator, LongBlock.Builder builder) {
 $else$
-    private void hashUniquedWork(LongHash hash, LongBlock.Builder builder) {
+    private void hashUniquedWork(Ordinator64 ordinator, LongBlock.Builder builder) {
 $endif$
         if (w == 1) {
-            hash(builder, hash, work[0]);
+            hash(builder, ordinator, work[0]);
             return;
         }
         builder.beginPositionEntry();
+        // TODO use array flavored add
         for (int i = 0; i < w; i++) {
-            hash(builder, hash, work[i]);
+            hash(builder, ordinator, work[i]);
         }
         builder.endPositionEntry();
     }
@@ -408,17 +410,17 @@ $endif$
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
 $if(BytesRef)$
-    private void hashSortedWork(BytesRefHash hash, LongBlock.Builder builder) {
+    private void hashSortedWork(BytesRefHash ordinator, LongBlock.Builder builder) {
 $else$
-    private void hashSortedWork(LongHash hash, LongBlock.Builder builder) {
+    private void hashSortedWork(Ordinator64 ordinator, LongBlock.Builder builder) {
 $endif$
         if (w == 1) {
-            hash(builder, hash, work[0]);
+            hash(builder, ordinator, work[0]);
             return;
         }
         builder.beginPositionEntry();
         $type$ prev = work[0];
-        hash(builder, hash, prev);
+        hash(builder, ordinator, prev);
         for (int i = 1; i < w; i++) {
 $if(BytesRef)$
             if (false == prev.equals(work[i])) {
@@ -426,7 +428,7 @@ $else$
             if (prev != work[i]) {
 $endif$
                 prev = work[i];
-                hash(builder, hash, prev);
+                hash(builder, ordinator, prev);
             }
         }
         builder.endPositionEntry();
@@ -487,12 +489,14 @@ $endif$
 $if(BytesRef)$
     private void hash(LongBlock.Builder builder, BytesRefHash hash, BytesRef v) {
 $else$
-    private void hash(LongBlock.Builder builder, LongHash hash, $type$ v) {
+    private void hash(LongBlock.Builder builder, Ordinator64 ordinator, $type$ v) {
 $endif$
 $if(double)$
-        builder.appendLong(BlockHash.hashOrdToGroupNullReserved(hash.add(Double.doubleToLongBits(v))));
-$else$
+        builder.appendLong(ordinator.add(Double.doubleToLongBits(v)));
+$elseif(BytesRef)$
         builder.appendLong(BlockHash.hashOrdToGroupNullReserved(hash.add(v)));
+$else$
+        builder.appendLong(ordinator.add(v));
 $endif$
     }
 }

@@ -10,14 +10,10 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupeTests;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 
@@ -93,7 +89,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
         int pageCount = between(1, 10);
         int positionCount = 100;
         int emitBatchSize = 100;
-        try (BlockHash blockHash = newBlockHash(emitBatchSize, types)) {
+        try (BlockHash blockHash = BlockHashTests.newBlockHash(forcePackedHash, emitBatchSize, types)) {
             /*
              * Only the long/long, long/bytes_ref, and bytes_ref/long implementations don't collect nulls.
              */
@@ -158,17 +154,6 @@ public class BlockHashRandomizedTests extends ESTestCase {
                 assertMap(keyList, keyMatcher);
             }
         }
-    }
-
-    private BlockHash newBlockHash(int emitBatchSize, List<ElementType> types) {
-        List<HashAggregationOperator.GroupSpec> specs = new ArrayList<>(types.size());
-        for (int c = 0; c < types.size(); c++) {
-            specs.add(new HashAggregationOperator.GroupSpec(c, types.get(c)));
-        }
-        MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
-        return forcePackedHash
-            ? new PackedValuesBlockHash(specs, bigArrays, emitBatchSize)
-            : BlockHash.build(specs, bigArrays, emitBatchSize);
     }
 
     private static class KeyComparator implements Comparator<List<?>> {

@@ -7,8 +7,12 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
@@ -16,6 +20,7 @@ import org.elasticsearch.compute.aggregation.MaxLongGroupingAggregatorFunctionTe
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
@@ -48,6 +53,9 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             sumChannels = maxChannels = List.of(1);
         }
 
+        // TODO pass this stuff into the method
+        PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
+        BlockHash.Factory blockHashFactory = new BlockHash.Factory(bigArrays, recycler, () -> new NoopCircuitBreaker("test"));
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
             List.of(
@@ -55,7 +63,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                 new MaxLongAggregatorFunctionSupplier(bigArrays, maxChannels).groupingAggregatorFactory(mode)
             ),
             randomPageSize(),
-            bigArrays
+            blockHashFactory
         );
     }
 

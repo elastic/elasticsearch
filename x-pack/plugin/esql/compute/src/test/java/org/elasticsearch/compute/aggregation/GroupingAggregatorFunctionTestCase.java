@@ -8,9 +8,13 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -68,11 +72,12 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         if (randomBoolean()) {
             supplier = chunkGroups(emitChunkSize, supplier);
         }
+        // TOOD pass PageCacheRecycler and Breaker too
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
             List.of(supplier.groupingAggregatorFactory(mode)),
             randomPageSize(),
-            bigArrays
+            new BlockHash.Factory(bigArrays, new PageCacheRecycler(Settings.EMPTY), () -> new NoopCircuitBreaker("test"))
         );
     }
 

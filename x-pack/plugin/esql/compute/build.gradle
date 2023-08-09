@@ -14,6 +14,10 @@ tasks.named("compileJava").configure {
   options.compilerArgs.addAll(["-s", "${projectDir}/src/main/generated"])
 }
 
+tasks.named('forbiddenApisMain').configure {
+  failOnMissingClasses = false  // Ignore the vector apis
+}
+
 tasks.named('checkstyleMain').configure {
   source = "src/main/java"
   excludes = [ "**/*.java.st" ]
@@ -395,5 +399,21 @@ tasks.named('stringTemplates').configure {
     it.properties = bytesRefProperties
     it.inputFile =  multivalueDedupeInputFile
     it.outputFile = "org/elasticsearch/compute/operator/MultivalueDedupeBytesRef.java"
+  }
+  File blockHashInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/blockhash/X-BlockHash.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  blockHashInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/blockhash/IntBlockHash.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  blockHashInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/blockhash/LongBlockHash.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  blockHashInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/blockhash/DoubleBlockHash.java"
   }
 }

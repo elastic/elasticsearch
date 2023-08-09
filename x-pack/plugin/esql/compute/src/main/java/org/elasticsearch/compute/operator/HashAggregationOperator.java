@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -36,11 +35,11 @@ public class HashAggregationOperator implements Operator {
         List<GroupSpec> groups,
         List<GroupingAggregator.Factory> aggregators,
         int maxPageSize,
-        BigArrays bigArrays
+        BlockHash.Factory blockHashFactory
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new HashAggregationOperator(aggregators, () -> BlockHash.build(groups, bigArrays, maxPageSize), driverContext);
+            return new HashAggregationOperator(aggregators, () -> blockHashFactory.build(groups, maxPageSize), driverContext);
         }
 
         @Override

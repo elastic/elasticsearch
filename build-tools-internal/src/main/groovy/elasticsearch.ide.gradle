@@ -161,7 +161,9 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
               '--add-opens=java.base/java.nio.file=ALL-UNNAMED',
               '--add-opens=java.base/java.time=ALL-UNNAMED',
               '--add-opens=java.base/java.lang=ALL-UNNAMED',
-              '--add-opens=java.management/java.lang.management=ALL-UNNAMED'
+              '--add-opens=java.management/java.lang.management=ALL-UNNAMED',
+              '--enable-preview',
+              '--add-modules=jdk.incubator.vector'
             ].join(' ')
           }
         }

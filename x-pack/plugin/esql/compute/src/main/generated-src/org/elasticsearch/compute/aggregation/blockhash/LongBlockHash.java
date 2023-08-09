@@ -7,9 +7,10 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -26,10 +27,11 @@ import java.util.BitSet;
 
 /**
  * Maps {@link LongBlock} to group ids.
+ * This class is generated. Edit {@code X-BlockHash.java.st} instead.
  */
 final class LongBlockHash extends BlockHash {
     private final int channel;
-    private final LongHash longHash;
+    private final Ordinator64 ordinator;
 
     /**
      * Have we seen any {@code null} values?
@@ -40,9 +42,11 @@ final class LongBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
-    LongBlockHash(int channel, BigArrays bigArrays) {
+    LongBlockHash(PageCacheRecycler recycler, CircuitBreaker breaker, int channel) {
         this.channel = channel;
-        this.longHash = new LongHash(1, bigArrays);
+        Ordinator64.IdSpace idSpace = new Ordinator64.IdSpace();
+        idSpace.next();  // Reserve 0 for nulls.
+        this.ordinator = new Ordinator64(recycler, breaker, idSpace);
     }
 
     @Override
@@ -58,58 +62,61 @@ final class LongBlockHash extends BlockHash {
 
     private LongVector add(LongVector vector) {
         long[] groups = new long[vector.getPositionCount()];
+        // TODO use the array flavored add
         for (int i = 0; i < vector.getPositionCount(); i++) {
-            groups[i] = hashOrdToGroupNullReserved(longHash.add(vector.getLong(i)));
+            groups[i] = ordinator.add(vector.getLong(i));
         }
         return new LongArrayVector(groups, groups.length);
     }
 
     private LongBlock add(LongBlock block) {
-        MultivalueDedupe.HashResult result = new MultivalueDedupeLong(block).hash(longHash);
+        MultivalueDedupe.HashResult result = new MultivalueDedupeLong(block).hash(ordinator);
         seenNull |= result.sawNull();
         return result.ords();
     }
 
     @Override
     public LongBlock[] getKeys() {
+        // TODO call something like takeKeyOwnership to claim the keys array directly
+
+        // If we've seen null we'll store it in 0
         if (seenNull) {
-            final int size = Math.toIntExact(longHash.size() + 1);
-            final long[] keys = new long[size];
-            for (int i = 1; i < size; i++) {
-                keys[i] = longHash.get(i - 1);
+            long[] keys = new long[ordinator.currentSize() + 1];
+            for (Ordinator64.Itr itr = ordinator.iterator(); itr.next();) {
+                keys[itr.id()] = itr.key();
             }
             BitSet nulls = new BitSet(1);
             nulls.set(0);
             return new LongBlock[] { new LongArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.ASCENDING) };
         }
-
-        final int size = Math.toIntExact(longHash.size());
-        final long[] keys = new long[size];
-        for (int i = 0; i < size; i++) {
-            keys[i] = longHash.get(i);
+        long[] keys = new long[ordinator.currentSize() + (seenNull ? 1 : 0)];
+        for (Ordinator64.Itr itr = ordinator.iterator(); itr.next();) {
+            // We reserved the id 0 for null but didn't see it.
+            keys[itr.id() - 1] = itr.key();
         }
 
-        // TODO call something like takeKeyOwnership to claim the keys array directly
         return new LongBlock[] { new LongArrayVector(keys, keys.length).asBlock() };
     }
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(longHash.size() + 1));
+        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(ordinator.currentSize() + 1));
     }
 
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
-        return new SeenGroupIds.Range(seenNull ? 0 : 1, Math.toIntExact(longHash.size() + 1)).seenGroupIds(bigArrays);
+        return new SeenGroupIds.Range(seenNull ? 0 : 1, Math.toIntExact(ordinator.currentSize() + 1)).seenGroupIds(bigArrays);
     }
 
     @Override
     public void close() {
-        longHash.close();
+        ordinator.close();
     }
 
     @Override
     public String toString() {
-        return "LongBlockHash{channel=" + channel + ", entries=" + longHash.size() + ", seenNull=" + seenNull + '}';
+        return "LongBlockHash{channel=" + channel + ", entries=" + ordinator.currentSize() + ", seenNull=" + seenNull + '}';
     }
+
+    // TODO plumb ordinator.status
 }

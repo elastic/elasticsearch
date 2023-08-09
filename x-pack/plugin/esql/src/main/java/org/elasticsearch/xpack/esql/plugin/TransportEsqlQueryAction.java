@@ -15,7 +15,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -56,7 +58,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ExchangeService exchangeService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        PageCacheRecycler recycler,
+        CircuitBreakerService breakerService
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, ThreadPool.Names.SAME);
@@ -72,7 +76,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             exchangeService,
             enrichLookupService,
             threadPool,
-            bigArrays
+            bigArrays,
+            recycler,
+            breakerService
         );
         this.settings = settings;
     }

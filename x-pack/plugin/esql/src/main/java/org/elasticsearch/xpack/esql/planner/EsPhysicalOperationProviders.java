@@ -173,6 +173,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             attrSource.name(),
             aggregatorFactories,
             context.pageSize(aggregateExec.estimatedRowSize()),
+            context.blockHashFactory(),
             context.bigArrays()
         );
     }

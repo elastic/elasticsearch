@@ -7,13 +7,18 @@
 
 package org.elasticsearch.compute.operator;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.aggregation.blockhash.Ordinator;
+import org.elasticsearch.compute.aggregation.blockhash.Ordinator64;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockTestUtils;
@@ -29,8 +34,10 @@ import org.hamcrest.Matcher;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
@@ -81,13 +88,13 @@ public class MultivalueDedupeTests extends ESTestCase {
     private final int maxDupsPerPosition;
 
     public MultivalueDedupeTests(
-        ElementType elementType,
-        int positionCount,
-        boolean nullAllowed,
-        int minValuesPerPosition,
-        int maxValuesPerPosition,
-        int minDupsPerPosition,
-        int maxDupsPerPosition
+        @Name("elementType") ElementType elementType,
+        @Name("positionCount") int positionCount,
+        @Name("nullAllowed") boolean nullAllowed,
+        @Name("minValuesPerPosition") int minValuesPerPosition,
+        @Name("maxValuesPerPosition") int maxValuesPerPosition,
+        @Name("minDupsPerPosition") int minDupsPerPosition,
+        @Name("maxDupesPerPosition") int maxDupsPerPosition
     ) {
         this.elementType = elementType;
         this.positionCount = positionCount;
@@ -253,14 +260,14 @@ public class MultivalueDedupeTests extends ESTestCase {
             everSeen[2] = true;
         }
         LongBlock hashes = new MultivalueDedupeBoolean((BooleanBlock) b.block()).hash(everSeen);
-        List<Boolean> hashedValues = new ArrayList<>();
+        Map<Integer, Object> hashedValues = new HashMap<>();
         if (everSeen[1]) {
-            hashedValues.add(false);
+            hashedValues.put(1, false);
         }
         if (everSeen[2]) {
-            hashedValues.add(true);
+            hashedValues.put(2, true);
         }
-        assertHash(b, hashes, hashedValues.size(), previousValues, i -> hashedValues.get((int) i));
+        assertHash(b, hashes, previousValues, hashedValues);
     }
 
     private void assertBytesRefHash(Set<BytesRef> previousValues, BasicBlockTests.RandomBlock b) {
@@ -268,66 +275,94 @@ public class MultivalueDedupeTests extends ESTestCase {
         previousValues.stream().forEach(hash::add);
         MultivalueDedupe.HashResult hashes = new MultivalueDedupeBytesRef((BytesRefBlock) b.block()).hash(hash);
         assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
-        assertHash(b, hashes.ords(), hash.size(), previousValues, i -> hash.get(i, new BytesRef()));
+        assertHash(b, hashes.ords(), previousValues, hashedValues(hash));
+    }
+
+    private Map<Integer, Object> hashedValues(BytesRefHash hash) {
+        Map<Integer, Object> result = new HashMap<>();
+        for (int i = 0; i < hash.size(); i++) {
+            result.put(i + 1, hash.get(i, new BytesRef()));
+        }
+        return result;
     }
 
     private void assertIntHash(Set<Integer> previousValues, BasicBlockTests.RandomBlock b) {
-        LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
-        previousValues.stream().forEach(hash::add);
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeInt((IntBlock) b.block()).hash(hash);
+        Ordinator64 ordinator = new Ordinator64(
+            new PageCacheRecycler(Settings.EMPTY),
+            new NoopCircuitBreaker("test"),
+            new Ordinator.IdSpace()
+        );
+        previousValues.stream().forEach(ordinator::add);
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeInt((IntBlock) b.block()).hash(ordinator);
         assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
-        assertHash(b, hashes.ords(), hash.size(), previousValues, i -> (int) hash.get(i));
+        assertHash(b, hashes.ords(), previousValues, hashedValues(ordinator, Math::toIntExact));
     }
 
     private void assertLongHash(Set<Long> previousValues, BasicBlockTests.RandomBlock b) {
-        LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
-        previousValues.stream().forEach(hash::add);
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeLong((LongBlock) b.block()).hash(hash);
+        Ordinator64 ordinator = new Ordinator64(
+            new PageCacheRecycler(Settings.EMPTY),
+            new NoopCircuitBreaker("test"),
+            new Ordinator.IdSpace()
+        );
+        previousValues.stream().forEach(ordinator::add);
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeLong((LongBlock) b.block()).hash(ordinator);
         assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
-        assertHash(b, hashes.ords(), hash.size(), previousValues, i -> hash.get(i));
+        assertHash(b, hashes.ords(), previousValues, hashedValues(ordinator, i -> i));
     }
 
     private void assertDoubleHash(Set<Double> previousValues, BasicBlockTests.RandomBlock b) {
-        LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
-        previousValues.stream().forEach(d -> hash.add(Double.doubleToLongBits(d)));
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeDouble((DoubleBlock) b.block()).hash(hash);
+        Ordinator64 ordinator = new Ordinator64(
+            new PageCacheRecycler(Settings.EMPTY),
+            new NoopCircuitBreaker("test"),
+            new Ordinator.IdSpace()
+        );
+        previousValues.stream().forEach(d -> ordinator.add(Double.doubleToLongBits(d)));
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeDouble((DoubleBlock) b.block()).hash(ordinator);
         assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
-        assertHash(b, hashes.ords(), hash.size(), previousValues, i -> Double.longBitsToDouble(hash.get(i)));
+        assertHash(b, hashes.ords(), previousValues, hashedValues(ordinator, Double::longBitsToDouble));
+    }
+
+    private Map<Integer, Object> hashedValues(Ordinator64 ordinator, LongFunction<Object> key) {
+        Map<Integer, Object> result = new HashMap<>();
+        for (Ordinator64.Itr itr = ordinator.iterator(); itr.next();) {
+            result.put(itr.id(), key.apply(itr.key()));
+        }
+        return result;
     }
 
     private void assertHash(
         BasicBlockTests.RandomBlock b,
-        LongBlock hashes,
-        long hashSize,
+        LongBlock ordinals,
         Set<? extends Object> previousValues,
-        LongFunction<Object> lookup
+        Map<Integer, Object> hashedValues
     ) {
         Set<Object> allValues = new HashSet<>();
         allValues.addAll(previousValues);
         for (int p = 0; p < b.block().getPositionCount(); p++) {
-            assertThat(hashes.isNull(p), equalTo(false));
-            int count = hashes.getValueCount(p);
-            int start = hashes.getFirstValueIndex(p);
+            assertThat(ordinals.isNull(p), equalTo(false));
+            int count = ordinals.getValueCount(p);
+            int start = ordinals.getFirstValueIndex(p);
             List<Object> v = b.values().get(p);
             if (v == null) {
                 assertThat(count, equalTo(1));
-                assertThat(hashes.getLong(start), equalTo(0L));
+                assertThat(ordinals.getLong(start), equalTo(0L));
                 return;
             }
             List<Object> actualValues = new ArrayList<>(count);
             int end = start + count;
             for (int i = start; i < end; i++) {
-                actualValues.add(lookup.apply(hashes.getLong(i) - 1));
+                int id = Math.toIntExact(ordinals.getLong(i));
+                Object key = hashedValues.get(id);
+                if (key == null) {
+                    fail("can't find key for [" + id + "]");
+                }
+                actualValues.add(key);
             }
             assertThat(actualValues, containsInAnyOrder(v.stream().collect(Collectors.toSet()).stream().sorted().toArray()));
             allValues.addAll(v);
         }
 
-        Set<Object> hashedValues = new HashSet<>((int) hashSize);
-        for (long i = 0; i < hashSize; i++) {
-            hashedValues.add(lookup.apply(i));
-        }
-        assertThat(hashedValues, equalTo(allValues));
+        assertThat(new HashSet<>(hashedValues.values()), equalTo(allValues));
     }
 
     private int assertEncodedPosition(BasicBlockTests.RandomBlock b, BatchEncoder encoder, int position, int offset, int valueOffset) {

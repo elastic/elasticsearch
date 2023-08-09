@@ -7,11 +7,13 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -22,6 +24,7 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.core.Releasable;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * A specialized hash table implementation maps values of a {@link Block} to ids (in longs).
@@ -59,42 +62,47 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
     public abstract BitArray seenGroupIds(BigArrays bigArrays);
 
     /**
-     * Creates a specialized hash table that maps one or more {@link Block}s to ids.
-     * @param emitBatchSize maximum batch size to be emitted when handling combinatorial
-     *                      explosion of groups caused by multivalued fields
+     * Builds {@link BlockHash}es.
      */
-    public static BlockHash build(List<HashAggregationOperator.GroupSpec> groups, BigArrays bigArrays, int emitBatchSize) {
-        if (groups.size() == 1) {
-            return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), bigArrays);
+    public record Factory(BigArrays bigArrays, PageCacheRecycler recycler, Supplier<CircuitBreaker> breaker) {
+        /**
+         * Creates a specialized hash table that maps one or more {@link Block}s to ids.
+         * @param emitBatchSize maximum batch size to be emitted when handling combinatorial
+         *                      explosion of groups caused by multivalued fields
+         */
+        public BlockHash build(List<HashAggregationOperator.GroupSpec> groups, int emitBatchSize) {
+            if (groups.size() == 1) {
+                return newForElementType(groups.get(0).channel(), groups.get(0).elementType());
+            }
+            if (groups.size() == 2) {
+                var g1 = groups.get(0);
+                var g2 = groups.get(1);
+                if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.LONG) {
+                    return new LongLongBlockHash(bigArrays, g1.channel(), g2.channel(), emitBatchSize);
+                }
+                if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
+                    return new BytesRefLongBlockHash(bigArrays, g1.channel(), g2.channel(), false, emitBatchSize);
+                }
+                if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
+                    return new BytesRefLongBlockHash(bigArrays, g2.channel(), g1.channel(), true, emitBatchSize);
+                }
+            }
+            return new PackedValuesBlockHash(groups, bigArrays, emitBatchSize);
         }
-        if (groups.size() == 2) {
-            var g1 = groups.get(0);
-            var g2 = groups.get(1);
-            if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.LONG) {
-                return new LongLongBlockHash(bigArrays, g1.channel(), g2.channel(), emitBatchSize);
-            }
-            if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
-                return new BytesRefLongBlockHash(bigArrays, g1.channel(), g2.channel(), false, emitBatchSize);
-            }
-            if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
-                return new BytesRefLongBlockHash(bigArrays, g2.channel(), g1.channel(), true, emitBatchSize);
-            }
-        }
-        return new PackedValuesBlockHash(groups, bigArrays, emitBatchSize);
-    }
 
-    /**
-     * Creates a specialized hash table that maps a {@link Block} of the given input element type to ids.
-     */
-    private static BlockHash newForElementType(int channel, ElementType type, BigArrays bigArrays) {
-        return switch (type) {
-            case BOOLEAN -> new BooleanBlockHash(channel);
-            case INT -> new IntBlockHash(channel, bigArrays);
-            case LONG -> new LongBlockHash(channel, bigArrays);
-            case DOUBLE -> new DoubleBlockHash(channel, bigArrays);
-            case BYTES_REF -> new BytesRefBlockHash(channel, bigArrays);
-            default -> throw new IllegalArgumentException("unsupported grouping element type [" + type + "]");
-        };
+        /**
+         * Creates a specialized hash table that maps a {@link Block} of the given input element type to ids.
+         */
+        private BlockHash newForElementType(int channel, ElementType type) {
+            return switch (type) {
+                case BOOLEAN -> new BooleanBlockHash(channel);
+                case INT -> new IntBlockHash(recycler, breaker.get(), channel);
+                case LONG -> new LongBlockHash(recycler, breaker.get(), channel);
+                case DOUBLE -> new DoubleBlockHash(recycler, breaker.get(), channel);
+                case BYTES_REF -> new BytesRefBlockHash(channel, bigArrays);
+                default -> throw new IllegalArgumentException("unsupported grouping element type [" + type + "]");
+            };
+        }
     }
 
     /**

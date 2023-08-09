@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -82,6 +84,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             aggregatorFactories,
             groupElementType,
             context.bigArrays(),
+            context.recycler(),
+            () -> context.breakerService().getBreaker("test"),
             attrSource.name()
         );
     }
@@ -233,6 +237,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         private List<GroupingAggregator.Factory> aggregators;
         private ElementType groupElementType;
         private BigArrays bigArrays;
+        private PageCacheRecycler recycler;
+        private Supplier<CircuitBreaker> breaker;
         private String columnName;
 
         TestOrdinalsGroupingAggregationOperatorFactory(
@@ -240,12 +246,16 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             List<GroupingAggregator.Factory> aggregatorFactories,
             ElementType groupElementType,
             BigArrays bigArrays,
+            PageCacheRecycler recycler,
+            Supplier<CircuitBreaker> breaker,
             String name
         ) {
             this.groupByChannel = channelIndex;
             this.aggregators = aggregatorFactories;
             this.groupElementType = groupElementType;
             this.bigArrays = bigArrays;
+            this.recycler = recycler;
+            this.breaker = breaker;
             this.columnName = name;
         }
 
@@ -255,9 +265,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             int pageSize = random.nextBoolean() ? randomIntBetween(random, 1, 16) : randomIntBetween(random, 1, 10 * 1024);
             return new TestHashAggregationOperator(
                 aggregators,
-                () -> BlockHash.build(
+                () -> new BlockHash.Factory(bigArrays, recycler, breaker).build(
                     List.of(new HashAggregationOperator.GroupSpec(groupByChannel, groupElementType)),
-                    bigArrays,
                     pageSize
                 ),
                 columnName,

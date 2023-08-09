@@ -13,6 +13,8 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -20,6 +22,8 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.internal.SearchContext;
@@ -324,13 +328,18 @@ public class CsvTests extends ESTestCase {
         var parsed = parser.createStatement(testCase.query);
         var testDataset = testsDataset(parsed);
 
+        PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
+        CircuitBreakerService breakerService = new NoneCircuitBreakerService();
+        BigArrays bigArrays = new BigArrays(recycler, breakerService, "bigarrays");
         String sessionId = "csv-test";
         ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), threadPool.executor(ESQL_THREAD_POOL_NAME));
         ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(between(1, 64), threadPool::relativeTimeInMillis);
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
             sessionId,
             new CancellableTask(1, "transport", "esql", null, TaskId.EMPTY_TASK_ID, Map.of()),
-            BigArrays.NON_RECYCLING_INSTANCE,
+            bigArrays,
+            recycler,
+            breakerService,
             configuration,
             exchangeSource,
             exchangeSink,

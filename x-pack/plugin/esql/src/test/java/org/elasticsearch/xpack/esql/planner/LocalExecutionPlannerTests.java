@@ -19,11 +19,15 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -109,10 +113,14 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private LocalExecutionPlanner planner() throws IOException {
+        PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
+        CircuitBreakerService breakerService = new NoneCircuitBreakerService();
         return new LocalExecutionPlanner(
             "test",
             null,
             BigArrays.NON_RECYCLING_INSTANCE,
+            recycler,
+            breakerService,
             config(),
             null,
             null,

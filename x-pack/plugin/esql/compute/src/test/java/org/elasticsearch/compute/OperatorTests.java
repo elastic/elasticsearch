@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -70,6 +71,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -324,7 +326,10 @@ public class OperatorTests extends ESTestCase {
             }
             writer.commit();
             Map<BytesRef, Long> actualCounts = new HashMap<>();
-            BigArrays bigArrays = bigArrays();
+            PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
+            CircuitBreakerService breakerService = new NoneCircuitBreakerService();
+            BigArrays bigArrays = new MockBigArrays(recycler, breakerService);
+            BlockHash.Factory blockHashFactory = new BlockHash.Factory(bigArrays, recycler, () -> breakerService.getBreaker("test"));
             boolean shuffleDocs = randomBoolean();
             Operator shuffleDocsOperator = new AbstractPageMappingOperator() {
                 @Override
@@ -402,14 +407,14 @@ public class OperatorTests extends ESTestCase {
                             gField,
                             List.of(CountAggregatorFunction.supplier(bigArrays, List.of(1)).groupingAggregatorFactory(INITIAL)),
                             randomPageSize(),
+                            blockHashFactory,
                             bigArrays,
                             driverContext
                         ),
                         new HashAggregationOperator(
                             List.of(CountAggregatorFunction.supplier(bigArrays, List.of(1, 2)).groupingAggregatorFactory(FINAL)),
-                            () -> BlockHash.build(
+                            () -> blockHashFactory.build(
                                 List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)),
-                                bigArrays,
                                 randomPageSize()
                             ),
                             driverContext
@@ -541,13 +546,6 @@ public class OperatorTests extends ESTestCase {
                 };
             }
         };
-    }
-
-    /**
-     * Creates a {@link BigArrays} that tracks releases but doesn't throw circuit breaking exceptions.
-     */
-    private BigArrays bigArrays() {
-        return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
     public static void assertDriverContext(DriverContext driverContext) {

@@ -8,9 +8,8 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.Ordinator64;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -140,7 +139,7 @@ public class MultivalueDedupeDouble {
      * Dedupe values and build a {@link LongBlock} suitable for passing
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-    public MultivalueDedupe.HashResult hash(LongHash hash) {
+    public MultivalueDedupe.HashResult hash(Ordinator64 hash) {
         LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
         boolean sawNull = false;
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -301,14 +300,15 @@ public class MultivalueDedupeDouble {
     /**
      * Writes an already deduplicated {@link #work} to a hash.
      */
-    private void hashUniquedWork(LongHash hash, LongBlock.Builder builder) {
+    private void hashUniquedWork(Ordinator64 ordinator, LongBlock.Builder builder) {
         if (w == 1) {
-            hash(builder, hash, work[0]);
+            hash(builder, ordinator, work[0]);
             return;
         }
         builder.beginPositionEntry();
+        // TODO use array flavored add
         for (int i = 0; i < w; i++) {
-            hash(builder, hash, work[i]);
+            hash(builder, ordinator, work[i]);
         }
         builder.endPositionEntry();
     }
@@ -316,18 +316,18 @@ public class MultivalueDedupeDouble {
     /**
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashSortedWork(LongHash hash, LongBlock.Builder builder) {
+    private void hashSortedWork(Ordinator64 ordinator, LongBlock.Builder builder) {
         if (w == 1) {
-            hash(builder, hash, work[0]);
+            hash(builder, ordinator, work[0]);
             return;
         }
         builder.beginPositionEntry();
         double prev = work[0];
-        hash(builder, hash, prev);
+        hash(builder, ordinator, prev);
         for (int i = 1; i < w; i++) {
             if (prev != work[i]) {
                 prev = work[i];
-                hash(builder, hash, prev);
+                hash(builder, ordinator, prev);
             }
         }
         builder.endPositionEntry();
@@ -361,7 +361,7 @@ public class MultivalueDedupeDouble {
         work = ArrayUtil.grow(work, size);
     }
 
-    private void hash(LongBlock.Builder builder, LongHash hash, double v) {
-        builder.appendLong(BlockHash.hashOrdToGroupNullReserved(hash.add(Double.doubleToLongBits(v))));
+    private void hash(LongBlock.Builder builder, Ordinator64 ordinator, double v) {
+        builder.appendLong(ordinator.add(Double.doubleToLongBits(v)));
     }
 }

@@ -614,7 +614,6 @@ public class RoleDescriptorTests extends ESTestCase {
                 "test_role_with_restriction",
                 XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON),
                 randomBoolean(),
-                randomBoolean(),
                 false
             )
         );
@@ -636,7 +635,6 @@ public class RoleDescriptorTests extends ESTestCase {
         RoleDescriptor role = RoleDescriptor.parse(
             "test_role_with_restriction",
             XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON),
-            randomBoolean(),
             randomBoolean(),
             true
         );
@@ -805,33 +803,6 @@ public class RoleDescriptorTests extends ESTestCase {
             TestMatchers.throwableWithMessage(
                 containsString("failed to parse remote indices privileges for role [test]. missing required [clusters] field")
             )
-        );
-    }
-
-    public void testParseRemoteIndicesPrivilegesFailsWhenUntrustedRemoteClusterEnabledFlagIsFalse() {
-        final String json = """
-            {
-              "remote_indices": [
-                {
-                  "names": [ "idx1", "idx2" ],
-                  "privileges": [ "all" ],
-                  "clusters": ["rmt"]
-                }
-              ]
-            }""";
-        final ElasticsearchParseException epe = expectThrows(
-            ElasticsearchParseException.class,
-            () -> RoleDescriptor.parse(
-                "test",
-                XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON),
-                false,
-                false,
-                false
-            )
-        );
-        assertThat(
-            epe,
-            TestMatchers.throwableWithMessage(containsString("failed to parse role [test]. unexpected field [remote_indices]"))
         );
     }
 

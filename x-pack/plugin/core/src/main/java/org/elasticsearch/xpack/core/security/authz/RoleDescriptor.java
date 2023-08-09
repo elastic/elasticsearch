@@ -452,10 +452,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     public static RoleDescriptor parse(String name, XContentParser parser, boolean allow2xFormat, boolean allowRestriction)
         throws IOException {
-        return parse(name, parser, allow2xFormat, allowRestriction);
-    }
-
-    static RoleDescriptor parse(String name, XContentParser parser, boolean allow2xFormat, boolean allowRestriction) throws IOException {
         // validate name
         Validation.Error validationError = Validation.Roles.validateRoleName(name, true);
         if (validationError != null) {

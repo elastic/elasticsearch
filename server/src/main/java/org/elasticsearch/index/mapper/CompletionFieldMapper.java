@@ -182,7 +182,7 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Parameter<?>[] getParameters() {
+        protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { analyzer, searchAnalyzer, preserveSeparators, preservePosInc, maxInputLength, contexts, meta };
         }
 

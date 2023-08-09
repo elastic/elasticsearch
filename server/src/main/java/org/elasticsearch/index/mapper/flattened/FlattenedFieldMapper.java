@@ -187,7 +187,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Parameter<?>[] getParameters() {
+        protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
                 indexed,
                 hasDocValues,

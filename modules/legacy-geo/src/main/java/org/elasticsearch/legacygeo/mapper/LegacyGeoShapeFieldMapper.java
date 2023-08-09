@@ -253,7 +253,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        public Parameter<?>[] getParameters() {
+        protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
                 indexed,
                 ignoreMalformed,

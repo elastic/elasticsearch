@@ -1201,7 +1201,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         /**
          * @return the list of parameters defined for this mapper
          */
-        public abstract Parameter<?>[] getParameters();
+        protected abstract Parameter<?>[] getParameters();
 
         @Override
         public abstract FieldMapper build(MapperBuilderContext context);

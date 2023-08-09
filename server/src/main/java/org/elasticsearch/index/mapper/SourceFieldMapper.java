@@ -120,7 +120,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Parameter<?>[] getParameters() {
+        protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { enabled, mode, includes, excludes };
         }
 

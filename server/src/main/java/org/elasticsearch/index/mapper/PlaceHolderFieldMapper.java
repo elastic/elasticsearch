@@ -84,7 +84,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Parameter<?>[] getParameters() {
+        protected Parameter<?>[] getParameters() {
             return EMPTY_PARAMETERS;
         }
 

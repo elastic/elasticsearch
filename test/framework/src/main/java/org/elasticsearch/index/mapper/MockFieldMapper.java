@@ -70,7 +70,7 @@ public class MockFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Parameter<?>[] getParameters() {
+        protected Parameter<?>[] getParameters() {
             return FieldMapper.EMPTY_PARAMETERS;
         }
 

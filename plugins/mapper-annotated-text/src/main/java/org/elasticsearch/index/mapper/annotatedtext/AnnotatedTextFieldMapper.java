@@ -100,7 +100,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Parameter<?>[] getParameters() {
+        protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
                 store,
                 indexOptions,

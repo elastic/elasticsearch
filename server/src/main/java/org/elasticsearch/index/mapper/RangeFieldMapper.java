@@ -111,7 +111,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Parameter<?>[] getParameters() {
+        protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { index, hasDocValues, store, coerce, format, locale, meta };
         }
 

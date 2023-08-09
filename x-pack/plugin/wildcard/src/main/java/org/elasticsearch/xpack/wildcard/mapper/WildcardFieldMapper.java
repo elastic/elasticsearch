@@ -220,7 +220,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Parameter<?>[] getParameters() {
+        protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { ignoreAbove, nullValue, meta };
         }
 

@@ -99,7 +99,7 @@ public final class MappingParser {
             }
         } else {
             String rootName = mappingSource.keySet().iterator().next();
-            if (type == null || type.equals(rootName) || documentTypeResolver.apply(type).equals(rootName)) {
+            if (type == null || isRootMappingType(rootName, type)) {
                 type = rootName;
                 mappingSource = (Map<String, Object>) mappingSource.get(rootName);
             }
@@ -176,5 +176,9 @@ public final class MappingParser {
             metadataMappers.values().toArray(new MetadataFieldMapper[0]),
             meta
         );
+    }
+
+    boolean isRootMappingType(String rootName, String type) {
+        return type.equals(rootName) || documentTypeResolver.apply(type).equals(rootName);
     }
 }

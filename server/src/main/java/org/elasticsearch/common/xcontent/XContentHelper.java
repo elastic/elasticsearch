@@ -424,14 +424,25 @@ public class XContentHelper {
      * @param customMerge a custom merge rule to apply whenever a key has concrete values (i.e. not a map or a collection) in both maps
      */
     public static void merge(Map<String, Object> first, Map<String, Object> second, @Nullable CustomMerge customMerge) {
-        merge(first, second, customMerge, null);
+        merge(null, first, second, customMerge);
     }
 
-    private static void merge(
+    /**
+     * Merges the map provided as the second parameter into the content of the first. Only does recursive merge for inner maps.
+     * If a non-null {@link CustomMerge} is provided, it is applied whenever a merge is required, meaning - whenever both the first and
+     * the second map has values for the same key. Otherwise, values from the first map will always have precedence, meaning - if the
+     * first map contains a key, its value will not be overriden.
+     *
+     * @param parent      used for recursion to maintain knowledge about the common parent of the currently merged sub-maps
+     * @param first       the map which serves as the merge base
+     * @param second      the map of which contents are merged into the base map
+     * @param customMerge a custom merge rule to apply whenever a key has concrete values (i.e. not a map or a collection) in both maps
+     */
+    public static void merge(
+        @Nullable String parent,
         Map<String, Object> first,
         Map<String, Object> second,
-        @Nullable CustomMerge customMerge,
-        @Nullable String parent
+        @Nullable CustomMerge customMerge
     ) {
         for (Map.Entry<String, Object> toMergeEntry : second.entrySet()) {
             if (first.containsKey(toMergeEntry.getKey()) == false) {
@@ -442,10 +453,10 @@ public class XContentHelper {
                 Object baseValue = first.get(toMergeEntry.getKey());
                 if (baseValue instanceof Map && toMergeEntry.getValue() instanceof Map) {
                     merge(
+                        toMergeEntry.getKey(),
                         (Map<String, Object>) baseValue,
                         (Map<String, Object>) toMergeEntry.getValue(),
-                        customMerge,
-                        toMergeEntry.getKey()
+                        customMerge
                     );
                 } else if (baseValue instanceof List && toMergeEntry.getValue() instanceof List) {
                     List<Object> listToMerge = (List<Object>) toMergeEntry.getValue();
@@ -463,7 +474,7 @@ public class XContentHelper {
                             Map<String, Object> map = (Map<String, Object>) o;
                             Map.Entry<String, Object> entry = map.entrySet().iterator().next();
                             if (processed.containsKey(entry.getKey())) {
-                                merge(processed.get(entry.getKey()), map, customMerge, toMergeEntry.getKey());
+                                merge(toMergeEntry.getKey(), processed.get(entry.getKey()), map, customMerge);
                             } else {
                                 // append the second list's entries after the first list's entries.
                                 processed.put(entry.getKey(), map);

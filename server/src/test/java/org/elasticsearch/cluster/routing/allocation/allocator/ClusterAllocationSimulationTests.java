@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -45,6 +44,7 @@ import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -120,7 +120,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 metadataBuilder.put(
                     IndexMetadata.builder(indexName)
                         .settings(
-                            indexSettings(Version.CURRENT, shardCount, replicaCount).put(
+                            indexSettings(IndexVersion.current(), shardCount, replicaCount).put(
                                 IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".fake_tier",
                                 tier
                             )

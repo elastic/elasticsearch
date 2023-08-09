@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -244,9 +245,11 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
         return true;
     }
 
-    @Override
-    public CachedBlobContainerIndexInput clone() {
-        return (CachedBlobContainerIndexInput) super.clone();
+    private void ensureContext(Predicate<IOContext> predicate) throws IOException {
+        if (predicate.test(context) == false) {
+            assert false : "this method should not be used with this context " + context;
+            throw new IOException("Cannot read the index input using context [context=" + context + ", input=" + this + ']');
+        }
     }
 
     @Override
@@ -264,7 +267,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
             fileInfo,
             context,
             stats,
-            this.offset + sliceOffset,
+            sliceOffset,
             sliceCompoundFileOffset,
             sliceLength,
             cacheFileReference,

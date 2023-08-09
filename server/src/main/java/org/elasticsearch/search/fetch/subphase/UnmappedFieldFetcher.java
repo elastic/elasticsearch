@@ -8,13 +8,17 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.lookup.Source;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,31 +38,48 @@ public class UnmappedFieldFetcher {
 
     private final CharacterRunAutomaton unmappedFieldsFetchAutomaton;
     private final List<String> unmappedConcreteFields = new ArrayList<>();
-    private final Set<String> mappedFields;
+    private final Set<String> mappedFields = new HashSet<>();
 
-    public static final UnmappedFieldFetcher EMPTY = new UnmappedFieldFetcher(Set.of(), List.of());
+    public static final UnmappedFieldFetcher EMPTY = new UnmappedFieldFetcher(Set.of(), List.of(), List.of());
 
     /**
      * Builds an UnmappedFieldFetcher
      * @param mappedFields              a set of fields to ignore when iterating through the map
      * @param unmappedFetchPatterns     a set of patterns to match unmapped fields in the source against
      */
-    public UnmappedFieldFetcher(Set<String> mappedFields, List<String> unmappedFetchPatterns) {
+    public UnmappedFieldFetcher(Set<String> mappedFields, List<String> nestedChildren, List<String> unmappedFetchPatterns) {
         List<String> unmappedWildcardPatterns = new ArrayList<>();
+        CharacterRunAutomaton nestedChildrenAutomaton = nestedChildrenAutomaton(nestedChildren);
         // We separate the "include_unmapped" field patters with wildcards from the rest in order to use less
         // space in the lookup automaton
         for (String pattern : unmappedFetchPatterns) {
             if (Regex.isSimpleMatchPattern(pattern)) {
                 unmappedWildcardPatterns.add(pattern);
             } else {
-                unmappedConcreteFields.add(pattern);
+                // Exclude any concrete field patterns that would match within a nested
+                // child - these will be handled by UnmappedFieldFetchers living within
+                // the NestedValueFetchers
+                if (nestedChildrenAutomaton.run(pattern) == false) {
+                    unmappedConcreteFields.add(pattern);
+                }
             }
         }
-        this.unmappedFieldsFetchAutomaton = buildAutomaton(unmappedWildcardPatterns);
-        this.mappedFields = mappedFields;
+        this.unmappedFieldsFetchAutomaton = buildUnmappedFieldPatternAutomaton(unmappedWildcardPatterns);
+        this.mappedFields.addAll(mappedFields);
+        this.mappedFields.addAll(nestedChildren);
     }
 
-    private static CharacterRunAutomaton buildAutomaton(List<String> patterns) {
+    // Builds an automaton that will match any field that lives under a nested child mapper
+    private static CharacterRunAutomaton nestedChildrenAutomaton(List<String> nestedChildren) {
+        List<Automaton> automata = new ArrayList<>();
+        for (String child : nestedChildren) {
+            automata.add(Operations.concatenate(Automata.makeString(child + "."), Automata.makeAnyString()));
+        }
+        return new CharacterRunAutomaton(Operations.union(automata));
+    }
+
+    // Builds an automaton that will match any field that conforms to one of the input patterns
+    private static CharacterRunAutomaton buildUnmappedFieldPatternAutomaton(List<String> patterns) {
         if (patterns.isEmpty()) {
             return null;
         }
@@ -123,15 +144,13 @@ public class UnmappedFieldFetcher {
         }
 
         // lookup concrete fields
-        if (this.unmappedConcreteFields != null) {
-            for (String path : unmappedConcreteFields) {
-                if (this.mappedFields.contains(path)) {
-                    continue; // this is actually a mapped field
-                }
-                List<Object> values = XContentMapValues.extractRawValues(path, source);
-                if (values.isEmpty() == false) {
-                    documentFields.put(path, new DocumentField(path, values));
-                }
+        for (String path : unmappedConcreteFields) {
+            if (this.mappedFields.contains(parentPath + path)) {
+                continue; // this is actually a mapped field
+            }
+            List<Object> values = XContentMapValues.extractRawValues(path, source);
+            if (values.isEmpty() == false) {
+                documentFields.put(path, new DocumentField(path, values));
             }
         }
     }

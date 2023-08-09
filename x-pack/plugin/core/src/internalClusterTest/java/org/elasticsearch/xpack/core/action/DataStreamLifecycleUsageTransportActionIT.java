@@ -68,7 +68,6 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97924")
     @SuppressWarnings("unchecked")
     public void testAction() throws Exception {
         assertUsageResults(0, 0, 0, 0.0, true);
@@ -91,19 +90,24 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
             Map<String, DataStream> dataStreamMap = new HashMap<>();
             for (int dataStreamCount = 0; dataStreamCount < randomInt(200); dataStreamCount++) {
                 boolean hasLifecycle = randomBoolean();
-                long retentionMillis;
+                DataStreamLifecycle lifecycle;
                 if (hasLifecycle) {
-                    retentionMillis = randomLongBetween(1000, 100000);
-                    count.incrementAndGet();
-                    totalRetentionTimes.addAndGet(retentionMillis);
-                    if (retentionMillis < minRetention.get()) {
-                        minRetention.set(retentionMillis);
-                    }
-                    if (retentionMillis > maxRetention.get()) {
-                        maxRetention.set(retentionMillis);
+                    if (randomBoolean()) {
+                        lifecycle = new DataStreamLifecycle(null, null);
+                    } else {
+                        long retentionMillis = randomLongBetween(1000, 100000);
+                        count.incrementAndGet();
+                        totalRetentionTimes.addAndGet(retentionMillis);
+                        if (retentionMillis < minRetention.get()) {
+                            minRetention.set(retentionMillis);
+                        }
+                        if (retentionMillis > maxRetention.get()) {
+                            maxRetention.set(retentionMillis);
+                        }
+                        lifecycle = DataStreamLifecycle.newBuilder().dataRetention(retentionMillis).build();
                     }
                 } else {
-                    retentionMillis = 0;
+                    lifecycle = null;
                 }
                 List<Index> indices = new ArrayList<>();
                 for (int indicesCount = 0; indicesCount < randomIntBetween(1, 10); indicesCount++) {
@@ -121,7 +125,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                     systemDataStream,
                     randomBoolean(),
                     IndexMode.STANDARD,
-                    hasLifecycle ? DataStreamLifecycle.newBuilder().dataRetention(retentionMillis).build() : null
+                    lifecycle
                 );
                 dataStreamMap.put(dataStream.getName(), dataStream);
             }

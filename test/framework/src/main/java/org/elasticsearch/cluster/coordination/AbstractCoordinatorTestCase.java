@@ -1074,7 +1074,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 );
                 masterService = new AckedFakeThreadPoolMasterService(
                     localNode.getId(),
-                    "test",
                     threadPool,
                     runnable -> deterministicTaskQueue.scheduleNow(onNode(runnable))
                 );
@@ -1722,12 +1721,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         AckCollector nextAckCollector = new AckCollector();
         boolean publicationMayFail = false;
 
-        AckedFakeThreadPoolMasterService(
-            String nodeName,
-            String serviceName,
-            ThreadPool threadPool,
-            Consumer<Runnable> onTaskAvailableToRun
-        ) {
+        AckedFakeThreadPoolMasterService(String nodeName, ThreadPool threadPool, Consumer<Runnable> onTaskAvailableToRun) {
             super(nodeName, threadPool, onTaskAvailableToRun);
         }
 

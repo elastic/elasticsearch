@@ -22,6 +22,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -176,7 +177,7 @@ public final class TransformNodes {
                     appropriateNode.get(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, reader)
+                    new ActionListenerResponseHandler<>(listener, reader, TransportResponseHandler.TRANSPORT_WORKER)
                 );
             } else {
                 Map<String, String> explain = new TreeMap<>();

@@ -23,7 +23,17 @@ import java.util.jar.Manifest;
 /**
  * Information about a build of Elasticsearch.
  */
-public record Build(String flavor, Type type, String hash, String date, boolean isSnapshot, String version) {
+public record Build(
+    String flavor,
+    Type type,
+    String hash,
+    String date,
+    boolean isSnapshot,
+    String version,
+    String minWireCompatVersion,
+    String minIndexCompatVersion,
+    String displayString
+) {
 
     private static class CurrentHolder {
         private static final Build CURRENT = findCurrent();
@@ -103,7 +113,12 @@ public record Build(String flavor, Type type, String hash, String date, boolean 
             );
         }
 
-        return new Build("default", type, hash, date, isSnapshot, version);
+        final String flavor = "default";
+        String minWireCompat = Version.CURRENT.minimumCompatibilityVersion().toString();
+        String minIndexCompat = Version.CURRENT.minimumIndexCompatibilityVersion().toString();
+        String displayString = defaultDisplayString(type, hash, date, version);
+
+        return new Build(flavor, type, hash, date, isSnapshot, version, minWireCompat, minIndexCompat, displayString);
     }
 
     public static Build current() {
@@ -176,8 +191,22 @@ public record Build(String flavor, Type type, String hash, String date, boolean 
         String date = in.readString();
         boolean snapshot = in.readBoolean();
         final String version = in.readString();
-
-        return new Build(flavor, type, hash, date, snapshot, version);
+        final String minWireVersion;
+        final String minIndexVersion;
+        final String displayString;
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_041)) {
+            minWireVersion = in.readString();
+            minIndexVersion = in.readString();
+            displayString = in.readString();
+        } else {
+            // the version is qualified, so we may need to strip off -SNAPSHOT or -alpha, etc. Here we simply find the first dash
+            int dashNdx = version.indexOf('-');
+            var versionConstant = Version.fromString(dashNdx == -1 ? version : version.substring(0, dashNdx));
+            minWireVersion = versionConstant.minimumCompatibilityVersion().toString();
+            minIndexVersion = versionConstant.minimumIndexCompatibilityVersion().toString();
+            displayString = defaultDisplayString(type, hash, date, version);
+        }
+        return new Build(flavor, type, hash, date, snapshot, version, minWireVersion, minIndexVersion, displayString);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
@@ -190,6 +219,11 @@ public record Build(String flavor, Type type, String hash, String date, boolean 
         out.writeString(build.date());
         out.writeBoolean(build.isSnapshot());
         out.writeString(build.qualifiedVersion());
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_041)) {
+            out.writeString(build.minWireCompatVersion());
+            out.writeString(build.minIndexCompatVersion());
+            out.writeString(build.displayString());
+        }
     }
 
     /**
@@ -205,17 +239,16 @@ public record Build(String flavor, Type type, String hash, String date, boolean 
         return version;
     }
 
-    /**
-     * Provides information about the intent of the build
-     *
-     * @return true if the build is intended for production use
-     */
     public boolean isProductionRelease() {
-        return version.matches("[0-9]+\\.[0-9]+\\.[0-9]+");
+        return isSnapshot() == false && version.matches(".*(-alpha\\d+)|(-beta\\d+)|(-rc\\d+)") == false;
+    }
+
+    public static String defaultDisplayString(Type type, String hash, String date, String version) {
+        return "[" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
     }
 
     @Override
     public String toString() {
-        return "[" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
+        return displayString();
     }
 }

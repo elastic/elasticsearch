@@ -33,7 +33,6 @@ public class SmokeTestMultiNodeClientYamlTestSuiteIT extends ESClientYamlSuiteTe
         .node(0, n -> n.setting("node.roles", "[master,data,ml,remote_cluster_client,transform]"))
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.DATA_STREAM_LIFECYCLE_ENABLED)
-        .feature(FeatureFlag.SYNONYMS_ENABLED)
         .build();
 
     public SmokeTestMultiNodeClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

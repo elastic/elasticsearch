@@ -137,29 +137,29 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "similarity",
                 false,
                 m -> toType(m).similarity,
-                (Supplier<VectorSimilarity>) () -> indexed.getValue() ? VectorSimilarity.COSINE : null,
+                (Supplier<VectorSimilarity>) () -> indexedByDefault && indexed.getValue() ? VectorSimilarity.COSINE : null,
                 VectorSimilarity.class
             ).acceptsNull().setSerializerCheck((id, ic, v) -> v != null);
-            if (indexedByDefault) {
-                this.indexed.addValidator(v -> {
-                    if (v == false) {
-                        if (similarity.isConfigured()) {
-                            throw new IllegalArgumentException(
-                                "Field [similarity] can only be specified for a field of type [dense_vector] when it is indexed"
-                            );
-                        }
-                        if (indexOptions.isConfigured()) {
-                            throw new IllegalArgumentException(
-                                "Field [index_options] can only be specified for a field of type [dense_vector] when it is indexed"
-                            );
-                        }
+            this.indexed.addValidator(v -> {
+                if (v) {
+                    if (similarity.getValue() == null) {
+                        throw new IllegalArgumentException(
+                            "Field [index] requires field [similarity] to be configured"
+                        );
                     }
-                });
-            } else {
-                this.similarity.requiresParameter(indexed);
-                this.indexed.requiresParameter(similarity);
-                this.indexOptions.requiresParameter(indexed);
-            }
+                } else {
+                    if (similarity.isConfigured()) {
+                        throw new IllegalArgumentException(
+                            "Field [similarity] can only be specified for a field of type [dense_vector] when it is indexed"
+                        );
+                    }
+                    if (indexOptions.isConfigured()) {
+                        throw new IllegalArgumentException(
+                            "Field [index_options] can only be specified for a field of type [dense_vector] when it is indexed"
+                        );
+                    }
+                }
+            });
         }
 
         @Override

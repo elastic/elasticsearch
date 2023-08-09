@@ -972,6 +972,26 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             String name,
             boolean updateable,
             Function<FieldMapper, T> initializer,
+            T defaultValue,
+            Class<T> enumClass
+        ) {
+            Set<T> acceptedValues = EnumSet.allOf(enumClass);
+            return restrictedEnumParam(name, updateable, initializer, defaultValue, enumClass, acceptedValues);
+        }
+
+        /**
+         * Defines a parameter that takes any of the values of an enumeration.
+         *
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  a supplier for the default value, to be used if the parameter is undefined in a mapping
+         * @param enumClass     the enumeration class the parameter takes values from
+         */
+        public static <T extends Enum<T>> Parameter<T> enumParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, T> initializer,
             Supplier<T> defaultValue,
             Class<T> enumClass
         ) {
@@ -986,6 +1006,27 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * @param updateable      whether the parameter can be changed by a mapping update
          * @param initializer     a function that reads the parameter value from an existing mapper
          * @param defaultValue    the default value, to be used if the parameter is undefined in a mapping
+         * @param enumClass       the enumeration class the parameter takes values from
+         * @param acceptedValues  the set of values that the parameter can take
+         */
+        public static <T extends Enum<T>> Parameter<T> restrictedEnumParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, T> initializer,
+            T defaultValue,
+            Class<T> enumClass,
+            Set<T> acceptedValues
+        ) {
+            return restrictedEnumParam(name, updateable, initializer, (Supplier<T>) () -> defaultValue, enumClass, acceptedValues);
+        }
+
+        /**
+         * Defines a parameter that takes one of a restricted set of values from an enumeration.
+         *
+         * @param name            the parameter name
+         * @param updateable      whether the parameter can be changed by a mapping update
+         * @param initializer     a function that reads the parameter value from an existing mapper
+         * @param defaultValue    a supplier for the default value, to be used if the parameter is undefined in a mapping
          * @param enumClass       the enumeration class the parameter takes values from
          * @param acceptedValues  the set of values that the parameter can take
          */
@@ -1127,7 +1168,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Function<FieldMapper, OnScriptError> initializer,
             Parameter<Script> dependentScriptParam
         ) {
-            return Parameter.enumParam("on_script_error", true, initializer, () -> OnScriptError.FAIL, OnScriptError.class)
+            return Parameter.enumParam("on_script_error", true, initializer, OnScriptError.FAIL, OnScriptError.class)
                 .requiresParameter(dependentScriptParam);
         }
     }

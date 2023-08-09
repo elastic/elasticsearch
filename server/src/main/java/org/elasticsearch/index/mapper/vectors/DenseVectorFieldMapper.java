@@ -137,10 +137,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "similarity",
                 false,
                 m -> toType(m).similarity,
-                () -> indexed.getValue() ? VectorSimilarity.COSINE : null,
+                (Supplier<VectorSimilarity>) () -> indexed.getValue() ? VectorSimilarity.COSINE : null,
                 VectorSimilarity.class
-            ).acceptsNull()
-            .setSerializerCheck((id, ic, v) -> v != null);
+            ).acceptsNull().setSerializerCheck((id, ic, v) -> v != null);
             this.indexed.addValidator(v -> {
                 if (v == false) {
                     if (similarity.isConfigured()) {

@@ -34,7 +34,7 @@ public interface ClusterHandle extends Closeable {
      * Stops the node at a given index.
      * @param index of the node to stop
      */
-    void stopNode(int index, boolean forcibly);
+    void stopNode(int index);
 
     /**
      * Restarts the cluster. Effectively the same as calling {@link #stop(boolean)} followed by {@link #start()}

@@ -76,7 +76,7 @@ public class LocalClusterHandle implements ClusterHandle {
     public void stop(boolean forcibly) {
         if (started.getAndSet(false)) {
             LOGGER.info("Stopping Elasticsearch test cluster '{}', forcibly: {}", name, forcibly);
-            execute(() -> nodes.parallelStream().forEach(n -> stopNode(nodes.indexOf(n), forcibly)));
+            execute(() -> nodes.parallelStream().forEach(n -> n.stop(forcibly)));
         } else {
             // Make sure the process is stopped, otherwise wait
             execute(() -> nodes.parallelStream().forEach(Node::waitForExit));
@@ -167,7 +167,7 @@ public class LocalClusterHandle implements ClusterHandle {
         return nodes.get(index).getPid();
     }
 
-    public void stopNode(int index, boolean forcibly) {
+    public void stopNode(int index) {
         nodes.get(index).stop(false);
     }
 

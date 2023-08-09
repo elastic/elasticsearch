@@ -323,7 +323,7 @@ tasks.named("thirdPartyAudit").configure {
         'org.bouncycastle.crypto.Digest',
         'org.bouncycastle.crypto.PBEParametersGenerator',
         'org.bouncycastle.crypto.StreamCipher',
-        // 'org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator',
+        'org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator',
         // 'org.bouncycastle.crypto.ec.CustomNamedCurves',
         'org.bouncycastle.crypto.engines.AESEngine',
         'org.bouncycastle.crypto.generators.BCrypt',

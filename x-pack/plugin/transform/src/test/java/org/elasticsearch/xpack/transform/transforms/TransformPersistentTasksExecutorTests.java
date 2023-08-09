@@ -136,7 +136,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 "Not starting transform [new-task-id], reasons ["
                     + "current-data-node-with-transform-disabled:not a transform node"
                     + "|"
-                    + "past-data-node-1:node has version: 7.7.0 but transform requires at least 8.0.0"
+                    + "past-data-node-1:node supports transform config version: 7.7.0 but transform requires at least 8.0.0"
                     + "]"
             )
         );

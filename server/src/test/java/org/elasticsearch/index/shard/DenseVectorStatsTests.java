@@ -10,6 +10,7 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<DenseVectorStats> {
     @Override
@@ -25,6 +26,6 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
 
     @Override
     protected DenseVectorStats mutateInstance(DenseVectorStats instance) {
-        return new DenseVectorStats(randomNonNegativeLong());
+        return new DenseVectorStats(randomValueOtherThan(instance.getValueCount(), ESTestCase::randomNonNegativeLong));
     }
 }

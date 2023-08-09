@@ -16,6 +16,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
@@ -58,7 +59,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
         GetRollupIndexCapsAction.Request request,
         ActionListener<GetRollupIndexCapsAction.Response> listener
     ) {
-
+        Transports.assertNotTransportThread("retrieving rollup job index caps may be expensive");
         String[] indices = resolver.concreteIndexNames(clusterService.state(), request.indicesOptions(), request);
         Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(
             Arrays.asList(indices),
@@ -69,7 +70,6 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
 
     static Map<String, RollableIndexCaps> getCapsByRollupIndex(List<String> resolvedIndexNames, Map<String, IndexMetadata> indices) {
         Map<String, List<RollupJobCaps>> allCaps = new TreeMap<>();
-
         indices.entrySet().stream().filter(entry -> resolvedIndexNames.contains(entry.getKey())).forEach(entry -> {
             // Does this index have rollup metadata?
             TransportGetRollupCapsAction.findRollupIndexCaps(entry.getKey(), entry.getValue()).ifPresent(cap -> {

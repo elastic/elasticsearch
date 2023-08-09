@@ -975,8 +975,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             T defaultValue,
             Class<T> enumClass
         ) {
-            Set<T> acceptedValues = EnumSet.allOf(enumClass);
-            return restrictedEnumParam(name, updateable, initializer, defaultValue, enumClass, acceptedValues);
+            return enumParam(name, updateable, initializer, (Supplier<T>) () -> defaultValue, enumClass);
         }
 
         /**

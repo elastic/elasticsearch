@@ -258,7 +258,7 @@ class MlMemoryAutoscalingDecider {
                 }
                 // We should keep this check here as well as in the processor decider while cloud is not
                 // reacting to processor autoscaling.
-                if (modelAssignmentsRequireMoreThanHalfCpu(mlContext.modelAssignments.values(), mlContext.mlNodes)) {
+                if (modelAssignmentsRequireMoreThanHalfCpu(mlContext.modelAssignments.values(), mlContext.mlNodes, configuration)) {
                     logger.debug("not down-scaling; model assignments require more than half of the ML tier's allocated processors");
                     return null;
                 }
@@ -815,11 +815,15 @@ class MlMemoryAutoscalingDecider {
         return newCapacity;
     }
 
-    static boolean modelAssignmentsRequireMoreThanHalfCpu(Collection<TrainedModelAssignment> assignments, List<DiscoveryNode> mlNodes) {
+    static boolean modelAssignmentsRequireMoreThanHalfCpu(
+        Collection<TrainedModelAssignment> assignments,
+        List<DiscoveryNode> mlNodes,
+        Settings settings
+    ) {
         int totalRequiredProcessors = assignments.stream()
             .mapToInt(t -> t.getTaskParams().getNumberOfAllocations() * t.getTaskParams().getThreadsPerAllocation())
             .sum();
-        int totalMlProcessors = mlNodes.stream().mapToInt(node -> MlProcessors.get(node).roundUp()).sum();
+        int totalMlProcessors = mlNodes.stream().mapToInt(node -> MlProcessors.get(node, settings).roundUp()).sum();
         return totalRequiredProcessors * 2 > totalMlProcessors;
     }
 

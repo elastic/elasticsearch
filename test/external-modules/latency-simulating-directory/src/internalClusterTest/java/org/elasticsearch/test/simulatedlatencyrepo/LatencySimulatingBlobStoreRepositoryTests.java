@@ -10,7 +10,6 @@ package org.elasticsearch.test.simulatedlatencyrepo;
 
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -23,14 +22,13 @@ import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
-import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +38,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class LatencySimulatingBlobStoreRepositoryTests extends ESSingleNodeTestCase {
+public class LatencySimulatingBlobStoreRepositoryTests extends AbstractSnapshotIntegTestCase {
 
     public static final String REPO_TYPE = "countingFs";
 
@@ -72,30 +70,27 @@ public class LatencySimulatingBlobStoreRepositoryTests extends ESSingleNodeTestC
     }
 
     @Override
-    protected Settings nodeSettings() {
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(TestPlugin.class);
+        plugins.add(LocalStateSearchableSnapshots.class);
+        return plugins;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder();
+        builder.put(otherSettings);
         builder.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         return builder.build();
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(TestPlugin.class, LocalStateSearchableSnapshots.class);
-    }
-
     public void testRetrieveSnapshots() throws Exception {
         final Client client = client();
-        final Path location = ESIntegTestCase.randomRepoPath(node().settings());
         final String repositoryName = "test-repo";
 
         logger.info("-->  creating repository");
-        AcknowledgedResponse putRepositoryResponse = client.admin()
-            .cluster()
-            .preparePutRepository(repositoryName)
-            .setType(REPO_TYPE)
-            .setSettings(Settings.builder().put(node().settings()).put("location", location))
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        createRepository(repositoryName, REPO_TYPE, Settings.builder().put("location", randomRepoPath()));
 
         logger.info("--> creating an index and indexing documents");
         final String indexName = "test-idx";
@@ -139,6 +134,6 @@ public class LatencySimulatingBlobStoreRepositoryTests extends ESSingleNodeTestC
         var searchResponse = client.prepareSearch("test-idx").setQuery(QueryBuilders.termQuery("text", "sometext")).get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
-        assertThat(COUNTS.intValue(), greaterThan(COUNTS.intValue()));
+        assertThat(COUNTS.intValue(), greaterThan(0));
     }
 }

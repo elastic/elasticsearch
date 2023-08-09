@@ -17,16 +17,14 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
 
-class LatencySimulatingBlobStoreRepository extends BlobStoreRepository {
+class LatencySimulatingBlobStoreRepository extends FsRepository {
 
-    private final FsRepository fsRepository;
     private final Runnable simulator;
 
     protected LatencySimulatingBlobStoreRepository(
@@ -38,20 +36,13 @@ class LatencySimulatingBlobStoreRepository extends BlobStoreRepository {
         RecoverySettings recoverySettings,
         Runnable simulator
     ) {
-        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
-        this.fsRepository = new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
-        this.fsRepository.start();
+        super(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         this.simulator = simulator;
     }
 
     @Override
-    protected void doStop() {
-        this.fsRepository.stop();
-    }
-
-    @Override
-    protected BlobStore createBlobStore() {
-        BlobStore fsBlobStore = this.fsRepository.blobStore();
+    protected BlobStore createBlobStore() throws Exception {
+        BlobStore fsBlobStore = super.createBlobStore();
         return new BlobStore() {
             @Override
             public BlobContainer blobContainer(BlobPath path) {

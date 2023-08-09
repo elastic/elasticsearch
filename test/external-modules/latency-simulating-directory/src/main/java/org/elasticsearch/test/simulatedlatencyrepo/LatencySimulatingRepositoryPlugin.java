@@ -59,7 +59,7 @@ public class LatencySimulatingRepositoryPlugin extends Plugin implements Reposit
             try {
                 Thread.sleep(sleepyTime);
             } catch (InterruptedException e) {
-                // ignore
+                throw new AssertionError("BlobRepository read interrupted!");
             }
         };
     }

@@ -8,47 +8,36 @@
 
 package org.elasticsearch.test.simulatedlatencyrepo;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 
-import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class LatencySimulatingRespositoryPluginTests extends ESSingleNodeTestCase {
+public class LatencySimulatingRespositoryPluginTests extends AbstractSnapshotIntegTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(LatencySimulatingRepositoryPlugin.class);
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(LatencySimulatingRepositoryPlugin.class);
+        return plugins;
     }
 
     public void testRepositoryCanBeConfigured() {
-        // put repository with type 'latency-simulating`
-        // index, snapshot and restore
-        final Client client = client();
-        final Path location = ESIntegTestCase.randomRepoPath(node().settings());
+        String dataNode = internalCluster().startDataOnlyNode();
         final String repositoryName = "test-repo";
 
-        final Settings repoSettings = Settings.builder().put("location", location).put("latency", 150).build();
-
         logger.info("-->  creating repository");
-        AcknowledgedResponse putRepositoryResponse = client.admin()
-            .cluster()
-            .preparePutRepository(repositoryName)
-            .setType(LatencySimulatingRepositoryPlugin.TYPE)
-            .setSettings(repoSettings)
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        createRepository(repositoryName, "latency-simulating", Settings.builder().put("location", randomRepoPath()).put("latency", 150));
 
-        RepositoriesService rs = node().injector().getInstance(RepositoriesService.class);
-        assertThat(rs.repository(repositoryName), instanceOf(LatencySimulatingBlobStoreRepository.class));
+        Repository repo = getRepositoryOnNode(repositoryName, dataNode);
+        assertThat(repo, instanceOf(LatencySimulatingBlobStoreRepository.class));
+
+        disableRepoConsistencyCheck("This test checks an empty repository");
     }
 }

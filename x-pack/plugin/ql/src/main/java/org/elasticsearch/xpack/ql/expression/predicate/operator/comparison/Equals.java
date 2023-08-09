@@ -17,31 +17,35 @@ import java.time.ZoneId;
 public class Equals extends BinaryComparison implements Negatable<BinaryComparison> {
 
     public Equals(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryComparisonOperation.EQ, null);
+        this(source, left, right, null, false);
     }
 
     public Equals(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOperation.EQ, zoneId);
+        this(source, left, right, zoneId, false);
+    }
+
+    public Equals(Source source, Expression left, Expression right, ZoneId zoneId, boolean allowTextType) {
+        super(source, left, right, BinaryComparisonOperation.EQ, zoneId, allowTextType);
     }
 
     @Override
     protected NodeInfo<Equals> info() {
-        return NodeInfo.create(this, Equals::new, left(), right(), zoneId());
+        return NodeInfo.create(this, Equals::new, left(), right(), zoneId(), supportText());
     }
 
     @Override
     protected Equals replaceChildren(Expression newLeft, Expression newRight) {
-        return new Equals(source(), newLeft, newRight, zoneId());
+        return new Equals(source(), newLeft, newRight, zoneId(), supportText());
     }
 
     @Override
     public Equals swapLeftAndRight() {
-        return new Equals(source(), right(), left(), zoneId());
+        return new Equals(source(), right(), left(), zoneId(), supportText());
     }
 
     @Override
     public BinaryComparison negate() {
-        return new NotEquals(source(), left(), right(), zoneId());
+        return new NotEquals(source(), left(), right(), zoneId(), supportText());
     }
 
     @Override

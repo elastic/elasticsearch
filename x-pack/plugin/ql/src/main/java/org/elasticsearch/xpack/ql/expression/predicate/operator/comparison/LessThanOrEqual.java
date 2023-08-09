@@ -17,31 +17,35 @@ import java.time.ZoneId;
 public class LessThanOrEqual extends BinaryComparison implements Negatable<BinaryComparison> {
 
     public LessThanOrEqual(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOperation.LTE, zoneId);
+        this(source, left, right, zoneId, false);
+    }
+
+    public LessThanOrEqual(Source source, Expression left, Expression right, ZoneId zoneId, boolean allowTextType) {
+        super(source, left, right, BinaryComparisonOperation.LTE, zoneId, allowTextType);
     }
 
     @Override
     protected NodeInfo<LessThanOrEqual> info() {
-        return NodeInfo.create(this, LessThanOrEqual::new, left(), right(), zoneId());
+        return NodeInfo.create(this, LessThanOrEqual::new, left(), right(), zoneId(), supportText());
     }
 
     @Override
     protected LessThanOrEqual replaceChildren(Expression newLeft, Expression newRight) {
-        return new LessThanOrEqual(source(), newLeft, newRight, zoneId());
+        return new LessThanOrEqual(source(), newLeft, newRight, zoneId(), supportText());
     }
 
     @Override
     public GreaterThanOrEqual swapLeftAndRight() {
-        return new GreaterThanOrEqual(source(), right(), left(), zoneId());
+        return new GreaterThanOrEqual(source(), right(), left(), zoneId(), supportText());
     }
 
     @Override
     public GreaterThan negate() {
-        return new GreaterThan(source(), left(), right(), zoneId());
+        return new GreaterThan(source(), left(), right(), zoneId(), supportText());
     }
 
     @Override
     public BinaryComparison reverse() {
-        return new GreaterThanOrEqual(source(), left(), right(), zoneId());
+        return new GreaterThanOrEqual(source(), left(), right(), zoneId(), supportText());
     }
 }

@@ -20,6 +20,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -27,11 +28,17 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
 
     private final T pattern;
     private final boolean caseInsensitive;
+    private final boolean supportText;
 
     protected RegexMatch(Source source, Expression value, T pattern, boolean caseInsensitive) {
+        this(source, value, pattern, caseInsensitive, false);
+    }
+
+    protected RegexMatch(Source source, Expression value, T pattern, boolean caseInsensitive, boolean supportText) {
         super(source, value);
         this.pattern = pattern;
         this.caseInsensitive = caseInsensitive;
+        this.supportText = supportText;
     }
 
     public T pattern() {
@@ -55,9 +62,13 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
         return field().nullable();
     }
 
+    public boolean supportText() {
+        return supportText;
+    }
+
     @Override
     protected TypeResolution resolveType() {
-        return isStringAndExact(field(), sourceText(), DEFAULT);
+        return supportText ? isString(field(), sourceText(), DEFAULT) : isStringAndExact(field(), sourceText(), DEFAULT);
     }
 
     @Override

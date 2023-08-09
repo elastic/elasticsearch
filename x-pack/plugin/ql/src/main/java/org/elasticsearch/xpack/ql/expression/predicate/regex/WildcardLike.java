@@ -13,21 +13,25 @@ import org.elasticsearch.xpack.ql.tree.Source;
 public class WildcardLike extends RegexMatch<WildcardPattern> {
 
     public WildcardLike(Source source, Expression left, WildcardPattern pattern) {
-        this(source, left, pattern, false);
+        this(source, left, pattern, false, false);
     }
 
     public WildcardLike(Source source, Expression left, WildcardPattern pattern, boolean caseInsensitive) {
-        super(source, left, pattern, caseInsensitive);
+        this(source, left, pattern, caseInsensitive, false);
+    }
+
+    public WildcardLike(Source source, Expression left, WildcardPattern pattern, boolean caseInsensitive, boolean supportText) {
+        super(source, left, pattern, caseInsensitive, supportText);
     }
 
     @Override
     protected NodeInfo<WildcardLike> info() {
-        return NodeInfo.create(this, WildcardLike::new, field(), pattern(), caseInsensitive());
+        return NodeInfo.create(this, WildcardLike::new, field(), pattern(), caseInsensitive(), supportText());
     }
 
     @Override
     protected WildcardLike replaceChild(Expression newLeft) {
-        return new WildcardLike(source(), newLeft, pattern(), caseInsensitive());
+        return new WildcardLike(source(), newLeft, pattern(), caseInsensitive(), supportText());
     }
 
 }

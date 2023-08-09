@@ -20,22 +20,26 @@ import java.time.ZoneId;
 public class NullEquals extends BinaryComparison {
 
     public NullEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOperation.NULLEQ, zoneId);
+        this(source, left, right, zoneId, false);
+    }
+
+    public NullEquals(Source source, Expression left, Expression right, ZoneId zoneId, boolean allowTextType) {
+        super(source, left, right, BinaryComparisonOperation.NULLEQ, zoneId, allowTextType);
     }
 
     @Override
     protected NodeInfo<NullEquals> info() {
-        return NodeInfo.create(this, NullEquals::new, left(), right(), zoneId());
+        return NodeInfo.create(this, NullEquals::new, left(), right(), zoneId(), supportText());
     }
 
     @Override
     protected NullEquals replaceChildren(Expression newLeft, Expression newRight) {
-        return new NullEquals(source(), newLeft, newRight, zoneId());
+        return new NullEquals(source(), newLeft, newRight, zoneId(), supportText());
     }
 
     @Override
     public NullEquals swapLeftAndRight() {
-        return new NullEquals(source(), right(), left(), zoneId());
+        return new NullEquals(source(), right(), left(), zoneId(), supportText());
     }
 
     @Override

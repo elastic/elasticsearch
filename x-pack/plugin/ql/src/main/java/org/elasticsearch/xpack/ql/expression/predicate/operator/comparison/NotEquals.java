@@ -17,27 +17,31 @@ import java.time.ZoneId;
 public class NotEquals extends BinaryComparison implements Negatable<BinaryComparison> {
 
     public NotEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOperation.NEQ, zoneId);
+        this(source, left, right, zoneId, false);
+    }
+
+    public NotEquals(Source source, Expression left, Expression right, ZoneId zoneId, boolean allowTextType) {
+        super(source, left, right, BinaryComparisonOperation.NEQ, zoneId, allowTextType);
     }
 
     @Override
     protected NodeInfo<NotEquals> info() {
-        return NodeInfo.create(this, NotEquals::new, left(), right(), zoneId());
+        return NodeInfo.create(this, NotEquals::new, left(), right(), zoneId(), supportText());
     }
 
     @Override
     protected NotEquals replaceChildren(Expression newLeft, Expression newRight) {
-        return new NotEquals(source(), newLeft, newRight, zoneId());
+        return new NotEquals(source(), newLeft, newRight, zoneId(), supportText());
     }
 
     @Override
     public NotEquals swapLeftAndRight() {
-        return new NotEquals(source(), right(), left(), zoneId());
+        return new NotEquals(source(), right(), left(), zoneId(), supportText());
     }
 
     @Override
     public BinaryComparison negate() {
-        return new Equals(source(), left(), right(), zoneId());
+        return new Equals(source(), left(), right(), zoneId(), supportText());
     }
 
     @Override

@@ -17,31 +17,35 @@ import java.time.ZoneId;
 public class GreaterThan extends BinaryComparison implements Negatable<BinaryComparison> {
 
     public GreaterThan(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOperation.GT, zoneId);
+        this(source, left, right, zoneId, false);
+    }
+
+    public GreaterThan(Source source, Expression left, Expression right, ZoneId zoneId, boolean allowTextType) {
+        super(source, left, right, BinaryComparisonOperation.GT, zoneId, allowTextType);
     }
 
     @Override
     protected NodeInfo<GreaterThan> info() {
-        return NodeInfo.create(this, GreaterThan::new, left(), right(), zoneId());
+        return NodeInfo.create(this, GreaterThan::new, left(), right(), zoneId(), supportText());
     }
 
     @Override
     protected GreaterThan replaceChildren(Expression newLeft, Expression newRight) {
-        return new GreaterThan(source(), newLeft, newRight, zoneId());
+        return new GreaterThan(source(), newLeft, newRight, zoneId(), supportText());
     }
 
     @Override
     public LessThan swapLeftAndRight() {
-        return new LessThan(source(), right(), left(), zoneId());
+        return new LessThan(source(), right(), left(), zoneId(), supportText());
     }
 
     @Override
     public LessThanOrEqual negate() {
-        return new LessThanOrEqual(source(), left(), right(), zoneId());
+        return new LessThanOrEqual(source(), left(), right(), zoneId(), supportText());
     }
 
     @Override
     public BinaryComparison reverse() {
-        return new LessThan(source(), left(), right(), zoneId());
+        return new LessThan(source(), left(), right(), zoneId(), supportText());
     }
 }

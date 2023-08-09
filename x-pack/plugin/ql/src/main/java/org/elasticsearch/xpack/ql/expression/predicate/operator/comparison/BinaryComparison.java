@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
@@ -23,10 +24,23 @@ import java.time.ZoneId;
 public abstract class BinaryComparison extends BinaryOperator<Object, Object, Boolean, BinaryComparisonOperation> {
 
     private final ZoneId zoneId;
+    private final boolean supportText;
 
     protected BinaryComparison(Source source, Expression left, Expression right, BinaryComparisonOperation operation, ZoneId zoneId) {
+        this(source, left, right, operation, zoneId, false);
+    }
+
+    protected BinaryComparison(
+        Source source,
+        Expression left,
+        Expression right,
+        BinaryComparisonOperation operation,
+        ZoneId zoneId,
+        boolean supportText
+    ) {
         super(source, left, right, operation);
         this.zoneId = zoneId;
+        this.supportText = supportText;
     }
 
     public ZoneId zoneId() {
@@ -35,6 +49,9 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
 
     @Override
     protected TypeResolution resolveInputType(Expression e, ParamOrdinal paramOrdinal) {
+        if (supportText && e instanceof FieldAttribute fa && fa.dataType() == DataTypes.TEXT) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
         return TypeResolutions.isExact(e, sourceText(), paramOrdinal);
     }
 
@@ -58,4 +75,8 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
      * negative number. Others like Not/Equal can be immutable to this operation.
      */
     public abstract BinaryComparison reverse();
+
+    public boolean supportText() {
+        return supportText;
+    }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ql.expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.Objects;
@@ -38,17 +39,23 @@ public class Order extends Expression {
     private final Expression child;
     private final OrderDirection direction;
     private final NullsPosition nulls;
+    private final boolean supportText;
 
     public Order(Source source, Expression child, OrderDirection direction, NullsPosition nulls) {
+        this(source, child, direction, nulls, false);
+    }
+
+    public Order(Source source, Expression child, OrderDirection direction, NullsPosition nulls, boolean supportText) {
         super(source, singletonList(child));
         this.child = child;
         this.direction = direction;
         this.nulls = nulls == null ? NullsPosition.ANY : nulls;
+        this.supportText = supportText;
     }
 
     @Override
     protected NodeInfo<Order> info() {
-        return NodeInfo.create(this, Order::new, child, direction, nulls);
+        return NodeInfo.create(this, Order::new, child, direction, nulls, supportText);
     }
 
     @Override
@@ -58,6 +65,9 @@ public class Order extends Expression {
 
     @Override
     protected TypeResolution resolveType() {
+        if (supportText && DataTypes.isString(child.dataType())) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
         return isExact(child, "ORDER BY cannot be applied to field of data type [{}]: {}");
     }
 
@@ -68,7 +78,7 @@ public class Order extends Expression {
 
     @Override
     public Order replaceChildren(List<Expression> newChildren) {
-        return new Order(source(), newChildren.get(0), direction, nulls);
+        return new Order(source(), newChildren.get(0), direction, nulls, supportText);
     }
 
     public Expression child() {
@@ -83,9 +93,13 @@ public class Order extends Expression {
         return nulls;
     }
 
+    public boolean supportText() {
+        return supportText;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(child, direction, nulls);
+        return Objects.hash(child, direction, nulls, supportText);
     }
 
     @Override
@@ -99,6 +113,10 @@ public class Order extends Expression {
         }
 
         Order other = (Order) obj;
-        return Objects.equals(direction, other.direction) && Objects.equals(nulls, other.nulls) && Objects.equals(child, other.child);
+        return Objects.equals(direction, other.direction)
+            && Objects.equals(nulls, other.nulls)
+            && Objects.equals(child, other.child)
+            && Objects.equals(supportText, other.supportText);
     }
+
 }

@@ -912,19 +912,22 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                     EMPTY,
                     new ReferenceAttribute(EMPTY, "e", INTEGER, null, Nullability.TRUE, null, false),
                     Order.OrderDirection.ASC,
-                    Order.NullsPosition.LAST
+                    Order.NullsPosition.LAST,
+                    true
                 ),
                 new Order(
                     EMPTY,
                     new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
                     Order.OrderDirection.ASC,
-                    Order.NullsPosition.LAST
+                    Order.NullsPosition.LAST,
+                    true
                 ),
                 new Order(
                     EMPTY,
                     new FieldAttribute(EMPTY, "salary", mapping.get("salary")),
                     Order.OrderDirection.DESC,
-                    Order.NullsPosition.FIRST
+                    Order.NullsPosition.FIRST,
+                    true
                 )
             )
         );
@@ -948,7 +951,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                     EMPTY,
                     new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
                     Order.OrderDirection.ASC,
-                    Order.NullsPosition.LAST
+                    Order.NullsPosition.LAST,
+                    true
                 )
             )
         );

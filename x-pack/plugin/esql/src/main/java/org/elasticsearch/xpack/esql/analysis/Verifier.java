@@ -245,6 +245,9 @@ public class Verifier {
         if (false == r.resolved()) {
             return fail(bc, r.message());
         }
+        if (DataTypes.isString(bc.left().dataType()) && DataTypes.isString(bc.right().dataType())) {
+            return null;
+        }
         if (bc.left().dataType() != bc.right().dataType()) {
             return fail(
                 bc,

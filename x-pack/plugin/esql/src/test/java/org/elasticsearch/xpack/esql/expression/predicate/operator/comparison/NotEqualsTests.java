@@ -49,7 +49,7 @@ public class NotEqualsTests extends AbstractBinaryComparisonTestCase {
 
     @Override
     protected BinaryComparison build(Source source, Expression lhs, Expression rhs) {
-        return new NotEquals(source, lhs, rhs, ZoneOffset.UTC);
+        return new NotEquals(source, lhs, rhs, ZoneOffset.UTC, true);
     }
 
     @Override

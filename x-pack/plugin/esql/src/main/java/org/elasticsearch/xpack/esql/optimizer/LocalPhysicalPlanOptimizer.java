@@ -214,11 +214,11 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         private static boolean canPushToSource(Expression exp) {
             if (exp instanceof BinaryComparison bc) {
-                return bc.left() instanceof FieldAttribute && bc.right().foldable();
+                return bc.left() instanceof FieldAttribute f && f.getExactInfo().hasExact() && bc.right().foldable();
             } else if (exp instanceof BinaryLogic bl) {
                 return canPushToSource(bl.left()) && canPushToSource(bl.right());
             } else if (exp instanceof RegexMatch<?> rm) {
-                return rm.field() instanceof FieldAttribute;
+                return rm.field() instanceof FieldAttribute f && f.getExactInfo().hasExact();
             } else if (exp instanceof In in) {
                 return in.value() instanceof FieldAttribute && Expressions.foldable(in.list());
             } else if (exp instanceof Not not) {
@@ -265,13 +265,22 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         private boolean canPushDownOrders(List<Order> orders) {
             // allow only FieldAttributes (no expressions) for sorting
-            return false == Expressions.match(orders, s -> ((Order) s).child() instanceof FieldAttribute == false);
+            for (Order order : orders) {
+                if (order.child() instanceof FieldAttribute fa) {
+                    if (fa.getExactInfo().hasExact() == false) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            }
+            return true;
         }
 
         private List<EsQueryExec.FieldSort> buildFieldSorts(List<Order> orders) {
             List<EsQueryExec.FieldSort> sorts = new ArrayList<>(orders.size());
             for (Order o : orders) {
-                sorts.add(new EsQueryExec.FieldSort(((FieldAttribute) o.child()), o.direction(), o.nullsPosition()));
+                sorts.add(new EsQueryExec.FieldSort(((FieldAttribute) o.child()).exactAttribute(), o.direction(), o.nullsPosition()));
             }
             return sorts;
         }
@@ -281,7 +290,10 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         @Override
         public Query wrapFunctionQuery(ScalarFunction sf, Expression field, Supplier<Query> querySupplier) {
             if (field instanceof FieldAttribute fa) {
-                return ExpressionTranslator.wrapIfNested(new SingleValueQuery(querySupplier.get(), fa.name()), field);
+                return ExpressionTranslator.wrapIfNested(
+                    new SingleValueQuery(querySupplier.get(), fa.exactAttribute().name()),
+                    ((FieldAttribute) field).exactAttribute()
+                );
             }
             throw new IllegalStateException("Should always be field attributes");
         }

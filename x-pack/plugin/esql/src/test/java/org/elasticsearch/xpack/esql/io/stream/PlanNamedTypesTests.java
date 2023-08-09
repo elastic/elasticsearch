@@ -354,7 +354,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testOrderSimple() throws IOException {
-        var orig = new Order(Source.EMPTY, field("val", DataTypes.INTEGER), Order.OrderDirection.ASC, Order.NullsPosition.FIRST);
+        var orig = new Order(Source.EMPTY, field("val", DataTypes.INTEGER), Order.OrderDirection.ASC, Order.NullsPosition.FIRST, true);
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
         PlanNamedTypes.writeOrder(out, orig);
@@ -459,13 +459,13 @@ public class PlanNamedTypesTests extends ESTestCase {
         var left = field(randomName(), randomDataType());
         var right = field(randomName(), randomDataType());
         return switch (v) {
-            case 0 -> new Equals(Source.EMPTY, left, right, zoneIdOrNull());
-            case 1 -> new NullEquals(Source.EMPTY, left, right, zoneIdOrNull());
-            case 2 -> new NotEquals(Source.EMPTY, left, right, zoneIdOrNull());
-            case 3 -> new GreaterThan(Source.EMPTY, left, right, zoneIdOrNull());
-            case 4 -> new GreaterThanOrEqual(Source.EMPTY, left, right, zoneIdOrNull());
-            case 5 -> new LessThan(Source.EMPTY, left, right, zoneIdOrNull());
-            case 6 -> new LessThanOrEqual(Source.EMPTY, left, right, zoneIdOrNull());
+            case 0 -> new Equals(Source.EMPTY, left, right, zoneIdOrNull(), true);
+            case 1 -> new NullEquals(Source.EMPTY, left, right, zoneIdOrNull(), true);
+            case 2 -> new NotEquals(Source.EMPTY, left, right, zoneIdOrNull(), true);
+            case 3 -> new GreaterThan(Source.EMPTY, left, right, zoneIdOrNull(), true);
+            case 4 -> new GreaterThanOrEqual(Source.EMPTY, left, right, zoneIdOrNull(), true);
+            case 5 -> new LessThan(Source.EMPTY, left, right, zoneIdOrNull(), true);
+            case 6 -> new LessThanOrEqual(Source.EMPTY, left, right, zoneIdOrNull(), true);
             default -> throw new AssertionError(v);
         };
     }

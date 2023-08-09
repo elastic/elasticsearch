@@ -19,6 +19,7 @@ import org.hamcrest.Matcher;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -94,7 +95,7 @@ public abstract class AbstractBinaryComparisonTestCase extends AbstractBinaryOpe
             );
             return;
         }
-        if (lhsType == rhsType || lhsType.isNumeric() && rhsType.isNumeric()) {
+        if (lhsType == rhsType || lhsType.isNumeric() && rhsType.isNumeric() || isString(lhsType) && isString(rhsType)) {
             assertThat(op.toString(), f, nullValue());
             return;
         }

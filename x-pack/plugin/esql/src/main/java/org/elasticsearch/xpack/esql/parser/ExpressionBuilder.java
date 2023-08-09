@@ -264,12 +264,12 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         ZoneId zoneId = DateUtils.UTC;
 
         return switch (op.getSymbol().getType()) {
-            case EsqlBaseParser.EQ -> new Equals(source, left, right, zoneId);
-            case EsqlBaseParser.NEQ -> new Not(source, new Equals(source, left, right, zoneId));
-            case EsqlBaseParser.LT -> new LessThan(source, left, right, zoneId);
-            case EsqlBaseParser.LTE -> new LessThanOrEqual(source, left, right, zoneId);
-            case EsqlBaseParser.GT -> new GreaterThan(source, left, right, zoneId);
-            case EsqlBaseParser.GTE -> new GreaterThanOrEqual(source, left, right, zoneId);
+            case EsqlBaseParser.EQ -> new Equals(source, left, right, zoneId, true);
+            case EsqlBaseParser.NEQ -> new Not(source, new Equals(source, left, right, zoneId, true));
+            case EsqlBaseParser.LT -> new LessThan(source, left, right, zoneId, true);
+            case EsqlBaseParser.LTE -> new LessThanOrEqual(source, left, right, zoneId, true);
+            case EsqlBaseParser.GT -> new GreaterThan(source, left, right, zoneId, true);
+            case EsqlBaseParser.GTE -> new GreaterThanOrEqual(source, left, right, zoneId, true);
             default -> throw new ParsingException(source, "Unknown comparison operator {}", source.text());
         };
     }
@@ -331,8 +331,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression left = expression(ctx.valueExpression());
         Literal pattern = visitString(ctx.pattern);
         RegexMatch<?> result = switch (type) {
-            case EsqlBaseParser.LIKE -> new WildcardLike(source, left, new WildcardPattern(pattern.fold().toString()));
-            case EsqlBaseParser.RLIKE -> new RLike(source, left, new RLikePattern(pattern.fold().toString()));
+            case EsqlBaseParser.LIKE -> new WildcardLike(source, left, new WildcardPattern(pattern.fold().toString()), false, true);
+            case EsqlBaseParser.RLIKE -> new RLike(source, left, new RLikePattern(pattern.fold().toString()), false, true);
             default -> throw new ParsingException("Invalid predicate type for [{}]", source.text());
         };
         return ctx.NOT() == null ? result : new Not(source, result);
@@ -346,7 +346,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             ctx.DESC() != null ? Order.OrderDirection.DESC : Order.OrderDirection.ASC,
             (ctx.NULLS() != null && ctx.LAST() != null || ctx.NULLS() == null && ctx.DESC() == null)
                 ? Order.NullsPosition.LAST
-                : Order.NullsPosition.FIRST
+                : Order.NullsPosition.FIRST,
+            true
         );
     }
 

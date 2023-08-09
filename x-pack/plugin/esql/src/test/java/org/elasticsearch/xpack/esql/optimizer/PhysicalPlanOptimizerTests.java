@@ -1513,6 +1513,41 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES + KEYWORD_EST));
     }
 
+    public void testNoTextFilterPushDown() {
+        var plan = physicalPlan("""
+            from test
+            | where gender == "M"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var limit2 = as(extract.child(), LimitExec.class);
+        var filter = as(limit2.child(), FilterExec.class);
+        var extract2 = as(filter.child(), FieldExtractExec.class);
+        var source = source(extract2.child());
+        assertNull(source.query());
+    }
+
+    public void testNoTextSortPushDown() {
+        var plan = physicalPlan("""
+            from test
+            | sort gender
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var topN = as(optimized, TopNExec.class);
+        var exchange = as(topN.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var topN2 = as(extract.child(), TopNExec.class);
+        var extract2 = as(topN2.child(), FieldExtractExec.class);
+        var source = source(extract2.child());
+        assertNull(source.sorts());
+    }
+
     private static EsQueryExec source(PhysicalPlan plan) {
         if (plan instanceof ExchangeExec exchange) {
             plan = exchange.child();

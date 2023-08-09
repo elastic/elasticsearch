@@ -939,14 +939,15 @@ public final class PlanNamedTypes {
         var left = in.readExpression();
         var right = in.readExpression();
         var zoneId = in.readOptionalZoneId();
+        var supportText = in.readBoolean();
         return switch (operation) {
-            case EQ -> new Equals(Source.EMPTY, left, right, zoneId);
-            case NULLEQ -> new NullEquals(Source.EMPTY, left, right, zoneId);
-            case NEQ -> new NotEquals(Source.EMPTY, left, right, zoneId);
-            case GT -> new GreaterThan(Source.EMPTY, left, right, zoneId);
-            case GTE -> new GreaterThanOrEqual(Source.EMPTY, left, right, zoneId);
-            case LT -> new LessThan(Source.EMPTY, left, right, zoneId);
-            case LTE -> new LessThanOrEqual(Source.EMPTY, left, right, zoneId);
+            case EQ -> new Equals(Source.EMPTY, left, right, zoneId, supportText);
+            case NULLEQ -> new NullEquals(Source.EMPTY, left, right, zoneId, supportText);
+            case NEQ -> new NotEquals(Source.EMPTY, left, right, zoneId, supportText);
+            case GT -> new GreaterThan(Source.EMPTY, left, right, zoneId, supportText);
+            case GTE -> new GreaterThanOrEqual(Source.EMPTY, left, right, zoneId, supportText);
+            case LT -> new LessThan(Source.EMPTY, left, right, zoneId, supportText);
+            case LTE -> new LessThanOrEqual(Source.EMPTY, left, right, zoneId, supportText);
         };
     }
 
@@ -955,6 +956,7 @@ public final class PlanNamedTypes {
         out.writeExpression(binaryComparison.left());
         out.writeExpression(binaryComparison.right());
         out.writeOptionalZoneId(binaryComparison.zoneId());
+        out.writeBoolean(binaryComparison.supportText());
     }
 
     // -- InComparison
@@ -971,21 +973,31 @@ public final class PlanNamedTypes {
     // -- RegexMatch
 
     static WildcardLike readWildcardLike(PlanStreamInput in, String name) throws IOException {
-        return new WildcardLike(Source.EMPTY, in.readExpression(), new WildcardPattern(in.readString()));
+        return new WildcardLike(
+            Source.EMPTY,
+            in.readExpression(),
+            new WildcardPattern(in.readString()),
+            in.readBoolean(),
+            in.readBoolean()
+        );
     }
 
     static void writeWildcardLike(PlanStreamOutput out, WildcardLike like) throws IOException {
         out.writeExpression(like.field());
         out.writeString(like.pattern().pattern());
+        out.writeBoolean(like.caseInsensitive());
+        out.writeBoolean(like.supportText());
     }
 
     static RLike readRLike(PlanStreamInput in, String name) throws IOException {
-        return new RLike(Source.EMPTY, in.readExpression(), new RLikePattern(in.readString()));
+        return new RLike(Source.EMPTY, in.readExpression(), new RLikePattern(in.readString()), in.readBoolean(), in.readBoolean());
     }
 
     static void writeRLike(PlanStreamOutput out, RLike like) throws IOException {
         out.writeExpression(like.field());
         out.writeString(like.pattern().asJavaRegex());
+        out.writeBoolean(like.caseInsensitive());
+        out.writeBoolean(like.supportText());
     }
 
     // -- BinaryLogic
@@ -1370,7 +1382,8 @@ public final class PlanNamedTypes {
             Source.EMPTY,
             in.readNamed(Expression.class),
             in.readEnum(Order.OrderDirection.class),
-            in.readEnum(Order.NullsPosition.class)
+            in.readEnum(Order.NullsPosition.class),
+            in.readBoolean()
         );
     }
 
@@ -1378,6 +1391,7 @@ public final class PlanNamedTypes {
         out.writeExpression(order.child());
         out.writeEnum(order.direction());
         out.writeEnum(order.nullsPosition());
+        out.writeBoolean(order.supportText());
     }
 
     // -- ancillary supporting classes of plan nodes, etc

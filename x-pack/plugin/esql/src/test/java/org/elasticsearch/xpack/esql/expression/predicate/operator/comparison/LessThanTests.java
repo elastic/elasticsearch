@@ -49,7 +49,7 @@ public class LessThanTests extends AbstractBinaryComparisonTestCase {
 
     @Override
     protected BinaryComparison build(Source source, Expression lhs, Expression rhs) {
-        return new LessThan(source, lhs, rhs, ZoneOffset.UTC);
+        return new LessThan(source, lhs, rhs, ZoneOffset.UTC, true);
     }
 
     @Override

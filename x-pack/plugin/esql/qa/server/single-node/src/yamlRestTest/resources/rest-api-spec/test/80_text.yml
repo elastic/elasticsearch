@@ -1,0 +1,163 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              "emp_no":
+                type: long
+              name:
+                type: keyword
+              job:
+                type: text
+                fields:
+                  raw:
+                    type: keyword
+              tag:
+                type: text
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "emp_no": 10, "name": "Jenny", "job": "IT Director", "tag": "foo bar" }
+          - { "index": { } }
+          - { "emp_no": 20, "name": "John", "job": "Payroll Specialist", "tag": "baz" }
+---
+"filter by text":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where tag == "baz" | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz"] }
+
+---
+"eval and filter text":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval x = tag | where x == "baz" | keep emp_no, name, job, x'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "x" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz"] }
+
+---
+"filter on text multi-field":
+  - do:
+      esql.query:
+        body:
+          query: 'from test |  where job == "IT Director" | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 10, "Jenny", "IT Director", "foo bar"] }
+
+
+---
+"sort by text":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | sort tag | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz"] }
+  - match: { values.1: [ 10, "Jenny", "IT Director", "foo bar"] }
+
+
+---
+"sort by text multi-field":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | sort job | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 10, "Jenny", "IT Director", "foo bar"] }
+  - match: { values.1: [ 20, "John", "Payroll Specialist", "baz"] }
+
+---
+"sort by text multi-field desc":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | sort job desc | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz"] }
+  - match: { values.1: [ 10, "Jenny", "IT Director", "foo bar"] }
+
+
+---
+"text in functions":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | sort name | eval description = concat(name, " - ", job) | keep description'
+
+  - match: { columns.0.name: "description" }
+  - match: { columns.0.type: "keyword" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ "Jenny - IT Director"] }
+  - match: { values.1: [ "John - Payroll Specialist"] }

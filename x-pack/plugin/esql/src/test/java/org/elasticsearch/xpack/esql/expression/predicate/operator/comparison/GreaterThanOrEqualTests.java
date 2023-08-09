@@ -49,7 +49,7 @@ public class GreaterThanOrEqualTests extends AbstractBinaryComparisonTestCase {
 
     @Override
     protected BinaryComparison build(Source source, Expression lhs, Expression rhs) {
-        return new GreaterThanOrEqual(source, lhs, rhs, ZoneOffset.UTC);
+        return new GreaterThanOrEqual(source, lhs, rhs, ZoneOffset.UTC, true);
     }
 
     @Override

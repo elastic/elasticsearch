@@ -206,22 +206,23 @@ POST _application/search_application/my-app/_search
 
 In the above example, the value of the `default_field` parameter is not valid, therefore Elasticsearch will return an error:
 
-[source,console-result]
+[source,JSON]
 ----
 {
   "error": {
     "root_cause": [
       {
         "type": "validation_exception",
-        "reason": "Validation Failed: 1: $.default_field: does not have a value in the enumeration [title, description];",
+        "reason": 'Validation Failed: 1: $.default_field: does not have a value in the enumeration [title, description];',
         "stack_trace": ...
       }
     ],
     "type": "validation_exception",
-    "reason": "Validation Failed: 1: $.default_field: does not have a value in the enumeration [title, description];",
+    "reason": 'Validation Failed: 1: $.default_field: does not have a value in the enumeration [title, description];',
     "stack_trace": ...
   },
   "status": 400
 }
 ----
-// TEST[skip:example only]
+// TESTRESPONSE[s/"stack_trace": \.\.\./"stack_trace": $body.$_path/]
+// Need to use source,JSON above instead console-result, as $ fields are replaced in console-result snippets

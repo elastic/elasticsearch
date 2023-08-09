@@ -1923,6 +1923,12 @@ See <<put-synonyms-set>>
 Refer to <<remote-clusters>>
 
 [role="exclude",id="remote-clusters-privileges"]
-=== Remote clusters
+=== Configure roles and users for remote clusters
+
+Refer to <<remote-clusters>>
+
+[[clusters-privileges-ccs-kibana]]
+[discrete]
+==== Configure privileges for {ccs} and {kib}
 
 Refer to <<remote-clusters>>

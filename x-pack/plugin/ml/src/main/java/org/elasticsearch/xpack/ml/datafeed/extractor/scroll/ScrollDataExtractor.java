@@ -169,8 +169,8 @@ class ScrollDataExtractor implements DataExtractor {
         return searchRequestBuilder;
     }
 
-    /*
-        Utility class to convert ByteArrayOutputStream to ByteArrayInputStream without copying the underlying buffer.
+    /**
+     * Utility class to convert ByteArrayOutputStream to ByteArrayInputStream without copying the underlying buffer.
      */
     private class ConvertableByteArrayOutputStream extends ByteArrayOutputStream {
         public ByteArrayInputStream resetThisAndGetByteArrayInputStream() {

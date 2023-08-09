@@ -6,12 +6,9 @@
 <titleabbrev>Limitations</titleabbrev>
 ++++
 
-The following limitations and known problems apply to the {version} release of
-the Elastic {transform} feature (Note that as of {es} version 8.10.0 a new
-version number has been introduced to track changes to configuration and state
-in the transform plugin. This new version number is decoupled from the
-product version and will incrementindependently as necessary).
-The limitations are grouped into the following categories:
+The following limitations and known problems apply to the {version} release of 
+the Elastic {transform} feature. The limitations are grouped into the following 
+categories:
 
 * <<transform-config-limitations>> apply to the configuration process of the 
   {transforms}.

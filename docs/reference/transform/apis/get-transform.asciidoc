@@ -79,7 +79,7 @@ This property is informational; you cannot change its value.
 `version`::
 (string) The version of {es} that existed on the node when the {transform} was
 created. Note that as of {es} version 8.10.0 a new version number has been introduced to
-track changes to configuration and state in the machine learning plugin. This
+track changes to configuration and state in the {transform} plugin. This
 new version number is decoupled from the product version and will increment
 independently as necessary.
 

@@ -107,7 +107,7 @@ properties:
 `min_version`::
 (string) The minimum version required to be able to restore the model snapshot.
 Note that as of {es} version 8.10.0 a new version number has been introduced to
-track changes to configuration and state in the machine learning plugin. This
+track changes to configuration and state in the {ml} plugin. This
 new version number is decoupled from the product version and will increment
 independently as necessary.
 

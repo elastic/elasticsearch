@@ -33,7 +33,7 @@ configuration format and upgrades them to the latest version; including clean up
 of the internal data structures that store {transform} state and checkpoints.
 {transform-cap} upgrade does not affect the source and destination indices.
 Note that as of {es} version 8.10.0 a new version number has been introduced to
-track changes to configuration and state in the transform plugin. This
+track changes to configuration and state in the {transform} plugin. This
 new version number is decoupled from the product version and will increment
 independently as necessary.
 

@@ -420,7 +420,7 @@ jobs created before version 7.8.0, the default value matches
 `model_snapshot_retention_days`. For more information, refer to
 {ml-docs}/ml-ad-run-jobs.html#ml-ad-model-snapshots[Model snapshots].
 Note that as of {es} version 8.10.0 a new version number has been introduced to
-track changes to configuration and state in the machine learning plugin. This
+track changes to configuration and state in the {ml} plugin. This
 new version number is decoupled from the product version and will increment
 independently as necessary.
 end::daily-model-snapshot-retention-after-days[]
@@ -1415,7 +1415,7 @@ ensure that high resource usage is a conscious decision. If you have jobs that
 are expected to analyze high cardinality fields, you will likely need to use a
 higher value.
 Note that as of {es} version 8.10.0 a new version number has been introduced to
-track changes to configuration and state in the machine learning plugin. This
+track changes to configuration and state in the {ml} plugin. This
 new version number is decoupled from the product version and will increment
 independently as necessary.
 +
@@ -1865,7 +1865,7 @@ the default categorization tokenizer in versions 6.2 to 7.13, so if you
 need categorization identical to the default for jobs created in these
 versions, specify `"tokenizer": "ml_classic"` in your `categorization_analyzer`.
 Note that as of {es} version 8.10.0 a new version number has been introduced to
-track changes to configuration and state in the machine learning plugin. This
+track changes to configuration and state in the {ml} plugin. This
 new version number is decoupled from the product version and will increment
 independently as necessary.
 end::tokenizer[]

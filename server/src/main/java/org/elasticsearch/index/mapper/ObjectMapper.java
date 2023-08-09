@@ -14,7 +14,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.ToXContent;
@@ -588,27 +587,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
 
-    }
-
-    /**
-     * Checks the {@code subobjects} config in provided mapping's root.
-     * @param mapping a raw mapping in a map form
-     * @return an explicit {@code subobjects} value if such is configured directly under the root, or {@code null} otherwise
-     */
-    @Nullable
-    static Explicit<Boolean> checkSubobjectsInMappingRoot(Map<String, Object> mapping) {
-        if (mapping.size() == 1) {
-            String rootName = mapping.keySet().iterator().next();
-            Object childNode = mapping.get(rootName);
-            if (childNode instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Object subobjectsNode = ((Map<String, Object>) mapping.get(rootName)).get("subobjects");
-                if (subobjectsNode != null) {
-                    return Explicit.explicitBoolean(XContentMapValues.nodeBooleanValue(subobjectsNode, "subobjects.subobjects"));
-                }
-            }
-        }
-        return null;
     }
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Stream<Mapper> extra) {

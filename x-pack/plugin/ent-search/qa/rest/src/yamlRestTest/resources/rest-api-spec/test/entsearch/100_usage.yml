@@ -44,6 +44,12 @@ teardown:
         name: test-search-application-1
         body:
           indices: [ "test-index1" ]
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
 
   - do:
       xpack.usage: {}
@@ -62,6 +68,12 @@ teardown:
         name: test-search-application-2
         body:
           indices: [ "test-index1" ]
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
 
   - do:
       search_application.put_behavioral_analytics:

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -81,21 +80,19 @@ public final class MappingParser {
 
     Mapping parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
         Map<String, Object> mapping = convertToMap(source);
-        return parse(type, mapping, null);
+        return parse(type, mapping);
     }
 
     /**
-     * A method to parse mapping from a source in a map form, that allows to specify explicit/implicit {@code subobjects} configuration.
-     * Since parsing is affected by the {@code subobjects} setting, the resulted mapping may change according to this setting.
-     * @param type the mapping type
+     * A method to parse mapping from a source in a map form.
+     *
+     * @param type          the mapping type
      * @param mappingSource mapping source already converted to a map form, but not yet processed otherwise
-     * @param explicitSubobjects subobjects configuration to use for this parsing operation
      * @return a parsed mapping
      * @throws MapperParsingException in case of parsing error
      */
     @SuppressWarnings("unchecked")
-    Mapping parse(@Nullable String type, Map<String, Object> mappingSource, @Nullable Explicit<Boolean> explicitSubobjects)
-        throws MapperParsingException {
+    Mapping parse(@Nullable String type, Map<String, Object> mappingSource) throws MapperParsingException {
         if (mappingSource.isEmpty()) {
             if (type == null) {
                 throw new MapperParsingException("malformed mappingSource, no type name found");
@@ -116,7 +113,7 @@ public final class MappingParser {
 
         final MappingParserContext mappingParserContext = mappingParserContextSupplier.get();
 
-        RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mappingSource, mappingParserContext, explicitSubobjects);
+        RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mappingSource, mappingParserContext);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;

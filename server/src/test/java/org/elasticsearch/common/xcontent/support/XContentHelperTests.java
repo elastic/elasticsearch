@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class XContentHelperTests extends ESTestCase {
@@ -64,6 +65,38 @@ public class XContentHelperTests extends ESTestCase {
         XContentHelper.mergeDefaults(content, defaults);
 
         assertThat(content, equalTo(expected));
+    }
+
+    public void testMergingDefaults() {
+        Map<String, Object> content = getMap("key1", "content", "key3", "content");
+        Map<String, Object> defaults = getMap("key2", "default", "key3", "default");
+        Map<String, Object> expected = getMap("key1", "content", "key2", "default", "key3", "content");
+        XContentHelper.mergeDefaults(content, defaults);
+        assertThat(content, equalTo(expected));
+    }
+
+    public void testMergingWithCustomMerge() {
+        Map<String, Object> content = getMap("key1", "old", "key3", "old", "key4", "old");
+        Map<String, Object> defaults = getMap("key2", "new", "key3", "new", "key4", "new");
+        Map<String, Object> expected = getMap("key1", "old", "key2", "new", "key3", "new", "key4", "old");
+        XContentHelper.merge(content, defaults, (parent, key, oldValue, newValue) -> "key3".equals(key) ? newValue : oldValue);
+        assertThat(content, equalTo(expected));
+    }
+
+    public void testMergingWithCustomMergeWithException() {
+        final Map<String, Object> content = getMap("key1", "old", "key3", "old", "key4", "old");
+        final Map<String, Object> defaults = getMap("key2", "new", "key3", "new", "key4", "new");
+        final XContentHelper.CustomMerge customMerge = (parent, key, oldValue, newValue) -> {
+            if ("key3".equals(key)) {
+                throw new IllegalArgumentException(key + " is not allowed");
+            }
+            return oldValue;
+        };
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> XContentHelper.merge(content, defaults, customMerge)
+        );
+        assertThat(e.getMessage(), containsString("key3 is not allowed"));
     }
 
     public void testToXContent() throws IOException {

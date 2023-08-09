@@ -12,12 +12,12 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
@@ -28,6 +28,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -40,10 +41,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -75,6 +76,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public static final String SINGLE_MAPPING_NAME = "_doc";
     public static final String TYPE_FIELD_NAME = "_type";
+    public static final Set<String> OBJECT_FIELD_TYPES = Set.of(ObjectMapper.CONTENT_TYPE, NestedObjectMapper.CONTENT_TYPE);
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.nested_fields.limit",
         50L,
@@ -95,7 +97,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         1000L,
         0,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.depth.limit",
@@ -125,6 +128,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final IndexVersion indexVersionCreated;
     private final MapperRegistry mapperRegistry;
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
+    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
+
     private volatile DocumentMapper mapper;
 
     public MapperService(
@@ -136,7 +141,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
-        ScriptCompiler scriptCompiler
+        ScriptCompiler scriptCompiler,
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
         this(
             () -> clusterService.state().getMinTransportVersion(),
@@ -147,7 +153,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry,
             searchExecutionContextSupplier,
             idFieldMapper,
-            scriptCompiler
+            scriptCompiler,
+            documentParsingObserverSupplier
         );
     }
 
@@ -160,7 +167,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
-        ScriptCompiler scriptCompiler
+        ScriptCompiler scriptCompiler,
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
@@ -178,7 +186,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexSettings,
             idFieldMapper
         );
-        this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
+        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
+        this.documentParser = new DocumentParser(
+            parserConfiguration,
+            this.mappingParserContextSupplier.get(),
+            documentParsingObserverSupplier
+        );
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
@@ -356,7 +369,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Merging the provided mappings. If the provided mapping list is ordered, merging will maintain the original ordering.
+     * Merging the provided mappings. Actual merging is done in the raw, non-parsed, form of the mappings. This allows to do a proper bulk
+     * merge, where parsing is done only when all raw mapping settings are already merged.
      */
     public DocumentMapper merge(String type, List<CompressedXContent> mappingSources, MergeReason reason) {
         final DocumentMapper currentMapper = this.mapper;
@@ -364,25 +378,56 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return currentMapper;
         }
 
-        List<Map<String, Object>> convertedMappings = new LinkedList<>();
-        Explicit<Boolean> explicitSubobjects = null;
+        Map<String, Object> mergedRawMapping = null;
         for (CompressedXContent mappingSource : mappingSources) {
-            Map<String, Object> mapping = MappingParser.convertToMap(mappingSource);
-            convertedMappings.add(mapping);
-            Explicit<Boolean> tmpSubobjects = ObjectMapper.checkSubobjectsInMappingRoot(mapping);
-            if (tmpSubobjects != null) {
-                if (explicitSubobjects != null && tmpSubobjects.value() != explicitSubobjects.value()) {
-                    throw new MapperParsingException("Failed to parse mappings: contradicting subobjects settings provided");
+            Map<String, Object> rawMapping = MappingParser.convertToMap(mappingSource);
+            if (rawMapping.isEmpty()) {
+                continue;
+            }
+
+            // normalize mappings, making sure that all have the provided type as a single root
+            if (rawMapping.containsKey(type)) {
+                if (rawMapping.size() > 1) {
+                    throw new MapperParsingException("cannot merge a map with multiple roots, one of which is [" + type + "]");
                 }
-                explicitSubobjects = tmpSubobjects;
+            } else {
+                rawMapping = Map.of(type, rawMapping);
+            }
+
+            if (mergedRawMapping == null) {
+                mergedRawMapping = rawMapping;
+            } else {
+                XContentHelper.merge(type, mergedRawMapping, rawMapping, ((parent, key, oldValue, newValue) -> {
+                    switch (key) {
+                        case "type" -> {
+                            // todo: verify this check is valid
+                            if (oldValue.equals(newValue) == false
+                                && (OBJECT_FIELD_TYPES.contains(String.valueOf(oldValue))
+                                    || OBJECT_FIELD_TYPES.contains(String.valueOf(newValue)))) {
+                                throw new MapperParsingException(
+                                    "can't merge a non object mapping [" + parent + "] with an object mapping"
+                                );
+                            }
+                        }
+                        case "subobjects" -> {
+                            if (oldValue.equals(newValue) == false) {
+                                throw new MapperParsingException("contradicting subobjects settings provided for field: " + parent);
+                            }
+                        }
+                        case "required" -> {
+                            if ("_routing".equals(parent) && oldValue != newValue) {
+                                throw new MapperParsingException("contradicting `_routing.required` settings");
+                            }
+                        }
+                    }
+                    return newValue;
+                }));
             }
         }
-
-        DocumentMapper ret = null;
-        for (Map<String, Object> mapping : convertedMappings) {
-            ret = doMerge(type, reason, mapping, explicitSubobjects);
+        if (mergedRawMapping != null && mergedRawMapping.size() > 1) {
+            throw new MapperParsingException("cannot merge mapping sources with different roots");
         }
-        return ret;
+        return (mergedRawMapping != null) ? doMerge(type, reason, mergedRawMapping) : null;
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
@@ -391,16 +436,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return currentMapper;
         }
         Map<String, Object> mappingSourceAsMap = MappingParser.convertToMap(mappingSource);
-        return doMerge(type, reason, mappingSourceAsMap, null);
+        return doMerge(type, reason, mappingSourceAsMap);
     }
 
-    private synchronized DocumentMapper doMerge(
-        String type,
-        MergeReason reason,
-        Map<String, Object> mappingSourceAsMap,
-        @Nullable Explicit<Boolean> explicitSubobjects
-    ) {
-        Mapping incomingMapping = parseMapping(type, mappingSourceAsMap, explicitSubobjects);
+    private synchronized DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {
+        Mapping incomingMapping = parseMapping(type, mappingSourceAsMap);
         Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
         // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
         // We should identify these cases reliably and save expensive serialization here
@@ -428,16 +468,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * A method to parse mapping from a source in a map form, that allows to specify explicit/implicit {@code subobjects} configuration.
-     * Since parsing is affected by the {@code subobjects} setting, the resulted mapping may change according to this setting.
-     * @param mappingType the mapping type
+     * A method to parse mapping from a source in a map form.
+     *
+     * @param mappingType   the mapping type
      * @param mappingSource mapping source already converted to a map form, but not yet processed otherwise
-     * @param explicitSubobjects subobjects configuration to use for this parsing operation
      * @return a parsed mapping
      */
-    public Mapping parseMapping(String mappingType, Map<String, Object> mappingSource, @Nullable Explicit<Boolean> explicitSubobjects) {
+    public Mapping parseMapping(String mappingType, Map<String, Object> mappingSource) {
         try {
-            return mappingParser.parse(mappingType, mappingSource, explicitSubobjects);
+            return mappingParser.parse(mappingType, mappingSource);
         } catch (Exception e) {
             throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
         }

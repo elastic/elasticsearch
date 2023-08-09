@@ -253,11 +253,6 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
-    public CachedBlobContainerIndexInput clone() {
-        return (CachedBlobContainerIndexInput) super.clone();
-    }
-
-    @Override
     protected MetadataCachingIndexInput doSlice(
         String sliceName,
         long sliceOffset,
@@ -272,7 +267,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
             fileInfo,
             context,
             stats,
-            this.offset + sliceOffset,
+            sliceOffset,
             sliceCompoundFileOffset,
             sliceLength,
             cacheFileReference,

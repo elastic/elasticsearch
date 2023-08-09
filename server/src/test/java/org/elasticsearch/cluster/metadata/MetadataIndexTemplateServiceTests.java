@@ -1252,7 +1252,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 equalTo(
                     Map.of(
                         "_doc",
-                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                        Map.of(
+                            "properties",
+                            Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")),
+                            "_routing",
+                            Map.of("required", false)
+                        )
                     )
                 )
             );
@@ -1364,7 +1369,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 equalTo(
                     Map.of(
                         "_doc",
-                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                        Map.of(
+                            "properties",
+                            Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")),
+                            "_routing",
+                            Map.of("required", false)
+                        )
                     )
                 )
             );
@@ -1418,7 +1428,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 equalTo(
                     Map.of(
                         "_doc",
-                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                        Map.of(
+                            "properties",
+                            Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")),
+                            "_routing",
+                            Map.of("required", false)
+                        )
                     )
                 )
             );

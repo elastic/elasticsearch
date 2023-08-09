@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -138,6 +139,21 @@ public class XContentHelper {
      * Exactly the same as {@link XContentHelper#convertToMap(BytesReference, boolean, XContentType, Set, Set)} but
      * none of the fields are filtered
      */
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(
+        BytesReference bytes,
+        boolean ordered,
+        XContentType xContentType,
+        DocumentParsingObserver documentParsingObserver
+    ) {
+        return parseToType(
+            ordered ? XContentParser::mapOrdered : XContentParser::map,
+            bytes,
+            xContentType,
+            XContentParserConfiguration.EMPTY,
+            documentParsingObserver
+        );
+    }
+
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType) {
         return parseToType(
             ordered ? XContentParser::mapOrdered : XContentParser::map,
@@ -182,9 +198,24 @@ public class XContentHelper {
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config
     ) throws ElasticsearchParseException {
+        return parseToType(extractor, bytes, xContentType, config, DocumentParsingObserver.EMPTY_INSTANCE);
+    }
+
+    public static <T> Tuple<XContentType, T> parseToType(
+        CheckedFunction<XContentParser, T, IOException> extractor,
+        BytesReference bytes,
+        @Nullable XContentType xContentType,
+        @Nullable XContentParserConfiguration config,
+        DocumentParsingObserver documentParsingObserver
+    ) throws ElasticsearchParseException {
         config = config != null ? config : XContentParserConfiguration.EMPTY;
-        try (XContentParser parser = xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes)) {
-            return new Tuple<>(parser.contentType(), extractor.apply(parser));
+        try (
+            XContentParser parser = documentParsingObserver.wrapParser(
+                xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes)
+            )
+        ) {
+            Tuple<XContentType, T> xContentTypeTTuple = new Tuple<>(parser.contentType(), extractor.apply(parser));
+            return xContentTypeTTuple;
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to type", e);
         }
@@ -377,54 +408,95 @@ public class XContentHelper {
     }
 
     /**
-     * Merges the defaults provided as the second parameter into the content of the first. Only does recursive merge
-     * for inner maps.
+     * Merges the defaults provided as the second parameter into the content of the first. Only does recursive merge for inner maps.
      */
     public static void mergeDefaults(Map<String, Object> content, Map<String, Object> defaults) {
-        for (Map.Entry<String, Object> defaultEntry : defaults.entrySet()) {
-            if (content.containsKey(defaultEntry.getKey()) == false) {
-                // copy it over, it does not exists in the content
-                content.put(defaultEntry.getKey(), defaultEntry.getValue());
-            } else {
-                // in the content and in the default, only merge compound ones (maps)
-                if (content.get(defaultEntry.getKey()) instanceof Map && defaultEntry.getValue() instanceof Map) {
-                    mergeDefaults((Map<String, Object>) content.get(defaultEntry.getKey()), (Map<String, Object>) defaultEntry.getValue());
-                } else if (content.get(defaultEntry.getKey()) instanceof List && defaultEntry.getValue() instanceof List) {
-                    List<Object> defaultList = (List<Object>) defaultEntry.getValue();
-                    List<Object> contentList = (List<Object>) content.get(defaultEntry.getKey());
+        merge(content, defaults, null);
+    }
 
-                    if (allListValuesAreMapsOfOne(defaultList) && allListValuesAreMapsOfOne(contentList)) {
+    /**
+     * Merges the map provided as the second parameter into the content of the first. Only does recursive merge for inner maps.
+     * If a non-null {@link CustomMerge} is provided, it is applied whenever a merge is required, meaning - whenever both the first and
+     * the second map has values for the same key. Otherwise, values from the first map will always have precedence, meaning - if the
+     * first map contains a key, its value will not be overriden.
+     * @param first the map which serves as the merge base
+     * @param second the map of which contents are merged into the base map
+     * @param customMerge a custom merge rule to apply whenever a key has concrete values (i.e. not a map or a collection) in both maps
+     */
+    public static void merge(Map<String, Object> first, Map<String, Object> second, @Nullable CustomMerge customMerge) {
+        merge(null, first, second, customMerge);
+    }
+
+    /**
+     * Merges the map provided as the second parameter into the content of the first. Only does recursive merge for inner maps.
+     * If a non-null {@link CustomMerge} is provided, it is applied whenever a merge is required, meaning - whenever both the first and
+     * the second map has values for the same key. Otherwise, values from the first map will always have precedence, meaning - if the
+     * first map contains a key, its value will not be overriden.
+     *
+     * @param parent      used for recursion to maintain knowledge about the common parent of the currently merged sub-maps, if such exists
+     * @param first       the map which serves as the merge base
+     * @param second      the map of which contents are merged into the base map
+     * @param customMerge a custom merge rule to apply whenever a key has concrete values (i.e. not a map or a collection) in both maps
+     */
+    public static void merge(
+        @Nullable String parent,
+        Map<String, Object> first,
+        Map<String, Object> second,
+        @Nullable CustomMerge customMerge
+    ) {
+        for (Map.Entry<String, Object> toMergeEntry : second.entrySet()) {
+            if (first.containsKey(toMergeEntry.getKey()) == false) {
+                // copy it over, it does not exists in the content
+                first.put(toMergeEntry.getKey(), toMergeEntry.getValue());
+            } else {
+                // has values in both maps, merge compound ones (maps)
+                Object baseValue = first.get(toMergeEntry.getKey());
+                if (baseValue instanceof Map && toMergeEntry.getValue() instanceof Map) {
+                    merge(
+                        toMergeEntry.getKey(),
+                        (Map<String, Object>) baseValue,
+                        (Map<String, Object>) toMergeEntry.getValue(),
+                        customMerge
+                    );
+                } else if (baseValue instanceof List && toMergeEntry.getValue() instanceof List) {
+                    List<Object> listToMerge = (List<Object>) toMergeEntry.getValue();
+                    List<Object> baseList = (List<Object>) baseValue;
+
+                    if (allListValuesAreMapsOfOne(listToMerge) && allListValuesAreMapsOfOne(baseList)) {
                         // all are in the form of [ {"key1" : {}}, {"key2" : {}} ], merge based on keys
                         Map<String, Map<String, Object>> processed = new LinkedHashMap<>();
-                        for (Object o : contentList) {
+                        for (Object o : baseList) {
                             Map<String, Object> map = (Map<String, Object>) o;
                             Map.Entry<String, Object> entry = map.entrySet().iterator().next();
                             processed.put(entry.getKey(), map);
                         }
-                        for (Object o : defaultList) {
+                        for (Object o : listToMerge) {
                             Map<String, Object> map = (Map<String, Object>) o;
                             Map.Entry<String, Object> entry = map.entrySet().iterator().next();
                             if (processed.containsKey(entry.getKey())) {
-                                mergeDefaults(processed.get(entry.getKey()), map);
+                                merge(toMergeEntry.getKey(), processed.get(entry.getKey()), map, customMerge);
                             } else {
-                                // put the default entries after the content ones.
+                                // append the second list's entries after the first list's entries.
                                 processed.put(entry.getKey(), map);
                             }
                         }
 
-                        content.put(defaultEntry.getKey(), new ArrayList<>(processed.values()));
+                        first.put(toMergeEntry.getKey(), new ArrayList<>(processed.values()));
                     } else {
-                        // if both are lists, simply combine them, first the defaults, then the content
+                        // if both are lists, simply combine them, first the second list's values, then the first's
                         // just make sure not to add the same value twice
-                        List<Object> mergedList = new ArrayList<>(defaultList);
+                        // custom merge is not applicable here
+                        List<Object> mergedList = new ArrayList<>(listToMerge);
 
-                        for (Object o : contentList) {
+                        for (Object o : baseList) {
                             if (mergedList.contains(o) == false) {
                                 mergedList.add(o);
                             }
                         }
-                        content.put(defaultEntry.getKey(), mergedList);
+                        first.put(toMergeEntry.getKey(), mergedList);
                     }
+                } else if (customMerge != null) {
+                    first.put(toMergeEntry.getKey(), customMerge.merge(parent, toMergeEntry.getKey(), baseValue, toMergeEntry.getValue()));
                 }
             }
         }
@@ -440,6 +512,23 @@ public class XContentHelper {
             }
         }
         return true;
+    }
+
+    /**
+     * A {@code FunctionalInterface} that can be used in order to customize map merges.
+     */
+    @FunctionalInterface
+    public interface CustomMerge {
+        /**
+         * Based on the provided arguments, decide which value to use for the given key.
+         * This method doesn't throw a checked exception, but it is expected that illegal merges will result in a {@link RuntimeException}.
+         * @param parent merged field's parent
+         * @param key merged field's name
+         * @param oldValue original value of the provided key
+         * @param newValue the new value of the provided key which is to be merged with the original
+         * @return the merged value to use for the given key
+         */
+        Object merge(String parent, String key, Object oldValue, Object newValue);
     }
 
     /**

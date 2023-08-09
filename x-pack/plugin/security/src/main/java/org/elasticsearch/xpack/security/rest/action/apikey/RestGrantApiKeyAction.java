@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -28,6 +27,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBu
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -95,10 +95,8 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
             final GrantApiKeyRequest grantRequest = PARSER.parse(parser, null);
             if (refresh != null) {
                 grantRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refresh));
-            } else if (DiscoveryNode.isStateless(settings)) {
-                grantRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             } else {
-                grantRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
+                grantRequest.setRefreshPolicy(ApiKeyService.defaultCreateDocRefreshPolicy(settings));
             }
             return channel -> client.execute(
                 GrantApiKeyAction.INSTANCE,

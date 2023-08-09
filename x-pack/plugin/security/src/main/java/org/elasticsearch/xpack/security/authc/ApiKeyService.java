@@ -564,11 +564,7 @@ public class ApiKeyService {
         }
 
         logger.trace("Executing bulk request to update [{}] API keys", bulkRequestBuilder.numberOfActions());
-        if (DiscoveryNode.isStateless(settings)) {
-            bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        } else {
-            bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-        }
+        bulkRequestBuilder.setRefreshPolicy(defaultCreateDocRefreshPolicy(settings));
         securityIndex.prepareIndexIfNeededThenExecute(
             ex -> listener.onFailure(traceLog("prepare security index before update", ex)),
             () -> executeAsyncWithOrigin(
@@ -1682,11 +1678,7 @@ public class ApiKeyService {
                     .request();
                 bulkRequestBuilder.add(request);
             }
-            if (DiscoveryNode.isStateless(settings)) {
-                bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-            } else {
-                bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-            }
+            bulkRequestBuilder.setRefreshPolicy(defaultCreateDocRefreshPolicy(settings));
             securityIndex.prepareIndexIfNeededThenExecute(
                 ex -> listener.onFailure(traceLog("prepare security index", ex)),
                 () -> executeAsyncWithOrigin(
@@ -2331,6 +2323,18 @@ public class ApiKeyService {
                 metadataFlattened
             );
         }
+    }
+
+    /**
+     * API Key documents are refreshed after creation, such that the API Key docs are visible in searches after the create-API-key
+     * endpoint returns.
+     * In stateful deployments, the automatic refresh interval is short (hard-coded to 1 sec), so the {@code RefreshPolicy#WAIT_UNTIL}
+     * is an acceptable tradeoff for the superior doc creation throughput compared to {@code RefreshPolicy#IMMEDIATE}.
+     * But in stateless the automatic refresh interval is too long (at least 10 sec), which translates to long create-API-key endpoint
+     * latency, so in this case we opt for {@code RefreshPolicy#IMMEDIATE} and acknowledge the lower maximum doc creation throughput.
+     */
+    public static RefreshPolicy defaultCreateDocRefreshPolicy(Settings settings) {
+        return DiscoveryNode.isStateless(settings) ? RefreshPolicy.IMMEDIATE : RefreshPolicy.WAIT_UNTIL;
     }
 
     private static final class ApiKeyDocCache {

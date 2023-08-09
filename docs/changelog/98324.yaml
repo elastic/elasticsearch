@@ -1,5 +1,5 @@
 pr: 98324
-summary: Releasing unused memory and unnecessary copy of buffers in ScrollDataExtractor
-area: ML
-type: improvement
+summary: Avoid risk of OOM in datafeeds when memory is constrained
+area: Machine Learning
+type: bug
 issues: [89769]

@@ -69,6 +69,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testCreateSearchApplication() throws Exception {
+        // Default case - no template specified
         final SearchApplication searchApp = new SearchApplication(
             "my_search_app",
             new String[] { "index_1" },
@@ -85,9 +86,31 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(getSearchApp, equalTo(searchApp));
         checkAliases(searchApp);
 
-        assertThat(getSearchApp.searchApplicationTemplate(), equalTo(SearchApplicationTemplate.DEFAULT_TEMPLATE));
+        assertFalse(getSearchApp.hasStoredTemplate());
 
         expectThrows(VersionConflictEngineException.class, () -> awaitPutSearchApplication(searchApp, true));
+
+        // With template specified
+        final SearchApplication searchApp2 = new SearchApplication(
+            "my_search_app2",
+            new String[] { "index_2" },
+            null,
+            System.currentTimeMillis(),
+            SearchApplicationTemplate.DEFAULT_TEMPLATE
+        );
+
+        IndexResponse resp2 = awaitPutSearchApplication(searchApp2, true);
+        assertThat(resp2.status(), equalTo(RestStatus.CREATED));
+        assertThat(resp2.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
+
+        SearchApplication getSearchApp2 = awaitGetSearchApplication(searchApp2.name());
+        assertThat(getSearchApp2, equalTo(searchApp2));
+        checkAliases(searchApp2);
+
+        assertThat(getSearchApp2.searchApplicationTemplateOrDefault(), equalTo(SearchApplicationTemplate.DEFAULT_TEMPLATE));
+
+        resp2 = awaitPutSearchApplication(searchApp2, false);
+        assertThat(resp2.status(), equalTo(RestStatus.OK));
     }
 
     private void checkAliases(SearchApplication searchApp) {
@@ -130,7 +153,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(newResp.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
         SearchApplication getNewSearchApp = awaitGetSearchApplication(searchApp.name());
         assertThat(searchApp, equalTo(getNewSearchApp));
-        assertThat(searchApp.searchApplicationTemplate(), equalTo(getNewSearchApp.searchApplicationTemplate()));
+        assertThat(searchApp.searchApplicationTemplateOrDefault(), equalTo(getNewSearchApp.searchApplicationTemplateOrDefault()));
         checkAliases(searchApp);
     }
 

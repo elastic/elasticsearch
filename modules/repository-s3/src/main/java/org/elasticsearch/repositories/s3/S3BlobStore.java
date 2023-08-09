@@ -60,6 +60,8 @@ class S3BlobStore implements BlobStore {
     final RequestMetricCollector listMetricCollector;
     final RequestMetricCollector putMetricCollector;
     final RequestMetricCollector multiPartUploadMetricCollector;
+    final RequestMetricCollector deleteMetricCollector;
+    final RequestMetricCollector abortPartUploadMetricCollector;
 
     S3BlobStore(
         S3Service service,
@@ -107,6 +109,20 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
                 stats.postCount.addAndGet(getRequestCount(request));
+            }
+        };
+        this.deleteMetricCollector = new IgnoreNoResponseMetricsCollector() {
+            @Override
+            public void collectMetrics(Request<?> request) {
+                assert request.getHttpMethod().name().equals("POST");
+                stats.deleteCount.addAndGet(getRequestCount(request));
+            }
+        };
+        this.abortPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
+            @Override
+            public void collectMetrics(Request<?> request) {
+                assert request.getHttpMethod().name().equals("DELETE");
+                stats.abortCount.addAndGet(getRequestCount(request));
             }
         };
     }
@@ -234,12 +250,18 @@ class S3BlobStore implements BlobStore {
 
         final AtomicLong postCount = new AtomicLong();
 
+        final AtomicLong deleteCount = new AtomicLong();
+
+        final AtomicLong abortCount = new AtomicLong();
+
         Map<String, Long> toMap() {
             final Map<String, Long> results = new HashMap<>();
             results.put("GetObject", getCount.get());
             results.put("ListObjects", listCount.get());
             results.put("PutObject", putCount.get());
             results.put("PutMultipartObject", postCount.get());
+            results.put("DeleteObjects", deleteCount.get());
+            results.put("AbortMultipartObject", abortCount.get());
             return results;
         }
     }

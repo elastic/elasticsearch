@@ -18,7 +18,7 @@ Retrieves information about a query ruleset.
 [[get-query-ruleset-prereq]]
 ==== {api-prereq-title}
 
-Requires the `manage_cluster` privilege.
+Requires the `manage_search_query_rules` privilege.
 
 [[get-query-ruleset-path-params]]
 ==== {api-path-parms-title}
@@ -54,7 +54,7 @@ PUT _query_rules/my-ruleset
                 {
                     "type": "exact",
                     "metadata": "query_string",
-                    "values": ["marvel"]
+                    "values": [ "marvel" ]
                 }
             ],
             "actions": {
@@ -71,7 +71,7 @@ PUT _query_rules/my-ruleset
                 {
                     "type": "exact",
                     "metadata": "query_string",
-                    "values": ["dc"]
+                    "values": [ "dc" ]
                 }
             ],
             "actions": {
@@ -119,7 +119,7 @@ A sample response:
                 {
                     "type": "exact",
                     "metadata": "query_string",
-                    "values": ["marvel"]
+                    "values": [ "marvel" ]
                 }
             ],
             "actions": {
@@ -136,7 +136,7 @@ A sample response:
                 {
                     "type": "exact",
                     "metadata": "query_string",
-                    "values": ["dc"]
+                    "values": [ "dc" ]
                 }
             ],
             "actions": {

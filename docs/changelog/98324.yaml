@@ -1,0 +1,5 @@
+pr: 98324
+summary: Releasing unused memory and unnecessary copy of buffers in ScrollDataExtractor
+area: ML
+type: improvement
+issues: [89769]

@@ -1041,7 +1041,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             assert defaultValue != null;
             return new Parameter<>(name, updateable, defaultValue, (n, c, o) -> {
                 if (o == null) {
-                    return defaultValue;
+                    return defaultValue.get();
                 }
                 EnumSet<T> enumSet = EnumSet.allOf(enumClass);
                 for (T t : enumSet) {

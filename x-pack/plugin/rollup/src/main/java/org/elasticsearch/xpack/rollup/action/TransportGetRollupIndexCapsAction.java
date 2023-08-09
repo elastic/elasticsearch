@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.rollup.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -60,16 +60,15 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
         ActionListener<GetRollupIndexCapsAction.Response> listener
     ) {
         // Workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        managementExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(request.indicesOptions(), request.indices(), l)));
+        managementExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(request, l)));
     }
 
     private void doExecuteForked(
-        IndicesOptions indicesOptions,
-        String[] indexExpressions,
+        IndicesRequest request,
         ActionListener<GetRollupIndexCapsAction.Response> listener
     ) {
         Transports.assertNotTransportThread("retrieving rollup job index caps may be expensive");
-        String[] indices = resolver.concreteIndexNames(clusterService.state(), indicesOptions, indexExpressions);
+        String[] indices = resolver.concreteIndexNames(clusterService.state(), request.indicesOptions(), request);
         Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(
             Arrays.asList(indices),
             clusterService.state().getMetadata().indices()

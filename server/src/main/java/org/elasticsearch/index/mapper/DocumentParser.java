@@ -476,7 +476,7 @@ public final class DocumentParser {
                     parseObjectDynamic(context, currentFieldName);
                 } else {
                     // with subobjects:false no further actions are needed for the object
-                    // we are parsing except storing its name in the dotted field name prefix.
+                    // we are parsing except storing its name as dotted field name prefix.
                     context.path().addDottedFieldName(currentFieldName);
                     parseObjectOrNested(context);
                     context.path().removeDottedFieldName();

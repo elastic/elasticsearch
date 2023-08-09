@@ -92,7 +92,7 @@ Valid columns are:
 `completion.size`, `cs`, `completionSize`::
 Size of completion, such as `0b`.
 
-`dense_vector.value_count`, `cs`, `denseVectorCount`::
+`dense_vector.value_count`, `dvc`, `denseVectorCount`::
 Number of indexed dense vector.
 
 `fielddata.memory_size`, `fm`, `fielddataMemory`::

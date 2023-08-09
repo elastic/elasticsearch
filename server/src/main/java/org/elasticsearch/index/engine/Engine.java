@@ -217,13 +217,10 @@ public abstract class Engine implements Closeable {
         // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
         // the next scheduled refresh to go through and refresh the stats as well
         for (LeafReaderContext readerContext : indexReader.leaves()) {
-            // we go on the segment level here to get accurate numbers
-            final SegmentReader segmentReader = Lucene.segmentReader(readerContext.reader());
-            SegmentCommitInfo info = segmentReader.getSegmentInfo();
             try {
                 valueCount += getDenseVectorValueCount(readerContext.reader());
             } catch (IOException e) {
-                logger.trace(() -> "failed to get dense vector stats for [" + info.info.name + "]", e);
+                logger.trace(() -> "failed to get dense vector stats for [" + readerContext + "]", e);
             }
         }
         return new DenseVectorStats(valueCount);

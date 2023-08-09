@@ -87,7 +87,7 @@ public class TransportResizeActionTests extends ESTestCase {
                     "target",
                     new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                         new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
-                        (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), 0, between(1, 100))
+                        (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100))
                     )
                 )
             ).getMessage().startsWith("Can't merge index with more than [2147483519] docs - too many documents in shards ")
@@ -102,7 +102,7 @@ public class TransportResizeActionTests extends ESTestCase {
                 "target",
                 new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                     new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
-                    (i) -> i == 2 || i == 3 ? new DocsStats(Integer.MAX_VALUE / 2, between(1, 1000), 0, between(1, 10000)) : null
+                    (i) -> i == 2 || i == 3 ? new DocsStats(Integer.MAX_VALUE / 2, between(1, 1000), between(1, 10000)) : null
                 )
             );
         }).getMessage().startsWith("Can't merge index with more than [2147483519] docs - too many documents in shards "));
@@ -121,7 +121,7 @@ public class TransportResizeActionTests extends ESTestCase {
                 "target",
                 new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                     new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
-                    (i) -> new DocsStats(between(10, 1000), between(1, 10), 0, between(1, 10000))
+                    (i) -> new DocsStats(between(10, 1000), between(1, 10), between(1, 10000))
                 )
             );
         });
@@ -152,7 +152,7 @@ public class TransportResizeActionTests extends ESTestCase {
             "target",
             new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                 new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
-                (i) -> new DocsStats(between(1, 1000), between(1, 1000), 0, between(0, 10000))
+                (i) -> new DocsStats(between(1, 1000), between(1, 1000), between(0, 10000))
             )
         );
     }
@@ -267,7 +267,7 @@ public class TransportResizeActionTests extends ESTestCase {
         routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, indexName).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         int numSourceShards = clusterState.metadata().index(indexName).getNumberOfShards();
-        DocsStats stats = new DocsStats(between(0, (IndexWriter.MAX_DOCS) / numSourceShards), between(1, 1000), 0, between(1, 10000));
+        DocsStats stats = new DocsStats(between(0, (IndexWriter.MAX_DOCS) / numSourceShards), between(1, 1000), between(1, 10000));
         ResizeRequest target = new ResizeRequest("target", indexName);
         final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
         target.setWaitForActiveShards(activeShardCount);
@@ -307,7 +307,7 @@ public class TransportResizeActionTests extends ESTestCase {
                     "target",
                     new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                         new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
-                        (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), 0, between(1, 100))
+                        (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100))
                     )
                 )
             ).getMessage().startsWith("Cannot set both index.number_of_shards and max_primary_shard_size for the target index")
@@ -332,7 +332,7 @@ public class TransportResizeActionTests extends ESTestCase {
         routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         int numSourceShards = clusterState.metadata().index("source").getNumberOfShards();
-        DocsStats stats = new DocsStats(between(0, (IndexWriter.MAX_DOCS) / numSourceShards), between(1, 1000), 0, between(1, 10000));
+        DocsStats stats = new DocsStats(between(0, (IndexWriter.MAX_DOCS) / numSourceShards), between(1, 1000), between(1, 10000));
 
         // each shard's storage will not be greater than the `max_primary_shard_size`
         ResizeRequest target1 = new ResizeRequest("target", "source");

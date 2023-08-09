@@ -40,7 +40,7 @@ public class DocsStatsTests extends ESTestCase {
                 DocsStats cloneStats = new DocsStats(in);
                 assertThat(cloneStats.getCount(), equalTo(originalStats.getCount()));
                 assertThat(cloneStats.getDeleted(), equalTo(originalStats.getDeleted()));
-                assertThat(cloneStats.getTotalDenseVector(), equalTo(originalStats.getTotalDenseVector()));
+                assertThat(cloneStats.getDenseVectorCount(), equalTo(originalStats.getDenseVectorCount()));
                 assertThat(cloneStats.getTotalSizeInBytes(), equalTo(originalStats.getTotalSizeInBytes()));
             }
         }

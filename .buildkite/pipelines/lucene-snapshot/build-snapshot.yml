@@ -1,6 +1,7 @@
 steps:
   - trigger: apache-lucene-build-snapshot
     key: lucene-build
+    if: build.env("LUCENE_BUILD_ID") == null || build.env("LUCENE_BUILD_ID") == ""
   - wait
   - label: Upload and update lucene snapshot
     command: .buildkite/scripts/lucene-snapshot/upload-snapshot.sh

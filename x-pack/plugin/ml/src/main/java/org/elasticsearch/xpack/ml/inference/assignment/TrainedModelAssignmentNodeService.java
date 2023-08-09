@@ -199,6 +199,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     }
 
     public void stop() {
+        logger.error("called stop within TrainedModelAssignmentNodeService");
         stopped = true;
         ThreadPool.Cancellable cancellable = this.scheduledFuture;
         if (cancellable != null) {

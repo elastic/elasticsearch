@@ -1567,6 +1567,7 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: 8.10.0
+
   - group: packaging-tests-windows
     steps:
       - label: "{{matrix.image}} / packaging-tests-windows"

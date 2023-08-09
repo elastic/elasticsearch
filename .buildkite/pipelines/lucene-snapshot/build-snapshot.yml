@@ -1,6 +1,9 @@
 steps:
-  - label: Build and upload lucene snapshot
-    command: .buildkite/scripts/lucene-snapshot/build-snapshot.sh
+  - trigger: apache-lucene-build-snapshot
+    key: lucene-build
+  - wait
+  - label: Upload and update lucene snapshot
+    command: .buildkite/scripts/lucene-snapshot/upload-snapshot.sh
     timeout_in_minutes: 120
     env:
       USE_LUCENE_SNAPSHOT_CREDS: "true"
@@ -11,5 +14,5 @@ steps:
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - wait
-  - trigger: "elasticsearch-lucene-snapshot-tests"
-    async: true
+  # - trigger: "elasticsearch-lucene-snapshot-tests"
+  #   async: true

@@ -79,6 +79,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 ActivateProfileAction.NAME,
                 SuggestProfilesAction.NAME,
                 ProfileHasPrivilegesAction.NAME,
+                "write_fleet_secrets",
                 // To facilitate ML UI functionality being controlled using Kibana security privileges
                 "manage_ml",
                 // The symbolic constant for this one is in SecurityActionMapper, so not accessible from X-Pack core

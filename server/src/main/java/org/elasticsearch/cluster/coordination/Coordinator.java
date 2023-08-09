@@ -529,7 +529,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             // The preVoteCollector is only active while we are candidate, but it does not call this method with synchronisation, so we have
             // to check our mode again here.
             if (mode == Mode.CANDIDATE) {
-                if (localNodeMayWinElection(getLastAcceptedState()) == false) {
+                if (localNodeMayWinElection(getLastAcceptedState(), electionStrategy) == false) {
                     logger.trace("skip election as local node may not win it: {}", getLastAcceptedState().coordinationMetadata());
                     return;
                 }
@@ -572,17 +572,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         becomeCandidate("after abdicating to " + newMaster);
     }
 
-    private static boolean localNodeMayWinElection(ClusterState lastAcceptedState) {
+    private static boolean localNodeMayWinElection(ClusterState lastAcceptedState, ElectionStrategy electionStrategy) {
         final DiscoveryNode localNode = lastAcceptedState.nodes().getLocalNode();
         assert localNode != null;
-        return nodeMayWinElection(lastAcceptedState, localNode);
-    }
-
-    private static boolean nodeMayWinElection(ClusterState lastAcceptedState, DiscoveryNode node) {
-        final String nodeId = node.getId();
-        return lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(nodeId)
-            || lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(nodeId)
-            || lastAcceptedState.getVotingConfigExclusions().stream().noneMatch(vce -> vce.getNodeId().equals(nodeId));
+        return electionStrategy.nodeMayWinElection(lastAcceptedState, localNode);
     }
 
     private Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
@@ -1278,7 +1271,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             metadataBuilder.coordinationMetadata(coordinationMetadata);
 
             coordinationState.get().setInitialState(ClusterState.builder(currentState).metadata(metadataBuilder).build());
-            assert localNodeMayWinElection(getLastAcceptedState())
+            assert localNodeMayWinElection(getLastAcceptedState(), electionStrategy)
                 : "initial state does not allow local node to win election: " + getLastAcceptedState().coordinationMetadata();
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
             startElectionScheduler();
@@ -1751,7 +1744,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     if (mode == Mode.CANDIDATE) {
                         final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
 
-                        if (localNodeMayWinElection(lastAcceptedState) == false) {
+                        if (localNodeMayWinElection(lastAcceptedState, electionStrategy) == false) {
                             logger.trace("skip prevoting as local node may not win election: {}", lastAcceptedState.coordinationMetadata());
                             return;
                         }
@@ -1961,10 +1954,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                         // if necessary, abdicate to another node or improve the voting configuration
                                         boolean attemptReconfiguration = true;
                                         final ClusterState state = getLastAcceptedState(); // committed state
-                                        if (localNodeMayWinElection(state) == false) {
+                                        if (localNodeMayWinElection(state, electionStrategy) == false) {
                                             final List<DiscoveryNode> masterCandidates = completedNodes().stream()
                                                 .filter(DiscoveryNode::isMasterNode)
-                                                .filter(node -> nodeMayWinElection(state, node))
+                                                .filter(node -> electionStrategy.nodeMayWinElection(state, node))
                                                 .filter(node -> {
                                                     // check if master candidate would be able to get an election quorum if we were to
                                                     // abdicate to it. Assume that every node that completed the publication can provide

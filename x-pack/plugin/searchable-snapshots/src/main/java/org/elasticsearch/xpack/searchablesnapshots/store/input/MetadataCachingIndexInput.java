@@ -88,7 +88,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     /**
      * Range of bytes that should be cached in the blob cache for the current index input's footer. This footer byte range should only be
      * required for slices of CFS files; regular files already have their footers extracted from the
-     * {@link BlobStoreIndexShardSnapshot.FileInfo} (see method {@link MetadataCachingIndexInput#maybeReadChecksumFromFileInfo}).
+     * {@link BlobStoreIndexShardSnapshot.FileInfo} (see method {@link #maybeReadChecksumFromFileInfo}).
      */
     private final ByteRange footerBlobCacheByteRange;
 
@@ -97,7 +97,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     protected final BlobStoreIndexShardSnapshot.FileInfo fileInfo;
     protected final IOContext context;
     protected final IndexInputStats stats;
-    protected final long offset;
+    private final long offset;
     private final long length;
 
     // the following are only mutable so they can be adjusted after cloning/slicing
@@ -453,7 +453,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
      * @param readLength The number of bytes to read
      */
     protected InputStream openInputStreamFromBlobStore(final long position, final long readLength) throws IOException {
-        assert MetadataCachingIndexInput.assertCurrentThreadMayAccessBlobStore();
+        assert assertCurrentThreadMayAccessBlobStore();
         if (fileInfo.numberOfParts() == 1L) {
             assert position + readLength <= fileInfo.length()
                 : "cannot read [" + position + "-" + (position + readLength) + "] from [" + fileInfo + "]";
@@ -520,12 +520,12 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
 
     @Override
     protected final void readInternal(ByteBuffer b) throws IOException {
-        assert MetadataCachingIndexInput.assertCurrentThreadIsNotCacheFetchAsync();
+        assert assertCurrentThreadIsNotCacheFetchAsync();
 
         final int bytesToRead = b.remaining();
         // We can detect that we're going to read the last 16 bytes (that contains the footer checksum) of the file. Such reads are often
         // executed when opening a Directory and since we have the checksum in the snapshot metadata we can use it to fill the ByteBuffer.
-        if (MetadataCachingIndexInput.maybeReadChecksumFromFileInfo(fileInfo, getAbsolutePosition(), isClone, b)) {
+        if (maybeReadChecksumFromFileInfo(fileInfo, getAbsolutePosition(), isClone, b)) {
             logger.trace("read footer of file [{}], bypassing all caches", fileInfo.physicalName());
         } else {
             final long position = getAbsolutePosition();
@@ -563,13 +563,9 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
 
     @Override
     public final void close() throws IOException {
-        if (closed.compareAndSet(false, true)) {
-            if (isClone == false) {
-                stats.incrementCloseCount();
-            }
-            if (isClone == false) {
-                cacheFileReference.releaseOnClose();
-            }
+        if (closed.compareAndSet(false, true) && isClone == false) {
+            stats.incrementCloseCount();
+            cacheFileReference.releaseOnClose();
         }
     }
 
@@ -629,7 +625,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
         }
         final MetadataCachingIndexInput slice = doSlice(
             sliceName,
-            sliceOffset,
+            this.offset + sliceOffset,
             sliceLength,
             sliceHeaderByteRange,
             sliceFooterByteRange,

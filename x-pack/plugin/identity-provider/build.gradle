@@ -27,7 +27,7 @@ dependencies {
   api "org.opensaml:opensaml-profile-api:${versions.opensaml}"
   api "org.opensaml:opensaml-profile-impl:${versions.opensaml}"
   api "org.opensaml:opensaml-xmlsec-api:${versions.opensaml}"
-  api project(path: ':x-pack:libs:es-opensaml-xmlsec-impl', configuration: 'shadow')
+  api "org.opensaml:opensaml-xmlsec-impl:${versions.opensaml}"
   api "org.opensaml:opensaml-soap-api:${versions.opensaml}"
   api "org.opensaml:opensaml-soap-impl:${versions.opensaml}"
   api "org.opensaml:opensaml-storage-api:${versions.opensaml}"

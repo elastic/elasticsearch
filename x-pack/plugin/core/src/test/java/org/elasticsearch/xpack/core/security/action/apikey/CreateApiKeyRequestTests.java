@@ -21,6 +21,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,6 +34,7 @@ public class CreateApiKeyRequestTests extends ESTestCase {
     public void testNameValidation() {
         final String name = randomAlphaOfLengthBetween(1, 256);
         CreateApiKeyRequest request = new CreateApiKeyRequest();
+        request.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL, NONE));
 
         ActionRequestValidationException ve = request.validate();
         assertThat(ve.validationErrors().size(), is(1));
@@ -78,12 +82,27 @@ public class CreateApiKeyRequestTests extends ESTestCase {
     public void testMetadataKeyValidation() {
         final String name = randomAlphaOfLengthBetween(1, 256);
         CreateApiKeyRequest request = new CreateApiKeyRequest();
+        request.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL, NONE));
         request.setName(name);
         request.setMetadata(Map.of("_foo", "bar"));
         final ActionRequestValidationException ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), equalTo(1));
         assertThat(ve.validationErrors().get(0), containsString("API key metadata keys may not start with [_]"));
+    }
+
+    public void testRefreshPolicyValidation() {
+        CreateApiKeyRequest request = new CreateApiKeyRequest();
+        request.setName(randomAlphaOfLengthBetween(1, 256));
+        final TimeValue expiration = randomBoolean()
+            ? null
+            : TimeValue.parseTimeValue(randomTimeValue(), "test validation of create api key");
+        request.setExpiration(expiration);
+        request.setMetadata(randomBoolean() ? Map.of("foo", "bar") : null);
+        final ActionRequestValidationException ve = request.validate();
+        assertNotNull(ve);
+        assertThat(ve.validationErrors().size(), equalTo(1));
+        assertThat(ve.validationErrors().get(0), containsString("refresh policy is required"));
     }
 
     public void testRoleDescriptorValidation() {
@@ -112,6 +131,7 @@ public class CreateApiKeyRequestTests extends ESTestCase {
             ),
             null
         );
+        request1.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL, NONE));
         final ActionRequestValidationException ve1 = request1.validate();
         assertNotNull(ve1);
         assertThat(ve1.validationErrors().get(0), containsString("unknown cluster privilege"));

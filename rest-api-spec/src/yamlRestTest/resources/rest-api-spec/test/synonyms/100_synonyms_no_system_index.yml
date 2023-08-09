@@ -1,0 +1,43 @@
+setup:
+  - skip:
+      version: " - 8.9.99"
+      reason: Introduced in 8.10.0
+---
+"Get synonyms sets returns not found when no index exists":
+  - do:
+      synonyms_sets.get: { }
+
+  - match:
+      count: 0
+  - length: { results: 0 }
+
+---
+"Get synonym set returns not found when no index exists":
+  - do:
+      catch: /synonyms set \[test\-synonyms\] not found/
+      synonyms.get:
+        synonyms_set: "test-synonyms"
+
+
+---
+"Delete synonym set returns not found when no index exists":
+  - do:
+      catch: /synonyms set \[test\-synonyms\] not found/
+      synonyms.delete:
+        synonyms_set: "test-synonyms"
+
+---
+"Get synonym rule returns not found when no index exists":
+  - do:
+      catch: /synonyms set \[test\-synonyms\] not found/
+      synonym_rule.get:
+        synonyms_set: "test-synonyms"
+        synonym_rule: "test-id"
+
+---
+"Delete synonym rule returns not found when no index exists":
+  - do:
+      catch: /synonyms set \[test\-synonyms\] not found/
+      synonym_rule.delete:
+        synonyms_set: "test-synonyms"
+        synonym_rule: "test-id"

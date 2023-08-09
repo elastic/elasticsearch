@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -247,9 +246,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("id", id).field("name", name);
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            builder.field("type", type.value());
-        }
+        builder.field("type", type.value());
         builder.field("creation", creation.toEpochMilli());
         if (expiration != null) {
             builder.field("expiration", expiration.toEpochMilli());

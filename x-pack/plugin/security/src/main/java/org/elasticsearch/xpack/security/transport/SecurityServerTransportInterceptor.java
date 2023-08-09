@@ -24,7 +24,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.SendRequestTransportException;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -144,11 +143,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
     @Override
     public AsyncSender interceptSender(AsyncSender sender) {
-        return interceptForAllRequests(
-            // Branching based on the feature flag is not strictly necessary here, but it makes it more obvious we are not interfering with
-            // non-feature-flagged deployments
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? interceptForCrossClusterAccessRequests(sender) : sender
-        );
+        return interceptForAllRequests(interceptForCrossClusterAccessRequests(sender));
     }
 
     private AsyncSender interceptForAllRequests(AsyncSender sender) {

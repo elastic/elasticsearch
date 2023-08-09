@@ -32,7 +32,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.XContentTestUtils;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.Grant;
@@ -427,8 +426,6 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     public void testCreateCrossClusterApiKey() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final var request = CreateCrossClusterApiKeyRequest.withNameAndAccess(randomAlphaOfLengthBetween(3, 8), """
             {
               "search": [ {"names": ["logs"]} ]
@@ -519,8 +516,6 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     public void testUpdateCrossClusterApiKey() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final RoleDescriptor originalRoleDescriptor = new RoleDescriptor(
             "cross_cluster",
             new String[] { "cross_cluster_search" },
@@ -622,8 +617,6 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
     // Cross-cluster API keys cannot be created by an API key even if it has manage_security privilege
     // This is intentional until we solve the issue of derived API key ownership
     public void testCannotCreateDerivedCrossClusterApiKey() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final CreateApiKeyResponse createAdminKeyResponse = new CreateApiKeyRequestBuilder(client()).setName("admin-key")
             .setRoleDescriptors(
                 randomFrom(

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.List;
@@ -78,7 +77,7 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
         WATCHER,
         ARCHIVE,
         HEALTH,
-        TcpTransport.isUntrustedRemoteClusterEnabled() ? REMOTE_CLUSTERS : null,
+        REMOTE_CLUSTERS,
         ENTERPRISE_SEARCH
     ).filter(Objects::nonNull).toList();
 

@@ -41,7 +41,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -125,7 +124,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2) : null,
+            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
             null
         );
         assertFalse(flsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -141,7 +140,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2) : null,
+            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
             null
         );
         assertFalse(dlsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -162,7 +161,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2) : null,
+            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
             null
         );
         assertFalse(flsDlsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -176,7 +175,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2) : null,
+            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
             null
         );
         assertFalse(noFlsDlsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -272,7 +271,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2) : null,
+            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
             RoleRestrictionTests.randomWorkflowsRestriction(1, 2)
         );
 

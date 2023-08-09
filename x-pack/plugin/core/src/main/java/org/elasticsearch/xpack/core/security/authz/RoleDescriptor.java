@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -448,21 +447,15 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     }
 
     public static RoleDescriptor parse(String name, XContentParser parser, boolean allow2xFormat) throws IOException {
-        return parse(name, parser, allow2xFormat, TcpTransport.isUntrustedRemoteClusterEnabled(), true);
+        return parse(name, parser, allow2xFormat, true);
     }
 
     public static RoleDescriptor parse(String name, XContentParser parser, boolean allow2xFormat, boolean allowRestriction)
         throws IOException {
-        return parse(name, parser, allow2xFormat, TcpTransport.isUntrustedRemoteClusterEnabled(), allowRestriction);
+        return parse(name, parser, allow2xFormat, allowRestriction);
     }
 
-    static RoleDescriptor parse(
-        String name,
-        XContentParser parser,
-        boolean allow2xFormat,
-        boolean untrustedRemoteClusterEnabled,
-        boolean allowRestriction
-    ) throws IOException {
+    static RoleDescriptor parse(String name, XContentParser parser, boolean allow2xFormat, boolean allowRestriction) throws IOException {
         // validate name
         Validation.Error validationError = Validation.Roles.validateRoleName(name, true);
         if (validationError != null) {
@@ -520,20 +513,15 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                                 currentFieldName
                             );
                         }
-                    } else if (untrustedRemoteClusterEnabled
-                        && Fields.REMOTE_INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
-                            remoteIndicesPrivileges = parseRemoteIndices(name, parser);
-                        } else if (allowRestriction && Fields.RESTRICTION.match(currentFieldName, parser.getDeprecationHandler())) {
-                            restriction = Restriction.parse(name, parser);
-                        } else if (Fields.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            // don't need it
-                        } else {
-                            throw new ElasticsearchParseException(
-                                "failed to parse role [{}]. unexpected field [{}]",
-                                name,
-                                currentFieldName
-                            );
-                        }
+                    } else if (Fields.REMOTE_INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
+                        remoteIndicesPrivileges = parseRemoteIndices(name, parser);
+                    } else if (allowRestriction && Fields.RESTRICTION.match(currentFieldName, parser.getDeprecationHandler())) {
+                        restriction = Restriction.parse(name, parser);
+                    } else if (Fields.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        // don't need it
+                    } else {
+                        throw new ElasticsearchParseException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
+                    }
         }
         return new RoleDescriptor(
             name,

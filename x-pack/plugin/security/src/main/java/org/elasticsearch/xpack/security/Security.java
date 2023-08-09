@@ -94,7 +94,6 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -1338,18 +1337,14 @@ public class Security extends Plugin
             new ActionHandler<>(PutPrivilegesAction.INSTANCE, TransportPutPrivilegesAction.class),
             new ActionHandler<>(DeletePrivilegesAction.INSTANCE, TransportDeletePrivilegesAction.class),
             new ActionHandler<>(CreateApiKeyAction.INSTANCE, TransportCreateApiKeyAction.class),
-            TcpTransport.isUntrustedRemoteClusterEnabled()
-                ? new ActionHandler<>(CreateCrossClusterApiKeyAction.INSTANCE, TransportCreateCrossClusterApiKeyAction.class)
-                : null,
+            new ActionHandler<>(CreateCrossClusterApiKeyAction.INSTANCE, TransportCreateCrossClusterApiKeyAction.class),
             new ActionHandler<>(GrantApiKeyAction.INSTANCE, TransportGrantApiKeyAction.class),
             new ActionHandler<>(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
             new ActionHandler<>(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
             new ActionHandler<>(QueryApiKeyAction.INSTANCE, TransportQueryApiKeyAction.class),
             new ActionHandler<>(UpdateApiKeyAction.INSTANCE, TransportUpdateApiKeyAction.class),
             new ActionHandler<>(BulkUpdateApiKeyAction.INSTANCE, TransportBulkUpdateApiKeyAction.class),
-            TcpTransport.isUntrustedRemoteClusterEnabled()
-                ? new ActionHandler<>(UpdateCrossClusterApiKeyAction.INSTANCE, TransportUpdateCrossClusterApiKeyAction.class)
-                : null,
+            new ActionHandler<>(UpdateCrossClusterApiKeyAction.INSTANCE, TransportUpdateCrossClusterApiKeyAction.class),
             new ActionHandler<>(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
             new ActionHandler<>(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
             new ActionHandler<>(DeleteServiceAccountTokenAction.INSTANCE, TransportDeleteServiceAccountTokenAction.class),
@@ -1429,10 +1424,10 @@ public class Security extends Plugin
             new RestPutPrivilegesAction(settings, getLicenseState()),
             new RestDeletePrivilegesAction(settings, getLicenseState()),
             new RestCreateApiKeyAction(settings, getLicenseState()),
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? new RestCreateCrossClusterApiKeyAction(settings, getLicenseState()) : null,
+            new RestCreateCrossClusterApiKeyAction(settings, getLicenseState()),
             new RestUpdateApiKeyAction(settings, getLicenseState()),
             new RestBulkUpdateApiKeyAction(settings, getLicenseState()),
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? new RestUpdateCrossClusterApiKeyAction(settings, getLicenseState()) : null,
+            new RestUpdateCrossClusterApiKeyAction(settings, getLicenseState()),
             new RestGrantApiKeyAction(settings, getLicenseState()),
             new RestInvalidateApiKeyAction(settings, getLicenseState()),
             new RestGetApiKeyAction(settings, getLicenseState()),

@@ -5,7 +5,8 @@ set -euo pipefail
 LUCENE_BUILD_ID=${LUCENE_BUILD_ID:-}
 
 if [[ -z "$LUCENE_BUILD_ID" ]]; then
-  LUCENE_BUILD_ID=$(buildkite-agent step get --step lucene-build triggered_build | jq -r .id)
+  build_json=$(curl -sH "Authorization: Bearer $BUILDKITE_API_TOKEN" "https://api.buildkite.com/v2/organizations/elastic/pipelines/$BUILDKITE_PIPELINE_SLUG/builds/$BUILDKITE_BUILD_NUMBER")
+  LUCENE_BUILD_ID=$(jq -r '.jobs[] | select(.step_key == "lucene-build").triggered_build.id' <<< "$build_json")
 fi
 
 export LUCENE_BUILD_ID

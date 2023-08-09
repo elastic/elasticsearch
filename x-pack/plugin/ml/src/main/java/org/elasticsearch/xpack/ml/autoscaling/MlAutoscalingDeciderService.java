@@ -94,7 +94,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         final MlAutoscalingContext mlContext = new MlAutoscalingContext(clusterState);
         final NativeMemoryCapacity currentNativeMemoryCapacity = memoryDecider.currentScale(mlContext.mlNodes);
         final MlMemoryAutoscalingCapacity currentMemoryCapacity = memoryDecider.capacityFromNativeMemory(currentNativeMemoryCapacity);
-        final MlProcessorAutoscalingCapacity currentProcessorCapacity = processorDecider.computeCurrentCapacity(mlContext.mlNodes);
+        final MlProcessorAutoscalingCapacity currentProcessorCapacity = processorDecider.computeCurrentCapacity(
+            mlContext.mlNodes,
+            configuration
+        );
 
         final MlScalingReason.Builder reasonBuilder = MlScalingReason.builder(mlContext)
             .setCurrentMlCapacity(

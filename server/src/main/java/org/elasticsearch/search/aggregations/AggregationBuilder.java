@@ -220,15 +220,39 @@ public abstract class AggregationBuilder
     }
 
     /**
-     * Return false if this aggregation or any of the child aggregations does not support concurrent search
+     * Return false if this aggregation or any of the child aggregations does not support concurrent search.
+     * As a result, such aggregation will always be executed sequentially despite concurrency is enabled for the query phase.
+     * Note: aggregations that don't support concurrency, may or may not support offloading their collection to the search worker threads,
+     * depending on what {@link #supportsOffloadingSequentialCollection()} returns.
      */
     public boolean supportsConcurrentExecution() {
+        if (isInSortOrderExecutionRequired()) {
+            return false;
+        }
         for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
             if (builder.supportsConcurrentExecution() == false) {
                 return false;
             }
         }
-        return isInSortOrderExecutionRequired() == false;
+        return supportsOffloadingSequentialCollection();
+    }
+
+    /**
+     * Returns false if this aggregation or any of its child aggregations does not support offloading its sequential collection
+     * to a separate thread. As a result, such aggregation will always be executed sequentially, and fully in the search thread,
+     * without offloading its collection to the search worker threads.
+     * Note: aggregations that don't support offloading sequential collection, don't support concurrency by definition.
+     */
+    public boolean supportsOffloadingSequentialCollection() {
+        if (isInSortOrderExecutionRequired()) {
+            return false;
+        }
+        for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
+            if (builder.supportsOffloadingSequentialCollection() == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

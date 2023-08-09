@@ -57,7 +57,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
             ClusterSearchShardsRequest::new,
             indexNameExpressionResolver,
             ClusterSearchShardsResponse::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.SEARCH_COORDINATION
         );
         this.indicesService = indicesService;
     }

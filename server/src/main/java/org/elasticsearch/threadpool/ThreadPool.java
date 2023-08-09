@@ -182,9 +182,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        final int halfProc = halfAllocatedProcessors(allocatedProcessors);
         final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
         final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
+
         builders.put(
             Names.GENERIC,
             new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30), false)
@@ -216,7 +218,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.SEARCH_COORDINATION,
-            new FixedExecutorBuilder(settings, Names.SEARCH_COORDINATION, halfProcMaxAt5, 1000, TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(settings, Names.SEARCH_COORDINATION, halfProc, 1000, TaskTrackingConfig.DEFAULT)
         );
         builders.put(
             Names.AUTO_COMPLETE,
@@ -588,15 +590,20 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      * than value, otherwise value
      */
     static int boundedBy(int value, int min, int max) {
+        assert min < max : min + " vs " + max;
         return Math.min(max, Math.max(min, value));
     }
 
+    static int halfAllocatedProcessors(final int allocatedProcessors) {
+        return (allocatedProcessors + 1) / 2;
+    }
+
     static int halfAllocatedProcessorsMaxFive(final int allocatedProcessors) {
-        return boundedBy((allocatedProcessors + 1) / 2, 1, 5);
+        return boundedBy(halfAllocatedProcessors(allocatedProcessors), 1, 5);
     }
 
     static int halfAllocatedProcessorsMaxTen(final int allocatedProcessors) {
-        return boundedBy((allocatedProcessors + 1) / 2, 1, 10);
+        return boundedBy(halfAllocatedProcessors(allocatedProcessors), 1, 10);
     }
 
     static int twiceAllocatedProcessors(final int allocatedProcessors) {

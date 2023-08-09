@@ -14,6 +14,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -242,6 +245,9 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     assertEquals("_scrollId1", scrollRequest.getScrollIds().get(0));
                     ClearScrollResponse response = new ClearScrollResponse(true, 1);
                     listener.onResponse((Response) response);
+                } else if (RefreshAction.NAME.equals(action.name())) {
+                    assertThat(request, instanceOf(RefreshRequest.class));
+                    listener.onResponse((Response) mock(RefreshResponse.class));
                 } else {
                     super.doExecute(action, request, listener);
                 }

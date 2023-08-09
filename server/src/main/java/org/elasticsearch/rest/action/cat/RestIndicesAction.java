@@ -163,7 +163,6 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("rep", "alias:r,shards.replica,shardsReplica;text-align:right;desc:number of replica shards");
         table.addCell("docs.count", "alias:dc,docsCount;text-align:right;desc:available docs");
         table.addCell("docs.deleted", "alias:dd,docsDeleted;text-align:right;desc:deleted docs");
-        table.addCell("docs.total_dense_vector", "alias:dd,totalDenseVector;text-align:right;desc:total count of dense vectors");
 
         table.addCell("creation.date", "alias:cd;default:false;desc:index creation date (millisecond value)");
         table.addCell("creation.date.string", "alias:cds;default:false;desc:index creation date (as string)");
@@ -573,7 +572,6 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(primaryStats.getDocs() == null ? null : primaryStats.getDocs().getCount());
             table.addCell(primaryStats.getDocs() == null ? null : primaryStats.getDocs().getDeleted());
-            table.addCell(primaryStats.getDocs() == null ? null : primaryStats.getDocs().getTotalDenseVector());
 
             table.addCell(indexMetadata.getCreationDate());
             ZonedDateTime creationTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(indexMetadata.getCreationDate()), ZoneOffset.UTC);

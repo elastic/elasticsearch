@@ -9,7 +9,15 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -172,7 +180,6 @@ public abstract class Engine implements Closeable {
     protected final DocsStats docsStats(IndexReader indexReader) {
         long numDocs = 0;
         long numDeletedDocs = 0;
-        long totalDenseVectors = 0;
         long sizeInBytes = 0;
         // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
         // the next scheduled refresh to go through and refresh the stats as well
@@ -183,36 +190,12 @@ public abstract class Engine implements Closeable {
             numDocs += readerContext.reader().numDocs();
             numDeletedDocs += readerContext.reader().numDeletedDocs();
             try {
-                totalDenseVectors += getTotalDenseVector(readerContext.reader());
-            } catch (IOException e) {
-                logger.trace(() -> "failed to get dense vector count for [" + info.info.name + "]", e);
-            }
-            try {
                 sizeInBytes += info.sizeInBytes();
             } catch (IOException e) {
                 logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
             }
         }
-        return new DocsStats(numDocs, numDeletedDocs, totalDenseVectors, sizeInBytes);
-    }
-
-    private long getTotalDenseVector(final LeafReader atomicReader) throws IOException {
-        long count = 0;
-        for (FieldInfo info : atomicReader.getFieldInfos()) {
-            if (info.getVectorDimension() > 0) {
-                switch (info.getVectorEncoding()) {
-                    case FLOAT32 -> {
-                        FloatVectorValues values = atomicReader.getFloatVectorValues(info.name);
-                        count += values != null ? values.size() : 0;
-                    }
-                    case BYTE -> {
-                        ByteVectorValues values = atomicReader.getByteVectorValues(info.name);
-                        count += values != null ? values.size() : 0;
-                    }
-                }
-            }
-        }
-        return count;
+        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
     }
 
     /**

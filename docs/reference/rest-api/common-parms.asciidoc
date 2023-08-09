@@ -250,12 +250,6 @@ Also, {es} creates extra deleted documents to internally track the recent
 history of operations on a shard.
 end::docs-deleted[]
 
-tag::total-dense-vector[]
-The total number of indexed dense vector as reported by Lucene including deleted ones.
-It also excludes dense vectors which were indexed recently and do not yet belong to a
-segment.
-end::total-dense-vector[]
-
 tag::docs-deleted-transform[]
 The number of documents that have been deleted from the destination index due to
 the retention policy for this {transform}.

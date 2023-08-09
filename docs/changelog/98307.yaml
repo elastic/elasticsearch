@@ -1,5 +1,5 @@
 pr: 98307
-summary: Remove RCS 2.0 feature flag for beta release
+summary: Beta release for API key based cross-cluster access
 area: Security
 type: feature
 issues: []

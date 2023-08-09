@@ -1916,3 +1916,13 @@ See <<delete-synonyms-set>>
 === Create or delete synonyms sets API
 
 See <<put-synonyms-set>>
+
+[role="exclude",id="remote-clusters-connect"]
+=== Remote clusters
+
+Refer to <<remote-clusters>>
+
+[role="exclude",id="remote-clusters-privileges"]
+=== Remote clusters
+
+Refer to <<remote-clusters>>

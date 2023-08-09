@@ -1,4 +1,4 @@
-[[remote-clusters-privileges]]
+[[remote-clusters-privileges-cert]]
 === Configure roles and users for remote clusters
 After <<remote-clusters-connect,connecting remote clusters>>, you create a
 user role on both the local and remote clusters and assign necessary privileges.

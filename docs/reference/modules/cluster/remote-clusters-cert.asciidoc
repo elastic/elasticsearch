@@ -3,11 +3,11 @@
 
 To add a remote cluster using TLS certificate authentication:
 
-. <<remote-clusters-security>>
-. <<remote-clusters-connect>>
-. <<remote-clusters-privileges>>
+. <<remote-clusters-security-cert>>
+. <<remote-clusters-connect-cert>>
+. <<remote-clusters-privileges-cert>>
 
-[[remote-clusters-security]]
+[[remote-clusters-security-cert]]
 ==== Establish trust with a remote cluster
 
 To use {ccr} or {ccs} safely with remote clusters, enable security on all 
@@ -59,7 +59,7 @@ If you're configuring a remote cluster for {ccr}, you need to
 <<ccr-getting-started-follower-index,configure a follower index>> on your local
 cluster to replicate the leader index on a remote cluster.
 
-[[remote-clusters-connect]]
+[[remote-clusters-connect-cert]]
 ==== Connect to a remote cluster
 Your local cluster uses the <<modules-network,transport interface>> to establish
 communication with remote clusters. The coordinating nodes in the local cluster
@@ -74,7 +74,7 @@ Enabling and configuring security is important on both local and remote
 clusters. When connecting a local cluster to remote clusters, an {es} superuser
 (such as the `elastic` user) on the local cluster gains total read access to the
 remote clusters. To use {ccr} and {ccs} safely, 
-<<remote-clusters-security,enable security>> on all connected clusters 
+<<remote-clusters,enable security>> on all connected clusters 
 and configure Transport Layer Security (TLS) on at least the transport level on
 every node.
 

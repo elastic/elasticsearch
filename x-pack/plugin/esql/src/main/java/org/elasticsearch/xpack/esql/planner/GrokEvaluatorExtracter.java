@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
@@ -31,6 +32,8 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
     private final List<GrokCaptureExtracter> fieldExtracters;
 
     private final boolean[] valuesSet;
+    private final Object[] firstValues;
+    private final ElementType[] positionToType;
     private Block.Builder[] blocks;
 
     public GrokEvaluatorExtracter(
@@ -42,32 +45,42 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
         this.parser = parser;
         this.pattern = pattern;
         this.valuesSet = new boolean[types.size()];
+        this.firstValues = new Object[types.size()];
+        this.positionToType = new ElementType[types.size()];
+
         fieldExtracters = new ArrayList<>(parser.captureConfig().size());
         for (GrokCaptureConfig config : parser.captureConfig()) {
+            var key = config.name();
+            ElementType type = types.get(key);
+            Integer blockIdx = keyToBlock.get(key);
+            positionToType[blockIdx] = type;
+
             fieldExtracters.add(config.objectExtracter(value -> {
-                var key = config.name();
-                Integer blockIdx = keyToBlock.get(key);
-                if (valuesSet[blockIdx]) {
-                    // Grok patterns can return multi-values
-                    // eg.
-                    // %{WORD:name} (%{WORD:name})?
-                    // for now we return the first value
-                    // TODO enhance when multi-values are supported
-                    return;
-                }
-                ElementType type = types.get(key);
-                if (value instanceof Float f) {
-                    // Grok patterns can produce float values (Eg. %{WORD:x:float})
-                    // Since ESQL does not support floats natively, but promotes them to Double, we are doing promotion here
-                    // TODO remove when floats are supported
-                    ((DoubleBlock.Builder) blocks()[blockIdx]).appendDouble(f.doubleValue());
+                if (firstValues[blockIdx] == null) {
+                    firstValues[blockIdx] = value;
                 } else {
-                    BlockUtils.appendValue(blocks()[blockIdx], value, type);
+                    Block.Builder block = blocks()[blockIdx];
+                    if (valuesSet[blockIdx] == false) {
+                        block.beginPositionEntry();
+                        append(firstValues[blockIdx], block, type);
+                        valuesSet[blockIdx] = true;
+                    }
+                    append(value, block, type);
                 }
-                valuesSet[blockIdx] = true;
             }));
         }
 
+    }
+
+    private static void append(Object value, Block.Builder block, ElementType type) {
+        if (value instanceof Float f) {
+            // Grok patterns can produce float values (Eg. %{WORD:x:float})
+            // Since ESQL does not support floats natively, but promotes them to Double, we are doing promotion here
+            // TODO remove when floats are supported
+            ((DoubleBlock.Builder) block).appendDouble(f.doubleValue());
+        } else {
+            BlockUtils.appendValue(block, value, type);
+        }
     }
 
     public Block.Builder[] blocks() {
@@ -75,29 +88,24 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
     }
 
     @Override
-    public void computeRow(BytesRef input, Block.Builder[] blocks) {
-        if (input == null) {
-            setAllNull(blocks);
-            return;
-        }
+    public void computeRow(BytesRefBlock inputBlock, int row, Block.Builder[] blocks, BytesRef spare) {
         this.blocks = blocks;
+        int position = inputBlock.getFirstValueIndex(row);
+        int valueCount = inputBlock.getValueCount(row);
         Arrays.fill(valuesSet, false);
-        boolean matched = parser.match(input.bytes, input.offset, input.length, this);
-        if (matched) {
-            for (int i = 0; i < valuesSet.length; i++) {
-                // set null all the optionals not set
-                if (valuesSet[i] == false) {
-                    this.blocks[i].appendNull();
-                }
-            }
-        } else {
-            setAllNull(blocks);
+        Arrays.fill(firstValues, null);
+        for (int c = 0; c < valueCount; c++) {
+            BytesRef input = inputBlock.getBytesRef(position + c, spare);
+            parser.match(input.bytes, input.offset, input.length, this);
         }
-    }
-
-    private static void setAllNull(Block.Builder[] blocks) {
-        for (Block.Builder builder : blocks) {
-            builder.appendNull();
+        for (int i = 0; i < firstValues.length; i++) {
+            if (firstValues[i] == null) {
+                this.blocks[i].appendNull();
+            } else if (valuesSet[i]) {
+                this.blocks[i].endPositionEntry();
+            } else {
+                append(firstValues[i], blocks[i], positionToType[i]);
+            }
         }
     }
 

@@ -132,7 +132,7 @@ multivalueOutput
 row a = "foo bar" | grok a "%{WORD:b} %{WORD:b}";
 
 a:keyword | b:keyword  
-foo bar   | foo
+foo bar   | ["foo", "bar"]
 ;
 
 
@@ -140,13 +140,13 @@ foo bar   | foo
 multivalueInput
 from employees | where emp_no <= 10006 | grok job_positions "%{WORD:a} %{WORD:b} %{WORD:c}" | sort emp_no | keep emp_no, a, b, c;
 
-emp_no:integer | a:keyword | b:keyword | c:keyword 
-10001          | null      | null      | null
-10002          | Senior    | Team      | Lead
-10003          | null      | null      | null
-10004          | Head      | Human     | Resources
-10005          | null      | null      | null 
-10006          | Principal | Support   |Engineer
+emp_no:integer | a:keyword           | b:keyword         | c:keyword 
+10001          | Senior              | Python            | Developer
+10002          | Senior              | Team              | Lead
+10003          | null                | null              | null
+10004          | Head                | Human             | Resources
+10005          | null                | null              | null 
+10006          | [Principal, Senior] | [Support, Team]   | [Engineer, Lead]
 ;
 
 
@@ -183,10 +183,10 @@ full_name:keyword          | first_name:keyword   | last_name:keyword | num:inte
 optionalMatchMv
 from employees | grok job_positions "%{WORD:a}?\\s*%{WORD:b}?\\s*%{WORD:c}?" | keep emp_no, a, b, c, job_positions | sort emp_no | limit 5;
 
-emp_no:integer | a:keyword      | b:keyword      | c:keyword      | job_positions:keyword                             
-10001          | Accountant     | null           | null           | [Accountant, Senior Python Developer]                                 
-10002          | Senior         | Team           | Lead           | Senior Team Lead                                                      
-10003          | null           | null           | null           | null                                                                  
-10004          | Head           | Human          | Resources      | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
-10005          | null           | null           | null           | null
+emp_no:integer | a:keyword                         | b:keyword                          | c:keyword      | job_positions:keyword                             
+10001          | [Accountant, Senior]              | Python                             | Developer      | [Accountant, Senior Python Developer]                                 
+10002          | Senior                            | Team                               | Lead           | Senior Team Lead                                                      
+10003          | null                              | null                               | null           | null                                                                  
+10004          | [Head, Reporting, Support, Tech]  | [Human, Analyst, Engineer, Lead]   | Resources      | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
+10005          | null                              | null                               | null           | null
 ;

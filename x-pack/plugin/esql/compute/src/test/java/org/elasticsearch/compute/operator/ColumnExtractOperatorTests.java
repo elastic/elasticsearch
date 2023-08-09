@@ -33,7 +33,8 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
 
     record FirstWord(int channelA) implements ColumnExtractOperator.Evaluator {
         @Override
-        public void computeRow(BytesRef input, Block.Builder[] target) {
+        public void computeRow(BytesRefBlock inputBlock, int row, Block.Builder[] target, BytesRef spare) {
+            BytesRef input = inputBlock.getBytesRef(row, spare);
             ((BytesRefBlock.Builder) target[channelA]).appendBytesRef(BytesRefs.toBytesRef(input.utf8ToString().split(" ")[0]));
         }
 

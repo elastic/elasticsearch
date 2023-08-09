@@ -11,11 +11,12 @@ import org.opensaml.core.config.ConfigurationPropertiesSource;
 
 import java.util.Properties;
 
-public class EmptyConfigurationPropertiesSource implements ConfigurationPropertiesSource {
-    private final Properties empty = new Properties();
+public class OpenSamlXpackSecurityConfigurationPropertiesSource implements ConfigurationPropertiesSource {
 
     @Override
     public Properties getProperties() {
-        return empty;
+        Properties properties = new Properties();
+        properties.setProperty("opensaml.config.ecdh.defaultKDF", "PBKDF2");
+        return properties;
     }
 }

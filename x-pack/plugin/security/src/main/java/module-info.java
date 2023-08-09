@@ -5,6 +5,8 @@
  * 2.0.
  */
 
+import org.elasticsearch.xpack.security.authc.saml.OpenSamlXpackSecurityConfigurationPropertiesSource;
+
 module org.elasticsearch.security {
     requires java.naming;
     requires java.security.jgss;
@@ -83,7 +85,5 @@ module org.elasticsearch.security {
         with
             org.elasticsearch.xpack.security.ReservedSecurityStateHandlerProvider;
 
-    provides org.opensaml.core.config.ConfigurationPropertiesSource
-        with
-            org.elasticsearch.xpack.security.authc.saml.EmptyConfigurationPropertiesSource;
+    provides org.opensaml.core.config.ConfigurationPropertiesSource with OpenSamlXpackSecurityConfigurationPropertiesSource;
 }

@@ -213,7 +213,7 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
         ObjectStoreService objectStoreService = internalCluster().getAnyMasterNodeInstance(ObjectStoreService.class);
         BlobContainer blobContainerForCommit = objectStoreService.getBlobContainer(shard.shardId(), shard.getOperationPrimaryTerm());
         SegmentInfos segmentInfos = Lucene.readSegmentInfos(shard.store().directory());
-        String commitFile = StatelessCompoundCommit.NAME + segmentInfos.getGeneration();
+        String commitFile = StatelessCompoundCommit.blobNameFromGeneration(segmentInfos.getGeneration());
         StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
             new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),
             blobContainerForCommit.listBlobs().get(commitFile).length()

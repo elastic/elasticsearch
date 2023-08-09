@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -64,6 +65,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_INTERVAL;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -73,6 +75,9 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+// Disabling WindowsFS because it prevents file deletions and ExtrasFS because it adds unnecessary files in Lucene index and tests in this
+// class verify the content of Lucene directories
+@LuceneTestCase.SuppressFileSystems(value = { "WindowsFS", "ExtrasFS" })
 public class StatelessIT extends AbstractStatelessIntegTestCase {
 
     public void testCompoundCommitHasNodeEphemeralId() throws Exception {
@@ -96,7 +101,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeName);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, indexNodeName);
         var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
-        String commitFile = StatelessCompoundCommit.NAME + Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration();
+        String commitFile = blobNameFromGeneration(Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration());
         assertThat(commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
         StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
             new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),

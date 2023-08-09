@@ -397,14 +397,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         final var allBlobs = Map.copyOf(blobContainer.listBlobs());
         OptionalLong maxGeneration = allBlobs.keySet()
             .stream()
-            .filter(s -> s.startsWith(StatelessCompoundCommit.NAME))
-            .map(s -> s.substring(StatelessCompoundCommit.NAME.length()))
-            .mapToLong(Long::parseLong)
+            .filter(StatelessCompoundCommit::startsWithBlobPrefix)
+            .mapToLong(StatelessCompoundCommit::parseGenerationFromBlobName)
             .max();
         if (maxGeneration.isEmpty()) {
             return null;
         }
-        String commitFileName = StatelessCompoundCommit.NAME + maxGeneration.getAsLong();
+        String commitFileName = StatelessCompoundCommit.blobNameFromGeneration(maxGeneration.getAsLong());
         try (StreamInput streamInput = new InputStreamStreamInput(blobContainer.readBlob(commitFileName))) {
             long fileLength = allBlobs.get(commitFileName).length();
             return StatelessCompoundCommit.readFromStore(streamInput, fileLength);

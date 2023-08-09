@@ -101,6 +101,7 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
 
+import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static java.util.stream.Collectors.toList;
@@ -593,7 +594,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         Index index = resolveIndex(newIndex);
         IndexShard indexShard = findShard(index, 0, DiscoveryNodeRole.INDEX_ROLE, ShardRouting.Role.INDEX_ONLY);
         var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
-        String commitFile = StatelessCompoundCommit.NAME + Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration();
+        String commitFile = blobNameFromGeneration(Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration());
         assertThat(commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
         StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
             new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),
@@ -609,7 +610,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
         flush(newIndex);
 
-        commitFile = StatelessCompoundCommit.NAME + Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration();
+        commitFile = blobNameFromGeneration(Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration());
         assertThat(commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
         commit = StatelessCompoundCommit.readFromStore(
             new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),

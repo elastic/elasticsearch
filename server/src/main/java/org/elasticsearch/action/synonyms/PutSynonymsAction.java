@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.synonyms;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;

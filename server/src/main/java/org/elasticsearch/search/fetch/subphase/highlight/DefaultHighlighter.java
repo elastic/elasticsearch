@@ -12,6 +12,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
+import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
+import org.apache.lucene.search.uhighlight.UnifiedHighlighter.Builder;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter.OffsetSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
@@ -19,6 +21,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -42,7 +45,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
-public class UnifiedHighlighter implements Highlighter {
+public class DefaultHighlighter implements Highlighter {
     @Override
     public boolean canHighlight(MappedFieldType fieldType) {
         return true;
@@ -103,11 +106,14 @@ public class UnifiedHighlighter implements Highlighter {
         return new HighlightField(fieldContext.fieldName, Text.convertFromStringArray(fragments));
     }
 
-    CustomUnifiedHighlighter buildHighlighter(FieldHighlightContext fieldContext) throws IOException {
+    CustomUnifiedHighlighter buildHighlighter(FieldHighlightContext fieldContext) {
+        IndexSettings indexSettings = fieldContext.context.getSearchExecutionContext().getIndexSettings();
         Encoder encoder = fieldContext.field.fieldOptions().encoder().equals("html")
             ? HighlightUtils.Encoders.HTML
             : HighlightUtils.Encoders.DEFAULT;
-        int maxAnalyzedOffset = fieldContext.context.getSearchExecutionContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
+
+        int maxAnalyzedOffset = indexSettings.getHighlightMaxAnalyzedOffset();
+        boolean weightMatchesEnabled = indexSettings.isWeightMatchesEnabled();
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
         Integer queryMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzedOffset();
         Analyzer analyzer = wrapAnalyzer(
@@ -118,7 +124,7 @@ public class UnifiedHighlighter implements Highlighter {
         IndexSearcher searcher = fieldContext.context.searcher();
         OffsetSource offsetSource = getOffsetSource(fieldContext.context, fieldContext.fieldType);
         BreakIterator breakIterator;
-        int higlighterNumberOfFragments;
+        int highlighterNumberOfFragments;
         if (numberOfFragments == 0
             // non-tokenized fields should not use any break iterator (ignore boundaryScannerType)
             || fieldContext.fieldType.getTextSearchInfo().isTokenized() == false) {
@@ -129,27 +135,29 @@ public class UnifiedHighlighter implements Highlighter {
              * values of a field and we get back a snippet per value
              */
             breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
-            higlighterNumberOfFragments = numberOfFragments == 0 ? Integer.MAX_VALUE - 1 : numberOfFragments;
+            highlighterNumberOfFragments = numberOfFragments == 0 ? Integer.MAX_VALUE - 1 : numberOfFragments;
         } else {
             // using paragraph separator we make sure that each field value holds a discrete passage for highlighting
             breakIterator = getBreakIterator(fieldContext.field);
-            higlighterNumberOfFragments = numberOfFragments;
+            highlighterNumberOfFragments = numberOfFragments;
         }
+        Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
+        builder.withBreakIterator(() -> breakIterator);
+        builder.withFieldMatcher(fieldMatcher(fieldContext));
+        builder.withFormatter(passageFormatter);
         return new CustomUnifiedHighlighter(
-            searcher,
-            analyzer,
+            builder,
             offsetSource,
-            passageFormatter,
             fieldContext.field.fieldOptions().boundaryScannerLocale(),
-            breakIterator,
             fieldContext.context.getIndexName(),
             fieldContext.fieldName,
             fieldContext.query,
             fieldContext.field.fieldOptions().noMatchSize(),
-            higlighterNumberOfFragments,
-            fieldMatcher(fieldContext),
+            highlighterNumberOfFragments,
             maxAnalyzedOffset,
-            fieldContext.field.fieldOptions().maxAnalyzedOffset()
+            fieldContext.field.fieldOptions().maxAnalyzedOffset(),
+            fieldContext.field.fieldOptions().requireFieldMatch(),
+            weightMatchesEnabled
         );
     }
 
@@ -184,16 +192,17 @@ public class UnifiedHighlighter implements Highlighter {
             : HighlightBuilder.BoundaryScannerType.SENTENCE;
         int maxLen = fieldOptions.fragmentCharSize();
         switch (type) {
-            case SENTENCE:
+            case SENTENCE -> {
                 if (maxLen > 0) {
                     return BoundedBreakIteratorScanner.getSentence(locale, maxLen);
                 }
                 return BreakIterator.getSentenceInstance(locale);
-            case WORD:
+            }
+            case WORD -> {
                 // ignore maxLen
                 return BreakIterator.getWordInstance(locale);
-            default:
-                throw new IllegalArgumentException("Invalid boundary scanner type: " + type);
+            }
+            default -> throw new IllegalArgumentException("Invalid boundary scanner type: " + type);
         }
     }
 

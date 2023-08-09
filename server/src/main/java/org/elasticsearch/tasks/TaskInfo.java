@@ -67,7 +67,7 @@ public record TaskInfo(
         return new TaskInfo(
             taskId,
             in.readString(),
-            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_054) ? in.readString() : taskId.getNodeId(),
+            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_055) ? in.readString() : taskId.getNodeId(),
             in.readString(),
             in.readOptionalString(),
             in.readOptionalNamedWriteable(Task.Status.class),
@@ -84,7 +84,7 @@ public record TaskInfo(
     public void writeTo(StreamOutput out) throws IOException {
         taskId.writeTo(out);
         out.writeString(type);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_054)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_055)) {
             out.writeString(node);
         }
         out.writeString(action);

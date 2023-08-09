@@ -376,6 +376,11 @@ public class CompletionFieldMapper extends FieldMapper {
         return true;
     }
 
+    @Override
+    protected boolean parsesObject() {
+        return true;
+    }
+
     int getMaxInputLength() {
         return builder.maxInputLength.get();
     }

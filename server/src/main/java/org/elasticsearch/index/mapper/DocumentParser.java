@@ -396,7 +396,7 @@ public final class DocumentParser {
             context = context.createChildContext(objectMapper);
             parseObjectOrNested(context);
         } else if (mapper instanceof FieldMapper fieldMapper) {
-            if (fieldMapper.canParseObjects()) {
+            if (fieldMapper.parsesObject()) {
                 fieldMapper.parse(context);
             } else if (canToBeFlatten(context)) {
                 // We need to remove the last path and add it as dottedFieldName

@@ -162,6 +162,17 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
+     * Whether this mapper can handle an object value during document parsing. If true,
+     * when an object is encountered during parsing, the document parser will pass the
+     * whole object to the mapper. If false, the object name becomes part of the dotted
+     * field name of each internal value when subobjects property is set to false,
+     * otherwise it gets mapped to an ObjectMapper.
+     */
+    protected boolean parsesObject() {
+        return false;
+    }
+
+    /**
      * Parse the field value using the provided {@link DocumentParserContext}.
      */
     public void parse(DocumentParserContext context) throws IOException {
@@ -416,10 +427,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     protected abstract String contentType();
-
-    protected boolean canParseObjects() {
-        return false;
-    }
 
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of();

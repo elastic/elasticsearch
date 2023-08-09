@@ -190,6 +190,11 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     protected abstract void index(DocumentParserContext context, T geometry) throws IOException;
 
     @Override
+    protected boolean parsesObject() {
+        return true;
+    }
+
+    @Override
     public final void parse(DocumentParserContext context) throws IOException {
         if (hasScript) {
             throw new DocumentParsingException(
@@ -222,11 +227,6 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
     @Override
     public final boolean parsesArrayValue() {
-        return true;
-    }
-
-    @Override
-    protected boolean canParseObjects() {
         return true;
     }
 }

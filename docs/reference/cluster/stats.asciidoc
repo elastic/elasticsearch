@@ -938,6 +938,18 @@ Search sections used in selected nodes. For each section, name and number of tim
 it's been used is reported.
 
 =====
+
+`dense_vector`::
+(object)
+Contains statistics about indexed dense vector used in selected nodes.
++
+.Properties of `dense_vector`
+[%collapsible%open]
+=====
+`value_count`::
+(integer)
+Total number of dense vector indexed in selected nodes.
+=====
 ====
 
 [[cluster-stats-api-response-body-nodes]]

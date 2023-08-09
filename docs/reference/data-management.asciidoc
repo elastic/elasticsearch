@@ -41,7 +41,7 @@ Data older than this period can be deleted by {es}.
 * Define <<data-tiers, multiple tiers>> of data nodes with different performance characteristics.
 * Automatically transition indices through the data tiers according to your performance needs and retention policies.
 * Leverage <<searchable-snapshots, searchable snapshots>> stored in a remote repository to provide resiliency 
-for your older indices while reducing operating costs and maintaining search performance. 
+for your older indices while reducing operating costs and maintaining search performance.  
 * Perform <<async-search-intro, asynchronous searches>> of data stored on less-performant hardware.
 
 ifeval::["{release-state}"=="unreleased"]

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
@@ -455,6 +456,21 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 listener.onFailure(e);
                 return;
             }
+
+            List<DiscoveryNode> nodes = getAssignableNodes(clusterState);
+            Set<String> nodeIds = nodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
+            var meta = rebalancedMetadata.build();
+
+            logger.error(format("checking if we satisfy these node ids: %s", nodeIds));
+
+            if (meta.allAssignments().values().stream().allMatch(assignment -> assignment.isSatisfied(nodeIds)) == false) {
+                logger.error(format("we failed to satisfy while rebalancing node ids: %s", nodeIds));
+                // TODO silently return
+                listener.onFailure(new ElasticsearchException("failed to satisfy while rebalancing"));
+                return;
+            }
+
+            logger.error(format("we satisfied the node ids: %s", nodeIds));
 
             submitUnbatchedTask(reason, new ClusterStateUpdateTask() {
 
@@ -963,6 +979,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 if (trainedModelAssignment.getAssignmentState().equals(AssignmentState.STOPPING)) {
                     continue;
                 }
+                // TODO we only need to rebalance if the route state is not in stopped
                 for (var nodeId : exitingShutDownNodes) {
                     if (trainedModelAssignment.isRoutedToNode(nodeId)) {
                         logger.debug(
@@ -976,6 +993,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                     }
                 }
 
+                // TODO we only need to rebalance if the route state is not in stopped
                 for (var nodeId : removedNodes) {
                     if (trainedModelAssignment.isRoutedToNode(nodeId) && shuttingDownNodes.contains(nodeId) == false) {
                         logger.debug(

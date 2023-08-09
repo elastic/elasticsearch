@@ -168,14 +168,15 @@ class ScrollDataExtractor implements DataExtractor {
         context.scriptFields.forEach(f -> searchRequestBuilder.addScriptField(f.fieldName(), f.script()));
         return searchRequestBuilder;
     }
+
     /*
         Utility class to convert ByteArrayOutputStream to ByteArrayInputStream without copying the underlying buffer.
      */
     private class ConvertableByteArrayOutputStream extends ByteArrayOutputStream {
-        public ByteArrayInputStream resetThisAndGetByteArrayInputStream(){
+        public ByteArrayInputStream resetThisAndGetByteArrayInputStream() {
             ByteArrayInputStream inputStream = new ByteArrayInputStream(buf, 0, count);
             buf = new byte[0];
-            count =0;
+            count = 0;
             return inputStream;
         }
     }
@@ -192,12 +193,12 @@ class ScrollDataExtractor implements DataExtractor {
             return null;
         }
 
-        ConvertableByteArrayOutputStream outputStream = new ConvertableByteArrayOutputStream() ;
+        ConvertableByteArrayOutputStream outputStream = new ConvertableByteArrayOutputStream();
 
         SearchHit lastHit = hits[hits.length - 1];
         lastTimestamp = context.extractedFields.timeFieldValue(lastHit);
         try (SearchHitToJsonProcessor hitProcessor = new SearchHitToJsonProcessor(context.extractedFields, outputStream)) {
-            for (int i = 0;i<hits.length;i++) {
+            for (int i = 0; i < hits.length; i++) {
                 SearchHit hit = hits[i];
                 if (isCancelled) {
                     Long timestamp = context.extractedFields.timeFieldValue(hit);

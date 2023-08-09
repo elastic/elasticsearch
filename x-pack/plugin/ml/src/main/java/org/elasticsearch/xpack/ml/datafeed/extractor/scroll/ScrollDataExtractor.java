@@ -181,9 +181,8 @@ class ScrollDataExtractor implements DataExtractor {
         }
     }
 
-    /*
-    IMPORTANT: This is not a idempotent method. This method change the input parameter SearchResponse.
-    It deletes are all SearchHits from input object SearchResponse.
+    /**
+     * IMPORTANT: This is not an idempotent method. This method changes the input array by setting each element to <code>null</code>.
      */
     private InputStream processAndConsumeSearchHits(SearchHit hits[]) throws IOException {
 

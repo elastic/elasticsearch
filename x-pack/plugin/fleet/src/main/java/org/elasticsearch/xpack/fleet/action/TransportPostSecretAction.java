@@ -16,6 +16,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
 import static org.elasticsearch.xpack.fleet.Fleet.FLEET_SECRETS_INDEX_NAME;
 
@@ -30,13 +31,17 @@ public class TransportPostSecretAction extends HandledTransportAction<PostSecret
     }
 
     protected void doExecute(Task task, PostSecretRequest request, ActionListener<PostSecretResponse> listener) {
-        client.prepareIndex(FLEET_SECRETS_INDEX_NAME)
-            .setSource(request.source(), request.xContentType())
-            .execute(
-                ActionListener.wrap(
-                    indexResponse -> listener.onResponse(new PostSecretResponse(indexResponse.getId())),
-                    listener::onFailure
-                )
-            );
+        try {
+            client.prepareIndex(FLEET_SECRETS_INDEX_NAME)
+                .setSource(request.toXContent(jsonBuilder()))
+                .execute(
+                    ActionListener.wrap(
+                        indexResponse -> listener.onResponse(new PostSecretResponse(indexResponse.getId())),
+                        listener::onFailure
+                    )
+                );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 }

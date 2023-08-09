@@ -40,4 +40,5 @@ public class RestGetRollupCapsAction extends BaseRestHandler {
     public String getName() {
         return "get_rollup_caps";
     }
+
 }

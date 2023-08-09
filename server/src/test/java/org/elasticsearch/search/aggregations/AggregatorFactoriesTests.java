@@ -359,46 +359,6 @@ public class AggregatorFactoriesTests extends ESTestCase {
         }
     }
 
-    public void testSupportsOffloadingSequentialCollection() {
-        {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            assertTrue(builder.supportsOffloadingSequentialCollection());
-            builder.addAggregator(new FilterAggregationBuilder("name", new MatchAllQueryBuilder()));
-            assertTrue(builder.supportsOffloadingSequentialCollection());
-            builder.addAggregator(new TermsAggregationBuilder("terms"));
-            assertTrue(builder.supportsOffloadingSequentialCollection());
-            builder.addAggregator(new CardinalityAggregationBuilder("cardinality"));
-            assertFalse(builder.supportsOffloadingSequentialCollection());
-        }
-        {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            builder.addAggregator(new CardinalityAggregationBuilder("cardinality"));
-            assertFalse(builder.supportsOffloadingSequentialCollection());
-        }
-        {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            builder.addAggregator(new NestedAggregationBuilder("nested", "path"));
-            assertFalse(builder.supportsOffloadingSequentialCollection());
-        }
-        {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            builder.addAggregator(
-                new CompositeAggregationBuilder("composite", Collections.singletonList(new TermsValuesSourceBuilder("name")))
-            );
-            assertFalse(builder.supportsOffloadingSequentialCollection());
-        }
-        {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            builder.addAggregator(new FilterAggregationBuilder("terms", new MatchAllQueryBuilder()) {
-                @Override
-                public boolean isInSortOrderExecutionRequired() {
-                    return true;
-                }
-            });
-            assertFalse(builder.supportsOffloadingSequentialCollection());
-        }
-    }
-
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return xContentRegistry;

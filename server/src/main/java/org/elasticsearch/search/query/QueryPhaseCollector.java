@@ -41,7 +41,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * When top docs as well as aggs are collected (because both collectors were provided), skipping low scoring hits via
  * {@link Scorable#setMinCompetitiveScore(float)} is not supported for either of the collectors.
  */
-final class QueryPhaseCollector implements Collector {
+public final class QueryPhaseCollector implements Collector {
     private final Collector aggsCollector;
     private final Collector topDocsCollector;
     private final TerminateAfterChecker terminateAfterChecker;
@@ -456,5 +456,9 @@ final class QueryPhaseCollector implements Collector {
         boolean isTerminatedAfter() {
             return terminatedAfter;
         }
+    }
+
+    public Collector getAggsCollector() {
+        return aggsCollector;
     }
 }

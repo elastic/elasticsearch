@@ -1064,8 +1064,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 reader.indexShard().shardId(),
                 request.getClusterAlias()
             );
-            ExecutorService executor = this.enableSearchWorkerThreads
-                && supportsOffloadingSequentialCollection(resultsType, request.source()) ? threadPool.executor(Names.SEARCH_WORKER) : null;
+            ExecutorService executor = this.enableSearchWorkerThreads ? threadPool.executor(Names.SEARCH_WORKER) : null;
             int maximumNumberOfSlices = executor instanceof ThreadPoolExecutor tpe
                 && supportsParallelCollection(resultsType, request.source()) ? tpe.getMaximumPoolSize() : 1;
             searchContext = new DefaultSearchContext(
@@ -1096,14 +1095,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         return searchContext;
-    }
-
-    static boolean supportsOffloadingSequentialCollection(ResultsType resultsType, SearchSourceBuilder source) {
-        // enable offloading of sequential collection at all times, besides the few cases where aggs don't support it
-        if (resultsType == ResultsType.QUERY) {
-            return source == null || source.aggregations() == null || source.aggregations().supportsOffloadingSequentialCollection();
-        }
-        return true;
     }
 
     static boolean supportsParallelCollection(ResultsType resultsType, SearchSourceBuilder source) {

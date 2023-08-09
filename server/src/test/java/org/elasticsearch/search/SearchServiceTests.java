@@ -79,11 +79,8 @@ import org.elasticsearch.search.SearchService.ResultsType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -2033,37 +2030,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             SearchService.supportsParallelCollection(
                 randomFrom(randomFrom(ResultsType.QUERY, ResultsType.NONE, ResultsType.FETCH)),
                 searchSourceBuilder
-            )
-        );
-    }
-
-    public void testSupportsOffloadingSequentialCollection() {
-        assertTrue(SearchService.supportsOffloadingSequentialCollection(randomFrom(ResultsType.values()), null));
-        assertTrue(SearchService.supportsOffloadingSequentialCollection(randomFrom(ResultsType.values()), new SearchSourceBuilder()));
-        assertTrue(
-            SearchService.supportsOffloadingSequentialCollection(
-                randomFrom(ResultsType.values()),
-                new SearchSourceBuilder().aggregation(new TermsAggregationBuilder("terms"))
-            )
-        );
-        assertFalse(
-            SearchService.supportsOffloadingSequentialCollection(
-                ResultsType.QUERY,
-                new SearchSourceBuilder().aggregation(new CardinalityAggregationBuilder("cardinality"))
-            )
-        );
-        assertFalse(
-            SearchService.supportsOffloadingSequentialCollection(
-                ResultsType.QUERY,
-                new SearchSourceBuilder().aggregation(new NestedAggregationBuilder("nested", "path"))
-            )
-        );
-        assertFalse(
-            SearchService.supportsOffloadingSequentialCollection(
-                ResultsType.QUERY,
-                new SearchSourceBuilder().aggregation(
-                    new CompositeAggregationBuilder("composite", Collections.singletonList(new TermsValuesSourceBuilder("name")))
-                )
             )
         );
     }

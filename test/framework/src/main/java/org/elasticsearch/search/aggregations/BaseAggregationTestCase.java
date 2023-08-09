@@ -61,25 +61,10 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
     public void testSupportsConcurrentExecution() {
         AB builder = createTestAggregatorBuilder();
         boolean supportsConcurrency = builder.supportsParallelCollection();
-        if (supportsConcurrency) {
-            assertTrue(builder.supportsOffloadingSequentialCollection());
-        }
         AggregationBuilder bucketBuilder = new HistogramAggregationBuilder("test");
         assertTrue(bucketBuilder.supportsParallelCollection());
         bucketBuilder.subAggregation(builder);
         assertThat(bucketBuilder.supportsParallelCollection(), equalTo(supportsConcurrency));
-        if (bucketBuilder.supportsParallelCollection()) {
-            assertTrue(bucketBuilder.supportsOffloadingSequentialCollection());
-        }
-    }
-
-    public void testSupportsOffloadingSequentialCollection() {
-        AB builder = createTestAggregatorBuilder();
-        boolean supportsOffloadingSequentialCollection = builder.supportsOffloadingSequentialCollection();
-        AggregationBuilder bucketBuilder = new HistogramAggregationBuilder("test");
-        assertTrue(bucketBuilder.supportsOffloadingSequentialCollection());
-        bucketBuilder.subAggregation(builder);
-        assertThat(bucketBuilder.supportsOffloadingSequentialCollection(), equalTo(supportsOffloadingSequentialCollection));
     }
 
     /**

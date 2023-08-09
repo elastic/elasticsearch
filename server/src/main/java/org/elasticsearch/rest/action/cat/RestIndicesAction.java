@@ -502,8 +502,9 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("pri.bulk.avg_size_in_bytes", "default:false;text-align:right;desc:average size in bytes of shard bulk");
 
         table.addCell(
-                "dense_vector.value_count",
-                "sibling:pri;alias:dvc,denseVectorCount;default:false;text-align:right;desc:total count of indexed dense vector");
+            "dense_vector.value_count",
+            "sibling:pri;alias:dvc,denseVectorCount;default:false;text-align:right;desc:total count of indexed dense vector"
+        );
         table.addCell("pri.dense_vector.value_count", "default:false;text-align:right;desc:total count of indexed dense vector");
 
         table.endHeaders();

@@ -244,8 +244,9 @@ public class RestShardsAction extends AbstractCatAction {
             "alias:basi,bulkAvgSizeInBytes;default:false;text-align:right;desc:avg size in bytes of shard bulk"
         );
         table.addCell(
-                "dense_vector.value_count",
-                "alias:dvc,denseVectorCount;default:false;text-align:right;desc:total count of indexed dense vector");
+            "dense_vector.value_count",
+            "alias:dvc,denseVectorCount;default:false;text-align:right;desc:total count of indexed dense vector"
+        );
 
         table.endHeaders();
         return table;

@@ -55,9 +55,9 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
     }
 
     @Override
-    public void stopNode(int index) {
+    public void stopNode(int index, boolean forcibly) {
         checkHandle();
-        handle.stopNode(index);
+        handle.stopNode(index, forcibly);
     }
 
     @Override

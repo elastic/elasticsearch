@@ -471,8 +471,14 @@ public final class DocumentParser {
             if (context.parent().subobjects()) {
                 parseObjectDynamic(context, currentFieldName);
             } else {
-                DynamicTemplate dynamicTemplate = context.findDynamicTemplate(currentFieldName, DynamicTemplate.XContentFieldType.OBJECT);
-                if (dynamicTemplate != null) {
+                boolean hasDynamicTemplate = false;
+                if (context.dynamic() == ObjectMapper.Dynamic.TRUE) {
+                    DynamicTemplate template = context.findDynamicTemplate(currentFieldName, DynamicTemplate.XContentFieldType.OBJECT);
+                    if (template != null) {
+                        hasDynamicTemplate = true;
+                    }
+                }
+                if (hasDynamicTemplate) {
                     parseObjectDynamic(context, currentFieldName);
                 } else {
                     // with subobjects:false no further actions are needed for the object

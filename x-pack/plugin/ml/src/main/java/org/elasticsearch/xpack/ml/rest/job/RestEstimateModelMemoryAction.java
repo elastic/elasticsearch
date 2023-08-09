@@ -11,6 +11,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
 
@@ -38,6 +39,7 @@ public class RestEstimateModelMemoryAction extends BaseRestHandler {
         EstimateModelMemoryAction.Request request = EstimateModelMemoryAction.Request.parseRequest(
             restRequest.contentOrSourceParamParser()
         );
-        return channel -> client.execute(EstimateModelMemoryAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel ->  new RestCancellableNodeClient(client, restRequest.getHttpChannel())
+            .execute(EstimateModelMemoryAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

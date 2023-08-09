@@ -38,7 +38,8 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
 
     @Inject
     public TransportGetRollupCapsAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters) {
-        super(GetRollupCapsAction.NAME, transportService, actionFilters, GetRollupCapsAction.Request::new, ThreadPool.Names.MANAGEMENT);
+        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
+        super(GetRollupCapsAction.NAME, transportService, actionFilters, GetRollupCapsAction.Request::new, ThreadPool.Names.SAME);
         this.clusterService = clusterService;
         this.managementExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
     }

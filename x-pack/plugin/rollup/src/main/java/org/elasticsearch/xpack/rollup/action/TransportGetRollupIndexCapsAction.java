@@ -46,13 +46,8 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(
-            GetRollupIndexCapsAction.NAME,
-            transportService,
-            actionFilters,
-            GetRollupIndexCapsAction.Request::new,
-            ThreadPool.Names.MANAGEMENT
-        );
+        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
+        super(GetRollupIndexCapsAction.NAME, transportService, actionFilters, GetRollupIndexCapsAction.Request::new, ThreadPool.Names.SAME);
         this.clusterService = clusterService;
         this.managementExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
         this.resolver = indexNameExpressionResolver;
@@ -84,6 +79,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
 
     static Map<String, RollableIndexCaps> getCapsByRollupIndex(List<String> resolvedIndexNames, Map<String, IndexMetadata> indices) {
         Map<String, List<RollupJobCaps>> allCaps = new TreeMap<>();
+
         indices.entrySet().stream().filter(entry -> resolvedIndexNames.contains(entry.getKey())).forEach(entry -> {
             // Does this index have rollup metadata?
             TransportGetRollupCapsAction.findRollupIndexCaps(entry.getKey(), entry.getValue()).ifPresent(cap -> {

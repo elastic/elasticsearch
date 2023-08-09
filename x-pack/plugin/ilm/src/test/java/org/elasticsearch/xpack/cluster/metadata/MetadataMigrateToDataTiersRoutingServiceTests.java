@@ -864,11 +864,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                         .put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
                 );
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(partiallyMountedIndex)).build();
-
             Metadata.Builder mb = Metadata.builder(state.metadata());
 
             List<String> migratedIndices = migrateIndices(mb, state, "data");
-            assertThat(migratedIndices.size(), is(1));
+            // no index to migrate as the IndexMetadata.Builder#build method adds a tier preference for this partial index
+            assertThat(migratedIndices.size(), is(0));
 
             ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
             IndexMetadata migratedIndex = migratedState.metadata().index("foo");

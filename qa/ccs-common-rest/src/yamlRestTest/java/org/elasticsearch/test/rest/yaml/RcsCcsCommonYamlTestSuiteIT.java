@@ -114,7 +114,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             return (String) API_KEY_MAP_REF.get().get("encoded");
         })
         .rolesFile(Resource.fromClasspath("roles.yml"))
-        .user("remote_search_user", "x-pack-test-password", "remote_search_role")
+        .user("remote_search_user", "x-pack-test-password", "remote_search_role", false)
         .build();
 
     private static Map<String, Object> createCrossClusterAccessApiKey() throws IOException {

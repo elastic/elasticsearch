@@ -145,7 +145,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             for (Tuple<String, Long> internalFile : internalFiles) {
                 BlobLocation blobLocation = new BlobLocation(
                     instance.primaryTerm(),
-                    StatelessCompoundCommit.NAME + instance.generation(),
+                    StatelessCompoundCommit.blobNameFromGeneration(instance.generation()),
                     commitFileLength,
                     offset,
                     internalFile.v2()

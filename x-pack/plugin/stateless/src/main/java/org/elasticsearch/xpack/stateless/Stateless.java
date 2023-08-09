@@ -758,7 +758,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
 
             @Override
             public void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit) {
-                statelessCommitService.markCommitDeleted(shardId, getIndexCommitFileNames(deletedCommit));
+                statelessCommitService.markCommitDeleted(shardId, deletedCommit.getGeneration());
             }
         };
     }

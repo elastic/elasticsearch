@@ -278,7 +278,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
             // can take some time for files to be uploaded to the object store
             assertBusy(() -> {
-                String commitFile = StatelessCompoundCommit.NAME + segmentInfos.getGeneration();
+                String commitFile = StatelessCompoundCommit.blobNameFromGeneration(segmentInfos.getGeneration());
                 assertThat(commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
                 StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
                     new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),
@@ -330,7 +330,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
             final SegmentInfos segmentInfos = Lucene.readSegmentInfos(indexStore.directory());
 
-            String commitFile = StatelessCompoundCommit.NAME + segmentInfos.getGeneration();
+            String commitFile = StatelessCompoundCommit.blobNameFromGeneration(segmentInfos.getGeneration());
             assertBusy(() -> assertThat(commitFile, blobContainerForCommit.blobExists(commitFile), is(true)));
             StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
                 new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),

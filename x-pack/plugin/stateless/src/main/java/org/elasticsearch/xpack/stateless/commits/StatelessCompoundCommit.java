@@ -57,6 +57,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -85,7 +87,7 @@ public record StatelessCompoundCommit(
         this(shardId, generation, primaryTerm, 0, nodeEphemeralId, commitFiles);
     }
 
-    public static final String NAME = "stateless_commit_";
+    private static final String PREFIX = "stateless_commit_";
 
     @Override
     public String toString() {
@@ -127,6 +129,15 @@ public record StatelessCompoundCommit(
         );
     }
 
+    public Set<String> getInternalFiles() {
+        final String compoundCommitBlobName = StatelessCompoundCommit.blobNameFromGeneration(generation);
+        return commitFiles().entrySet()
+            .stream()
+            .filter(commitFile -> compoundCommitBlobName.equals(commitFile.getValue().blobName()))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toUnmodifiableSet());
+    }
+
     public static class Writer {
 
         private final ShardId shardId;
@@ -153,7 +164,7 @@ public record StatelessCompoundCommit(
         }
 
         public void addReferencedBlobFile(String name, BlobLocation location) {
-            referencedBlobFiles.put(name, location);
+            referencedBlobFiles.put(name, Objects.requireNonNull(location));
         }
 
         public void addInternalFile(String fileName, long fileLength) {
@@ -443,7 +454,7 @@ public record StatelessCompoundCommit(
         List<Writer.InternalFile> internalFiles,
         long headerSize
     ) {
-        String commitFileName = NAME + generation;
+        String commitFileName = blobNameFromGeneration(generation);
         Map<String, BlobLocation> commitFiles = combineCommitFiles(
             commitFileName,
             primaryTerm,
@@ -499,5 +510,19 @@ public record StatelessCompoundCommit(
     static {
         SHARD_ID_PARSER.declareObject(constructorArg(), (p, c) -> Index.fromXContent(p), new ParseField("index"));
         SHARD_ID_PARSER.declareInt(constructorArg(), new ParseField("id"));
+    }
+
+    public static boolean startsWithBlobPrefix(String name) {
+        return name.startsWith(StatelessCompoundCommit.PREFIX);
+    }
+
+    public static String blobNameFromGeneration(long generation) {
+        assert generation > 0 : generation;
+        return StatelessCompoundCommit.PREFIX + generation;
+    }
+
+    public static long parseGenerationFromBlobName(String name) {
+        assert startsWithBlobPrefix(name) : name;
+        return Long.parseLong(name.substring(name.lastIndexOf('_') + 1));
     }
 }

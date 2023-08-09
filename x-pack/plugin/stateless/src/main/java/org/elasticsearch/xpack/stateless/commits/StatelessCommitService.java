@@ -1,4 +1,5 @@
 /*
+/*
  * ELASTICSEARCH CONFIDENTIAL
  * __________________
  *
@@ -38,6 +39,8 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -49,6 +52,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -64,6 +68,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.newSetFromMap;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.Strings.format;
 
@@ -78,7 +83,7 @@ public class StatelessCommitService {
     private final ThreadPool threadPool;
     // We don't do null checks when reading from this sub-map because we hold a commit reference while files are being uploaded. This will
     // prevent commit deletion in the interim.
-    private final ConcurrentHashMap<ShardId, ShardCommitState> fileToBlobFile = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ShardId, ShardCommitState> shardsCommitsStates = new ConcurrentHashMap<>();
     private final ConcurrentMap<ShardId, Consumer<Long>> commitNotificationSuccessListeners = new ConcurrentHashMap<>();
 
     public StatelessCommitService(ObjectStoreService objectStoreService, ClusterService clusterService, Client client) {
@@ -106,24 +111,24 @@ public class StatelessCommitService {
     }
 
     public void markRecoveredCommit(ShardId shardId, StatelessCompoundCommit commit) {
-        ShardCommitState commitState = getSafe(fileToBlobFile, shardId);
-        commitState.markRecoveredCommit(commit);
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        commitState.markCommitRecovered(commit);
     }
 
     public long getRecoveredGeneration(ShardId shardId) {
-        return getSafe(fileToBlobFile, shardId).recoveredGeneration;
+        return getSafe(shardsCommitsStates, shardId).recoveredGeneration;
     }
 
-    public void markCommitDeleted(ShardId shardId, Collection<String> commitFiles) {
-        ShardCommitState commitState = getSafe(fileToBlobFile, shardId);
-        commitState.markCommitDeleted(commitFiles);
+    public void markCommitDeleted(ShardId shardId, long generation) {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        commitState.markCommitDeleted(generation);
     }
 
     public void onCommitCreation(StatelessCommitRef reference) {
         var shardId = reference.getShardId();
         var generation = reference.getGeneration();
 
-        ShardCommitState commitState = getSafe(fileToBlobFile, reference.getShardId());
+        ShardCommitState commitState = getSafe(shardsCommitsStates, reference.getShardId());
         if (commitState.recoveredGeneration == reference.getGeneration()) {
             logger.debug("{} skipping upload of recovered commit [{}]", shardId, generation);
             IOUtils.closeWhileHandlingException(reference);
@@ -131,7 +136,7 @@ public class StatelessCommitService {
         }
 
         logger.debug("{} uploading commit [{}][{}]", shardId, reference.getSegmentsFileName(), generation);
-        commitState.markNewCommit(generation, reference.getCommitFiles(), reference.getAdditionalFiles());
+        commitState.markCommitCreated(reference.getPrimaryTerm(), generation, reference.getCommitFiles(), reference.getAdditionalFiles());
         CommitUpload commitUpload = new CommitUpload(commitState, ActionListener.wrap(new ActionListener<>() {
             @Override
             public void onResponse(StatelessCompoundCommit commit) {
@@ -173,7 +178,7 @@ public class StatelessCommitService {
 
     public boolean hasPendingCommitUploads(ShardId shardId) {
         try {
-            ShardCommitState commitState = getSafe(fileToBlobFile, shardId);
+            ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
             return commitState.pendingUploadGenerations.isEmpty() == false;
         } catch (AlreadyClosedException ace) {
             return false;
@@ -277,7 +282,7 @@ public class StatelessCommitService {
         }
 
         private void uploadStatelessCommitFile(ActionListener<StatelessCompoundCommit> listener) {
-            String commitFileName = StatelessCompoundCommit.NAME + generation;
+            String commitFileName = StatelessCompoundCommit.blobNameFromGeneration(generation);
             Set<String> internalFiles = reference.getAdditionalFiles();
             Set<String> referencedGenerationalFiles = reference.getCommitFiles()
                 .stream()
@@ -326,7 +331,6 @@ public class StatelessCommitService {
                     l.onResponse(commit);
                 })
             );
-
         }
 
         @Override
@@ -341,31 +345,32 @@ public class StatelessCommitService {
     }
 
     public void register(ShardId shardId) {
-        ShardCommitState existing = fileToBlobFile.put(shardId, new ShardCommitState(shardId));
+        ShardCommitState existing = shardsCommitsStates.put(shardId, new ShardCommitState(shardId));
         assert existing == null : shardId + " already registered";
     }
 
     public void unregister(ShardId shardId) {
-        ShardCommitState removed = fileToBlobFile.remove(shardId);
+        ShardCommitState removed = shardsCommitsStates.remove(shardId);
         assert removed != null : shardId + " not registered";
         removed.close();
     }
 
     public void addListenerForUploadedGeneration(ShardId shardId, long generation, ActionListener<Void> listener) {
         requireNonNull(listener, "listener cannot be null");
-        ShardCommitState commitState = getSafe(fileToBlobFile, shardId);
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         commitState.addListenerForUploadedGeneration(generation, listener);
     }
 
     public void addConsumerForNewUploadedCommit(ShardId shardId, Consumer<StatelessCompoundCommit> listener) {
         requireNonNull(listener, "listener cannot be null");
-        ShardCommitState commitState = getSafe(fileToBlobFile, shardId);
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         commitState.addConsumerForNewUploadedCommit(listener);
     }
 
     // Visible for testing
-    Map<String, BlobFile> getFileToBlobFile(ShardId shardId) {
-        return fileToBlobFile.get(shardId).fileMap;
+    Set<String> getFilesWithBlobLocations(ShardId shardId) {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        return commitState.blobLocations.keySet();
     }
 
     private static ShardCommitState getSafe(ConcurrentHashMap<ShardId, ShardCommitState> map, ShardId shardId) {
@@ -380,29 +385,40 @@ public class StatelessCommitService {
 
         private final ShardId shardId;
         private final Set<Long> pendingUploadGenerations = ConcurrentCollections.newConcurrentSet();
-        private final Map<String, BlobFile> fileMap = new ConcurrentHashMap<>();
         private List<Tuple<Long, ActionListener<Void>>> generationListeners = null;
         private List<Consumer<StatelessCompoundCommit>> uploadedCommitConsumers = null;
         private volatile long recoveredGeneration = -1;
         private long generationUploaded = -1;
         private volatile boolean isClosed;
 
+        // map generations to compound commit blob instances
+        private final Map<Long, CompoundCommitBlob> compoundCommitBlobs = new ConcurrentHashMap<>();
+
+        // maps file names to their (maybe future) compound commit blob & blob location
+        private final Map<String, CommitAndBlobLocation> blobLocations = new ConcurrentHashMap<>();
+
         private ShardCommitState(ShardId shardId) {
             this.shardId = shardId;
         }
 
-        private void markRecoveredCommit(StatelessCompoundCommit recoveredCommit) {
-            recoveredGeneration = recoveredCommit.generation();
-            recoveredCommit.commitFiles().forEach((fileName, location) -> {
-                BlobFile blobFile = new BlobFile();
-                blobFile.setBlobLocation(location);
-                fileMap.put(fileName, blobFile);
+        public void markFileUploaded(String fileName, BlobLocation blobLocation) {
+            blobLocations.compute(fileName, (ignored, commitAndBlobLocation) -> {
+                assert commitAndBlobLocation != null : fileName;
+                assert assertBlobLocations(fileName, commitAndBlobLocation, blobLocation);
+                return new CommitAndBlobLocation(commitAndBlobLocation.compoundCommitBlob, blobLocation);
             });
-            handleUploadedCommit(recoveredCommit);
         }
 
-        public void markFileUploaded(String name, BlobLocation objectStoreLocation) {
-            fileMap.get(name).setBlobLocation(objectStoreLocation);
+        private boolean assertBlobLocations(String fileName, CommitAndBlobLocation current, BlobLocation uploaded) {
+            if (current.blobLocation != null) {
+                assert isGenerationalFile(fileName) : fileName + ':' + current;
+                assert current.blobLocation.compoundFileGeneration() < uploaded.compoundFileGeneration()
+                    : fileName + ':' + current + " vs " + uploaded;
+                return true;
+            }
+            assert current.compoundCommitBlob().generation == uploaded.compoundFileGeneration()
+                : fileName + ':' + current + " vs " + uploaded;
+            return true;
         }
 
         public StatelessCompoundCommit.Writer returnPendingCompoundCommit(
@@ -423,9 +439,10 @@ public class StatelessCommitService {
             for (Map.Entry<String, Long> commitFile : commitFiles.entrySet()) {
                 String fileName = commitFile.getKey();
                 if (internalFiles.contains(fileName) == false) {
-                    BlobFile blobFile = fileMap.get(fileName);
-                    assert blobFile.isUploaded();
-                    writer.addReferencedBlobFile(fileName, blobFile.location());
+                    var location = blobLocations.get(fileName);
+                    assert location != null : fileName;
+                    assert location.blobLocation() != null : fileName + ':' + location;
+                    writer.addReferencedBlobFile(fileName, location.blobLocation());
                 } else {
                     writer.addInternalFile(fileName, commitFile.getValue());
                 }
@@ -433,25 +450,63 @@ public class StatelessCommitService {
             return writer;
         }
 
-        public void markNewCommit(long generation, Collection<String> commitFiles, Set<String> additionalFiles) {
-            pendingUploadGenerations.add(generation);
-            for (String file : commitFiles) {
-                if (additionalFiles.contains(file)) {
-                    BlobFile existing = fileMap.put(file, new BlobFile());
-                    assert existing == null;
-                } else {
-                    fileMap.get(file).incRef();
+        private void markCommitRecovered(StatelessCompoundCommit recoveredCommit) {
+            assert compoundCommitBlobs.isEmpty() : compoundCommitBlobs;
+            assert blobLocations.isEmpty() : blobLocations;
+
+            final long primaryTerm = recoveredCommit.primaryTerm();
+            final long generation = recoveredCommit.generation();
+            recoveredGeneration = generation;
+
+            // create the compound commit blob instance
+            var compoundCommitBlob = new CompoundCommitBlob(primaryTerm, generation, recoveredCommit.getInternalFiles());
+            compoundCommitBlobs.put(generation, compoundCommitBlob);
+
+            // add blob location for internal and referenced files
+            recoveredCommit.commitFiles().forEach((file, location) -> {
+
+                // Files that are not internal to the recovered commit are also associated to the recovered commit (with their exact blob
+                // location) until the compound commits they belong to are initialized too. This is OK for now but once the recovered commit
+                // is released the referenced files will remain in the blobLocations map forever
+                // TODO initialize all existing compound commits from the blob store (ES-6479)
+
+                if (blobLocations.putIfAbsent(file, new CommitAndBlobLocation(compoundCommitBlob, location)) != null) {
+                    throw new IllegalArgumentException("Blob location already exists for file [" + file + ']');
                 }
-            }
+            });
+            handleUploadedCommit(recoveredCommit);
         }
 
-        public void markCommitDeleted(Collection<String> commitFiles) {
-            for (String file : commitFiles) {
-                boolean shouldRemove = fileMap.get(file).decRef();
-                if (shouldRemove) {
-                    fileMap.remove(file);
-                }
+        public void markCommitCreated(long primaryTerm, long generation, Collection<String> commitFiles, Set<String> additionalFiles) {
+            pendingUploadGenerations.add(generation);
+
+            // create a compound commit blob instance for the new commit
+            var compoundCommitBlob = new CompoundCommitBlob(primaryTerm, generation, additionalFiles);
+            if (compoundCommitBlobs.putIfAbsent(generation, compoundCommitBlob) != null) {
+                throw new IllegalArgumentException(
+                    "Compound commit blob [primaryTerm=" + primaryTerm + ", generation=" + generation + " already exists"
+                );
             }
+
+            // add pending blob locations for new files
+            additionalFiles.forEach(fileName -> {
+                var previous = blobLocations.put(fileName, new CommitAndBlobLocation(compoundCommitBlob, null));
+                assert previous == null || isGenerationalFile(fileName) : fileName + ':' + previous;
+            });
+
+            // if there are external files the new instance must reference the corresponding commit blob instances
+            commitFiles.forEach(fileName -> {
+                if (additionalFiles.contains(fileName) == false) {
+                    var commit = blobLocations.get(fileName).compoundCommitBlob();
+                    compoundCommitBlob.incRef(commit);
+                }
+            });
+        }
+
+        public void markCommitDeleted(long generation) {
+            final var compoundCommitBlob = compoundCommitBlobs.remove(generation);
+            assert compoundCommitBlob != null : generation;
+            compoundCommitBlob.close();
         }
 
         public void markCommitUploaded(StatelessCompoundCommit commit) {
@@ -572,28 +627,75 @@ public class StatelessCommitService {
                 );
             }
         }
-    }
 
-    private static class BlobFile extends AbstractRefCounted {
+        /**
+         * A ref counted instance representing a compound commit blob in the object store. It can reference some other previous compound
+         * commit blob instances (if the commit has external files) which are decRef when the current instance ref count reaches zero.
+         */
+        private class CompoundCommitBlob extends AbstractRefCounted implements Releasable {
 
-        private volatile BlobLocation blobLocation;
+            private final long primaryTerm;
+            private final long generation;
+            private final Set<String> internalFiles;
+            private final Set<CompoundCommitBlob> references;
 
-        private void setBlobLocation(BlobLocation uploadedLocation) {
-            if (this.blobLocation == null) {
-                this.blobLocation = uploadedLocation;
+            CompoundCommitBlob(long primaryTerm, long generation, Set<String> internalFiles) {
+                this.primaryTerm = primaryTerm;
+                this.generation = generation;
+                this.internalFiles = Set.copyOf(internalFiles);
+                this.references = newSetFromMap(new IdentityHashMap<>());
+            }
+
+            public void incRef(CompoundCommitBlob other) {
+                assert hasReferences() : this;
+                assert other.hasReferences() : other;
+                other.incRef();
+                if (references.add(other) == false) {
+                    other.decRef();
+                }
+            }
+
+            @Override
+            public void close() {
+                references.forEach(AbstractRefCounted::decRef);
+                decRef();
+            }
+
+            @Override
+            protected void closeInternal() {
+                final CompoundCommitBlob released = this;
+                // TODO now the instance is released we can prune it from object store once it's not used anymore by search shards
+                internalFiles.forEach(fileName -> {
+                    blobLocations.compute(fileName, (file, commitAndBlobLocation) -> {
+                        var existing = commitAndBlobLocation.compoundCommitBlob();
+                        if (released != existing) {
+                            assert isGenerationalFile(file) : file;
+                            assert released.generation < existing.generation : fileName + ':' + released + " vs " + existing;
+                            return commitAndBlobLocation;
+                        }
+                        return null;
+                    });
+                });
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                CompoundCommitBlob that = (CompoundCommitBlob) o;
+                return primaryTerm == that.primaryTerm && generation == that.generation;
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(primaryTerm, generation);
+            }
+
+            @Override
+            public String toString() {
+                return "Compound commit blob [" + "primaryTerm=" + primaryTerm + ", generation=" + generation + ']';
             }
         }
-
-        private boolean isUploaded() {
-            return blobLocation != null;
-        }
-
-        private BlobLocation location() {
-            return Objects.requireNonNull(blobLocation);
-        }
-
-        @Override
-        protected void closeInternal() {}
     }
 
     public void registerNewCommitSuccessListener(ShardId shardId, Consumer<Long> listener) {
@@ -610,4 +712,12 @@ public class StatelessCommitService {
     public static boolean isGenerationalFile(String file) {
         return file.startsWith("_") && IndexFileNames.parseGeneration(file) > 0L;
     }
+
+    private record CommitAndBlobLocation(ShardCommitState.CompoundCommitBlob compoundCommitBlob, @Nullable BlobLocation blobLocation) {
+        @Override
+        public String toString() {
+            return "CommitAndBlobLocation [compoundCommitBlob=" + compoundCommitBlob + ", blobLocation=" + blobLocation + ']';
+        }
+    }
+
 }

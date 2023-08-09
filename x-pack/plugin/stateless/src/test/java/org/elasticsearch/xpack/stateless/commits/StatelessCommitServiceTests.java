@@ -66,6 +66,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItems;
@@ -100,7 +101,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 .flatMap(ref -> ref.getCommitFiles().stream())
                 .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
                 .toList();
-            List<String> compoundCommitFiles = commitRefs.stream().map(ref -> StatelessCompoundCommit.NAME + ref.getGeneration()).toList();
+            List<String> compoundCommitFiles = commitRefs.stream().map(ref -> blobNameFromGeneration(ref.getGeneration())).toList();
 
             for (StatelessCommitRef commitRef : commitRefs) {
                 testHarness.commitService.onCommitCreation(commitRef);
@@ -112,7 +113,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
             for (StatelessCommitRef commitRef : commitRefs) {
                 var generationalFiles = commitRef.getCommitFiles().stream().filter(StatelessCommitService::isGenerationalFile).toList();
-                var internalFiles = returnInternalFiles(testHarness, List.of(StatelessCompoundCommit.NAME + commitRef.getGeneration()));
+                var internalFiles = returnInternalFiles(testHarness, List.of(blobNameFromGeneration(commitRef.getGeneration())));
                 assertThat(generationalFiles, everyItem(is(in(internalFiles))));
             }
 
@@ -159,7 +160,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 .flatMap(ref -> ref.getCommitFiles().stream())
                 .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
                 .toList();
-            List<String> compoundCommitFiles = commitRefs.stream().map(ref -> StatelessCompoundCommit.NAME + ref.getGeneration()).toList();
+            List<String> compoundCommitFiles = commitRefs.stream().map(ref -> blobNameFromGeneration(ref.getGeneration())).toList();
 
             for (StatelessCommitRef commitRef : commitRefs) {
                 testHarness.commitService.onCommitCreation(commitRef);
@@ -231,7 +232,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
                 .toList();
 
-            List<String> compoundCommitFiles = commitRefs.stream().map(ref -> StatelessCompoundCommit.NAME + ref.getGeneration()).toList();
+            List<String> compoundCommitFiles = commitRefs.stream().map(ref -> blobNameFromGeneration(ref.getGeneration())).toList();
             firstCommitFile.set(compoundCommitFiles.get(0));
             secondCommitFile.set(compoundCommitFiles.get(1));
 
@@ -297,7 +298,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, firstCommit.getGeneration(), future2);
             future2.actionGet();
 
-            Set<String> files = testHarness.commitService.getFileToBlobFile(testHarness.shardId).keySet();
+            Set<String> files = testHarness.commitService.getFilesWithBlobLocations(testHarness.shardId);
 
             assertThat(
                 "Expected that all first commit files " + firstCommit.getCommitFiles() + " to be in file map " + files,
@@ -310,14 +311,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 hasItems(secondCommit.getCommitFiles().toArray(String[]::new))
             );
 
-            testHarness.commitService.markCommitDeleted(testHarness.shardId, firstCommit.getCommitFiles());
+            testHarness.commitService.markCommitDeleted(testHarness.shardId, firstCommit.getGeneration());
 
             List<String> expectedDeletedFiles = firstCommit.getCommitFiles()
                 .stream()
                 .filter(f -> secondCommit.getCommitFiles().contains(f) == false)
                 .toList();
 
-            Set<String> filesAfterDelete = testHarness.commitService.getFileToBlobFile(testHarness.shardId).keySet();
+            Set<String> filesAfterDelete = testHarness.commitService.getFilesWithBlobLocations(testHarness.shardId);
 
             assertThat(
                 "Expected that all first commit only files " + expectedDeletedFiles + " to be deleted from file map " + filesAfterDelete,
@@ -350,7 +351,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             ArrayList<String> uploadedFiles = new ArrayList<>();
             uploadedFiles.addAll(uploadedBlobs);
-            uploadedFiles.addAll(returnInternalFiles(testHarness, List.of(StatelessCompoundCommit.NAME + commitRef.getGeneration())));
+            uploadedFiles.addAll(returnInternalFiles(testHarness, List.of(blobNameFromGeneration(commitRef.getGeneration()))));
 
             assertThat(
                 "Expected that all commit files " + commitFiles + " have been uploaded " + uploadedFiles,
@@ -360,12 +361,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             assertThat(
                 "Expected that the compound commit file "
-                    + StatelessCompoundCommit.NAME
-                    + commitRef.getGeneration()
+                    + blobNameFromGeneration(commitRef.getGeneration())
                     + " has been uploaded "
                     + uploadedFiles,
                 uploadedFiles,
-                hasItems(StatelessCompoundCommit.NAME + commitRef.getGeneration())
+                hasItems(blobNameFromGeneration(commitRef.getGeneration()))
             );
 
             uploadedBlobs.clear();
@@ -463,7 +463,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         boolean atomic,
                         CheckedConsumer<OutputStream, IOException> writer
                     ) throws IOException {
-                        assertTrue(blobName, blobName.startsWith(StatelessCompoundCommit.NAME));
+                        assertTrue(blobName, StatelessCompoundCommit.startsWithBlobPrefix(blobName));
                         compoundCommitFileConsumer.accept(
                             blobName,
                             () -> super.writeMetadataBlob(blobName, failIfAlreadyExists, atomic, writer)

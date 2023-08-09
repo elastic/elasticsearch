@@ -140,7 +140,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
                     @Override
                     public InputStream readBlob(String blobName) throws IOException {
-                        assert blobName.startsWith(StatelessCompoundCommit.NAME) || permittedFiles.contains(blobName)
+                        assert StatelessCompoundCommit.startsWithBlobPrefix(blobName) || permittedFiles.contains(blobName)
                             : blobName + " in " + permittedFiles;
                         return super.readBlob(blobName);
                     }
@@ -204,7 +204,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     .listBlobs()
                     .keySet()
                     .stream()
-                    .filter(s -> s.startsWith(StatelessCompoundCommit.NAME))
+                    .filter(StatelessCompoundCommit::startsWithBlobPrefix)
                     .count()
             );
 

@@ -48,6 +48,13 @@ public record BlobLocation(long primaryTerm, String blobName, long blobLength, l
         assert offset + fileLength <= blobLength : "(offset + file) length is greater than blobLength " + this;
     }
 
+    /**
+     * @return parse the generation from the blob name
+     */
+    public long compoundFileGeneration() {
+        return StatelessCompoundCommit.parseGenerationFromBlobName(blobName);
+    }
+
     public static BlobLocation readFromStore(StreamInput streamInput, boolean includesBlobLength) throws IOException {
         if (includesBlobLength) {
             return readWithBlobLength(streamInput);
@@ -77,7 +84,7 @@ public record BlobLocation(long primaryTerm, String blobName, long blobLength, l
         long offset = streamInput.readVLong();
         long length = streamInput.readVLong();
         long blobLength;
-        if (blobName.startsWith(StatelessCompoundCommit.NAME)) {
+        if (StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
             // Only the one segments file was stored in versions prior to the blobLength being added
             blobLength = offset + length;
         } else {

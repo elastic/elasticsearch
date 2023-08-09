@@ -34,20 +34,13 @@ import java.util.stream.Collectors;
 public class TransportGetRollupCapsAction extends HandledTransportAction<GetRollupCapsAction.Request, GetRollupCapsAction.Response> {
 
     private final ClusterService clusterService;
-    private final ThreadPool threadPool;
     private final Executor managementExecutor;
 
     @Inject
-    public TransportGetRollupCapsAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ActionFilters actionFilters
-    ) {
+    public TransportGetRollupCapsAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters) {
         super(GetRollupCapsAction.NAME, transportService, actionFilters, GetRollupCapsAction.Request::new, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
-        this.threadPool = threadPool;
-        this.managementExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
+        this.managementExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
     }
 
     @Override

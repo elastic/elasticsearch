@@ -37,14 +37,12 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
 
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver resolver;
-    private final ThreadPool threadPool;
     private final Executor managementExecutor;
 
     @Inject
     public TransportGetRollupIndexCapsAction(
         TransportService transportService,
         ClusterService clusterService,
-        ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
@@ -56,8 +54,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
             ThreadPool.Names.MANAGEMENT
         );
         this.clusterService = clusterService;
-        this.threadPool = threadPool;
-        this.managementExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
+        this.managementExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
         this.resolver = indexNameExpressionResolver;
     }
 

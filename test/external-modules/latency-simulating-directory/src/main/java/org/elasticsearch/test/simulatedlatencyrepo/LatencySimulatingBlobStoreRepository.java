@@ -68,7 +68,7 @@ class LatencySimulatingBlobStoreRepository extends BlobStoreRepository {
 
     private class LatencySimulatingBlobContainer extends FilterBlobContainer {
 
-        public LatencySimulatingBlobContainer(BlobContainer delegate) {
+        LatencySimulatingBlobContainer(BlobContainer delegate) {
             super(delegate);
         }
 

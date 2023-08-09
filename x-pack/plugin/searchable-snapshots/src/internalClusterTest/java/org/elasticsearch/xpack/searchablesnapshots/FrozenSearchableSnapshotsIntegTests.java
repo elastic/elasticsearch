@@ -46,6 +46,7 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesRequestCacheUtils;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
@@ -524,11 +525,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
-        createRepository(
-            fsRepoName,
-            "fs",
-            Settings.builder().put("location", randomRepoPath()).put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-        );
+        createRepository(fsRepoName, FsRepository.TYPE);
 
         final Settings.Builder originalIndexSettings = Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
         assertAcked(prepareCreate(indexName, originalIndexSettings));
@@ -544,7 +541,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         logger.info("--> restoring partial index [{}] with cache enabled", restoredIndexName);
 
         Settings.Builder indexSettingsBuilder = Settings.builder().put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
-        indexSettingsBuilder.put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.ZERO);
+        indexSettingsBuilder.put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.ZERO).putNull(DataTier.TIER_PREFERENCE);
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
             restoredIndexName,
@@ -564,12 +561,13 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         UpdateSettingsRequestBuilder settingsRequest = indicesAdmin().prepareUpdateSettings(restoredIndexName);
         settingsRequest.setSettings(Settings.builder().putNull(DataTier.TIER_PREFERENCE));
+        indicesAdmin().updateSettings(settingsRequest.request()).actionGet();
 
         // we're expecting the tier preference to still be present and to be the correct data_frozen value
         GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(restoredIndexName).get();
         final Settings settings = getSettingsResponse.getIndexToSettings().get(restoredIndexName);
-        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(settings), notNullValue());
-        assertThat(DataTier.TIER_PREFERENCE_SETTING.exists(settings), is(true));
+        assertThat(settings.get(DataTier.TIER_PREFERENCE), notNullValue());
+        assertThat(settings.get(DataTier.TIER_PREFERENCE), is("data_frozen"));
     }
 
     private static void assertRequestCacheState(Client client, String index, long expectedHits, long expectedMisses) {

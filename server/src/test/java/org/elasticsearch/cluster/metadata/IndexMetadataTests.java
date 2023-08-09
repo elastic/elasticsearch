@@ -509,6 +509,9 @@ public class IndexMetadataTests extends ESTestCase {
                 .numberOfReplicas(0)
                 .build(false);
             assertThat(DataTier.TIER_PREFERENCE_SETTING.get(indexMetadata.getSettings()), is(DataTier.DATA_FROZEN));
+            // we expect the settings version to have been bumped as building the metadata changed the settings for this index
+            // to explicitly configure the tier preference for the mounted index (as opposed to relying on the default value)
+            assertThat(indexMetadata.getSettingsVersion(), is(2L));
         }
 
         {
@@ -525,6 +528,9 @@ public class IndexMetadataTests extends ESTestCase {
                 .numberOfReplicas(0)
                 .build(false);
             assertThat(DataTier.TIER_PREFERENCE_SETTING.get(indexMetadata.getSettings()), is(DataTier.DATA_FROZEN));
+            // we expect the settings version to have been bumped as building the metadata changed the settings for this index
+            // to correct the tier preference for the mounted index
+            assertThat(indexMetadata.getSettingsVersion(), is(2L));
         }
 
         {
@@ -536,6 +542,9 @@ public class IndexMetadataTests extends ESTestCase {
                 .numberOfReplicas(0)
                 .build(false);
             assertThat(DataTier.TIER_PREFERENCE_SETTING.exists(indexMetadata.getSettings()), is(false));
+            // as building the index metadata didn't manipulate the tier preference, we expect the settings version to
+            // remain 1
+            assertThat(indexMetadata.getSettingsVersion(), is(1L));
         }
     }
 

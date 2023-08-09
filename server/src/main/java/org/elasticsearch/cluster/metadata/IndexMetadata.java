@@ -262,6 +262,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
+    public static final List<String> PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE = List.of(DataTier.DATA_FROZEN);
 
     public enum APIBlock implements Writeable {
         READ_ONLY("read_only", INDEX_READ_ONLY_BLOCK, Property.ServerlessPublic),
@@ -2146,10 +2147,20 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 // to be able to build a temporary instance
                 tierPreference = null;
             }
+
+            // If, for some reason (bugs), a partially mounted index does not have a tier preference or has an incorrect one we'll
+            // configure it here as otherwise we won't be able to correct the tier preference unless an upgrade is performed to activate
+            // #IndexMetadataVerifier#convertSharedCacheTierPreference(IndexMetadata)} or unless all problematic indices are deleted
+            // in one DELETE API call. Both workarounds are messy so let's do the right thing here if we detected a problem.
             if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(settings)
-                && (tierPreference == null || tierPreference.size() != 1 || tierPreference.get(0).equals(DataTier.DATA_FROZEN) == false)) {
+                && (tierPreference == null
+                    || tierPreference.size() != 1
+                    || tierPreference.get(0).equals(DataTier.DATA_FROZEN) == false
+                    || settings.get(DataTier.TIER_PREFERENCE) == null)) {
                 settings = Settings.builder().put(settings).put(DataTier.TIER_PREFERENCE, DataTier.DATA_FROZEN).build();
-                tierPreference = List.of(DataTier.DATA_FROZEN);
+                tierPreference = PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE;
+                // we've modified the settings so bump the settings version
+                settingsVersion++;
             }
 
             ImmutableOpenMap<String, DiffableStringMap> newCustomMetadata = customMetadata.build();

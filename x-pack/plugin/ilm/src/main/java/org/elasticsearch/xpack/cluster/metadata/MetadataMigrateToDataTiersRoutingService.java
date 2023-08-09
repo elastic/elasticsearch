@@ -765,7 +765,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
     private static Settings migrateToDefaultTierPreference(ClusterState currentState, IndexMetadata indexMetadata) {
         Settings currentIndexSettings = indexMetadata.getSettings();
-        List<String> tierPreference = DataTier.parseTierList(currentIndexSettings.get(DataTier.TIER_PREFERENCE));
+        List<String> tierPreference = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(currentIndexSettings));
         if (tierPreference.isEmpty() == false) {
             return currentIndexSettings;
         }

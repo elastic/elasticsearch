@@ -85,6 +85,7 @@
                     bulk.total_size_in_bytes         .+   \n
                     bulk.avg_time                    .+   \n
                     bulk.avg_size_in_bytes           .+   \n
+                    dense_vector.value_count         .+   \n
                $/
 ---
 "Test cat shards output":

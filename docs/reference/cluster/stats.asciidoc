@@ -1682,7 +1682,10 @@ The API returns the following response:
           "total_primary_size": "7.4kb",
           "total_primary_bytes": 7632
         }
-      ]
+      ],
+      "dense_vector": {
+          "value_count": 0
+      }
    },
    "nodes": {
       "count": {

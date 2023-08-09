@@ -74,30 +74,32 @@ public class SparseFileTracker {
         if (length < 0) {
             throw new IllegalArgumentException("Length [" + length + "] must be equal to or greater than 0 for [" + description + "]");
         }
+        this.initialLength = ranges.isEmpty() ? 0 : addInitialRanges(length, ranges);
+    }
+
+    private long addInitialRanges(long length, SortedSet<ByteRange> ranges) {
         long initialLength = 0;
-        if (ranges.isEmpty() == false) {
-            synchronized (mutex) {
-                Range previous = null;
-                for (ByteRange next : ranges) {
-                    if (next.length() == 0L) {
-                        throw new IllegalArgumentException("Range " + next + " cannot be empty");
-                    }
-                    if (length < next.end()) {
-                        throw new IllegalArgumentException("Range " + next + " is exceeding maximum length [" + length + ']');
-                    }
-                    final Range range = new Range(next);
-                    if (previous != null && range.start <= previous.end) {
-                        throw new IllegalArgumentException("Range " + range + " is overlapping a previous range " + previous);
-                    }
-                    final boolean added = this.ranges.add(range);
-                    assert added : range + " already exist in " + this.ranges;
-                    previous = range;
-                    initialLength += range.end - range.start;
+        synchronized (mutex) {
+            Range previous = null;
+            for (ByteRange next : ranges) {
+                if (next.isEmpty()) {
+                    throw new IllegalArgumentException("Range " + next + " cannot be empty");
                 }
-                assert invariant();
+                if (length < next.end()) {
+                    throw new IllegalArgumentException("Range " + next + " is exceeding maximum length [" + length + ']');
+                }
+                final Range range = new Range(next);
+                if (previous != null && range.start <= previous.end) {
+                    throw new IllegalArgumentException("Range " + range + " is overlapping a previous range " + previous);
+                }
+                final boolean added = this.ranges.add(range);
+                assert added : range + " already exist in " + this.ranges;
+                previous = range;
+                initialLength += range.end - range.start;
             }
+            assert invariant();
         }
-        this.initialLength = initialLength;
+        return initialLength;
     }
 
     public long getLength() {

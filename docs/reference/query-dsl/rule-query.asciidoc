@@ -7,9 +7,16 @@
 
 preview::[]
 
-Applies rules configured in the <<query-rules-apis, Query Rules API>> to the query.
+Applies <<query-rules-apis,query rules>> to the query before returning results.
 This feature is used to promote documents in the manner of a <<query-dsl-pinned-query>> based on matching defined rules.
 If no matching query rules are defined, the "organic" matches for the query are returned.
+
+[NOTE]
+====
+To use the rule query, you first need a defined set of query rules.
+Use the <<query-rules-apis, query rules management APIs>> to create and manage query rules.
+For more information and examples see <<search-using-query-rules>>.
+====
 
 ==== Example request
 
@@ -26,8 +33,8 @@ PUT _query_rules/my-ruleset
       "criteria": [
         {
           "type": "exact",
-          "metadata": "query_string",
-          "values": ["pugs"]
+          "metadata": "user_query",
+          "values": ["puggles"]
         }
       ],
       "actions": {
@@ -54,12 +61,12 @@ GET /_search
   "query": {
     "rule_query": {
       "match_criteria": {
-        "query_string": "pugs"
+        "user_query": "pugs"
       },
       "ruleset_id": "my-ruleset",
       "organic": {
         "match": {
-          "description": "pugs"
+          "description": "puggles"
         }
       }
     }

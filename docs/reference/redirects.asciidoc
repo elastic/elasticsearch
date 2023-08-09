@@ -111,7 +111,7 @@ Refer to <<security-clients-integrations,Securing clients and integrations>>.
 [role="exclude",id="cross-cluster-configuring"]
 === {ccs-cap} and security
 
-Refer to <<remote-clusters-security,configure remote clusters with security>>.
+Refer to <<remote-clusters>>.
 
 [role="exclude",id="cross-cluster-kibana"]
 ==== {ccs-cap} and {kib}

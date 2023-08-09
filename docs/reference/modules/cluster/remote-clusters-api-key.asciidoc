@@ -1,0 +1,22 @@
+[[remote-clusters-api-key]]
+=== Add remote clusters using API key authentication
+
+beta::[]
+
+To add a remote cluster using API key authentication:
+
+. <<remote-clusters-security-api-key>>
+. <<remote-clusters-connect-api-key>>
+. <<remote-clusters-privileges-api-key>>
+
+[[remote-clusters-security-api-key]]
+==== Establish trust with a remote cluster
+
+coming::[8.10]
+
+[[remote-clusters-connect-api-key]]
+==== Connect to a remote cluster
+
+coming::[8.10]
+
+include::../../../../x-pack/docs/en/security/authentication/remote-clusters-privileges-api-key.asciidoc[leveloffset=+1]

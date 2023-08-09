@@ -1,0 +1,4 @@
+[[remote-clusters-privileges-api-key]]
+=== Configure roles and users
+
+coming::[8.10]

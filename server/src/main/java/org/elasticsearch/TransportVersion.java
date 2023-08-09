@@ -180,7 +180,6 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     public static final TransportVersion V_8_500_055 = registerTransportVersion(8_500_055, "c88f57c2-4601-4422-8312-89ff6d30ce5e");
     public static final TransportVersion V_8_500_056 = registerTransportVersion(8_500_056, "8d888d68-fe63-4d5e-9bfe-8f4ad29e529a");
 
-
     private static class CurrentHolder {
         private static final TransportVersion CURRENT = findCurrent(V_8_500_056);
 

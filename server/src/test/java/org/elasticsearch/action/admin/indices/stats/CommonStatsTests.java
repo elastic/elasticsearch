@@ -19,45 +19,46 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class CommonStatsTests extends AbstractWireSerializingTestCase<CommonStats> {
-  @Override
-  protected Writeable.Reader<CommonStats> instanceReader() {
-    return CommonStats::new;
-  }
-
-  private CommonStatsFlags randomFlags() {
-    int len = randomIntBetween(0, CommonStatsFlags.ALL.getFlags().length);
-    Map<Integer, CommonStatsFlags.Flag> flagMap = new HashMap<>();
-    for (int i = 0; i < len; i++) {
-      CommonStatsFlags.Flag flag = randomFrom(EnumSet.allOf(CommonStatsFlags.Flag.class));
-      flagMap.putIfAbsent(flag.ordinal(), flag);
+    @Override
+    protected Writeable.Reader<CommonStats> instanceReader() {
+        return CommonStats::new;
     }
-    CommonStatsFlags.Flag[] flags = flagMap.values().toArray(new CommonStatsFlags.Flag[0]);
-    return new CommonStatsFlags(flags);
-  }
 
-  @Override
-  protected CommonStats createTestInstance() {
-    if (frequently()) {
-      if (randomBoolean()) {
-        return new CommonStats(CommonStatsFlags.ALL);
-      } else {
-        return new CommonStats(CommonStatsFlags.NONE);
-      }
+    private CommonStatsFlags randomFlags() {
+        int len = randomIntBetween(0, CommonStatsFlags.ALL.getFlags().length);
+        Map<Integer, CommonStatsFlags.Flag> flagMap = new HashMap<>();
+        for (int i = 0; i < len; i++) {
+            CommonStatsFlags.Flag flag = randomFrom(EnumSet.allOf(CommonStatsFlags.Flag.class));
+            flagMap.putIfAbsent(flag.ordinal(), flag);
+        }
+        CommonStatsFlags.Flag[] flags = flagMap.values().toArray(new CommonStatsFlags.Flag[0]);
+        return new CommonStatsFlags(flags);
     }
-    return new CommonStats(randomFlags());
-  }
 
-  @Override
-  protected CommonStats mutateInstance(CommonStats instance) throws IOException {
-    CommonStats another = createTestInstance();
-    long denseVectorCount = instance.getDenseVectorStats() == null ? randomNonNegativeLong() :
-            randomValueOtherThan(instance.getDenseVectorStats().getValueCount(), ESTestCase::randomNonNegativeLong);
-    if (another.getDenseVectorStats() == null) {
-      another.denseVectorStats = new DenseVectorStats(denseVectorCount);
-    } else {
-      another.getDenseVectorStats().add(new DenseVectorStats(denseVectorCount));
+    @Override
+    protected CommonStats createTestInstance() {
+        if (frequently()) {
+            if (randomBoolean()) {
+                return new CommonStats(CommonStatsFlags.ALL);
+            } else {
+                return new CommonStats(CommonStatsFlags.NONE);
+            }
+        }
+        return new CommonStats(randomFlags());
     }
-    another.add(instance);
-    return another;
-  }
+
+    @Override
+    protected CommonStats mutateInstance(CommonStats instance) throws IOException {
+        CommonStats another = createTestInstance();
+        long denseVectorCount = instance.getDenseVectorStats() == null
+            ? randomNonNegativeLong()
+            : randomValueOtherThan(instance.getDenseVectorStats().getValueCount(), ESTestCase::randomNonNegativeLong);
+        if (another.getDenseVectorStats() == null) {
+            another.denseVectorStats = new DenseVectorStats(denseVectorCount);
+        } else {
+            another.getDenseVectorStats().add(new DenseVectorStats(denseVectorCount));
+        }
+        another.add(instance);
+        return another;
+    }
 }

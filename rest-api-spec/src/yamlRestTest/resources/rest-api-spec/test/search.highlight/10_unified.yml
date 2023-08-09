@@ -24,6 +24,18 @@ setup:
       indices.refresh: {}
 
 ---
+teardown:
+  - skip:
+      version: " - 8.9.99"
+      reason: "setting added in 8.10.0"
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.highlight.weight_matches_mode.enabled: null
+
+---
 "Basic multi_match query":
   - do:
       search:
@@ -49,3 +61,35 @@ setup:
   - match: {hits.hits.0.highlight.text.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}
   - match: {hits.hits.0.highlight.text\.fvh.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}
   - match: {hits.hits.0.highlight.text\.postings.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}
+
+---
+"Disable weight matches":
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
+  - do:
+      search:
+        body: {
+          "query": { "multi_match": { "query": "quick brown fox", "type": "phrase", "fields": [ "text*" ] } },
+          "highlight": { "type": "unified", "fields": { "*": { } } } }
+
+  - match: { hits.hits.0.highlight.text.0: "The <em>quick brown fox</em> is brown." }
+  - match: { hits.hits.0.highlight.text\.fvh.0: "The <em>quick brown fox</em> is brown." }
+  - match: { hits.hits.0.highlight.text\.postings.0: "The <em>quick brown fox</em> is brown." }
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.highlight.weight_matches_mode.enabled: "false"
+
+  - do:
+      search:
+        body: {
+          "query" : { "multi_match" : { "query" : "quick brown fox", "type": "phrase", "fields" : [ "text*"] } },
+          "highlight" : { "type" : "unified", "fields" : { "*" : {} } } }
+
+  - match: {hits.hits.0.highlight.text.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown."}
+  - match: {hits.hits.0.highlight.text\.fvh.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown."}
+  - match: {hits.hits.0.highlight.text\.postings.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown."}

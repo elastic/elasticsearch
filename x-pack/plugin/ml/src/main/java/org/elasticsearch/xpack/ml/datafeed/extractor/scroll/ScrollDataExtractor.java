@@ -121,7 +121,10 @@ class ScrollDataExtractor implements DataExtractor {
         SearchResponse searchResponse = executeSearchRequest(buildSearchRequest(startTimestamp));
         logger.debug("[{}] Search response was obtained", context.jobId);
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        return processAndConsumeSearchResponse(searchResponse);
+        scrollId = searchResponse.getScrollId();
+        SearchHit hits[] = searchResponse.getHits().getHits();
+        searchResponse = null;
+        return processAndConsumeSearchHits(hits);
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
@@ -165,26 +168,25 @@ class ScrollDataExtractor implements DataExtractor {
         context.scriptFields.forEach(f -> searchRequestBuilder.addScriptField(f.fieldName(), f.script()));
         return searchRequestBuilder;
     }
-
-    class ConvertableByteArrayOutputStream extends ByteArrayOutputStream {
-
-        public ByteArrayInputStream getByteArrayInputStream(){
-            ByteArrayInputStream stream = new ByteArrayInputStream(buf, 0, count);
+    /*
+        Utility class to convert ByteArrayOutputStream to ByteArrayInputStream without copying the underlying buffer.
+     */
+    private class ConvertableByteArrayOutputStream extends ByteArrayOutputStream {
+        public ByteArrayInputStream resetThisAndGetByteArrayInputStream(){
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(buf, 0, count);
             buf = new byte[0];
             count =0;
-            return stream;
+            return inputStream;
         }
-
     }
 
     /*
     IMPORTANT: This is not a idempotent method. This method change the input parameter SearchResponse.
     It deletes are all SearchHits from input object SearchResponse.
      */
-    private InputStream processAndConsumeSearchResponse(SearchResponse searchResponse) throws IOException {
+    private InputStream processAndConsumeSearchHits(SearchHit hits[]) throws IOException {
 
-        scrollId = searchResponse.getScrollId();
-        if (searchResponse.getHits().getHits().length == 0) {
+        if (hits == null || hits.length == 0) {
             hasNext = false;
             clearScroll();
             return null;
@@ -192,10 +194,9 @@ class ScrollDataExtractor implements DataExtractor {
 
         ConvertableByteArrayOutputStream outputStream = new ConvertableByteArrayOutputStream() ;
 
-        SearchHit lastHit = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length - 1];
+        SearchHit lastHit = hits[hits.length - 1];
         lastTimestamp = context.extractedFields.timeFieldValue(lastHit);
         try (SearchHitToJsonProcessor hitProcessor = new SearchHitToJsonProcessor(context.extractedFields, outputStream)) {
-            SearchHit hits[] = searchResponse.getHits().getHits();
             for (int i = 0;i<hits.length;i++) {
                 SearchHit hit = hits[i];
                 if (isCancelled) {
@@ -216,7 +217,7 @@ class ScrollDataExtractor implements DataExtractor {
                 hits[i] = null;
             }
         }
-        return outputStream.getByteArrayInputStream();
+        return outputStream.resetThisAndGetByteArrayInputStream();
     }
 
     private InputStream continueScroll() throws IOException {
@@ -234,7 +235,10 @@ class ScrollDataExtractor implements DataExtractor {
         }
         logger.debug("[{}] Search response was obtained", context.jobId);
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        return processAndConsumeSearchResponse(searchResponse);
+        scrollId = searchResponse.getScrollId();
+        SearchHit hits[] = searchResponse.getHits().getHits();
+        searchResponse = null;
+        return processAndConsumeSearchHits(hits);
     }
 
     void markScrollAsErrored() {

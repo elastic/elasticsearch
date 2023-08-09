@@ -429,7 +429,7 @@ GET /_xpack/usage
       "cert": 0,
       "api_key": 0
     }
-  }
+  },
   "enterprise_search" : {
     "available": true,
     "enabled": true,

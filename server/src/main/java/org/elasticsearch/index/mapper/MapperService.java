@@ -40,7 +40,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -373,7 +372,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Merging the provided mappings. Actual merging is done in the raw, non-parsed, form of the mappings. This allows to do a proper bulk
      * merge, where parsing is done only when all raw mapping settings are already merged.
      */
-    @SuppressWarnings("unchecked")
     public DocumentMapper merge(String type, List<CompressedXContent> mappingSources, MergeReason reason) {
         final DocumentMapper currentMapper = this.mapper;
         if (currentMapper != null && mappingSources.size() == 1 && currentMapper.mappingSource().equals(mappingSources.get(0))) {
@@ -383,13 +381,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Map<String, Object> mergedRawMapping = null;
         for (CompressedXContent mappingSource : mappingSources) {
             Map<String, Object> rawMapping = MappingParser.convertToMap(mappingSource);
-            Iterator<String> iterator = rawMapping.keySet().iterator();
-            if (iterator.hasNext()) {
-                String rootName = iterator.next();
-                if (mappingParser.isRootMappingType(rootName, type)) {
-                    rawMapping = (Map<String, Object>) rawMapping.get(rootName);
-                }
+            if (rawMapping.isEmpty()) {
+                continue;
             }
+
+            // normalize mappings, making sure that all have the provided type as a single root
+            if (rawMapping.containsKey(type)) {
+                if (rawMapping.size() > 1) {
+                    throw new MapperParsingException("cannot merge a map with multiple roots, one of which is [" + type + "]");
+                }
+            } else {
+                rawMapping = Map.of(type, rawMapping);
+            }
+
             if (mergedRawMapping == null) {
                 mergedRawMapping = rawMapping;
             } else {
@@ -420,8 +424,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 }));
             }
         }
-        // todo: doMerge will apply parsing, which expects a single root in the provided map. Should we fail here if there is more than
-        //  one root?
+        if (mergedRawMapping != null && mergedRawMapping.size() > 1) {
+            throw new MapperParsingException("cannot merge mapping sources with different roots");
+        }
         return (mergedRawMapping != null) ? doMerge(type, reason, mergedRawMapping) : null;
     }
 

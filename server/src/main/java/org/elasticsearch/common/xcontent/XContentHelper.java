@@ -433,7 +433,7 @@ public class XContentHelper {
      * the second map has values for the same key. Otherwise, values from the first map will always have precedence, meaning - if the
      * first map contains a key, its value will not be overriden.
      *
-     * @param parent      used for recursion to maintain knowledge about the common parent of the currently merged sub-maps
+     * @param parent      used for recursion to maintain knowledge about the common parent of the currently merged sub-maps, if such exists
      * @param first       the map which serves as the merge base
      * @param second      the map of which contents are merged into the base map
      * @param customMerge a custom merge rule to apply whenever a key has concrete values (i.e. not a map or a collection) in both maps

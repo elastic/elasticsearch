@@ -1079,7 +1079,8 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                         )
                     ).build()
                 ),
-                withMlNodes("ml_node_1", "ml_node_2")
+                withMlNodes("ml_node_1", "ml_node_2"),
+                Settings.EMPTY
             )
         );
         assertTrue(
@@ -1110,7 +1111,8 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                         )
                     ).build()
                 ),
-                withMlNodes("ml_node_1", "ml_node_2")
+                withMlNodes("ml_node_1", "ml_node_2"),
+                Settings.EMPTY
             )
         );
         assertFalse(
@@ -1141,7 +1143,8 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                         )
                     ).build()
                 ),
-                withMlNodes("ml_node_1", "ml_node_2", "ml_node_3", "ml_node_4")
+                withMlNodes("ml_node_1", "ml_node_2", "ml_node_3", "ml_node_4"),
+                Settings.EMPTY
             )
         );
     }

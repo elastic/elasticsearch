@@ -13,6 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.fleet.action.PostSecretAction;
 import org.elasticsearch.xpack.fleet.action.PostSecretRequest;
 
@@ -34,11 +35,9 @@ public class RestPostSecretsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final String content = request.content().utf8ToString();
-        return restChannel -> client.execute(
-            PostSecretAction.INSTANCE,
-            new PostSecretRequest(content, request.getXContentType()),
-            new RestToXContentListener<>(restChannel)
-        );
+        try (XContentParser parser = request.contentParser()) {
+            PostSecretRequest postSecretRequest = PostSecretRequest.fromXContent(parser);
+            return restChannel -> client.execute(PostSecretAction.INSTANCE, postSecretRequest, new RestToXContentListener<>(restChannel));
+        }
     }
 }

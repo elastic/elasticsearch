@@ -1893,6 +1893,7 @@ public class ApiKeyService {
         String apiKeyName,
         String[] apiKeyIds,
         boolean withLimitedBy,
+        boolean activeOnly,
         ActionListener<GetApiKeyResponse> listener
     ) {
         ensureEnabled();
@@ -1901,17 +1902,18 @@ public class ApiKeyService {
             username,
             apiKeyName,
             apiKeyIds,
-            false,
-            false,
+            activeOnly,
+            activeOnly,
             hit -> convertSearchHitToApiKeyInfo(hit, withLimitedBy),
             ActionListener.wrap(apiKeyInfos -> {
                 if (apiKeyInfos.isEmpty()) {
                     logger.debug(
-                        "No active api keys found for realms {}, user [{}], api key name [{}] and api key ids {}",
+                        "No API keys found for realms {}, user [{}], API key name [{}], API key IDs {}, and active_only flag [{}]",
                         Arrays.toString(realmNames),
                         username,
                         apiKeyName,
-                        Arrays.toString(apiKeyIds)
+                        Arrays.toString(apiKeyIds),
+                        activeOnly
                     );
                     listener.onResponse(GetApiKeyResponse.emptyResponse());
                 } else {

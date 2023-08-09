@@ -143,9 +143,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexed.addValidator(v -> {
                 if (v) {
                     if (similarity.getValue() == null) {
-                        throw new IllegalArgumentException(
-                            "Field [index] requires field [similarity] to be configured"
-                        );
+                        throw new IllegalArgumentException("Field [index] requires field [similarity] to be configured");
                     }
                 } else {
                     if (similarity.isConfigured()) {

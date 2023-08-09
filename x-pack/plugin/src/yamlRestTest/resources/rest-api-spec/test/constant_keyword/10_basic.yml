@@ -265,7 +265,7 @@ setup:
 
 
 ---
-"Agg with histogram":
+"Filter with histogram":
   - skip:
       version: " - 7.6.99"
       reason: "constant_keyword was added in 7.7"

@@ -81,7 +81,9 @@ public final class MlAutoscalingResourceTracker {
         long modelMemoryAvailableFirstNode = mlNodes.length > 0
             ? NativeMemoryCalculator.allowedBytesForMl(clusterState.nodes().get(mlNodes[0]), settings).orElse(0L)
             : 0L;
-        int processorsAvailableFirstNode = mlNodes.length > 0 ? MlProcessors.get(clusterState.nodes().get(mlNodes[0])).roundDown() : 0;
+        int processorsAvailableFirstNode = mlNodes.length > 0
+            ? MlProcessors.get(clusterState.nodes().get(mlNodes[0]), settings).roundDown()
+            : 0;
 
         // Todo: MAX_LOW_PRIORITY_MODELS_PER_NODE not checked yet
         int maxOpenJobsPerNode = MAX_OPEN_JOBS_PER_NODE.get(settings);

@@ -133,7 +133,7 @@ public class RemoteClusterPortSettings {
 
     static void validateRemoteAccessSettings(Settings settings) {
         if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings)
-            && settings.getGroups("transport.profiles.", true).keySet().contains(REMOTE_CLUSTER_PROFILE)) {
+            && settings.getGroups("transport.profiles.", true).containsKey(REMOTE_CLUSTER_PROFILE)) {
             throw new IllegalArgumentException(
                 "Remote Access settings should not be configured using the ["
                     + REMOTE_CLUSTER_PROFILE

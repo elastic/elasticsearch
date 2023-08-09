@@ -417,13 +417,38 @@ public class ExpressionTests extends ESTestCase {
         assertParsingException(() -> whereExpression("1.1 hours"), "extraneous input 'hours' expecting <EOF>");
     }
 
-    public void testOverflowingValueForQualifiedNumbers() {
+    public void testOverflowingValueForDuration() {
+        for (String unit : List.of("milliseconds", "seconds", "minutes", "hours")) {
+            assertParsingException(
+                () -> parse("row x = 9223372036854775808 " + unit), // unsigned_long (Long.MAX_VALUE + 1)
+                "line 1:10: Number [9223372036854775808] outside of [" + unit + "] range"
+            );
+            assertParsingException(
+                () -> parse("row x = 18446744073709551616 " + unit), // double (UNSIGNED_LONG_MAX + 1)
+                "line 1:10: Number [18446744073709551616] outside of [" + unit + "] range"
+            );
+        }
         assertParsingException(
-            () -> parse("row x = 15883284301230000000 seconds"),
-            "line 1:10: Number [15883284301230000000] too large for qualifier [seconds]"
+            () -> parse("row x = 153722867280912931 minutes"), // Long.MAX_VALUE / 60 + 1
+            "line 1:10: Number [153722867280912931] outside of [minutes] range"
         );
-        assertParsingException(() -> parse("row x = 15883284300 days"), "line 1:10: Number [15883284300] too large for qualifier [days]");
-        assertParsingException(() -> parse("row x = 306783379 weeks"), "line 1:10: Number [306783379] too large for qualifier [weeks]");
+        assertParsingException(
+            () -> parse("row x = 2562047788015216 hours"), // Long.MAX_VALUE / 3600 + 1
+            "line 1:10: Number [2562047788015216] outside of [hours] range"
+        );
+    }
+
+    public void testOverflowingValueForPeriod() {
+        for (String unit : List.of("days", "weeks", "months", "years")) {
+            assertParsingException(
+                () -> parse("row x = 2147483648 " + unit), // long (Integer.MAX_VALUE + 1)
+                "line 1:10: Number [2147483648] outside of [" + unit + "] range"
+            );
+        }
+        assertParsingException(
+            () -> parse("row x = 306783379 weeks"), // Integer.MAX_VALUE / 7 + 1
+            "line 1:10: Number [306783379] outside of [weeks] range"
+        );
     }
 
     public void testWildcardProjectKeepPatterns() {

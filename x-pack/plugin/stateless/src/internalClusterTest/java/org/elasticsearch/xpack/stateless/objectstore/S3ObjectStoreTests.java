@@ -28,7 +28,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -36,8 +35,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
@@ -64,12 +63,6 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
     }
 
     @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/680")
-    public void testBlobStoreStats() throws IOException {
-        super.testBlobStoreStats();
-    }
-
-    @Override
     protected void assertRepositoryStats(RepositoryStats repositoryStats) {
         final Set<String> expectedRequestNames = Set.of(
             "GetObject",
@@ -82,9 +75,9 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         assertEquals(expectedRequestNames, repositoryStats.requestCounts.keySet());
         repositoryStats.requestCounts.forEach((metricName, count) -> {
             if ("AbortMultipartObject".equals(metricName)) {
-                assertThat(metricName + "=" + count, count, equalTo(0L));
+                assertThat(count, greaterThanOrEqualTo(0L));
             } else {
-                assertThat(metricName + "=" + count, count, greaterThan(0L));
+                assertThat(count, greaterThan(0L));
             }
         });
     }

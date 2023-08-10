@@ -395,6 +395,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 this.sampleRate = sampleRate;
                 this.p = 1.0d;
             }
+	    this.sampleRate *= this.p;
         }
 
         public int adjustSampleCount(int originalCount) {
@@ -412,7 +413,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
 		    // Note: In the future, this upsampling needs to take the sample rate into
 		    // account, too, so that *all* scaling of results is done in the ES
 		    // plugin, and no longer in Kibana.
-                    return (int) Math.floor(newCount / p);
+                    return (int) Math.floor(newCount / sampleRate);
                 } else {
                     return 0;
                 }

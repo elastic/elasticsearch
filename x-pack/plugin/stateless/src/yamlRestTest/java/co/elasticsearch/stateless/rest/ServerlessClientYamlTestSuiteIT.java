@@ -42,8 +42,6 @@ public class ServerlessClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
-        // disable ILM history, since it disturbs tests using _all
-        .setting("indices.lifecycle.history_index_enabled", "false")
         .build();
 
     public ServerlessClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

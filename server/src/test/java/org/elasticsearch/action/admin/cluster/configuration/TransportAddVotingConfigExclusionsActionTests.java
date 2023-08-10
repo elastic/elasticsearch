@@ -54,7 +54,6 @@ import static org.elasticsearch.action.admin.cluster.configuration.TransportAddV
 import static org.elasticsearch.cluster.ClusterState.builder;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -269,10 +268,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
             expectSuccess(r -> {
                 assertNotNull(r);
                 final var state = clusterService.getClusterApplierService().state();
-                assertThat(
-                    state.getVotingConfigExclusions(),
-                    containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion)
-                );
+                assertThat(state.getVotingConfigExclusions(), containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion));
                 assertAllExclusionsApplied(state);
                 countDownLatch.countDown();
             })
@@ -310,10 +306,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
             expectSuccess(r -> {
                 assertNotNull(r);
                 final var state = clusterService.getClusterApplierService().state();
-                assertThat(
-                    state.getVotingConfigExclusions(),
-                    containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion)
-                );
+                assertThat(state.getVotingConfigExclusions(), containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion));
                 assertAllExclusionsApplied(state);
                 countDownLatch.countDown();
             })

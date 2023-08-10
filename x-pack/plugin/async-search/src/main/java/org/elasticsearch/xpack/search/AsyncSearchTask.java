@@ -297,31 +297,31 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             if (hasCompleted) {
                 return;
             }
-            try {
-                hasCompleted = true;
-                completionsListenersCopy = new HashMap<>(this.completionListeners);
-                this.completionListeners.clear();
-            } finally {
-                if (searchResponse != null && searchResponse.get() != null) {
-                    MutableSearchResponse mutableSearchResponse = searchResponse.get();
-                    mutableSearchResponse.notifySearchTaskCompleted();
-                }
+            hasCompleted = true;
+            completionsListenersCopy = new HashMap<>(this.completionListeners);
+            this.completionListeners.clear();
+        }
+        try {
+            // we don't need to restore the response headers, they should be included in the current
+            // context since we are called by the search action listener.
+            // we want the "completed" response where isRunning=false
+            AsyncSearchResponse finalResponse = getCompletionResponse();
+            for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
+                consumer.accept(finalResponse);
+            }
+        } finally {
+            if (searchResponse != null && searchResponse.get() != null) {
+                // notify the MutableSearchResponse that the AsyncSearchTask has completed
+                searchResponse.get().notifySearchTaskCompleted();
             }
         }
-        // we don't need to restore the response headers, they should be included in the current
-        // context since we are called by the search action listener.
-        AsyncSearchResponse finalResponse = getResponse();
-        for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
-            consumer.accept(finalResponse);
-        }
-
     }
 
     /**
-     * Returns the current {@link AsyncSearchResponse}.
+     * Returns the final state of the AsyncSearchResponse with isRunning=false
      */
-    private AsyncSearchResponse getResponse() {
-        return getResponse(false);
+    private AsyncSearchResponse getCompletionResponse() {
+        return getResponse(false, false);
     }
 
     /**
@@ -329,23 +329,34 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
      * in the local thread context.
      */
     private AsyncSearchResponse getResponseWithHeaders() {
-        return getResponse(true);
+        return getResponse(true, null);
     }
 
-    private AsyncSearchResponse getResponse(boolean restoreResponseHeaders) {
+    /**
+     * @param restoreResponseHeaders whether to restore response headers
+     * @param isRunningStatus null means let the {@link MutableSearchResponse} set its current running state.
+     *                        A non-null value is an override, telling what {@link MutableSearchResponse} should set
+     *                        for isRunning.
+     */
+    private AsyncSearchResponse getResponse(boolean restoreResponseHeaders, Boolean isRunningStatus) {
         MutableSearchResponse mutableSearchResponse = searchResponse.get();
         assert mutableSearchResponse != null;
         checkCancellation();
         AsyncSearchResponse asyncSearchResponse;
         try {
-            asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, restoreResponseHeaders);
+            asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(
+                this,
+                expirationTimeMillis,
+                restoreResponseHeaders,
+                isRunningStatus
+            );
         } catch (Exception e) {
             ElasticsearchException exception = new ElasticsearchStatusException(
                 "Async search: error while reducing partial results",
                 ExceptionsHelper.status(e),
                 e
             );
-            asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, exception);
+            asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, exception, isRunningStatus);
         }
         return asyncSearchResponse;
     }

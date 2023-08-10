@@ -188,8 +188,16 @@ class MutableSearchResponse {
      * The final reduce of the aggregations is executed if needed (partial response).
      * This method is synchronized to ensure that we don't perform final reduces concurrently.
      * This method also restores the response headers in the current thread context when requested, if the final response is available.
+     * @param isRunningStatus null means let this class fill in its known running state.
+     *                        Non-null means to override that and set the isRunning flag
+     *                        on the response to match.
      */
-    synchronized AsyncSearchResponse toAsyncSearchResponse(AsyncSearchTask task, long expirationTime, boolean restoreResponseHeaders) {
+    synchronized AsyncSearchResponse toAsyncSearchResponse(
+        AsyncSearchTask task,
+        long expirationTime,
+        boolean restoreResponseHeaders,
+        Boolean isRunningStatus
+    ) {
         if (restoreResponseHeaders && responseHeaders != null) {
             restoreResponseHeadersContext(threadContext, responseHeaders);
         }
@@ -217,7 +225,7 @@ class MutableSearchResponse {
             searchResponse,
             failure,
             isPartial,
-            searchTaskCompleted == false,
+            isRunningStatus == null ? searchTaskCompleted == false : isRunningStatus,
             task.getStartTime(),
             expirationTime
         );
@@ -285,10 +293,16 @@ class MutableSearchResponse {
         );
     }
 
+    /**
+     * @param isRunningStatus null means let this class fill in its known running state.
+     *                        Non-null means to override that and set the isRunning flag
+     *                        on the response to match.
+     */
     synchronized AsyncSearchResponse toAsyncSearchResponse(
         AsyncSearchTask task,
         long expirationTime,
-        ElasticsearchException reduceException
+        ElasticsearchException reduceException,
+        Boolean isRunningStatus
     ) {
         if (this.failure != null) {
             reduceException.addSuppressed(this.failure);
@@ -298,7 +312,7 @@ class MutableSearchResponse {
             buildResponse(task.getStartTimeNanos(), null),
             reduceException,
             isPartial,
-            searchTaskCompleted == false,
+            isRunningStatus == null ? searchTaskCompleted == false : isRunningStatus,
             task.getStartTime(),
             expirationTime
         );

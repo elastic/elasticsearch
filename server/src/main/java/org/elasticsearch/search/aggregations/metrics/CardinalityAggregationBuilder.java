@@ -113,7 +113,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
-    public boolean supportsOffloadingSequentialCollection() {
+    public boolean supportsParallelCollection() {
         return false;
     }
 

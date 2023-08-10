@@ -10,10 +10,14 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
+import org.elasticsearch.grok.FloatConsumer;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokCaptureConfig;
 import org.elasticsearch.grok.GrokCaptureExtracter;
@@ -23,6 +27,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.DoubleConsumer;
+import java.util.function.Function;
+import java.util.function.IntConsumer;
+import java.util.function.LongConsumer;
 
 public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, GrokCaptureExtracter {
 
@@ -55,17 +64,107 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
             Integer blockIdx = keyToBlock.get(key);
             positionToType[blockIdx] = type;
 
-            fieldExtracters.add(config.objectExtracter(value -> {
-                if (firstValues[blockIdx] == null) {
-                    firstValues[blockIdx] = value;
-                } else {
-                    Block.Builder block = blocks()[blockIdx];
-                    if (valuesSet[blockIdx] == false) {
-                        block.beginPositionEntry();
-                        append(firstValues[blockIdx], block, type);
-                        valuesSet[blockIdx] = true;
-                    }
-                    append(value, block, type);
+            fieldExtracters.add(config.nativeExtracter(new GrokCaptureConfig.NativeExtracterMap<>() {
+                @Override
+                public GrokCaptureExtracter forString(Function<Consumer<String>, GrokCaptureExtracter> buildExtracter) {
+                    return buildExtracter.apply(value -> {
+                        if (firstValues[blockIdx] == null) {
+                            firstValues[blockIdx] = value;
+                        } else {
+                            BytesRefBlock.Builder block = (BytesRefBlock.Builder) blocks()[blockIdx];
+                            if (valuesSet[blockIdx] == false) {
+                                block.beginPositionEntry();
+                                block.appendBytesRef(new BytesRef((String) firstValues[blockIdx]));
+                                valuesSet[blockIdx] = true;
+                            }
+                            block.appendBytesRef(new BytesRef(value));
+                        }
+                    });
+                }
+
+                @Override
+                public GrokCaptureExtracter forInt(Function<IntConsumer, GrokCaptureExtracter> buildExtracter) {
+                    return buildExtracter.apply(value -> {
+                        if (firstValues[blockIdx] == null) {
+                            firstValues[blockIdx] = value;
+                        } else {
+                            IntBlock.Builder block = (IntBlock.Builder) blocks()[blockIdx];
+                            if (valuesSet[blockIdx] == false) {
+                                block.beginPositionEntry();
+                                block.appendInt((int) firstValues[blockIdx]);
+                                valuesSet[blockIdx] = true;
+                            }
+                            block.appendInt(value);
+                        }
+                    });
+                }
+
+                @Override
+                public GrokCaptureExtracter forLong(Function<LongConsumer, GrokCaptureExtracter> buildExtracter) {
+                    return buildExtracter.apply(value -> {
+                        if (firstValues[blockIdx] == null) {
+                            firstValues[blockIdx] = value;
+                        } else {
+                            LongBlock.Builder block = (LongBlock.Builder) blocks()[blockIdx];
+                            if (valuesSet[blockIdx] == false) {
+                                block.beginPositionEntry();
+                                block.appendLong((long) firstValues[blockIdx]);
+                                valuesSet[blockIdx] = true;
+                            }
+                            block.appendLong(value);
+                        }
+                    });
+                }
+
+                @Override
+                public GrokCaptureExtracter forFloat(Function<FloatConsumer, GrokCaptureExtracter> buildExtracter) {
+                    return buildExtracter.apply(value -> {
+                        if (firstValues[blockIdx] == null) {
+                            firstValues[blockIdx] = value;
+                        } else {
+                            DoubleBlock.Builder block = (DoubleBlock.Builder) blocks()[blockIdx];
+                            if (valuesSet[blockIdx] == false) {
+                                block.beginPositionEntry();
+                                block.appendDouble(((Float) firstValues[blockIdx]).doubleValue());
+                                valuesSet[blockIdx] = true;
+                            }
+                            block.appendDouble(value);
+                        }
+                    });
+                }
+
+                @Override
+                public GrokCaptureExtracter forDouble(Function<DoubleConsumer, GrokCaptureExtracter> buildExtracter) {
+                    return buildExtracter.apply(value -> {
+                        if (firstValues[blockIdx] == null) {
+                            firstValues[blockIdx] = value;
+                        } else {
+                            DoubleBlock.Builder block = (DoubleBlock.Builder) blocks()[blockIdx];
+                            if (valuesSet[blockIdx] == false) {
+                                block.beginPositionEntry();
+                                block.appendDouble((double) firstValues[blockIdx]);
+                                valuesSet[blockIdx] = true;
+                            }
+                            block.appendDouble(value);
+                        }
+                    });
+                }
+
+                @Override
+                public GrokCaptureExtracter forBoolean(Function<Consumer<Boolean>, GrokCaptureExtracter> buildExtracter) {
+                    return buildExtracter.apply(value -> {
+                        if (firstValues[blockIdx] == null) {
+                            firstValues[blockIdx] = value;
+                        } else {
+                            BooleanBlock.Builder block = (BooleanBlock.Builder) blocks()[blockIdx];
+                            if (valuesSet[blockIdx] == false) {
+                                block.beginPositionEntry();
+                                block.appendBoolean((boolean) firstValues[blockIdx]);
+                                valuesSet[blockIdx] = true;
+                            }
+                            block.appendBoolean(value);
+                        }
+                    });
                 }
             }));
         }

@@ -34,8 +34,8 @@ rm -f docs/Versions.asciidoc.new
 if git diff-index --quiet HEAD --; then
   echo 'No changes to commit.'
 else
-  git config --global user.name elasticmachine
-  git config --global user.email '15837671+elasticmachine@users.noreply.github.com'
+  git config --global user.name elasticsearchmachine
+  git config --global user.email 'infra-root+elasticsearchmachine@elastic.co'
 
   git add build-tools-internal/version.properties
   git add gradle/verification-metadata.xml

@@ -6,7 +6,7 @@ steps:
   - wait
   - label: Upload and update lucene snapshot
     command: .buildkite/scripts/lucene-snapshot/upload-snapshot.sh
-    timeout_in_minutes: 120
+    timeout_in_minutes: 15
     env:
       USE_LUCENE_SNAPSHOT_CREDS: "true"
       UPDATE_ES_LUCENE_SNAPSHOT: "true"

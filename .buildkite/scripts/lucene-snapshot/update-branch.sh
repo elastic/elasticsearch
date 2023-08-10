@@ -9,8 +9,8 @@ fi
 
 echo --- Updating lucene_snapshot branch with main
 
-git config --global user.name elasticmachine
-git config --global user.email '15837671+elasticmachine@users.noreply.github.com'
+git config --global user.name elasticsearchmachine
+git config --global user.email 'infra-root+elasticsearchmachine@elastic.co'
 
 git checkout lucene_snapshot
 git fetch origin main

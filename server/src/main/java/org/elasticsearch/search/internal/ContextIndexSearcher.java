@@ -40,7 +40,6 @@ import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.CombinedBitSet;
-import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
@@ -471,11 +470,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private void doAggregationPostCollection(Collector collector) throws IOException {
         if (collector instanceof QueryPhaseCollector queryPhaseCollector) {
-            if (queryPhaseCollector.getAggsCollector() instanceof BucketCollector.BucketCollectorWrapper aggsCollector) {
-                aggsCollector.bucketCollector().postCollection();
-            }
-        }
-        if (collector instanceof InternalProfileCollector profilerCollector) {
+            queryPhaseCollector.doPostCollection();
+        } else if (collector instanceof InternalProfileCollector profilerCollector) {
             profilerCollector.doPostCollection();
         }
     }

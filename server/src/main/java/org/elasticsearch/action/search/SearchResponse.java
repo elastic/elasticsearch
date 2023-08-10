@@ -483,6 +483,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         static final ParseField SUCCESSFUL_FIELD = new ParseField("successful");
         static final ParseField SKIPPED_FIELD = new ParseField("skipped");
         static final ParseField TOTAL_FIELD = new ParseField("total");
+        static final ParseField DETAILS_FIELD = new ParseField("details");
 
         private final int total;
         private final int successful; // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
@@ -569,6 +570,16 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 : "successful + skipped is larger than total. total: " + total + " successful: " + successful + " skipped: " + skipped;
         }
 
+        private Clusters(Map<String, AtomicReference<Cluster>> clusterInfoMap) {
+            assert clusterInfoMap.size() > 0 : "this constructor should not be called with an empty Cluster info map";
+            this.total = clusterInfoMap.size();
+            this.clusterInfo = clusterInfoMap;
+            this.successful = 0; // calculated from clusterInfo map for minimize_roundtrips
+            this.skipped = 0;    // calculated from clusterInfo map for minimize_roundtrips
+            // should only be called if "details" section of fromXContent is present (for ccsMinimizeRoundtrips)
+            this.ccsMinimizeRoundtrips = true;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(total);
@@ -602,6 +613,54 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 builder.endObject();
             }
             return builder;
+        }
+
+        public static Clusters fromXContent(XContentParser parser) throws IOException {
+            XContentParser.Token token = parser.currentToken();
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+            int successful = -1;
+            int total = -1;
+            int skipped = -1;
+            Map<String, AtomicReference<Cluster>> clusterInfoMap = new HashMap<>();
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token.isValue()) {
+                    if (Clusters.SUCCESSFUL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        successful = parser.intValue();
+                    } else if (Clusters.TOTAL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        total = parser.intValue();
+                    } else if (Clusters.SKIPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        skipped = parser.intValue();
+                    } else {
+                        parser.skipChildren();
+                    }
+                } else if (token == Token.START_OBJECT) {
+                    if (Clusters.DETAILS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        String currentDetailsFieldName = null;
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentDetailsFieldName = parser.currentName();  // cluster alias
+                            } else if (token == Token.START_OBJECT) {
+                                Cluster c = Cluster.fromXContent(currentDetailsFieldName, parser);
+                                clusterInfoMap.put(currentDetailsFieldName, new AtomicReference<>(c));
+                            } else {
+                                parser.skipChildren();
+                            }
+                        }
+                    } else {
+                        parser.skipChildren();
+                    }
+                } else {
+                    parser.skipChildren();
+                }
+            }
+            if (clusterInfoMap.isEmpty()) {
+                return new Clusters(total, successful, skipped);
+            } else {
+                return new Clusters(clusterInfoMap);
+            }
         }
 
         /**

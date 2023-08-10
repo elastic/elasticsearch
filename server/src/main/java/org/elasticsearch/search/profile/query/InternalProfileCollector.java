@@ -82,11 +82,7 @@ public class InternalProfileCollector extends ProfilerCollector {
         if (wrappedCollector instanceof InternalProfileCollector profileCollector) {
             profileCollector.doPostCollection();
         } else if (wrappedCollector instanceof QueryPhaseCollector queryPhaseCollector) {
-            if (queryPhaseCollector.getAggsCollector() instanceof BucketCollector.BucketCollectorWrapper aggsCollector) {
-                aggsCollector.bucketCollector().postCollection();
-            } else if (queryPhaseCollector.getAggsCollector() instanceof InternalProfileCollector profileCollector) {
-                profileCollector.doPostCollection();
-            }
+            queryPhaseCollector.doPostCollection();
         } else if (wrappedCollector instanceof BucketCollector.BucketCollectorWrapper aggsCollector) {
             aggsCollector.bucketCollector().postCollection();
         }

@@ -409,7 +409,10 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     // Adjust the sample counts from down-sampled to fully sampled.
                     // Be aware that downsampling drops entries from stackTraceEvents, so that
                     // the sum of the upscaled count values is less that totalCount.
-                    return (int) Math.floor(newCount / (sampleRate * p));
+		    // Note: In the future, this upsampling needs to take the sample rate into
+		    // account, too, so that *all* scaling of results is done in the ES
+		    // plugin, and no longer in Kibana.
+                    return (int) Math.floor(newCount / p);
                 } else {
                     return 0;
                 }

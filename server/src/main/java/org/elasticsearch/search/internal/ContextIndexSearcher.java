@@ -339,9 +339,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * Similar to the lucene implementation, with the following changes made:
      * 1) it will wait for all threads to finish before returning when an exception is thrown. In that case, subsequent exceptions will be
      * ignored and the first exception is re-thrown after all tasks are completed.
-     * 2) Tasks are cancelled on exception to prevent needless computation
+     * 2) Tasks are cancelled on exception, as well as on timeout, to prevent needless computation
      * 3) collection is unconditionally offloaded to the executor when set, even when there is a single slice or the request does not
      * support concurrent collection. The executor is not set only when concurrent search has been explicitly disabled at the cluster level.
+     * 4) postCollection is performed after each segment is collected. This is needed for aggregations, performed by search worker threads
+     * so it can be parallelized. Also, it needs to happen in the same thread where doc_values are read, as it consumes them and Lucene
+     * does not allow consuming them from a different thread.
+     * 5) handles the ES TimeExceededException
      * */
     private <C extends Collector, T> T search(Weight weight, CollectorManager<C, T> collectorManager, C firstCollector) throws IOException {
         // the executor will be null only when concurrency is disabled at the cluster level

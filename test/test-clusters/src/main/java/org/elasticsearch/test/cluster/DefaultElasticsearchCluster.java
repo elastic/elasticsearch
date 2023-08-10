@@ -144,7 +144,11 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
         return handle.getNodeLog(index, logType);
     }
 
-    private void checkHandle() {
+    protected H getHandle() {
+        return handle;
+    }
+
+    protected void checkHandle() {
         if (handle == null) {
             throw new IllegalStateException("Cluster handle has not been initialized. Did you forget the @ClassRule annotation?");
         }

@@ -1467,7 +1467,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             // use the toString as a fallback if for some reason the XContent conversion to JSON fails
             errorInfo = f.toString();
         }
-        logger.warn(
+        logger.debug(
             "CCS remote cluster failure. Cluster [{}]. skip_unavailable: [{}]. Error: {}",
             clusterAlias,
             skipUnavailable,

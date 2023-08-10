@@ -40,6 +40,11 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class LatencySimulatingBlobStoreRepositoryTests extends AbstractSnapshotIntegTestCase {
 
+    @Override
+    protected boolean addMockInternalEngine() {
+        return false;
+    }
+
     public static final String REPO_TYPE = "countingFs";
 
     public static final LongAdder COUNTS = new LongAdder();

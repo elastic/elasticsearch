@@ -3,6 +3,7 @@
 FOR /F "tokens=* eol=#" %%i in ('type .ci\java-versions.properties') do set %%i
 
 SET JAVA_HOME=%USERPROFILE%\.java\%ES_BUILD_JAVA%
+SET JAVA11_HOME=%USERPROFILE%\.java\java11
 SET JAVA16_HOME=%USERPROFILE%\.java\openjdk16
 
 SET GRADLEW=./gradlew --parallel --no-daemon --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/

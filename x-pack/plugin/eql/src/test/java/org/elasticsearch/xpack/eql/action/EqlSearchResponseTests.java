@@ -8,8 +8,11 @@ package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -24,6 +27,7 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -284,10 +288,21 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                     e.id(),
                     e.source(),
                     version.onOrAfter(TransportVersion.V_7_13_0) ? e.fetchFields() : null,
-                    version.onOrAfter(TransportVersion.V_8_500_038) ? e.missing() : false
+                    version.onOrAfter(TransportVersion.V_8_500_038) ? e.missing() : e.index().isEmpty()
                 )
             );
         }
         return mutatedEvents;
+    }
+
+    public void testEmptyIndexAsMissingEvent() throws IOException {
+        Event event = new Event("", "", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), null);
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersion.V_8_500_020);// 8.9.1
+        event.writeTo(out);
+        ByteArrayStreamInput in = new ByteArrayStreamInput(out.bytes().array());
+        in.setTransportVersion(TransportVersion.V_8_500_020);
+        Event event2 = Event.readFrom(in);
+        assertTrue(event2.missing());
     }
 }

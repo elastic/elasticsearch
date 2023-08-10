@@ -1843,6 +1843,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "logs-mappings":
             case "metrics":
             case "metrics-settings":
+            case "metrics-tsdb-settings":
             case "metrics-mappings":
             case "synthetics":
             case "synthetics-settings":
@@ -1854,6 +1855,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "data-streams-mappings":
             case "ecs@dynamic_templates":
             case "search-acl-filter":
+            case ".kibana-reporting":
                 return true;
             default:
                 return false;

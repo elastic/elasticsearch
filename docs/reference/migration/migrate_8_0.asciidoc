@@ -46,9 +46,6 @@ after upgrading to 8.0.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-//tag::notable-breaking-changes[]
 [discrete]
 [[breaking_80_cluster_node_setting_deprecations]]
 ==== Cluster and node setting deprecations
@@ -92,7 +89,6 @@ Passwords are generated automatically for the `elastic` user when you start {es}
 starting {es}, it will fail because the `elastic`
 user password is already configured.
 ====
-//end::notable-breaking-changes[]
 
 include::migrate_8_0/migrate_to_java_time.asciidoc[]
 include::transient-settings-migration-guide.asciidoc[]

@@ -43,6 +43,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -395,7 +396,7 @@ public class JoinValidationServiceTests extends ESTestCase {
             localNode,
             JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
             new ValidateJoinRequest(otherClusterState),
-            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE)
+            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
         );
         deterministicTaskQueue.runAllTasks();
 
@@ -446,7 +447,7 @@ public class JoinValidationServiceTests extends ESTestCase {
             localNode,
             JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
             new ValidateJoinRequest(stateForValidation),
-            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE)
+            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
         );
         deterministicTaskQueue.runAllTasks();
 

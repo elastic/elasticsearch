@@ -244,7 +244,7 @@ For third party libraries that are not built with maven (e.g. ant) or provided a
 a flat directory repository that resolves artifacts from a flat directory on your filesystem.
 
 1. Put the jar artifact with the format `artifactName-version.jar` into a directory named `localRepo` (you have to create this manually)
-2. Declare a flatDir repository in your root build.gradle file
+2. Declare a flatDir repository in your root build.gradle file (That ensures all projects have the flatDir repository declared and also the projects consuming the project you tweaked can resolve that local dependency)
 
 ```
 allprojects {
@@ -257,14 +257,14 @@ allprojects {
 ```
 
 3. Update the dependency declaration of the artifact in question to match the custom build version. For a file named e.g. `jmxri-1.2.1.jar` the
-  dependency definition would be `:jmxri:1.2.1` as it comes with no group information:
+  dependency definition would be `x:jmxri:1.2.1` as it the group information is ignored on flatdir repositories you can replace the `x` in group name:
 
   ```
   dependencies {
-      implementation ':jmxri:1.2.1'
+      implementation 'x:jmxri:1.2.1'
   }
   ```
-4. Run the gradle build as needed.
+4. Run the gradle build as needed with `--write-verification-metadata` to ensure the gradle dependency verification does not fail on your custom dependency.
 
 ---
 **NOTE**

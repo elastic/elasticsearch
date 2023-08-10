@@ -17,12 +17,21 @@ public class NestedUtilsTests extends ESTestCase {
 
     public void testPartitionByChild() {
         List<String> children = List.of("child1", "child2", "stepchild");
-        List<String> inputs = List.of("a", "b", "child1.grandchild", "child1.grandchild2", "child11", "child2.grandchild", "frog");
+        List<String> inputs = List.of(
+            "a",
+            "b",
+            "child1.grandchild",
+            "child1.grandchild2",
+            "child11",
+            "child12",
+            "child2.grandchild",
+            "frog"
+        );
         Map<String, List<String>> partitioned = NestedUtils.partitionByChildren("", children, inputs, s -> s);
         assertEquals(
             Map.of(
                 "",
-                List.of("a", "b", "child11", "frog"),
+                List.of("a", "b", "child11", "child12", "frog"),
                 "child1",
                 List.of("child1.grandchild", "child1.grandchild2"),
                 "child2",

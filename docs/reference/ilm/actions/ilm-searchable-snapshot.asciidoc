@@ -17,6 +17,11 @@ the frozen phase, the action mounts a <<partially-mounted,partially mounted
 index>> prefixed with `partial-` to the frozen tier. In other phases, the action mounts a
 <<fully-mounted,fully mounted index>> prefixed with `restored-` to the corresponding data tier.
 
+In the frozen tier, the action will ignore the setting
+<<total-shards-per-node,`index.routing.allocation.total_shards_per_node`>>, if it was present in the original index,
+to account for the difference in the number of nodes between the frozen and the other tiers.
+
+
 WARNING: Don't include the `searchable_snapshot` action in both the hot and cold
 phases. This can result in indices failing to automatically migrate to the cold
 tier during the cold phase.

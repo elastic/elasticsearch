@@ -74,7 +74,7 @@ public class NodeMetadataTests extends ESTestCase {
 
     public void testReadsFormatWithoutVersion() throws IOException {
         // the behaviour tested here is only appropriate if the current version is compatible with versions 7 and earlier
-        assertTrue(Version.CURRENT.minimumIndexCompatibilityVersion().onOrBefore(Version.V_7_0_0));
+        assertTrue(IndexVersion.MINIMUM_COMPATIBLE.onOrBefore(IndexVersion.V_7_0_0));
         // when the current version is incompatible with version 7, the behaviour should change to reject files like the given resource
         // which do not have the version field
 

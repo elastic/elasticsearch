@@ -41,12 +41,63 @@ Search Application `<name>` does not exist.
 The following example renders a query for a search application called `my-app`. In this case, the `from` and `size`
 parameters are not specified, so default values are pulled from the search application template.
 
+////
+[source,console]
+----
+PUT /index1
+
+PUT _application/search_application/my-app
+{
+  "indices": ["index1"],
+  "template": {
+    "script": {
+      "lang": "mustache",
+      "source": """
+      {
+        "query": {
+          "multi_match": {
+            "query": "{{query_string}}",
+            "fields": [{{#text_fields}}"{{name}}^{{boost}}",{{/text_fields}}]
+          }
+        },
+        "explain": "{{explain}}",
+        "from": "{{from}}",
+        "size": "{{size}}"
+      }
+      """,
+      "params": {
+        "query_string": "*",
+        "text_fields": [
+          {"name": "title", "boost": 10},
+          {"name": "description", "boost": 5}
+        ],
+        "explain": false,
+        "from": 0,
+        "size": 10
+      }
+    }
+  }
+}
+----
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _application/search_application/my-app
+
+DELETE index1
+
+--------------------------------------------------
+// TEARDOWN
+
+////
+
 [source,console]
 ----
 POST _application/search_application/my-app/_render_query
 {
   "params": {
-    "value": "my first query",
+    "query_string": "my first query",
     "text_fields": [
         {
             "name": "title",
@@ -60,26 +111,25 @@ POST _application/search_application/my-app/_render_query
   }
 }
 ----
-// TEST[skip:TBD]
 
 A sample response:
 
 [source,console-result]
 ----
 {
-    "size": 10,
     "from": 0,
+    "size": 10,
     "query": {
         "multi_match": {
             "query": "my first query",
             "fields": [
-                "title^10",
-                "text^1"
+                "text^1.0",
+                "title^10.0"
             ]
         }
-    }
+    },
+    "explain": false
 }
-
 ----
-
+// TEST[continued]
 

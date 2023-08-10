@@ -1,11 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
-package org.elasticsearch.search.query;
+package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -22,8 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-// copied from x-pack to server module
-public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuilder> {
+class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuilder> {
     public static final String NAME = "throw";
 
     private final long randomUID;
@@ -38,7 +36,7 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
      * @param failure what exception to throw
      * @param shardId what shardId to throw the exception. If shardId is less than 0, it will throw for all shards.
      */
-    public ThrowingQueryBuilder(long randomUID, RuntimeException failure, int shardId) {
+    ThrowingQueryBuilder(long randomUID, RuntimeException failure, int shardId) {
         super();
         this.randomUID = randomUID;
         this.failure = failure;
@@ -53,7 +51,7 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
      * @param failure what exception to throw
      * @param index what index to throw the exception against (all shards of that index)
      */
-    public ThrowingQueryBuilder(long randomUID, RuntimeException failure, String index) {
+    ThrowingQueryBuilder(long randomUID, RuntimeException failure, String index) {
         super();
         this.randomUID = randomUID;
         this.failure = failure;
@@ -61,7 +59,7 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
         this.index = index;
     }
 
-    public ThrowingQueryBuilder(StreamInput in) throws IOException {
+    ThrowingQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.randomUID = in.readLong();
         this.failure = in.readException();

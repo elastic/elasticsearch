@@ -13,6 +13,7 @@ base {
 addQaCheckDependencies(project)
 
 dependencies {
+  testImplementation project(':server')
   compileOnly project(":server")
 
   compileOnly project(path: xpackModule('core'))

@@ -1,8 +1,9 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.ccs;
@@ -105,12 +106,8 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         SearchResponse searchResponse = queryFuture.get();
         assertNotNull(searchResponse);
-        System.err.println(searchResponse);
 
         SearchResponse.Clusters clusters = searchResponse.getClusters();
-        System.err.println(clusters);
-        System.err.println(clusters.getCluster(""));
-        System.err.println(clusters.getCluster(REMOTE_CLUSTER));
         assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
         assertThat(clusters.getTotal(), equalTo(2));
         assertThat(clusters.getSuccessful(), equalTo(2));
@@ -163,12 +160,8 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         SearchResponse searchResponse = queryFuture.get();
         assertNotNull(searchResponse);
-        System.err.println(searchResponse);
 
         SearchResponse.Clusters clusters = searchResponse.getClusters();
-        System.err.println(clusters);
-        System.err.println(clusters.getCluster(""));
-        System.err.println(clusters.getCluster(REMOTE_CLUSTER));
         assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
         assertThat(clusters.getTotal(), equalTo(2));
         assertThat(clusters.getSuccessful(), equalTo(2));
@@ -255,7 +248,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         String remoteIndex = (String) testClusterInfo.get("remote.index");
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         boolean skipUnavailable = (Boolean) testClusterInfo.get("remote.skip_unavailable");
-        System.err.println("skipUnavailable: " + skipUnavailable);
 
         PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
@@ -283,7 +275,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         } else {
             SearchResponse searchResponse = queryFuture.get();
             assertNotNull(searchResponse);
-            System.err.println(searchResponse);
 
             SearchResponse.Clusters clusters = searchResponse.getClusters();
             assertThat(clusters.isCcsMinimizeRoundtrips(), equalTo(minimizeRoundtrips));
@@ -292,7 +283,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             assertThat(clusters.getSkipped(), equalTo(1));
 
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
-            System.err.println(localClusterSearchInfo);
             assertNotNull(localClusterSearchInfo);
             assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
             assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
@@ -303,7 +293,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             assertThat(localClusterSearchInfo.getTook().millis(), greaterThan(0L));
 
             SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER).get();
-            System.err.println(remoteClusterSearchInfo);
 
             assertNotNull(remoteClusterSearchInfo);
             SearchResponse.Cluster.Status expectedStatus = skipUnavailable
@@ -339,7 +328,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         SearchResponse searchResponse = queryFuture.get();
         assertNotNull(searchResponse);
-        System.err.println(searchResponse);
 
         SearchResponse.Clusters clusters = searchResponse.getClusters();
         assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
@@ -380,7 +368,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         SearchResponse searchResponse = queryFuture.get();
         assertNotNull(searchResponse);
-        System.err.println(searchResponse);
 
         SearchResponse.Clusters clusters = searchResponse.getClusters();
         assertThat(clusters.getTotal(), equalTo(1));
@@ -407,7 +394,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         String remoteIndex = (String) testClusterInfo.get("remote.index");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
         boolean skipUnavailable = (Boolean) testClusterInfo.get("remote.skip_unavailable");
-        System.err.println("skipUnavailable: " + skipUnavailable);
 
         PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
         SearchRequest searchRequest = new SearchRequest(REMOTE_CLUSTER + ":" + remoteIndex);
@@ -430,7 +416,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         } else {
             SearchResponse searchResponse = queryFuture.get();
             assertNotNull(searchResponse);
-            System.err.println(searchResponse);
             SearchResponse.Clusters clusters = searchResponse.getClusters();
             assertThat(clusters.getTotal(), equalTo(1));
             assertThat(clusters.getSuccessful(), equalTo(0));

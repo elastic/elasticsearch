@@ -79,10 +79,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
-/**
- * This IT test copies the setup and general approach that the {@code CrossClusterSearchIT} test
- * used for testing synchronous CCS.
- */
 @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98272")
 public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 

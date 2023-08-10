@@ -224,8 +224,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }
 
         final String rollupIndexName = request.getTargetIndex();
-        // Assert rollup index does not exist
-        MetadataCreateIndexService.validateIndexName(rollupIndexName, state);
+        try {
+            MetadataCreateIndexService.validateIndexName(rollupIndexName, state);
+        } catch (ResourceAlreadyExistsException e) {
+            // ignore index already exists
+        }
 
         // Rollup will perform the following tasks:
         // 1. Extract source index mappings
@@ -340,7 +343,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                                             rollupIndexName,
                                             parentTask,
                                             numberOfShards,
-                                            persistentTask.getId(),
+                                            persistentRollupTaskId,
                                             params
                                         );
                                     }

@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -11,15 +12,20 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Neg}.
  * This class is generated. Do not edit it.
  */
 public final class NegLongsEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator v;
 
-  public NegLongsEvaluator(EvalOperator.ExpressionEvaluator v) {
+  public NegLongsEvaluator(Source source, EvalOperator.ExpressionEvaluator v) {
+    this.warnings = new Warnings(source);
     this.v = v;
   }
 
@@ -34,7 +40,7 @@ public final class NegLongsEvaluator implements EvalOperator.ExpressionEvaluator
     if (vVector == null) {
       return eval(page.getPositionCount(), vBlock);
     }
-    return eval(page.getPositionCount(), vVector).asBlock();
+    return eval(page.getPositionCount(), vVector);
   }
 
   public LongBlock eval(int positionCount, LongBlock vBlock) {
@@ -44,15 +50,25 @@ public final class NegLongsEvaluator implements EvalOperator.ExpressionEvaluator
         result.appendNull();
         continue position;
       }
-      result.appendLong(Neg.processLongs(vBlock.getLong(vBlock.getFirstValueIndex(p))));
+      try {
+        result.appendLong(Neg.processLongs(vBlock.getLong(vBlock.getFirstValueIndex(p))));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }
 
-  public LongVector eval(int positionCount, LongVector vVector) {
-    LongVector.Builder result = LongVector.newVectorBuilder(positionCount);
+  public LongBlock eval(int positionCount, LongVector vVector) {
+    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
-      result.appendLong(Neg.processLongs(vVector.getLong(p)));
+      try {
+        result.appendLong(Neg.processLongs(vVector.getLong(p)));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }

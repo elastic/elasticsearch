@@ -11,7 +11,9 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -23,14 +25,14 @@ abstract class NegMapper extends EvalMapper.ExpressionMapper<Neg> {
     ) {
     };
 
-    private final Function<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> ints;
+    private final BiFunction<Source, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> ints;
 
-    private final Function<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> longs;
+    private final BiFunction<Source, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> longs;
     private final Function<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> doubles;
 
     private NegMapper(
-        Function<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> ints,
-        Function<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> longs,
+        BiFunction<Source, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> ints,
+        BiFunction<Source, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> longs,
         Function<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> doubles
     ) {
         this.ints = ints;
@@ -45,10 +47,10 @@ abstract class NegMapper extends EvalMapper.ExpressionMapper<Neg> {
             var childEvaluator = EvalMapper.toEvaluator(neg.field(), layout).get();
 
             if (type == DataTypes.INTEGER) {
-                return () -> ints.apply(childEvaluator);
+                return () -> ints.apply(neg.source(), childEvaluator);
             }
             if (type == DataTypes.LONG) {
-                return () -> longs.apply(childEvaluator);
+                return () -> longs.apply(neg.source(), childEvaluator);
             }
             if (type == DataTypes.UNSIGNED_LONG) {
                 //TODO requires cast to long

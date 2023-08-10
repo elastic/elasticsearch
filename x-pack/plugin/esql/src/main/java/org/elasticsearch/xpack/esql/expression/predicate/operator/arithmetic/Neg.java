@@ -10,14 +10,14 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.compute.ann.Evaluator;
 
 public class Neg {
-    @Evaluator(extraName = "Ints")
+    @Evaluator(extraName = "Ints", warnExceptions = { ArithmeticException.class })
     static int processInts(int v) {
-        return -v;
+        return Math.negateExact(v);
     }
 
-    @Evaluator(extraName = "Longs")
+    @Evaluator(extraName = "Longs", warnExceptions = { ArithmeticException.class })
     static long processLongs(long v) {
-        return -v;
+        return Math.negateExact(v);
     }
 
     @Evaluator(extraName = "Doubles")

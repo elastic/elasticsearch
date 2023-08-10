@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -11,15 +12,20 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Neg}.
  * This class is generated. Do not edit it.
  */
 public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator v;
 
-  public NegIntsEvaluator(EvalOperator.ExpressionEvaluator v) {
+  public NegIntsEvaluator(Source source, EvalOperator.ExpressionEvaluator v) {
+    this.warnings = new Warnings(source);
     this.v = v;
   }
 
@@ -34,7 +40,7 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
     if (vVector == null) {
       return eval(page.getPositionCount(), vBlock);
     }
-    return eval(page.getPositionCount(), vVector).asBlock();
+    return eval(page.getPositionCount(), vVector);
   }
 
   public IntBlock eval(int positionCount, IntBlock vBlock) {
@@ -44,15 +50,25 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
         result.appendNull();
         continue position;
       }
-      result.appendInt(Neg.processInts(vBlock.getInt(vBlock.getFirstValueIndex(p))));
+      try {
+        result.appendInt(Neg.processInts(vBlock.getInt(vBlock.getFirstValueIndex(p))));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }
 
-  public IntVector eval(int positionCount, IntVector vVector) {
-    IntVector.Builder result = IntVector.newVectorBuilder(positionCount);
+  public IntBlock eval(int positionCount, IntVector vVector) {
+    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
-      result.appendInt(Neg.processInts(vVector.getInt(p)));
+      try {
+        result.appendInt(Neg.processInts(vVector.getInt(p)));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }

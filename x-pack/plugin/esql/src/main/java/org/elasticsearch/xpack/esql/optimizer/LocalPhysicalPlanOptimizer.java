@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -29,6 +28,7 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -36,7 +36,10 @@ import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
@@ -214,15 +217,29 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         private static boolean canPushToSource(Expression exp) {
             if (exp instanceof BinaryComparison bc) {
-                return bc.left() instanceof FieldAttribute && bc.right().foldable();
+                return canPushAttribute(bc.left(), bc) && bc.right().foldable();
             } else if (exp instanceof BinaryLogic bl) {
                 return canPushToSource(bl.left()) && canPushToSource(bl.right());
             } else if (exp instanceof RegexMatch<?> rm) {
-                return rm.field() instanceof FieldAttribute;
+                return canPushAttribute(rm.field(), rm);
             } else if (exp instanceof In in) {
-                return in.value() instanceof FieldAttribute && Expressions.foldable(in.list());
+                return canPushAttribute(in.value(), null) && Expressions.foldable(in.list());
             } else if (exp instanceof Not not) {
                 return canPushToSource(not.field());
+            }
+            return false;
+        }
+
+        private static boolean canPushAttribute(Expression expression, ScalarFunction operation) {
+            if (expression instanceof FieldAttribute) {
+                return true;
+            }
+            if (expression instanceof MetadataAttribute ma && ma.searchable()) {
+                return operation == null
+                    // no range or regex queries supported with metadata fields
+                    || operation instanceof Equals
+                    || operation instanceof NotEquals
+                    || operation instanceof WildcardLike;
             }
             return false;
         }
@@ -283,7 +300,10 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             if (field instanceof FieldAttribute fa) {
                 return ExpressionTranslator.wrapIfNested(new SingleValueQuery(querySupplier.get(), fa.name()), field);
             }
-            throw new IllegalStateException("Should always be field attributes");
+            if (field instanceof MetadataAttribute) {
+                return querySupplier.get(); // MetadataAttributes are always single valued
+            }
+            throw new IllegalStateException("Expected a FieldAttribute or MetadataAttribute but received [" + field + "]");
         }
     }
 }

@@ -5,13 +5,9 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression;
+package org.elasticsearch.xpack.ql.expression;
 
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.NameId;
-import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -25,14 +21,14 @@ public class MetadataAttribute extends TypedAttribute {
 
     private static final Map<String, Tuple<DataType, Boolean>> ATTRIBUTES_MAP = Map.of(
         "_version",
-        tuple(DataTypes.LONG, true),
+        tuple(DataTypes.LONG, false), // _version field is not searchable
         "_index",
         tuple(DataTypes.KEYWORD, true),
         "_id",
-        tuple(DataTypes.KEYWORD, false)
+        tuple(DataTypes.KEYWORD, false) // actually searchable, but fielddata access on the _id field is disallowed by default
     );
 
-    private final boolean docValues;
+    private final boolean searchable;
 
     public MetadataAttribute(
         Source source,
@@ -42,14 +38,14 @@ public class MetadataAttribute extends TypedAttribute {
         Nullability nullability,
         NameId id,
         boolean synthetic,
-        boolean docValues
+        boolean searchable
     ) {
         super(source, name, dataType, qualifier, nullability, id, synthetic);
-        this.docValues = docValues;
+        this.searchable = searchable;
     }
 
-    public MetadataAttribute(Source source, String name, DataType dataType, boolean docValues) {
-        this(source, name, dataType, null, Nullability.TRUE, null, false, docValues);
+    public MetadataAttribute(Source source, String name, DataType dataType, boolean searchable) {
+        this(source, name, dataType, null, Nullability.TRUE, null, false, searchable);
     }
 
     @Override
@@ -62,7 +58,7 @@ public class MetadataAttribute extends TypedAttribute {
         NameId id,
         boolean synthetic
     ) {
-        return new MetadataAttribute(source, name, type, qualifier, nullability, id, synthetic, docValues);
+        return new MetadataAttribute(source, name, type, qualifier, nullability, id, synthetic, searchable);
     }
 
     @Override
@@ -72,15 +68,15 @@ public class MetadataAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, MetadataAttribute::new, name(), dataType(), qualifier(), nullable(), id(), synthetic(), docValues);
+        return NodeInfo.create(this, MetadataAttribute::new, name(), dataType(), qualifier(), nullable(), id(), synthetic(), searchable);
     }
 
-    public boolean docValues() {
-        return docValues;
+    public boolean searchable() {
+        return searchable;
     }
 
     private MetadataAttribute withSource(Source source) {
-        return new MetadataAttribute(source, name(), dataType(), qualifier(), nullable(), id(), synthetic(), docValues());
+        return new MetadataAttribute(source, name(), dataType(), qualifier(), nullable(), id(), synthetic(), searchable());
     }
 
     public static MetadataAttribute create(Source source, String name) {

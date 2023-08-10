@@ -52,6 +52,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class IndexMetadataTests extends ESTestCase {
 
@@ -508,14 +509,12 @@ public class IndexMetadataTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build(false);
-            assertThat(DataTier.TIER_PREFERENCE_SETTING.get(indexMetadata.getSettings()), is(DataTier.DATA_FROZEN));
-            // we expect the settings version to have been bumped as building the metadata changed the settings for this index
-            // to explicitly configure the tier preference for the mounted index (as opposed to relying on the default value)
-            assertThat(indexMetadata.getSettingsVersion(), is(2L));
+            assertThat(indexMetadata.getSettings().get(DataTier.TIER_PREFERENCE), nullValue());
+            assertThat(indexMetadata.getTierPreference(), is(IndexMetadata.PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE));
         }
 
         {
-            // wrong data tier preference is changed to data_frozen
+            // wrong data tier preference is changed to data_frozen in the IndexMetadata@tierPreference but not in the actual setting
             final IndexMetadata indexMetadata = IndexMetadata.builder("index")
                 .settings(
                     Settings.builder()
@@ -527,10 +526,8 @@ public class IndexMetadataTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build(false);
-            assertThat(DataTier.TIER_PREFERENCE_SETTING.get(indexMetadata.getSettings()), is(DataTier.DATA_FROZEN));
-            // we expect the settings version to have been bumped as building the metadata changed the settings for this index
-            // to correct the tier preference for the mounted index
-            assertThat(indexMetadata.getSettingsVersion(), is(2L));
+            assertThat(indexMetadata.getSettings().get(DataTier.TIER_PREFERENCE), is(DataTier.DATA_CONTENT));
+            assertThat(indexMetadata.getTierPreference(), is(IndexMetadata.PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE));
         }
 
         {
@@ -542,9 +539,6 @@ public class IndexMetadataTests extends ESTestCase {
                 .numberOfReplicas(0)
                 .build(false);
             assertThat(DataTier.TIER_PREFERENCE_SETTING.exists(indexMetadata.getSettings()), is(false));
-            // as building the index metadata didn't manipulate the tier preference, we expect the settings version to
-            // remain 1
-            assertThat(indexMetadata.getSettingsVersion(), is(1L));
         }
     }
 

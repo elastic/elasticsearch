@@ -262,7 +262,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
-    public static final List<String> PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE = List.of(DataTier.DATA_FROZEN);
 
     public enum APIBlock implements Writeable {
         READ_ONLY("read_only", INDEX_READ_ONLY_BLOCK, Property.ServerlessPublic),
@@ -520,6 +519,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     public static final String KEY_IN_SYNC_ALLOCATIONS = "in_sync_allocations";
+
+    public static final List<String> PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE = List.of(DataTier.DATA_FROZEN);
+
     static final String KEY_VERSION = "version";
     static final String KEY_MAPPING_VERSION = "mapping_version";
     static final String KEY_SETTINGS_VERSION = "settings_version";
@@ -713,7 +715,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.priority = priority;
         this.creationDate = creationDate;
         this.ignoreDiskWatermarks = ignoreDiskWatermarks;
-        this.tierPreference = tierPreference;
+        // always configure the correct (one and only) value for the partially mounted indices tier preference
+        this.tierPreference = isPartialSearchableSnapshot ? PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE : tierPreference;
         this.shardsPerNodeLimit = shardsPerNodeLimit;
         this.lifecyclePolicyName = lifecyclePolicyName;
         this.lifecycleExecutionState = lifecycleExecutionState;
@@ -2148,21 +2151,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 tierPreference = null;
             }
 
-            // If, for some reason (bugs), a partially mounted index does not have a tier preference or has an incorrect one we'll
-            // configure it here as otherwise we won't be able to correct the tier preference unless an upgrade is performed to activate
-            // #IndexMetadataVerifier#convertSharedCacheTierPreference(IndexMetadata)} or unless all problematic indices are deleted
-            // in one DELETE API call. Both workarounds are messy so let's do the right thing here if we detected a problem.
-            if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(settings)
-                && (tierPreference == null
-                    || tierPreference.size() != 1
-                    || tierPreference.get(0).equals(DataTier.DATA_FROZEN) == false
-                    || settings.get(DataTier.TIER_PREFERENCE) == null)) {
-                settings = Settings.builder().put(settings).put(DataTier.TIER_PREFERENCE, DataTier.DATA_FROZEN).build();
-                tierPreference = PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE;
-                // we've modified the settings so bump the settings version
-                settingsVersion++;
-            }
-
             ImmutableOpenMap<String, DiffableStringMap> newCustomMetadata = customMetadata.build();
             Map<String, String> custom = newCustomMetadata.get(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY);
             if (custom != null && custom.isEmpty() == false) {
@@ -2201,6 +2189,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
             final String indexMode = settings.get(IndexSettings.MODE.getKey());
             final boolean isTsdb = indexMode != null && IndexMode.TIME_SERIES.getName().equals(indexMode.toLowerCase(Locale.ROOT));
+            System.out.println("building index meta yo " + index);
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,

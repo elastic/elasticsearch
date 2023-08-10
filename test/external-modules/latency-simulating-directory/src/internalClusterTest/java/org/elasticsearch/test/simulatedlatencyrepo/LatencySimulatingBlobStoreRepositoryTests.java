@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test.simulatedlatencyrepo;
 
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -23,10 +22,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
-import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
+import org.junit.AfterClass;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -69,6 +69,11 @@ public class LatencySimulatingBlobStoreRepositoryTests extends AbstractSnapshotI
         }
     }
 
+    @AfterClass
+    public static void resetCounts() {
+        COUNTS.reset();
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
@@ -103,14 +108,7 @@ public class LatencySimulatingBlobStoreRepositoryTests extends AbstractSnapshotI
         }
         indicesAdmin().prepareFlush(indexName).get();
 
-        logger.info("--> create snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin()
-            .cluster()
-            .prepareCreateSnapshot(repositoryName, "test-snap-1")
-            .setWaitForCompletion(true)
-            .setIndices(indexName)
-            .get();
-        final SnapshotId snapshotId1 = createSnapshotResponse.getSnapshotInfo().snapshotId();
+        SnapshotInfo si = createSnapshot(repositoryName, "test-snap-1", List.of(indexName));
 
         logger.info("--> delete index");
         assertAcked(client.admin().indices().prepareDelete("test-idx").get());
@@ -119,7 +117,7 @@ public class LatencySimulatingBlobStoreRepositoryTests extends AbstractSnapshotI
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
             "test-idx",
             repositoryName,
-            snapshotId1.getName(),
+            si.snapshotId().getName(),
             indexName,
             Settings.EMPTY,
             Strings.EMPTY_ARRAY,

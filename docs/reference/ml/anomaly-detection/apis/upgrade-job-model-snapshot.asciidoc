@@ -6,10 +6,11 @@
 ++++
 
 Upgrades an {anomaly-detect} model snapshot to the latest major version.
-Note that as of {es} version 8.10.0 a new version number has been introduced to
-track changes to configuration and state in the {ml} plugin. This
-new version number is decoupled from the product version and will increment
-independently as necessary.
+
+NOTE: From {es} 8.10.0,  a new version number is used to
+track the configuration and state changes in the {ml} plugin. This new
+version number is decoupled from the product version and will increment
+independently.
 
 [[ml-upgrade-job-model-snapshot-request]]
 == {api-request-title}

@@ -45,7 +45,8 @@ public abstract class ExpressionTranslator<E extends Expression> {
         Check.isTrue(
             e instanceof FieldAttribute || e instanceof MetadataAttribute,
             "Expected a FieldAttribute or MetadataAttribute but received [{}]",
-            e);
+            e
+        );
         return (TypedAttribute) e;
     }
 

@@ -75,13 +75,16 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
         FeatureSetsInfo featureSetsInfo = null;
         if (request.getCategories().contains(XPackInfoRequest.Category.FEATURES)) {
             var featureSets = new HashSet<FeatureSet>();
+            List<String> actions = client.getActionNames();
             for (var infoAction : infoActions) {
-                // local actions are executed directly, not on a separate thread, so no thread safe collection is necessary
-                client.executeLocally(
-                    infoAction,
-                    request,
-                    listener.delegateFailureAndWrap((l, response) -> featureSets.add(response.getInfo()))
-                );
+                if (actions.contains(infoAction.name())) {
+                    // local actions are executed directly, not on a separate thread, so no thread safe collection is necessary
+                    client.executeLocally(
+                        infoAction,
+                        request,
+                        listener.delegateFailureAndWrap((l, response) -> featureSets.add(response.getInfo()))
+                    );
+                }
             }
             featureSetsInfo = new FeatureSetsInfo(featureSets);
         }

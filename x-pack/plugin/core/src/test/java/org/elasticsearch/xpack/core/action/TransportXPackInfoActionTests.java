@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.License;
@@ -47,10 +48,11 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         LicenseService licenseService = mock(LicenseService.class);
 
         NodeClient client = mock(NodeClient.class);
+        when(client.getActionNames()).thenReturn(XPackInfoFeatureAction.ALL.stream().map(ActionType::name).toList());
         Map<XPackInfoFeatureAction, FeatureSet> featureSets = new HashMap<>();
         int featureSetCount = randomIntBetween(0, 5);
         for (XPackInfoFeatureAction infoAction : randomSubsetOf(featureSetCount, XPackInfoFeatureAction.ALL)) {
-            FeatureSet featureSet = new FeatureSet(randomAlphaOfLength(5), randomBoolean(), randomBoolean());
+            FeatureSet featureSet = randomFeatureSet();
             featureSets.put(infoAction, featureSet);
             when(client.executeLocally(eq(infoAction), any(ActionRequest.class), any(ActionListener.class))).thenAnswer(answer -> {
                 var listener = (ActionListener<XPackInfoFeatureResponse>) answer.getArguments()[2];
@@ -58,18 +60,6 @@ public class TransportXPackInfoActionTests extends ESTestCase {
                 return null;
             });
         }
-
-        TransportXPackInfoAction action = new TransportXPackInfoAction(
-            mock(TransportService.class),
-            mock(ActionFilters.class),
-            licenseService,
-            client
-        ) {
-            @Override
-            protected List<XPackInfoFeatureAction> infoActions() {
-                return new ArrayList<>(featureSets.keySet());
-            }
-        };
 
         License license = mock(License.class);
         long expiryDate = randomLong();
@@ -92,6 +82,100 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         }
         categories.add(XPackInfoRequest.Category.FEATURES);
         request.setCategories(categories);
+
+        XPackInfoResponse response = getResponse(request, client, licenseService, new ArrayList<>(featureSets.keySet()));
+
+        if (request.getCategories().contains(XPackInfoRequest.Category.BUILD)) {
+            assertThat(response.getBuildInfo(), notNullValue());
+        } else {
+            assertThat(response.getBuildInfo(), nullValue());
+        }
+
+        if (request.getCategories().contains(XPackInfoRequest.Category.LICENSE)) {
+            assertThat(response.getLicenseInfo(), notNullValue());
+            assertThat(response.getLicenseInfo().getExpiryDate(), is(expiryDate));
+            assertThat(response.getLicenseInfo().getType(), is(type));
+            assertThat(response.getLicenseInfo().getMode(), is(mode.name().toLowerCase(Locale.ROOT)));
+            assertThat(response.getLicenseInfo().getUid(), is(uid));
+        } else {
+            assertThat(response.getLicenseInfo(), nullValue());
+        }
+
+        if (request.getCategories().contains(XPackInfoRequest.Category.FEATURES)) {
+            assertThat(response.getFeatureSetsInfo(), notNullValue());
+            Map<String, FeatureSet> features = response.getFeatureSetsInfo().getFeatureSets();
+            assertThat(features.size(), is(featureSets.size()));
+            for (FeatureSet fs : featureSets.values()) {
+                assertThat(features, hasKey(fs.name()));
+                assertThat(features.get(fs.name()).name(), equalTo(fs.name()));
+                assertThat(features.get(fs.name()).available(), equalTo(fs.available()));
+                assertThat(features.get(fs.name()).enabled(), equalTo(fs.enabled()));
+            }
+        } else {
+            assertThat(response.getFeatureSetsInfo(), nullValue());
+        }
+
+    }
+
+    // Tests where a particular feature is not present.
+    public void testFeatureNotPresent() throws Exception {
+        final int featureSetCount = randomIntBetween(2, 7);
+        List<XPackInfoFeatureAction> totalFeatureSet = randomSubsetOf(featureSetCount, XPackInfoFeatureAction.ALL);
+        List<XPackInfoFeatureAction> totalFeatureSetMinusOne = totalFeatureSet.subList(1, totalFeatureSet.size());
+        assert totalFeatureSet.size() - 1 == totalFeatureSetMinusOne.size();
+
+        NodeClient client = mock(NodeClient.class);
+        when(client.getActionNames()).thenReturn(totalFeatureSetMinusOne.stream().map(ActionType::name).toList());
+
+        // Mocks all present features
+        Map<XPackInfoFeatureAction, FeatureSet> featureSets = new HashMap<>();
+        for (XPackInfoFeatureAction infoAction : totalFeatureSetMinusOne) {
+            FeatureSet featureSet = randomFeatureSet();
+            featureSets.put(infoAction, featureSet);
+            when(client.executeLocally(eq(infoAction), any(ActionRequest.class), any(ActionListener.class))).thenAnswer(answer -> {
+                var listener = (ActionListener<XPackInfoFeatureResponse>) answer.getArguments()[2];
+                listener.onResponse(new XPackInfoFeatureResponse(featureSet));
+                return null;
+            });
+        }
+        // Mock missing features
+        XPackInfoFeatureAction missingAction = totalFeatureSet.get(0);
+        when(client.executeLocally(eq(missingAction), any(ActionRequest.class), any(ActionListener.class))).thenAnswer(answer -> {
+            throw new IllegalStateException("failed to find action [ActionType [" + missingAction + "]");
+        });
+
+        XPackInfoRequest request = new XPackInfoRequest();
+        request.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES));
+        XPackInfoResponse response = getResponse(request, client, mock(LicenseService.class), totalFeatureSet);
+
+        assertThat(response.getFeatureSetsInfo(), notNullValue());
+        Map<String, FeatureSet> features = response.getFeatureSetsInfo().getFeatureSets();
+        assertThat(features.size(), is(totalFeatureSetMinusOne.size()));
+        for (FeatureSet fs : featureSets.values()) {
+            assertThat(features, hasKey(fs.name()));
+            assertThat(features.get(fs.name()).name(), equalTo(fs.name()));
+            assertThat(features.get(fs.name()).available(), equalTo(fs.available()));
+            assertThat(features.get(fs.name()).enabled(), equalTo(fs.enabled()));
+        }
+    }
+
+    static XPackInfoResponse getResponse(
+        XPackInfoRequest request,
+        NodeClient client,
+        LicenseService licenseService,
+        List<XPackInfoFeatureAction> totalFeatureSet
+    ) throws Exception {
+        TransportXPackInfoAction action = new TransportXPackInfoAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            licenseService,
+            client
+        ) {
+            @Override
+            protected List<XPackInfoFeatureAction> infoActions() {
+                return totalFeatureSet;
+            }
+        };
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<XPackInfoResponse> response = new AtomicReference<>();
@@ -116,37 +200,10 @@ public class TransportXPackInfoActionTests extends ESTestCase {
 
         assertThat(error.get(), nullValue());
         assertThat(response.get(), notNullValue());
-
-        if (request.getCategories().contains(XPackInfoRequest.Category.BUILD)) {
-            assertThat(response.get().getBuildInfo(), notNullValue());
-        } else {
-            assertThat(response.get().getBuildInfo(), nullValue());
-        }
-
-        if (request.getCategories().contains(XPackInfoRequest.Category.LICENSE)) {
-            assertThat(response.get().getLicenseInfo(), notNullValue());
-            assertThat(response.get().getLicenseInfo().getExpiryDate(), is(expiryDate));
-            assertThat(response.get().getLicenseInfo().getType(), is(type));
-            assertThat(response.get().getLicenseInfo().getMode(), is(mode.name().toLowerCase(Locale.ROOT)));
-            assertThat(response.get().getLicenseInfo().getUid(), is(uid));
-        } else {
-            assertThat(response.get().getLicenseInfo(), nullValue());
-        }
-
-        if (request.getCategories().contains(XPackInfoRequest.Category.FEATURES)) {
-            assertThat(response.get().getFeatureSetsInfo(), notNullValue());
-            Map<String, FeatureSet> features = response.get().getFeatureSetsInfo().getFeatureSets();
-            assertThat(features.size(), is(featureSets.size()));
-            for (FeatureSet fs : featureSets.values()) {
-                assertThat(features, hasKey(fs.name()));
-                assertThat(features.get(fs.name()).name(), equalTo(fs.name()));
-                assertThat(features.get(fs.name()).available(), equalTo(fs.available()));
-                assertThat(features.get(fs.name()).enabled(), equalTo(fs.enabled()));
-            }
-        } else {
-            assertThat(response.get().getFeatureSetsInfo(), nullValue());
-        }
-
+        return response.get();
     }
 
+    static FeatureSet randomFeatureSet() {
+        return new FeatureSet(randomAlphaOfLength(5), randomBoolean(), randomBoolean());
+    }
 }

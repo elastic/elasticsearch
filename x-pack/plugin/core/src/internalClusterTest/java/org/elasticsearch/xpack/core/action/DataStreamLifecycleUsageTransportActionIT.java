@@ -96,15 +96,19 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                         lifecycle = new DataStreamLifecycle(null, null, null);
                     } else {
                         long retentionMillis = randomLongBetween(1000, 100000);
-                        count.incrementAndGet();
-                        totalRetentionTimes.addAndGet(retentionMillis);
-                        if (retentionMillis < minRetention.get()) {
-                            minRetention.set(retentionMillis);
+                        boolean isEnabled = randomBoolean();
+                        if (isEnabled) {
+                            count.incrementAndGet();
+                            totalRetentionTimes.addAndGet(retentionMillis);
+
+                            if (retentionMillis < minRetention.get()) {
+                                minRetention.set(retentionMillis);
+                            }
+                            if (retentionMillis > maxRetention.get()) {
+                                maxRetention.set(retentionMillis);
+                            }
                         }
-                        if (retentionMillis > maxRetention.get()) {
-                            maxRetention.set(retentionMillis);
-                        }
-                        lifecycle = DataStreamLifecycle.newBuilder().dataRetention(retentionMillis).enabled(randomBoolean()).build();
+                        lifecycle = DataStreamLifecycle.newBuilder().dataRetention(retentionMillis).enabled(isEnabled).build();
                     }
                 } else {
                     lifecycle = null;

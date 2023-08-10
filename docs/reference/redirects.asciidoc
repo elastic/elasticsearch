@@ -1882,7 +1882,6 @@ Refer to <<example-watches>> for other Watcher examples.
 
 Refer to <<fix-watermark-errors>>.
 
-ifeval::["{release-state}"=="unreleased"]
 [role="exclude",id="dlm-delete-lifecycle"]
 === Delete the lifecycle of a data stream
 

@@ -13,6 +13,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -29,7 +30,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
-import java.util.function.IntPredicate;
 
 /**
  * Adapts a Lucene {@link Query} to the behaviors used be the
@@ -169,16 +169,12 @@ public class QueryToFilterAdapter {
     }
 
     /**
-     * Build a predicate that the "compatible" implementation of the
-     * {@link FiltersAggregator} will use to figure out if the filter matches.
-     * <p>
-     * Consumers of this method will always call it with non-negative,
-     * increasing {@code int}s. A sequence like {@code 0, 1, 7, 8, 10} is fine.
-     * It won't call with {@code 0, 1, 0} or {@code -1, 0, 1}.
+     * Builds a {@link DocIdSetIterator} that the "compatible" implementation of the
+     * {@link FiltersAggregator} will use to iterate over the docs matching the filter.
      */
     @SuppressWarnings("resource")  // Closing the reader is someone else's problem
-    IntPredicate matchingDocIds(LeafReaderContext ctx) throws IOException {
-        return Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), weight().scorerSupplier(ctx))::get;
+    DocIdSetIterator matchingDocIdSetIterator(LeafReaderContext ctx) throws IOException {
+        return Lucene.asDocIdSetIterator(ctx.reader().maxDoc(), weight().scorerSupplier(ctx));
     }
 
     /**

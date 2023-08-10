@@ -753,18 +753,7 @@ public class Lucene {
      */
     public static Bits asSequentialAccessBits(final int maxDoc, @Nullable ScorerSupplier scorerSupplier, long estimatedGetCount)
         throws IOException {
-        if (scorerSupplier == null) {
-            return new Bits.MatchNoBits(maxDoc);
-        }
-        // Since we want bits, we need random-access
-        final Scorer scorer = scorerSupplier.get(estimatedGetCount); // this never returns null
-        final TwoPhaseIterator twoPhase = scorer.twoPhaseIterator();
-        final DocIdSetIterator iterator;
-        if (twoPhase == null) {
-            iterator = scorer.iterator();
-        } else {
-            iterator = twoPhase.approximation();
-        }
+        final DocIdSetIterator iterator = asDocIdSetIterator(maxDoc, scorerSupplier, estimatedGetCount);
 
         return new Bits() {
 
@@ -799,19 +788,66 @@ public class Lucene {
                         throw new IllegalStateException("Cannot advance iterator", e);
                     }
                 }
-                if (index == doc) {
-                    try {
-                        return previousMatched = twoPhase == null || twoPhase.matches();
-                    } catch (IOException e) {
-                        throw new IllegalStateException("Cannot validate match", e);
-                    }
-                }
-                return previousMatched = false;
+                return previousMatched = (index == doc);
             }
 
             @Override
             public int length() {
                 return maxDoc;
+            }
+        };
+    }
+
+    /**
+     * Return a {@link DocIdSetIterator} view of the provided scorer.
+     * @see #asDocIdSetIterator(int, ScorerSupplier, long)
+     */
+    public static DocIdSetIterator asDocIdSetIterator(final int maxDoc, @Nullable ScorerSupplier scorerSupplier) throws IOException {
+        return asDocIdSetIterator(maxDoc, scorerSupplier, 0L);
+    }
+
+    /**
+     * Given a {@link ScorerSupplier}, return a {@link DocIdSetIterator} instance that iterates over
+     * all documents contained in the set.
+     * @param estimatedGetCount an estimation of the number of times that {@link Scorer} will get called
+     */
+    public static DocIdSetIterator asDocIdSetIterator(final int maxDoc, @Nullable ScorerSupplier scorerSupplier, long estimatedGetCount)
+        throws IOException {
+        if (scorerSupplier == null) {
+            return DocIdSetIterator.empty();
+        }
+        final Scorer scorer = scorerSupplier.get(estimatedGetCount); // this never returns null
+        final TwoPhaseIterator twoPhase = scorer.twoPhaseIterator();
+        final DocIdSetIterator iterator = (twoPhase != null) ? twoPhase.approximation() : scorer.iterator();
+
+        return new DocIdSetIterator() {
+
+            private int currentDocID = -1;
+
+            @Override
+            public int docID() {
+                return currentDocID;
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                return advance(currentDocID + 1);
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                while (target < maxDoc) {
+                    target = iterator.advance(target);
+                    if (target < maxDoc && (twoPhase == null || twoPhase.matches())) {
+                        return currentDocID = target;
+                    }
+                }
+                return currentDocID = NO_MORE_DOCS;
+            }
+
+            @Override
+            public long cost() {
+                return iterator.cost();
             }
         };
     }

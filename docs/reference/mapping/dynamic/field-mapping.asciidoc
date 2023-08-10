@@ -216,6 +216,11 @@ GET my-index-000001/_mapping
 --------------------------------------------------
 ====
 
+[NOTE]
+====
+Epoch format is not supported as dynamic date format.
+====
+
 [[numeric-detection]]
 ==== Numeric detection
 

@@ -41,9 +41,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.Set;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
@@ -75,7 +73,7 @@ public class IPFilterTests extends ESTestCase {
         auditTrailService = new AuditTrailService(auditTrail, licenseState);
         clusterSettings = new ClusterSettings(
             Settings.EMPTY,
-            Stream.of(
+            Set.of(
                 IPFilter.HTTP_FILTER_ALLOW_SETTING,
                 IPFilter.HTTP_FILTER_DENY_SETTING,
                 IPFilter.IP_FILTER_ENABLED_HTTP_SETTING,
@@ -87,7 +85,7 @@ public class IPFilterTests extends ESTestCase {
                 IPFilter.PROFILE_FILTER_ALLOW_SETTING,
                 IPFilter.PROFILE_FILTER_DENY_SETTING,
                 RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED
-            ).filter(Objects::nonNull).collect(Collectors.toSet())
+            )
         );
 
         httpTransport = mock(HttpServerTransport.class);

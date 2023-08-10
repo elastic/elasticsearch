@@ -2,4 +2,5 @@ pr: 98354
 summary: Improve reliability of elections with message delays
 area: Cluster Coordination
 type: bug
-issues: []
+issues:
+ - 97909

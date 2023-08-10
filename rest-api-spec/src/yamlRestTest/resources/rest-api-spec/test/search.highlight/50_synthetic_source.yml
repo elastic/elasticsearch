@@ -199,6 +199,10 @@ text multi plain:
 
 ---
 text single unified from reanalysis:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -214,6 +218,10 @@ text single unified from reanalysis:
 
 ---
 text multi unified from reanalysis:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -229,6 +237,10 @@ text multi unified from reanalysis:
 
 ---
 text single unified from positions:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -244,6 +256,10 @@ text single unified from positions:
 
 ---
 text multi unified from positions:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -259,6 +275,10 @@ text multi unified from positions:
 
 ---
 text single unified from vectors:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -274,6 +294,10 @@ text single unified from vectors:
 
 ---
 text multi unified from vectors:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -289,6 +313,10 @@ text multi unified from vectors:
 
 ---
 text single fvh source order:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -304,6 +332,10 @@ text single fvh source order:
 
 ---
 text multi fvh source order:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       catch: /The fast vector highlighter doesn't support loading multi-valued fields from _source in index \[test\] because _source can reorder field values/
       search:
@@ -319,6 +351,10 @@ text multi fvh source order:
 
 ---
 text single fvh score order:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -335,6 +371,10 @@ text single fvh score order:
 
 ---
 text multi fvh score order:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       catch: /The fast vector highlighter doesn't support loading multi-valued fields from _source in index \[test\] because _source can reorder field values/
       search:

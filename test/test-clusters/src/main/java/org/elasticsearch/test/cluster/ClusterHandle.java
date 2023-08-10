@@ -129,7 +129,7 @@ public interface ClusterHandle extends Closeable {
     void upgradeToVersion(Version version);
 
     /**
-     * Cleans up any resources created by this cluster.
+     * Cleans up any resources created by this cluster. Calling this method will forcibly terminate any running nodes.
      */
     void close();
 

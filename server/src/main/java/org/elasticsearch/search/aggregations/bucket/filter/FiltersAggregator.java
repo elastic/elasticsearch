@@ -291,6 +291,9 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
         @Override
         protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+            if (QueryToFilterAdapter.MatchesNoDocs(filters()) && otherBucketKey == null) {
+                return LeafBucketCollector.NO_OP_COLLECTOR;
+            }
             final DocIdSetIterator[] filteredDocIdSetIterators = new DocIdSetIterator[filters().size()];
             for (int filterOrd = 0; filterOrd < filters().size(); filterOrd++) {
                 filteredDocIdSetIterators[filterOrd] = filters().get(filterOrd).matchingDocIdSetIterator(aggCtx.getLeafReaderContext());

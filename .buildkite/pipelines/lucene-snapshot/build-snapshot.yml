@@ -16,5 +16,5 @@ steps:
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - wait
-  # - trigger: "elasticsearch-lucene-snapshot-tests"
-  #   async: true
+  - trigger: "elasticsearch-lucene-snapshot-tests"
+    async: true

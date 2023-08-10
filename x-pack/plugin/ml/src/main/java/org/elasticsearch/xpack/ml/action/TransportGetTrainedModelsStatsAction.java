@@ -301,11 +301,14 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                                         model.getPerAllocationMemoryBytes(),
                                         numberOfAllocations
                                     )
-                                    : 0L
+                                    : 0L,
+                                model.getPerDeploymentMemoryBytes(),
+                                model.getPerAllocationMemoryBytes()
                             )
                         );
                     } else {
-                        modelSizeStatsByModelId.put(model.getModelId(), new TrainedModelSizeStats(model.getModelSize(), 0));
+                        modelSizeStatsByModelId.put(model.getModelId(), 
+                        new TrainedModelSizeStats(model.getModelSize(), 0, model.getPerDeploymentMemoryBytes(), model.getPerAllocationMemoryBytes()));
                     }
                 }
                 listener.onResponse(modelSizeStatsByModelId);

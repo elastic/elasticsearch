@@ -9,7 +9,6 @@
 package org.elasticsearch.transport;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -40,7 +39,6 @@ public class InboundPipeline implements Releasable {
     private boolean isClosed = false;
 
     public InboundPipeline(
-        TransportVersion version,
         StatsTracker statsTracker,
         Recycler<BytesRef> recycler,
         LongSupplier relativeTimeInMillis,
@@ -52,7 +50,7 @@ public class InboundPipeline implements Releasable {
         this(
             statsTracker,
             relativeTimeInMillis,
-            new InboundDecoder(version, recycler),
+            new InboundDecoder(recycler),
             new InboundAggregator(circuitBreaker, registryFunction, ignoreDeserializationErrors),
             messageHandler
         );

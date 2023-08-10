@@ -35,6 +35,10 @@ setup:
         name: metrics-settings
 
   - do:
+      cluster.get_component_template:
+        name: metrics-tsdb-settings
+
+  - do:
       indices.get_index_template:
         name: logs
 

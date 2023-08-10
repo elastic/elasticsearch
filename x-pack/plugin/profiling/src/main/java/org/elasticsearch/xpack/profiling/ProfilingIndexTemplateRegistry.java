@@ -294,7 +294,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
-    public static boolean isAllResourcesCreated(ClusterState state) {
+    public static boolean isAllResourcesCreated(ClusterState state, Settings settings) {
         for (String componentTemplate : COMPONENT_TEMPLATE_CONFIGS.keySet()) {
             if (state.metadata().componentTemplates().containsKey(componentTemplate) == false) {
                 return false;
@@ -305,7 +305,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
                 return false;
             }
         }
-        if (isDataStreamsLifecycleOnlyMode(state.metadata().settings()) == false) {
+        if (isDataStreamsLifecycleOnlyMode(settings) == false) {
             for (LifecyclePolicyConfig lifecyclePolicy : LIFECYCLE_POLICY_CONFIGS) {
                 IndexLifecycleMetadata ilmMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
                 if (ilmMetadata == null || ilmMetadata.getPolicies().containsKey(lifecyclePolicy.getPolicyName()) == false) {

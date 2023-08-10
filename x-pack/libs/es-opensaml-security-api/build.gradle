@@ -11,9 +11,6 @@ apply plugin: 'com.github.johnrengelman.shadow'
 
 dependencies {
   implementation "org.opensaml:opensaml-security-api:${versions.opensaml}"
-  compileOnly "net.shibboleth.utilities:java-support:8.4.0"
-  compileOnly "com.google.code.findbugs:jsr305:3.0.2"
-  compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
 }
 
 ['jarHell', 'thirdPartyAudit', 'forbiddenApisMain', 'splitPackagesAudit', 'checkstyleMain', 'licenseHeaders', 'spotlessJavaCheck'].each {

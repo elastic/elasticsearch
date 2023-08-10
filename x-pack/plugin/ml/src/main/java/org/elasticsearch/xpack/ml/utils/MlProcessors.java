@@ -15,7 +15,7 @@ public final class MlProcessors {
 
     private MlProcessors() {}
 
-    public static Processors get(DiscoveryNode node) {
+    public static Processors get(DiscoveryNode node, Integer allocatedProcessorScale) {
         // Try getting the most modern setting, and if that's null then instead get the older setting. (If both are null then return zero.)
         String allocatedProcessorsString = node.getAttributes().get(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR);
         if (allocatedProcessorsString == null) {
@@ -26,7 +26,15 @@ public final class MlProcessors {
         }
         try {
             double processorsAsDouble = Double.parseDouble(allocatedProcessorsString);
-            return processorsAsDouble > 0 ? Processors.of(processorsAsDouble) : Processors.ZERO;
+            if (processorsAsDouble <= 0) {
+                return Processors.ZERO;
+            }
+
+            if (allocatedProcessorScale != null) {
+                processorsAsDouble = processorsAsDouble / allocatedProcessorScale;
+            }
+            return Processors.of(processorsAsDouble);
+
         } catch (NumberFormatException e) {
             assert e == null
                 : MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR

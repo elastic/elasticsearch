@@ -45,6 +45,7 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
@@ -583,6 +584,18 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             .setStep(ShrinkStep.NAME)
             .build();
         checkStalledShardWithIlmState(executionState, OperationMode.STOPPED, SingleNodeShutdownMetadata.Status.STALLED);
+    }
+
+    public void testIlmShrinkingButErroredDoesNotAvoidStall() {
+        LifecycleExecutionState executionState = LifecycleExecutionState.builder()
+            .setAction(ShrinkAction.NAME)
+            .setStep(ErrorStep.NAME)
+            .build();
+        checkStalledShardWithIlmState(
+            executionState,
+            randomFrom(OperationMode.STOPPING, OperationMode.RUNNING),
+            SingleNodeShutdownMetadata.Status.STALLED
+        );
     }
 
     public void testIlmInAnyOtherActionDoesNotAvoidStall() {

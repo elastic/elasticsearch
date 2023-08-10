@@ -39,7 +39,8 @@ Use `synonyms_set` configuration option to provide a synonym set created via Syn
   "filter": {
     "synonyms_filter": {
       "type": "synonym",
-      "synonyms_set": "my-synonym-set"
+      "synonyms_set": "my-synonym-set",
+      "updateable": true
     }
   }
 ----

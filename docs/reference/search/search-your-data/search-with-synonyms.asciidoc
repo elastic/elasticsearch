@@ -114,8 +114,8 @@ Analyzers can be applied at <<analysis-index-search-time,index time or search ti
 
 You need to decide when to apply your synonyms:
 
-* Index time: Synonyms are applied when the documents are indexed into Elasticsearch. This is a less flexible alternative, as changes to your synonyms require <<docs-reindex,reindexing>>.
-* Search time: Synonyms are applied when a search is executed. This is a more flexible approach, which doesn't require reindexing. With this approach, search analyzers can be <<indices-reload-analyzers,reloaded>> whenever you make changes to your synonyms.
+* Index time: Synonyms are applied when the documents are indexed into {es}. This is a less flexible alternative, as changes to your synonyms require <<docs-reindex,reindexing>>.
+* Search time: Synonyms are applied when a search is executed. This is a more flexible approach, which doesn't require reindexing. If token filters are configured with `"updateable": true`, search analyzers can be <<indices-reload-analyzers,reloaded>> when you make changes to your synonyms.
 
 Synonyms sets created using the <<synonyms-store-synonyms-api,synonyms API>> can only be used at search time.
 
@@ -129,7 +129,8 @@ The following example adds `my_analyzer` as a search analyzer to the `title` fie
     "properties": {
       "title": {
         "type": "text",
-        "search_analyzer": "my_analyzer"
+        "search_analyzer": "my_analyzer",
+        "updateable": true
       }
     }
   }

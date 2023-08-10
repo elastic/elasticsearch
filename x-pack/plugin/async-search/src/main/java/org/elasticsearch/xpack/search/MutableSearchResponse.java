@@ -63,6 +63,7 @@ class MutableSearchResponse {
     private Map<String, List<String>> responseHeaders;
 
     private boolean frozen;
+    private boolean searchTaskCompleted;
 
     /**
      * Creates a new mutable search response.
@@ -121,6 +122,10 @@ class MutableSearchResponse {
         this.finalResponse = response;
         this.isPartial = isPartialResponse(response);
         this.frozen = true;
+    }
+
+    public synchronized void notifySearchTaskCompleted() {
+        this.searchTaskCompleted = true;
     }
 
     private boolean isPartialResponse(SearchResponse response) {
@@ -212,7 +217,7 @@ class MutableSearchResponse {
             searchResponse,
             failure,
             isPartial,
-            frozen == false,
+            searchTaskCompleted == false,
             task.getStartTime(),
             expirationTime
         );
@@ -235,7 +240,7 @@ class MutableSearchResponse {
         if (finalResponse != null) {
             return new AsyncStatusResponse(
                 asyncExecutionId,
-                false,
+                searchTaskCompleted == false,
                 false,
                 startTime,
                 expirationTime,
@@ -251,7 +256,7 @@ class MutableSearchResponse {
         if (failure != null) {
             return new AsyncStatusResponse(
                 asyncExecutionId,
-                false,
+                searchTaskCompleted == false,
                 true,
                 startTime,
                 expirationTime,
@@ -266,7 +271,7 @@ class MutableSearchResponse {
         }
         return new AsyncStatusResponse(
             asyncExecutionId,
-            true,
+            searchTaskCompleted == false,
             true,
             startTime,
             expirationTime,
@@ -293,7 +298,7 @@ class MutableSearchResponse {
             buildResponse(task.getStartTimeNanos(), null),
             reduceException,
             isPartial,
-            frozen == false,
+            searchTaskCompleted == false,
             task.getStartTime(),
             expirationTime
         );

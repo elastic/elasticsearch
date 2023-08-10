@@ -300,6 +300,10 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             hasCompleted = true;
             completionsListenersCopy = new HashMap<>(this.completionListeners);
             this.completionListeners.clear();
+            MutableSearchResponse mutableSearchResponse = searchResponse.get();
+            if (mutableSearchResponse != null) {
+                mutableSearchResponse.notifySearchTaskCompleted();
+            }
         }
         // we don't need to restore the response headers, they should be included in the current
         // context since we are called by the search action listener.
@@ -366,7 +370,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     }
 
     class Listener extends SearchProgressActionListener {
-
         @Override
         protected void onQueryResult(int shardIndex) {
             checkCancellation();

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.search;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
@@ -83,7 +82,6 @@ import static org.hamcrest.Matchers.not;
  * This IT test copies the setup and general approach that the {@code CrossClusterSearchIT} test
  * used for testing synchronous CCS.
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98272")
 public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
     private static final String REMOTE_CLUSTER = "cluster_a";
@@ -1039,7 +1037,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97286")
     public void testCancellationViaTimeoutWithAllowPartialResultsSetToFalse() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String localIndex = (String) testClusterInfo.get("local.index");

@@ -127,7 +127,6 @@ Bezalel Simmel    | Bezalel        | Simmel
 ;
 
 
-# for now it returns only the first value, but it will change when multi-values are supported
 multivalueOutput
 row a = "foo bar" | grok a "%{WORD:b} %{WORD:b}";
 
@@ -136,17 +135,16 @@ foo bar   | ["foo", "bar"]
 ;
 
 
-# for now it calculates only based on the first value
 multivalueInput
-from employees | where emp_no <= 10006 | grok job_positions "%{WORD:a} %{WORD:b} %{WORD:c}" | sort emp_no | keep emp_no, a, b, c;
+from employees | where emp_no <= 10006 | grok job_positions "%{WORD:a} %{WORD:b} %{WORD:c}" | sort emp_no | keep emp_no, a, b, c, job_positions;
 
-emp_no:integer | a:keyword           | b:keyword         | c:keyword 
-10001          | Senior              | Python            | Developer
-10002          | Senior              | Team              | Lead
-10003          | null                | null              | null
-10004          | Head                | Human             | Resources
-10005          | null                | null              | null 
-10006          | [Principal, Senior] | [Support, Team]   | [Engineer, Lead]
+emp_no:integer | a:keyword           | b:keyword         | c:keyword           | job_positions:keyword
+10001          | Senior              | Python            | Developer           | [Accountant, Senior Python Developer]
+10002          | Senior              | Team              | Lead                | Senior Team Lead
+10003          | null                | null              | null                | null
+10004          | Head                | Human             | Resources           | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
+10005          | null                | null              | null                | null
+10006          | [Principal, Senior] | [Support, Team]   | [Engineer, Lead]    | [Principal Support Engineer,Senior Team Lead, Tech Lead]
 ;
 
 

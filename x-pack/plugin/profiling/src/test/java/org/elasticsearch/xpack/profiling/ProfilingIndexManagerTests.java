@@ -84,7 +84,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         indexTemplateVersion = ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION;
         indexManager = new ProfilingIndexManager(threadPool, client, clusterService) {
             @Override
-            protected boolean isAllResourcesCreated(ClusterChangedEvent event) {
+            protected boolean isAllResourcesCreated(ClusterChangedEvent event, Settings settings) {
                 return templatesCreated.get();
             }
 

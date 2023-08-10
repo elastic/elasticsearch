@@ -61,6 +61,7 @@ import static org.mockito.Mockito.when;
 
 public class DenseVectorFieldMapperTests extends MapperTestCase {
 
+    private static final IndexVersion INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION = IndexVersion.V_8_9_1;
     private final ElementType elementType;
     private final boolean indexed;
     private final boolean indexOptionsSet;
@@ -460,31 +461,37 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     public void testInvalidParametersBeforeIndexedByDefault() {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(IndexVersion.V_8_9_1, fieldMapping(b -> {
+            () -> createDocumentMapper(INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION, fieldMapping(b -> {
                 b.field("type", "dense_vector").field("dims", 3).field("index", true);
             }))
         );
 
         assertThat(e.getMessage(), containsString("Field [index] requires field [similarity] to be configured"));
 
-        e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(IndexVersion.V_8_9_1, fieldMapping(b -> {
-            b.field("type", "dense_vector").field("dims", 3).field("similarity", "cosine");
-        })));
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION, fieldMapping(b -> {
+                b.field("type", "dense_vector").field("dims", 3).field("similarity", "cosine");
+            }))
+        );
 
         assertThat(
             e.getMessage(),
             containsString("Field [similarity] can only be specified for a field of type [dense_vector] when it is indexed")
         );
 
-        e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(IndexVersion.V_8_9_1, fieldMapping(b -> {
-            b.field("type", "dense_vector")
-                .field("dims", 3)
-                .startObject("index_options")
-                .field("type", "hnsw")
-                .field("m", 200)
-                .field("ef_construction", 20)
-                .endObject();
-        })));
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION, fieldMapping(b -> {
+                b.field("type", "dense_vector")
+                    .field("dims", 3)
+                    .startObject("index_options")
+                    .field("type", "hnsw")
+                    .field("m", 200)
+                    .field("ef_construction", 20)
+                    .endObject();
+            }))
+        );
 
         assertThat(
             e.getMessage(),
@@ -493,7 +500,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     public void testDefaultParamsBeforeIndexByDefault() throws Exception {
-        DocumentMapper documentMapper = createDocumentMapper(IndexVersion.V_8_9_1, fieldMapping(b -> {
+        DocumentMapper documentMapper = createDocumentMapper(INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION, fieldMapping(b -> {
             b.field("type", "dense_vector").field("dims", 3);
         }));
         DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) documentMapper.mappers().getMapper("field");
@@ -504,7 +511,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     public void testtParamsBeforeIndexByDefault() throws Exception {
-        DocumentMapper documentMapper = createDocumentMapper(IndexVersion.V_8_9_1, fieldMapping(b -> {
+        DocumentMapper documentMapper = createDocumentMapper(INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION, fieldMapping(b -> {
             b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", "dot_product");
         }));
         DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) documentMapper.mappers().getMapper("field");

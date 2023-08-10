@@ -84,7 +84,7 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
         indexTemplateVersion = ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION;
         datastreamManager = new ProfilingDataStreamManager(threadPool, client, clusterService) {
             @Override
-            protected boolean isAllResourcesCreated(ClusterChangedEvent event) {
+            protected boolean isAllResourcesCreated(ClusterChangedEvent event, Settings settings) {
                 return templatesCreated.get();
             }
 

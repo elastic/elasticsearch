@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -65,6 +66,7 @@ public final class MlAutoscalingResourceTracker {
 
     public static void getMlAutoscalingStats(
         ClusterState clusterState,
+        ClusterSettings clusterSettings,
         Client client,
         TimeValue timeout,
         MlMemoryTracker mlMemoryTracker,
@@ -81,7 +83,10 @@ public final class MlAutoscalingResourceTracker {
         long modelMemoryAvailableFirstNode = mlNodes.length > 0
             ? NativeMemoryCalculator.allowedBytesForMl(clusterState.nodes().get(mlNodes[0]), settings).orElse(0L)
             : 0L;
-        int processorsAvailableFirstNode = mlNodes.length > 0 ? MlProcessors.get(clusterState.nodes().get(mlNodes[0])).roundDown() : 0;
+        int processorsAvailableFirstNode = mlNodes.length > 0
+            ? MlProcessors.get(clusterState.nodes().get(mlNodes[0]), clusterSettings.get(MachineLearning.ALLOCATED_PROCESSORS_SCALE))
+                .roundDown()
+            : 0;
 
         // Todo: MAX_LOW_PRIORITY_MODELS_PER_NODE not checked yet
         int maxOpenJobsPerNode = MAX_OPEN_JOBS_PER_NODE.get(settings);

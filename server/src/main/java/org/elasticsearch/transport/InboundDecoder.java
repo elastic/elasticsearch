@@ -25,7 +25,6 @@ public class InboundDecoder implements Releasable {
     static final Object PING = new Object();
     static final Object END_CONTENT = new Object();
 
-    private final TransportVersion version;
     private final Recycler<BytesRef> recycler;
     private TransportDecompressor decompressor;
     private int totalNetworkSize = -1;
@@ -33,8 +32,7 @@ public class InboundDecoder implements Releasable {
     private boolean isCompressed = false;
     private boolean isClosed = false;
 
-    public InboundDecoder(TransportVersion version, Recycler<BytesRef> recycler) {
-        this.version = version;
+    public InboundDecoder(Recycler<BytesRef> recycler) {
         this.recycler = recycler;
     }
 

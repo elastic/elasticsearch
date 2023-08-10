@@ -96,7 +96,7 @@ public class LocalClusterHandle implements ClusterHandle {
 
     @Override
     public void close() {
-        stop(false);
+        stop(true);
 
         executor.shutdownNow();
         try {

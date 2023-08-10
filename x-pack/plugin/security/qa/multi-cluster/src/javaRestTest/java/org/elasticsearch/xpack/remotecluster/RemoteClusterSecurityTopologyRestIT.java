@@ -79,7 +79,7 @@ public class RemoteClusterSecurityTopologyRestIT extends AbstractRemoteClusterSe
             .keystore("cluster.remote.invalid_remote.credentials", randomEncodedApiKey())
             // Define remote with a REST API key to observe expected failure
             .rolesFile(Resource.fromClasspath("roles.yml"))
-            .user(REMOTE_METRIC_USER, PASS.toString(), "read_remote_shared_metrics")
+            .user(REMOTE_METRIC_USER, PASS.toString(), "read_remote_shared_metrics", false)
             .build();
     }
 

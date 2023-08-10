@@ -621,18 +621,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             return "sniff";
         }
 
-        public List<String> getSeedNodes() {
-            return seedNodes;
-        }
-
-        public int getMaxConnectionsPerCluster() {
-            return maxConnectionsPerCluster;
-        }
-
-        public int getNumNodesConnected() {
-            return numNodesConnected;
-        }
-
         @Override
         public RemoteConnectionStrategy.ConnectionStrategy modeType() {
             return RemoteConnectionStrategy.ConnectionStrategy.SNIFF;

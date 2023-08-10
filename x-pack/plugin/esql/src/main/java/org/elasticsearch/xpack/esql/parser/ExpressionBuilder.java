@@ -220,18 +220,20 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         String qualifier = ctx.UNQUOTED_IDENTIFIER().getText().toLowerCase(Locale.ROOT);
 
         try {
-            return switch (qualifier) {
-                case "millisecond", "milliseconds" -> new Literal(source, Duration.ofMillis(safeToLong(value)), TIME_DURATION);
-                case "second", "seconds" -> new Literal(source, Duration.ofSeconds(safeToLong(value)), TIME_DURATION);
-                case "minute", "minutes" -> new Literal(source, Duration.ofMinutes(safeToLong(value)), TIME_DURATION);
-                case "hour", "hours" -> new Literal(source, Duration.ofHours(safeToLong(value)), TIME_DURATION);
+            Object quantity = switch (qualifier) {
+                case "millisecond", "milliseconds" -> Duration.ofMillis(safeToLong(value));
+                case "second", "seconds" -> Duration.ofSeconds(safeToLong(value));
+                case "minute", "minutes" -> Duration.ofMinutes(safeToLong(value));
+                case "hour", "hours" -> Duration.ofHours(safeToLong(value));
 
-                case "day", "days" -> new Literal(source, Period.ofDays(safeToInt(safeToLong(value))), DATE_PERIOD);
-                case "week", "weeks" -> new Literal(source, Period.ofWeeks(safeToInt(safeToLong(value))), DATE_PERIOD);
-                case "month", "months" -> new Literal(source, Period.ofMonths(safeToInt(safeToLong(value))), DATE_PERIOD);
-                case "year", "years" -> new Literal(source, Period.ofYears(safeToInt(safeToLong(value))), DATE_PERIOD);
+                case "day", "days" -> Period.ofDays(safeToInt(safeToLong(value)));
+                case "week", "weeks" -> Period.ofWeeks(safeToInt(safeToLong(value)));
+                case "month", "months" -> Period.ofMonths(safeToInt(safeToLong(value)));
+                case "year", "years" -> Period.ofYears(safeToInt(safeToLong(value)));
+
                 default -> throw new ParsingException(source, "Unexpected numeric qualifier '{}'", qualifier);
             };
+            return new Literal(source, quantity, quantity instanceof Duration ? TIME_DURATION : DATE_PERIOD);
         } catch (QlIllegalArgumentException | ArithmeticException e) {
             // the range varies by unit: Duration#ofMinutes(), #ofHours() will Math#multiplyExact() to reduce the unit to seconds;
             // and same for Period#ofWeeks()

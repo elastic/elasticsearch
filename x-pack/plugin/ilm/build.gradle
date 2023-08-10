@@ -19,6 +19,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ccr'))
+  testImplementation project(xpackModule('slm')) // used by LifecycleOperationSnapshotTests
   testImplementation project(':modules:data-streams')
 }
 

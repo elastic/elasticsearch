@@ -594,7 +594,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                             return null;
                         }
                     };
-                    if (aggTestConfig.builder().supportsConcurrentExecution()) {
+                    if (aggTestConfig.builder().supportsParallelCollection()) {
                         searcher.search(rewritten, collectorManager);
                     } else {
                         searcher.search(rewritten, collectorManager.newCollector());
@@ -928,9 +928,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 IndexSearcher.getDefaultSimilarity(),
                 IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(),
-                1, // forces multiple slices
                 randomBoolean(),
-                this.threadPoolExecutor
+                this.threadPoolExecutor,
+                this.threadPoolExecutor.getMaximumPoolSize(),
+                1 // forces multiple slices
             );
         }
     }

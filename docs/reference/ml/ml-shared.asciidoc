@@ -1414,11 +1414,13 @@ the cluster, capped at `1024mb`. The default value is relatively small to
 ensure that high resource usage is a conscious decision. If you have jobs that
 are expected to analyze high cardinality fields, you will likely need to use a
 higher value.
-
++
+--
 NOTE: From {es} 8.10.0,  a new version number is used to
 track the configuration and state changes in the {ml} plugin. This new
 version number is decoupled from the product version and will increment
 independently.
+--
 +
 If you specify a number instead of a string, the units are assumed to be MiB.
 Specifying a string is recommended for clarity. If you specify a byte size unit

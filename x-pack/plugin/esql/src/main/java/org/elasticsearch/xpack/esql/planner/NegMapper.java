@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -53,7 +53,7 @@ abstract class NegMapper extends EvalMapper.ExpressionMapper<Neg> {
                 return () -> longs.apply(neg.source(), childEvaluator);
             }
             if (type == DataTypes.UNSIGNED_LONG) {
-                //TODO requires cast to long
+                // TODO requires cast to long
                 throw new AssertionError("negation of a ulong");
             }
             if (type == DataTypes.DOUBLE) {

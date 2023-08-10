@@ -118,6 +118,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
     }
 
     // Tests where a particular feature is not present.
+    @SuppressWarnings("unchecked")
     public void testFeatureNotPresent() throws Exception {
         final int featureSetCount = randomIntBetween(2, 7);
         List<XPackInfoFeatureAction> totalFeatureSet = randomSubsetOf(featureSetCount, XPackInfoFeatureAction.ALL);

@@ -291,7 +291,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
         @Override
         protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-            if (QueryToFilterAdapter.MatchesNoDocs(filters()) && otherBucketKey == null) {
+            if (QueryToFilterAdapter.matchesNoDocs(filters()) && otherBucketKey == null) {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
             final DocIdSetIterator[] filteredDocIdSetIterators = new DocIdSetIterator[filters().size()];
@@ -364,7 +364,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
      * This is achieved by storing the doc matches that each iterator returns in a priority queue that's
      * then used to provide the next possible matches during advancing.
      */
-    private class CompetitiveIterator extends DocIdSetIterator {
+    private static class CompetitiveIterator extends DocIdSetIterator {
 
         final DocIdSetIterator[] filteredDocIdSetIterators;
         final int[] lastMatches;
@@ -447,7 +447,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         public long cost() {
             return maxDocId;
         }
-    };
+    }
 
     /**
      * Wrapper for doc value (integer), so that it can be updated by different classes.

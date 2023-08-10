@@ -251,7 +251,7 @@ public class QueryToFilterAdapter {
      * @param filters list of filters to check
      * @return true if all filters match no docs, otherwise false
      */
-    static boolean MatchesNoDocs(List<QueryToFilterAdapter> filters) {
+    static boolean matchesNoDocs(List<QueryToFilterAdapter> filters) {
         for (QueryToFilterAdapter filter : filters) {
             if (filter.query() instanceof MatchNoDocsQuery == false) {
                 return false;

@@ -289,7 +289,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
         @Override
         protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-            if (QueryToFilterAdapter.MatchesNoDocs(filters())) {
+            if (QueryToFilterAdapter.MatchesNoDocs(filters()) && otherBucketKey == null) {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
 

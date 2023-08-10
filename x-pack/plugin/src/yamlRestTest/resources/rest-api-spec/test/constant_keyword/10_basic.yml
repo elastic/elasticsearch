@@ -263,6 +263,23 @@ setup:
   - match: { hits.total.value: 3 }
   - match: { aggregations.f.doc_count: 0 }
 
+  - do:
+      search:
+        index: bicycles
+        body:
+          size: 0
+          aggs:
+            f:
+              filters:
+                other_bucket_key: other_types
+                filters:
+                  nomatch_type:
+                    match:
+                      cycle_type: nomatch
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.f.buckets.nomatch_type.doc_count: 0 }
+  - match: { aggregations.f.buckets.other_types.doc_count: 3 }
+
 
 ---
 "Filter with histogram":

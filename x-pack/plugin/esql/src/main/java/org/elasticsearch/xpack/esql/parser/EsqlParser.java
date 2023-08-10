@@ -28,6 +28,8 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+
 public class EsqlParser {
 
     private static final Logger log = LogManager.getLogger(EsqlParser.class);
@@ -61,6 +63,8 @@ public class EsqlParser {
             CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
             EsqlBaseParser parser = new EsqlBaseParser(tokenStream);
 
+            parser.addParseListener(new PostProcessor());
+
             parser.removeErrorListeners();
             parser.addErrorListener(ERROR_LISTENER);
 
@@ -75,6 +79,21 @@ public class EsqlParser {
             return result.apply(new AstBuilder(paramTokens), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
+        }
+    }
+
+    private class PostProcessor extends EsqlBaseParserBaseListener {
+        @Override
+        public void exitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
+            // TODO remove this at some point
+            EsqlBaseParser.IdentifierContext identifier = ctx.identifier();
+            if (identifier.getText().equalsIgnoreCase("is_null")) {
+                throw new ParsingException(
+                    source(ctx),
+                    "is_null function is not supported anymore, please use 'is null' or " + "'is not null' constructs instead"
+                );
+            }
+            super.exitFunctionExpression(ctx);
         }
     }
 

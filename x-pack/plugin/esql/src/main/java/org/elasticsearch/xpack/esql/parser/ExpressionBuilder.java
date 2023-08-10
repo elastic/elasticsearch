@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mod;
@@ -322,6 +324,18 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             ? new Equals(source, expressions.get(0), expressions.get(1))
             : new In(source, expressions.get(0), expressions.subList(1, expressions.size()));
         return ctx.NOT() == null ? e : new Not(source, e);
+    }
+
+    @Override
+    public Object visitIsNull(EsqlBaseParser.IsNullContext ctx) {
+        Expression exp = expression(ctx.valueExpression());
+        Source source = source(ctx.valueExpression(), ctx);
+
+        if (ctx.NOT() != null) {
+            return new IsNotNull(source, exp);
+        } else {
+            return new IsNull(source, exp);
+        }
     }
 
     @Override

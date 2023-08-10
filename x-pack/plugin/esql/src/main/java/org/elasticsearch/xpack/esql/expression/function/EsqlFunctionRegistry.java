@@ -72,7 +72,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 
 import java.util.Locale;
 
@@ -138,7 +137,7 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(DateTrunc.class, DateTrunc::new, "date_trunc"),
                 def(Now.class, Now::new, "now") },
             // conditional
-            new FunctionDefinition[] { def(Case.class, Case::new, "case"), def(IsNull.class, IsNull::new, "is_null"), },
+            new FunctionDefinition[] { def(Case.class, Case::new, "case") },
             // IP
             new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
             // conversion functions

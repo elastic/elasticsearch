@@ -1129,7 +1129,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | eval x = to_string(languages)
             | enrich languages_idx on x
-            | where not is_null(language_name)
+            | where language_name is not null
             | limit 10
             """);
         var limit = as(plan, Limit.class);

@@ -317,3 +317,10 @@ warning:java.lang.NumberFormatException: For input string: \"two\"
 strings:keyword |ints:integer
 [one, two]      |null
 ;
+
+isNullIsNotNull
+row true_bool = null is null, false_bool = null is not null, negated_true = not(null is null), negated_false = not(null is not null);
+
+true_bool:boolean | false_bool:boolean | negated_true:boolean | negated_false:boolean
+true              | false              | false                | true
+;

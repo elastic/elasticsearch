@@ -92,7 +92,7 @@ M              |10
 
 isNull
 from employees
-| where is_null(gender)
+| where gender is null
 | sort first_name
 | keep first_name, gender
 | limit 3;
@@ -105,7 +105,7 @@ Duangkaew         |null
 
 notIsNull
 from employees
-| where not is_null(gender)
+| where gender is not null
 | sort first_name
 | keep first_name, gender
 | limit 3;

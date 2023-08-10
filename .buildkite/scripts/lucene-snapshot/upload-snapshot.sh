@@ -36,8 +36,6 @@ fi
 
 aws s3 sync lucene-snapshot/ "s3://download.elasticsearch.org/lucenesnapshots/$LUCENE_SHA/" --acl public-read
 
-cd "$WORKSPACE"
-
 if [[ "${UPDATE_ES_LUCENE_SNAPSHOT:-}" ]]; then
   .buildkite/scripts/lucene-snapshot/update-es-snapshot.sh
 fi

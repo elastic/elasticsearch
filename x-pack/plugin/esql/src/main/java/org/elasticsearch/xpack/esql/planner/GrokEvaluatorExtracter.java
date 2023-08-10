@@ -10,9 +10,14 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
+import org.elasticsearch.grok.FloatConsumer;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokCaptureConfig;
 import org.elasticsearch.grok.GrokCaptureExtracter;
@@ -22,6 +27,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.DoubleConsumer;
+import java.util.function.Function;
+import java.util.function.IntConsumer;
+import java.util.function.LongConsumer;
 
 public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, GrokCaptureExtracter {
 
@@ -31,6 +41,8 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
     private final List<GrokCaptureExtracter> fieldExtracters;
 
     private final boolean[] valuesSet;
+    private final Object[] firstValues;
+    private final ElementType[] positionToType;
     private Block.Builder[] blocks;
 
     public GrokEvaluatorExtracter(
@@ -42,32 +54,132 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
         this.parser = parser;
         this.pattern = pattern;
         this.valuesSet = new boolean[types.size()];
+        this.firstValues = new Object[types.size()];
+        this.positionToType = new ElementType[types.size()];
+
         fieldExtracters = new ArrayList<>(parser.captureConfig().size());
         for (GrokCaptureConfig config : parser.captureConfig()) {
-            fieldExtracters.add(config.objectExtracter(value -> {
-                var key = config.name();
-                Integer blockIdx = keyToBlock.get(key);
-                if (valuesSet[blockIdx]) {
-                    // Grok patterns can return multi-values
-                    // eg.
-                    // %{WORD:name} (%{WORD:name})?
-                    // for now we return the first value
-                    // TODO enhance when multi-values are supported
-                    return;
+            var key = config.name();
+            ElementType type = types.get(key);
+            Integer blockIdx = keyToBlock.get(key);
+            positionToType[blockIdx] = type;
+
+            fieldExtracters.add(config.nativeExtracter(new GrokCaptureConfig.NativeExtracterMap<>() {
+                @Override
+                public GrokCaptureExtracter forString(Function<Consumer<String>, GrokCaptureExtracter> buildExtracter) {
+                    return buildExtracter.apply(value -> {
+                        if (firstValues[blockIdx] == null) {
+                            firstValues[blockIdx] = value;
+                        } else {
+                            BytesRefBlock.Builder block = (BytesRefBlock.Builder) blocks()[blockIdx];
+                            if (valuesSet[blockIdx] == false) {
+                                block.beginPositionEntry();
+                                block.appendBytesRef(new BytesRef((String) firstValues[blockIdx]));
+                                valuesSet[blockIdx] = true;
+                            }
+                            block.appendBytesRef(new BytesRef(value));
+                        }
+                    });
                 }
-                ElementType type = types.get(key);
-                if (value instanceof Float f) {
-                    // Grok patterns can produce float values (Eg. %{WORD:x:float})
-                    // Since ESQL does not support floats natively, but promotes them to Double, we are doing promotion here
-                    // TODO remove when floats are supported
-                    ((DoubleBlock.Builder) blocks()[blockIdx]).appendDouble(f.doubleValue());
-                } else {
-                    BlockUtils.appendValue(blocks()[blockIdx], value, type);
+
+                @Override
+                public GrokCaptureExtracter forInt(Function<IntConsumer, GrokCaptureExtracter> buildExtracter) {
+                    return buildExtracter.apply(value -> {
+                        if (firstValues[blockIdx] == null) {
+                            firstValues[blockIdx] = value;
+                        } else {
+                            IntBlock.Builder block = (IntBlock.Builder) blocks()[blockIdx];
+                            if (valuesSet[blockIdx] == false) {
+                                block.beginPositionEntry();
+                                block.appendInt((int) firstValues[blockIdx]);
+                                valuesSet[blockIdx] = true;
+                            }
+                            block.appendInt(value);
+                        }
+                    });
                 }
-                valuesSet[blockIdx] = true;
+
+                @Override
+                public GrokCaptureExtracter forLong(Function<LongConsumer, GrokCaptureExtracter> buildExtracter) {
+                    return buildExtracter.apply(value -> {
+                        if (firstValues[blockIdx] == null) {
+                            firstValues[blockIdx] = value;
+                        } else {
+                            LongBlock.Builder block = (LongBlock.Builder) blocks()[blockIdx];
+                            if (valuesSet[blockIdx] == false) {
+                                block.beginPositionEntry();
+                                block.appendLong((long) firstValues[blockIdx]);
+                                valuesSet[blockIdx] = true;
+                            }
+                            block.appendLong(value);
+                        }
+                    });
+                }
+
+                @Override
+                public GrokCaptureExtracter forFloat(Function<FloatConsumer, GrokCaptureExtracter> buildExtracter) {
+                    return buildExtracter.apply(value -> {
+                        if (firstValues[blockIdx] == null) {
+                            firstValues[blockIdx] = value;
+                        } else {
+                            DoubleBlock.Builder block = (DoubleBlock.Builder) blocks()[blockIdx];
+                            if (valuesSet[blockIdx] == false) {
+                                block.beginPositionEntry();
+                                block.appendDouble(((Float) firstValues[blockIdx]).doubleValue());
+                                valuesSet[blockIdx] = true;
+                            }
+                            block.appendDouble(value);
+                        }
+                    });
+                }
+
+                @Override
+                public GrokCaptureExtracter forDouble(Function<DoubleConsumer, GrokCaptureExtracter> buildExtracter) {
+                    return buildExtracter.apply(value -> {
+                        if (firstValues[blockIdx] == null) {
+                            firstValues[blockIdx] = value;
+                        } else {
+                            DoubleBlock.Builder block = (DoubleBlock.Builder) blocks()[blockIdx];
+                            if (valuesSet[blockIdx] == false) {
+                                block.beginPositionEntry();
+                                block.appendDouble((double) firstValues[blockIdx]);
+                                valuesSet[blockIdx] = true;
+                            }
+                            block.appendDouble(value);
+                        }
+                    });
+                }
+
+                @Override
+                public GrokCaptureExtracter forBoolean(Function<Consumer<Boolean>, GrokCaptureExtracter> buildExtracter) {
+                    return buildExtracter.apply(value -> {
+                        if (firstValues[blockIdx] == null) {
+                            firstValues[blockIdx] = value;
+                        } else {
+                            BooleanBlock.Builder block = (BooleanBlock.Builder) blocks()[blockIdx];
+                            if (valuesSet[blockIdx] == false) {
+                                block.beginPositionEntry();
+                                block.appendBoolean((boolean) firstValues[blockIdx]);
+                                valuesSet[blockIdx] = true;
+                            }
+                            block.appendBoolean(value);
+                        }
+                    });
+                }
             }));
         }
 
+    }
+
+    private static void append(Object value, Block.Builder block, ElementType type) {
+        if (value instanceof Float f) {
+            // Grok patterns can produce float values (Eg. %{WORD:x:float})
+            // Since ESQL does not support floats natively, but promotes them to Double, we are doing promotion here
+            // TODO remove when floats are supported
+            ((DoubleBlock.Builder) block).appendDouble(f.doubleValue());
+        } else {
+            BlockUtils.appendValue(block, value, type);
+        }
     }
 
     public Block.Builder[] blocks() {
@@ -75,29 +187,24 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
     }
 
     @Override
-    public void computeRow(BytesRef input, Block.Builder[] blocks) {
-        if (input == null) {
-            setAllNull(blocks);
-            return;
-        }
+    public void computeRow(BytesRefBlock inputBlock, int row, Block.Builder[] blocks, BytesRef spare) {
         this.blocks = blocks;
+        int position = inputBlock.getFirstValueIndex(row);
+        int valueCount = inputBlock.getValueCount(row);
         Arrays.fill(valuesSet, false);
-        boolean matched = parser.match(input.bytes, input.offset, input.length, this);
-        if (matched) {
-            for (int i = 0; i < valuesSet.length; i++) {
-                // set null all the optionals not set
-                if (valuesSet[i] == false) {
-                    this.blocks[i].appendNull();
-                }
-            }
-        } else {
-            setAllNull(blocks);
+        Arrays.fill(firstValues, null);
+        for (int c = 0; c < valueCount; c++) {
+            BytesRef input = inputBlock.getBytesRef(position + c, spare);
+            parser.match(input.bytes, input.offset, input.length, this);
         }
-    }
-
-    private static void setAllNull(Block.Builder[] blocks) {
-        for (Block.Builder builder : blocks) {
-            builder.appendNull();
+        for (int i = 0; i < firstValues.length; i++) {
+            if (firstValues[i] == null) {
+                this.blocks[i].appendNull();
+            } else if (valuesSet[i]) {
+                this.blocks[i].endPositionEntry();
+            } else {
+                append(firstValues[i], blocks[i], positionToType[i]);
+            }
         }
     }
 

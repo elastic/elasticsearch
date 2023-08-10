@@ -124,7 +124,7 @@ class MutableSearchResponse {
         this.frozen = true;
     }
 
-    public synchronized void notifySearchTaskCompleted() {
+    synchronized void notifySearchTaskCompleted() {
         this.searchTaskCompleted = true;
     }
 

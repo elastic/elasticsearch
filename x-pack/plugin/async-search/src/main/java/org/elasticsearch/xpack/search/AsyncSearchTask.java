@@ -297,12 +297,15 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             if (hasCompleted) {
                 return;
             }
-            hasCompleted = true;
-            completionsListenersCopy = new HashMap<>(this.completionListeners);
-            this.completionListeners.clear();
-            MutableSearchResponse mutableSearchResponse = searchResponse.get();
-            if (mutableSearchResponse != null) {
-                mutableSearchResponse.notifySearchTaskCompleted();
+            try {
+                hasCompleted = true;
+                completionsListenersCopy = new HashMap<>(this.completionListeners);
+                this.completionListeners.clear();
+            } finally {
+                if (searchResponse != null && searchResponse.get() != null) {
+                    MutableSearchResponse mutableSearchResponse = searchResponse.get();
+                    mutableSearchResponse.notifySearchTaskCompleted();
+                }
             }
         }
         // we don't need to restore the response headers, they should be included in the current

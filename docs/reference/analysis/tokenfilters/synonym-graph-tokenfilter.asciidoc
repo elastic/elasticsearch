@@ -52,13 +52,16 @@ Use `synonyms_path` to provide a synonym file :
   "filter": {
     "synonyms_filter": {
       "type": "synonym",
-      "synonyms_path": "analysis/synonym-set.txt"
+      "synonyms_path": "analysis/synonym-set.txt",
+      "updateable": true
     }
   }
 ----
 
 The above configures a `synonym` filter, with a path of
 `analysis/synonym-set.txt` (relative to the `config` location).
+
+Remember to add `"updateable": true` if you want to reload your synonyms via <<indices-reload-analyzers-api-desc,reload search analyzers>> when the synonyms file changes.
 
 Use `synonyms` to define inline synonyms:
 

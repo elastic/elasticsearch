@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.utils;
 
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
@@ -20,14 +19,19 @@ public class MlProcessorsTests extends ESTestCase {
 
     public void testGet() {
         var node = DiscoveryNodeUtils.builder("foo").attributes(Map.of(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, "8.0")).build();
-        var processor = MlProcessors.get(node, Settings.EMPTY);
+        var processor = MlProcessors.get(node, 1);
         assertThat(processor.count(), equalTo(8.0));
     }
 
     public void testGetWithScale() {
         var node = DiscoveryNodeUtils.builder("foo").attributes(Map.of(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, "8.0")).build();
-        var settings = Settings.builder().put(MachineLearning.ALLOCATED_PROCESSORS_SCALE.getKey(), 2).build();
-        var processor = MlProcessors.get(node, settings);
+        var processor = MlProcessors.get(node, 2);
         assertThat(processor.count(), equalTo(4.0));
+    }
+
+    public void testGetWithNull() {
+        var node = DiscoveryNodeUtils.builder("foo").attributes(Map.of(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, "8.0")).build();
+        var processor = MlProcessors.get(node, null);
+        assertThat(processor.count(), equalTo(8.0));
     }
 }

@@ -149,7 +149,7 @@ public class SearchIndexInput extends BlobCacheBufferedIndexInput {
                         length,
                         cacheFile
                     );
-                    return SharedBytes.readCacheFile(channel, pos, relativePos, len, byteBufferReference, cacheFile);
+                    return SharedBytes.readCacheFile(channel, pos, relativePos, len, byteBufferReference);
                 }, (channel, channelPos, relativePos, len, progressUpdater) -> {
                     final long streamStartPosition = rangeToWrite.start() + relativePos;
                     try (InputStream in = blobContainer.readBlob(this.cacheFile.getCacheKey().fileName(), streamStartPosition, len)) {
@@ -169,8 +169,7 @@ public class SearchIndexInput extends BlobCacheBufferedIndexInput {
                             relativePos,
                             len,
                             progressUpdater,
-                            writeBuffer.get().clear(),
-                            cacheFile
+                            writeBuffer.get().clear()
                         );
                     }
                 });
@@ -181,7 +180,7 @@ public class SearchIndexInput extends BlobCacheBufferedIndexInput {
                     try (InputStream in = blobContainer.readBlob(this.cacheFile.getCacheKey().fileName(), position, len)) {
                         final int read = Streams.read(in, b, len);
                         if (read == -1) {
-                            BlobCacheUtils.throwEOF(position, len, cacheFile);
+                            BlobCacheUtils.throwEOF(position, len);
                         }
                         bytesRead += read;
                     }

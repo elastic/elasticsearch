@@ -93,7 +93,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                 DataStreamLifecycle lifecycle;
                 if (hasLifecycle) {
                     if (randomBoolean()) {
-                        lifecycle = new DataStreamLifecycle(null, null);
+                        lifecycle = new DataStreamLifecycle(null, null, null);
                     } else {
                         long retentionMillis = randomLongBetween(1000, 100000);
                         count.incrementAndGet();

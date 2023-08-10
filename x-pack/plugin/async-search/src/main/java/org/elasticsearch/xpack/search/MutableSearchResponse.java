@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -38,12 +36,10 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  * run concurrently to 1 and ensures that we pause the search progress when an {@link AsyncSearchResponse} is built.
  */
 class MutableSearchResponse {
-
-    private static final Logger logger = LogManager.getLogger(MutableSearchResponse.class);
     private static final TotalHits EMPTY_TOTAL_HITS = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     private final int totalShards;
     private final int skippedShards;
-    private Clusters clusters;
+    private final Clusters clusters;
     private final AtomicArray<ShardSearchFailure> queryFailures;
     private final ThreadContext threadContext;
 
@@ -90,16 +86,13 @@ class MutableSearchResponse {
     /**
      * Updates the response with the result of a partial reduction.
      * @param reducedAggs is a strategy for producing the reduced aggs
-     * @param isFinalLocalReduce true if the local cluster search has finished (during CCS with minimize_roundtrips, this can be true
-     *                           even while the overall search is still running on remote clusters)
      */
     @SuppressWarnings("HiddenField")
     synchronized void updatePartialResponse(
         int successfulShards,
         TotalHits totalHits,
         Supplier<InternalAggregations> reducedAggs,
-        int reducePhase,
-        boolean isFinalLocalReduce
+        int reducePhase
     ) {
         failIfFrozen();
         if (reducePhase < this.reducePhase) {
@@ -112,20 +105,6 @@ class MutableSearchResponse {
         this.totalHits = totalHits;
         this.reducedAggsSource = reducedAggs;
         this.reducePhase = reducePhase;
-        if (isFinalLocalReduce && clusters.isCcsMinimizeRoundtrips()) {
-            // currently only ccsMinimizeRoundTrip=true creates Clusters in their initial state (where successful=0)
-            // ccsMinimizeRoundtrips=false creates Clusters in its final state even at the beginning (successful+skipped=total)
-            // so update the clusters object 'successful' count if local cluster search is done AND ccsMinimizeRoundtrips=true
-            Clusters newClusters = new Clusters(
-                clusters.getTotal(),
-                clusters.getSuccessful() + 1,
-                clusters.getSkipped(),
-                clusters.getRemoteClusters(),
-                clusters.isCcsMinimizeRoundtrips()
-            );
-            this.clusters = newClusters;
-            logger.debug("Updating Clusters info to indicate that the local cluster search has completed: {}", newClusters);
-        }
     }
 
     /**
@@ -140,8 +119,15 @@ class MutableSearchResponse {
 
         this.responseHeaders = threadContext.getResponseHeaders();
         this.finalResponse = response;
-        this.isPartial = false;
+        this.isPartial = isPartialResponse(response);
         this.frozen = true;
+    }
+
+    private boolean isPartialResponse(SearchResponse response) {
+        if (response.getClusters() == null) {
+            return true;
+        }
+        return response.getClusters().hasPartialResults();
     }
 
     /**

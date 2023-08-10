@@ -89,15 +89,13 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
             Map<String, DataStream> dataStreamMap = new HashMap<>();
             for (int dataStreamCount = 0; dataStreamCount < randomInt(200); dataStreamCount++) {
-                long retentionMillis = 0;
-                DataStreamLifecycle lifecycle = switch (randomInt(2)) {
-                    case 0 -> null;
-                    case 1 -> {
-                        retentionMillis = randomLongBetween(1000, 100000);
-                        yield DataStreamLifecycle.newBuilder().dataRetention(retentionMillis).enabled(false).build();
-                    }
-                    default -> {
-                        retentionMillis = randomLongBetween(1000, 100000);
+                boolean hasLifecycle = randomBoolean();
+                DataStreamLifecycle lifecycle;
+                if (hasLifecycle) {
+                    if (randomBoolean()) {
+                        lifecycle = new DataStreamLifecycle(null, null);
+                    } else {
+                        long retentionMillis = randomLongBetween(1000, 100000);
                         count.incrementAndGet();
                         totalRetentionTimes.addAndGet(retentionMillis);
                         if (retentionMillis < minRetention.get()) {
@@ -106,9 +104,11 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                         if (retentionMillis > maxRetention.get()) {
                             maxRetention.set(retentionMillis);
                         }
-                        yield DataStreamLifecycle.newBuilder().dataRetention(retentionMillis).build();
+                        lifecycle = DataStreamLifecycle.newBuilder().dataRetention(retentionMillis).enabled(randomBoolean()).build();
                     }
-                };
+                } else {
+                    lifecycle = null;
+                }
                 List<Index> indices = new ArrayList<>();
                 for (int indicesCount = 0; indicesCount < randomIntBetween(1, 10); indicesCount++) {
                     Index index = new Index(randomAlphaOfLength(60), randomAlphaOfLength(60));

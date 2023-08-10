@@ -756,7 +756,7 @@ public class SecurityTests extends ESTestCase {
                     "Security rest interceptor",
                     ActionModule.class.getName(),
                     Level.DEBUG,
-                    "Using REST interceptor from plugin org.elasticsearch.xpack.security.Security"
+                    "Using custom REST interceptor from plugin org.elasticsearch.xpack.security.Security"
                 )
             );
 

@@ -43,6 +43,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
@@ -763,21 +764,21 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         indexModelSnapshot(
             new ModelSnapshot.Builder(jobId).setSnapshotId("snap_2")
                 .setTimestamp(Date.from(Instant.ofEpochMilli(10)))
-                .setMinVersion(Version.V_7_4_0)
+                .setMinVersion(MlConfigVersion.V_7_4_0)
                 .setQuantiles(new Quantiles(jobId, Date.from(Instant.ofEpochMilli(10)), randomAlphaOfLength(20)))
                 .build()
         );
         indexModelSnapshot(
             new ModelSnapshot.Builder(jobId).setSnapshotId("snap_1")
                 .setTimestamp(Date.from(Instant.ofEpochMilli(11)))
-                .setMinVersion(Version.V_7_2_0)
+                .setMinVersion(MlConfigVersion.V_7_2_0)
                 .setQuantiles(new Quantiles(jobId, Date.from(Instant.ofEpochMilli(11)), randomAlphaOfLength(20)))
                 .build()
         );
         indexModelSnapshot(
             new ModelSnapshot.Builder(jobId).setSnapshotId("other_snap")
                 .setTimestamp(Date.from(Instant.ofEpochMilli(12)))
-                .setMinVersion(Version.V_7_3_0)
+                .setMinVersion(MlConfigVersion.V_7_3_0)
                 .setQuantiles(new Quantiles(jobId, Date.from(Instant.ofEpochMilli(12)), randomAlphaOfLength(20)))
                 .build()
         );
@@ -785,7 +786,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         indexModelSnapshot(
             new ModelSnapshot.Builder("other_job").setSnapshotId("other_snap")
                 .setTimestamp(Date.from(Instant.ofEpochMilli(10)))
-                .setMinVersion(Version.CURRENT)
+                .setMinVersion(MlConfigVersion.CURRENT)
                 .setQuantiles(new Quantiles("other_job", Date.from(Instant.ofEpochMilli(10)), randomAlphaOfLength(20)))
                 .build()
         );
@@ -832,11 +833,11 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         future = new PlainActionFuture<>();
         jobProvider.modelSnapshots("*", 0, 5, null, null, "min_version", false, null, null, future::onResponse, future::onFailure);
         snapshots = future.actionGet().results();
-        assertThat(snapshots.get(0).getSnapshotId(), equalTo("11"));
-        assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
-        assertThat(snapshots.get(2).getSnapshotId(), equalTo("other_snap"));
-        assertThat(snapshots.get(3).getSnapshotId(), equalTo("snap_2"));
-        assertThat(snapshots.get(4).getSnapshotId(), equalTo("other_snap"));
+        assertThat(snapshots.get(0).getSnapshotId(), equalTo("other_snap"));
+        assertThat(snapshots.get(1).getSnapshotId(), equalTo("11"));
+        assertThat(snapshots.get(2).getSnapshotId(), equalTo("snap_1"));
+        assertThat(snapshots.get(3).getSnapshotId(), equalTo("other_snap"));
+        assertThat(snapshots.get(4).getSnapshotId(), equalTo("snap_2"));
 
         // assert that quantiles are not loaded
         assertNull(snapshots.get(0).getQuantiles());

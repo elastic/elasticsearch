@@ -18,6 +18,7 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -46,6 +47,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
     private final long searchIdleTime;
 
     public ShardStats(StreamInput in) throws IOException {
+        assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         shardRouting = new ShardRouting(in);
         commonStats = new CommonStats(in);
         commitStats = CommitStats.readOptionalCommitStatsFrom(in);
@@ -58,7 +60,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         isCustomDataPath = in.readBoolean();
         seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
         retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_004)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             isSearchIdle = in.readBoolean();
             searchIdleTime = in.readVLong();
         } else {
@@ -212,7 +214,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         out.writeBoolean(isCustomDataPath);
         out.writeOptionalWriteable(seqNoStats);
         out.writeOptionalWriteable(retentionLeaseStats);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_004)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             out.writeBoolean(isSearchIdle);
             out.writeVLong(searchIdleTime);
         }

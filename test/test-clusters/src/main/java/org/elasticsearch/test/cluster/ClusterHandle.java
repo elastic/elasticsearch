@@ -11,6 +11,7 @@ package org.elasticsearch.test.cluster;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.io.Closeable;
+import java.io.InputStream;
 
 /**
  * A handle to an {@link ElasticsearchCluster}.
@@ -78,7 +79,7 @@ public interface ClusterHandle extends Closeable {
 
     /**
      * Returns a comma-separated list of TCP transport endpoints for cluster. If this method is called on an unstarted cluster, the cluster
-     * will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
+     * will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.\
      *
      * @return cluster node TCP transport endpoints
      */
@@ -95,14 +96,18 @@ public interface ClusterHandle extends Closeable {
     /**
      * Returns a comma-separated list of remote cluster server endpoints for cluster. If this method is called on an unstarted cluster,
      * the cluster will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
+     * Note individual node can enable or disable remote cluster server independently. When a node has remote cluster server disabled,
+     * an empty string is returned for that node. Hence, it is possible for this method to return something like "[::1]:63300,,".
      *
      * @return cluster node remote cluster server endpoints
      */
-    String getRemoteClusterServerEndpoint();
+    String getRemoteClusterServerEndpoints();
 
     /**
      * Returns the remote cluster server endpoint for the node at the given index. If this method is called on an unstarted cluster,
      * the cluster will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
+     * Note individual node can enable or disable remote cluster server independently. When a node has remote cluster server disabled,
+     * an empty string is returned.
      *
      * @return cluster node remote cluster server endpoints
      */
@@ -124,7 +129,12 @@ public interface ClusterHandle extends Closeable {
     void upgradeToVersion(Version version);
 
     /**
-     * Cleans up any resources created by this cluster.
+     * Cleans up any resources created by this cluster. Calling this method will forcibly terminate any running nodes.
      */
     void close();
+
+    /**
+     * Returns an {@link InputStream} for the given node log.
+     */
+    InputStream getNodeLog(int index, LogType logType);
 }

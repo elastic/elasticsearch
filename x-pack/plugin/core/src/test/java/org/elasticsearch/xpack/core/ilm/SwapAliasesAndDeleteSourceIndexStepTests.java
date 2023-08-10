@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
@@ -69,7 +69,7 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
     public void testPerformAction() {
         String sourceIndexName = randomAlphaOfLength(10);
         IndexMetadata.Builder sourceIndexMetadataBuilder = IndexMetadata.builder(sourceIndexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
         Boolean isHidden = randomFrom(Boolean.TRUE, Boolean.FALSE, null);
@@ -112,7 +112,7 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
             );
 
             IndexMetadata.Builder targetIndexMetadataBuilder = IndexMetadata.builder(targetIndexName)
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5));
 

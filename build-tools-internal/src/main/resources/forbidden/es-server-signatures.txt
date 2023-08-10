@@ -38,6 +38,11 @@ java.lang.Math#abs(long)
 @defaultMessage Please do not try to stop the world
 java.lang.System#gc()
 
+@defaultMessage Don't use MethodHandles in slow ways
+java.lang.invoke.MethodHandle#invoke(java.lang.Object[])
+java.lang.invoke.MethodHandle#invokeWithArguments(java.lang.Object[])
+java.lang.invoke.MethodHandle#invokeWithArguments(java.util.List)
+
 @defaultMessage Use Channels.* methods to write to channels. Do not write directly.
 java.nio.channels.WritableByteChannel#write(java.nio.ByteBuffer)
 java.nio.channels.FileChannel#write(java.nio.ByteBuffer, long)

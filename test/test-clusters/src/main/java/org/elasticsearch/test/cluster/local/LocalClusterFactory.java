@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.cluster.ClusterFactory;
+import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.local.LocalClusterSpec.LocalNodeSpec;
 import org.elasticsearch.test.cluster.local.distribution.DistributionDescriptor;
 import org.elasticsearch.test.cluster.local.distribution.DistributionResolver;
@@ -44,9 +45,12 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -195,11 +199,15 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         }
 
         public String getRemoteClusterServerEndpoint() {
-            Path portsFile = workingDir.resolve("logs").resolve("remote_cluster.ports");
-            if (Files.notExists(portsFile)) {
-                waitUntilReady();
+            if (spec.isRemoteClusterServerEnabled()) {
+                Path portsFile = workingDir.resolve("logs").resolve("remote_cluster.ports");
+                if (Files.notExists(portsFile)) {
+                    waitUntilReady();
+                }
+                return readPortsFile(portsFile).get(0);
+            } else {
+                return "";
             }
-            return readPortsFile(portsFile).get(0);
         }
 
         public void deletePortsFiles() {
@@ -227,6 +235,20 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 throw new IllegalStateException("Process has not been started, cannot get pid");
             }
             return process.pid();
+        }
+
+        public InputStream getLog(LogType logType) {
+            Path logFile = logsDir.resolve(logType.resolveFilename(spec.getCluster().getName()));
+            if (Files.exists(logFile)) {
+                try {
+                    return Files.newInputStream(logFile);
+                } catch (IOException e) {
+                    LOGGER.error("Failed to read log file of type '{}' for node {} at '{}'", logType, this, logFile);
+                    throw new RuntimeException(e);
+                }
+            }
+
+            throw new IllegalArgumentException("Log file " + logFile + " does not exist.");
         }
 
         public LocalNodeSpec getSpec() {
@@ -354,6 +376,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             try {
                 // Write settings to elasticsearch.yml
                 Map<String, String> finalSettings = new HashMap<>();
+                finalSettings.put("cluster.name", spec.getCluster().getName());
                 finalSettings.put("node.name", name);
                 finalSettings.put("path.repo", repoDir.toString());
                 finalSettings.put("path.data", dataDir.toString());
@@ -478,6 +501,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 }
 
                 LOGGER.info("Creating users for node '{}'", name);
+                final Set<String> operators = new HashSet<>();
                 for (User user : spec.getUsers()) {
                     runToolScript(
                         "elasticsearch-users",
@@ -489,6 +513,36 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                         "-r",
                         user.getRole()
                     );
+                    if (user.isOperator()) {
+                        operators.add(user.getUsername());
+                    }
+                }
+
+                if (operators.isEmpty() == false) {
+                    // TODO: Support service accounts here
+                    final String operatorUsersFileName = "operator_users.yml";
+                    final Path destination = workingDir.resolve("config").resolve(operatorUsersFileName);
+                    if (Files.exists(destination)) {
+                        throw new IllegalStateException(
+                            "Operator users file ["
+                                + destination.toAbsolutePath().toString()
+                                + "] already exists, but user(s) ["
+                                + operators.stream().collect(Collectors.joining(","))
+                                + "] have been configured as operators. If you need to manage "
+                                + operatorUsersFileName
+                                + " yourself then you cannot not request that the cluster factory mark users as operators"
+                        );
+                    }
+                    try (Writer writer = Files.newBufferedWriter(destination, StandardOpenOption.CREATE)) {
+                        writer.write(String.format(Locale.ROOT, """
+                            operator:
+                              - usernames: [%s]
+                                realm_type: "file"
+                                auth_type: "realm"
+                            """, operators.stream().collect(Collectors.joining("\",\"", "\"", "\""))));
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("Failed to configure operator users file " + destination, e);
+                    }
                 }
             }
         }
@@ -651,14 +705,18 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             }
 
             String heapSize = System.getProperty("tests.heap.size", "512m");
-            environment.put("ES_JAVA_OPTS", "-Xms" + heapSize + " -Xmx" + heapSize + " -ea -esa "
-            // Support passing in additional JVM arguments
-                + System.getProperty("tests.jvm.argline", "")
-                + " "
-                + featureFlagProperties
-                + systemProperties
-                + jvmArgs
-                + debugArgs);
+            final String esJavaOpts = Stream.of(
+                "-Xms" + heapSize,
+                "-Xmx" + heapSize,
+                "-ea",
+                "-esa",
+                System.getProperty("tests.jvm.argline", ""),
+                featureFlagProperties,
+                systemProperties,
+                jvmArgs,
+                debugArgs
+            ).filter(s -> s.isEmpty() == false).collect(Collectors.joining(" "));
+            environment.put("ES_JAVA_OPTS", esJavaOpts);
 
             return environment;
         }

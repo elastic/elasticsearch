@@ -14,7 +14,6 @@ import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -154,7 +153,6 @@ public class SharedBytes extends AbstractRefCounted {
      * @param length number of bytes to copy
      * @param progressUpdater callback to invoke with the number of copied bytes as they are copied
      * @param buf bytebuffer to use for writing
-     * @param cacheFile object that describes the cached file, only used in logging and exception throwing as context information
      * @throws IOException on failure
      */
     public static void copyToCacheFileAligned(
@@ -164,13 +162,12 @@ public class SharedBytes extends AbstractRefCounted {
         long relativePos,
         long length,
         LongConsumer progressUpdater,
-        ByteBuffer buf,
-        final Object cacheFile
+        ByteBuffer buf
     ) throws IOException {
         long bytesCopied = 0L;
         long remaining = length;
         while (remaining > 0L) {
-            final int bytesRead = BlobCacheUtils.readSafe(input, buf, relativePos, remaining, cacheFile);
+            final int bytesRead = BlobCacheUtils.readSafe(input, buf, relativePos, remaining);
             if (buf.hasRemaining()) {
                 break;
             }
@@ -208,7 +205,6 @@ public class SharedBytes extends AbstractRefCounted {
      * @param relativePos position in {@code byteBufferReference}
      * @param length number of bytes to read
      * @param byteBufferReference buffer reference
-     * @param cacheFile cache file reference used for exception messages only
      * @return number of bytes read
      * @throws IOException on failure
      */
@@ -217,8 +213,7 @@ public class SharedBytes extends AbstractRefCounted {
         long channelPos,
         long relativePos,
         long length,
-        final ByteBufferReference byteBufferReference,
-        Object cacheFile
+        final ByteBufferReference byteBufferReference
     ) throws IOException {
         if (length == 0L) {
             return 0;
@@ -229,7 +224,7 @@ public class SharedBytes extends AbstractRefCounted {
             try {
                 bytesRead = fc.read(dup, channelPos);
                 if (bytesRead == -1) {
-                    BlobCacheUtils.throwEOF(channelPos, dup.remaining(), cacheFile);
+                    BlobCacheUtils.throwEOF(channelPos, dup.remaining());
                 }
             } finally {
                 byteBufferReference.release();
@@ -252,9 +247,7 @@ public class SharedBytes extends AbstractRefCounted {
 
     public IO getFileChannel(int sharedBytesPos) {
         assert fileChannel != null;
-        var res = ios[sharedBytesPos];
-        incRef();
-        return res;
+        return ios[sharedBytesPos];
     }
 
     long getPhysicalOffset(long chunkPosition) {
@@ -263,7 +256,7 @@ public class SharedBytes extends AbstractRefCounted {
         return physicalOffset;
     }
 
-    public final class IO implements Releasable {
+    public final class IO {
 
         private final long pageStart;
 
@@ -315,18 +308,6 @@ public class SharedBytes extends AbstractRefCounted {
                 throw new IllegalArgumentException("bad access");
             }
         }
-
-        @Override
-        public void close() {
-            decRef();
-        }
     }
 
-    public static ByteSizeValue pageAligned(ByteSizeValue val) {
-        final long remainder = val.getBytes() % PAGE_SIZE;
-        if (remainder != 0L) {
-            return ByteSizeValue.ofBytes(val.getBytes() + PAGE_SIZE - remainder);
-        }
-        return val;
-    }
 }

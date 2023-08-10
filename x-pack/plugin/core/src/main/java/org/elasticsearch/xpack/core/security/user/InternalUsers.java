@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
@@ -150,7 +151,9 @@ public class InternalUsers {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         // System data stream for result history of fleet actions (see Fleet#fleetActionsResultsDescriptor)
-                        ".fleet-actions-results"
+                        ".fleet-actions-results",
+                        // System data streams for storing uploaded file data for Agent diagnostics and Endpoint response actions
+                        ".fleet-fileds*"
                     )
                     .privileges(
                         "delete_index",
@@ -179,8 +182,7 @@ public class InternalUsers {
             null,
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*").privileges("all").allowRestrictedIndices(true).build(),
-                // Need manage privilege to be able to reload index analyzers for all indices
-                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("manage").build(), },
+                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges(ReloadAnalyzerAction.NAME).build(), },
             null,
             null,
             null,

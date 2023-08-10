@@ -182,14 +182,19 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        final int halfProc = halfAllocatedProcessors(allocatedProcessors);
         final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
         final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
+
         builders.put(
             Names.GENERIC,
             new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30), false)
         );
-        builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000, new TaskTrackingConfig(0.1)));
+        builders.put(
+            Names.WRITE,
+            new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000, new TaskTrackingConfig(true, 0.1))
+        );
         builders.put(
             Names.GET,
             new FixedExecutorBuilder(
@@ -213,7 +218,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.SEARCH_COORDINATION,
-            new FixedExecutorBuilder(settings, Names.SEARCH_COORDINATION, halfProcMaxAt5, 1000, TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(settings, Names.SEARCH_COORDINATION, halfProc, 1000, TaskTrackingConfig.DEFAULT)
         );
         builders.put(
             Names.AUTO_COMPLETE,
@@ -270,7 +275,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.SYSTEM_WRITE,
-            new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, new TaskTrackingConfig(0.1))
+            new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, new TaskTrackingConfig(true, 0.1))
         );
         builders.put(
             Names.SYSTEM_CRITICAL_READ,
@@ -278,7 +283,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.SYSTEM_CRITICAL_WRITE,
-            new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_WRITE, halfProcMaxAt5, 1500, new TaskTrackingConfig(0.1))
+            new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_WRITE, halfProcMaxAt5, 1500, new TaskTrackingConfig(true, 0.1))
         );
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
@@ -446,7 +451,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public ExecutorService executor(String name) {
         final ExecutorHolder holder = executors.get(name);
         if (holder == null) {
-            throw new IllegalArgumentException("no executor service found for [" + name + "]");
+            final var message = "no executor service found for [" + name + "]";
+            assert false : message;
+            throw new IllegalArgumentException(message);
         }
         return holder.executor();
     }
@@ -583,22 +590,27 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      * than value, otherwise value
      */
     static int boundedBy(int value, int min, int max) {
+        assert min < max : min + " vs " + max;
         return Math.min(max, Math.max(min, value));
     }
 
+    static int halfAllocatedProcessors(final int allocatedProcessors) {
+        return (allocatedProcessors + 1) / 2;
+    }
+
     static int halfAllocatedProcessorsMaxFive(final int allocatedProcessors) {
-        return boundedBy((allocatedProcessors + 1) / 2, 1, 5);
+        return boundedBy(halfAllocatedProcessors(allocatedProcessors), 1, 5);
     }
 
     static int halfAllocatedProcessorsMaxTen(final int allocatedProcessors) {
-        return boundedBy((allocatedProcessors + 1) / 2, 1, 10);
+        return boundedBy(halfAllocatedProcessors(allocatedProcessors), 1, 10);
     }
 
     static int twiceAllocatedProcessors(final int allocatedProcessors) {
         return boundedBy(2 * allocatedProcessors, 2, Integer.MAX_VALUE);
     }
 
-    static int oneEighthAllocatedProcessors(final int allocatedProcessors) {
+    public static int oneEighthAllocatedProcessors(final int allocatedProcessors) {
         return boundedBy(allocatedProcessors / 8, 1, Integer.MAX_VALUE);
     }
 

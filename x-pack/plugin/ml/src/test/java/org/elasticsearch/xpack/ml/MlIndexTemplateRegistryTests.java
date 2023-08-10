@@ -72,6 +72,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
         doAnswer(withResponse(AcknowledgedResponse.TRUE)).when(indicesAdminClient).putTemplate(any(), any());
 
         clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
         xContentRegistry = new NamedXContentRegistry(
             CollectionUtils.appendToCopy(

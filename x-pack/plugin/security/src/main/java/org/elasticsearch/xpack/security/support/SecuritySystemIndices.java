@@ -619,11 +619,6 @@ public class SecuritySystemIndices {
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, 1000)
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_TOKENS_INDEX_FORMAT)
-            // since {@code TokenService#VERSION_GET_TOKEN_DOC_FOR_REFRESH}
-            // For tokens, we issue explicit refreshes before searches rather than the more common refresh-after-write strategy.
-            // Token docs are infrequently searched and the extra latency due to the possibly throttled refresh is tolerable.
-            // Consequently, no automatic periodic refresh is necessary.
-            .put("index.refresh_interval", "-1")
             .build();
     }
 

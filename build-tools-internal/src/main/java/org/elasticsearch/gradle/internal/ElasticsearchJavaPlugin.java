@@ -92,7 +92,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                  * Not all cases need service files merged but it is
                  * better to be safe
                  */
-                //shadowJar.mergeServiceFiles();
+                shadowJar.mergeServiceFiles();
             });
             // Add "original" classifier to the non-shadowed JAR to distinguish it from the shadow JAR
             project.getTasks().named(JavaPlugin.JAR_TASK_NAME, Jar.class).configure(jar -> jar.getArchiveClassifier().set("original"));

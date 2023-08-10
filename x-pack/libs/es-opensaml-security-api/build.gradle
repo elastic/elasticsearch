@@ -26,11 +26,9 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /opensaml-.*/, to: 'shibboleth'
 }
 
-shadowJar {
+tasks.named("shadowJar").configure {
   manifest {
     attributes 'Automatic-Module-Name': 'org.opensaml.security'
   }
-  mergeServiceFiles {
-    exclude 'META-INF/services/org.opensaml.security.crypto.ec.NamedCurve'
-  }
+  exclude 'META-INF/services/org.opensaml.security.crypto.ec.NamedCurve'
 }

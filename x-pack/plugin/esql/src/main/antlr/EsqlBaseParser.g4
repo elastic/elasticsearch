@@ -199,8 +199,7 @@ booleanValue
     ;
 
 numericValue
-    : decimalValue
-    | integerValue
+    : (PLUS | MINUS)? (decimalValue | integerValue)
     ;
 
 decimalValue

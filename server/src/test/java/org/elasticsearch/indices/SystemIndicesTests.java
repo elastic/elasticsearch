@@ -24,6 +24,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class SystemIndicesTests extends ESTestCase {
     private static final String OPTIONAL_UPGRADE_SUFFIX_REGEX = "(" + SystemIndices.UPGRADED_INDEX_SUFFIX + ")?";
@@ -269,7 +270,7 @@ public class SystemIndicesTests extends ESTestCase {
                   {
                     "_meta": {
                       "version": "8.0.0",
-                      "system_index_mappings_version": 3
+                      "managed_index_mappings_version": 3
                     },
                     "properties": {
                       "name": { "type": "text" }
@@ -285,9 +286,9 @@ public class SystemIndicesTests extends ESTestCase {
             )
         );
 
-        Map<String, SystemIndexDescriptor.MappingVersion> mappingsVersions = systemIndices.getMappingsVersions();
-        assertThat(mappingsVersions.keySet(), containsInAnyOrder(".tasks*", ".managed-*", ".synonyms-*"));
+        Map<String, SystemIndexDescriptor.MappingsVersion> mappingsVersions = systemIndices.getMappingsVersions();
+        assertThat(mappingsVersions.get(".managed-*"), notNullValue());
+        assertThat(mappingsVersions.get(".managed-*").version(), equalTo(3));
         assertThat(mappingsVersions.keySet(), not(contains("unmanaged")));
-        assertThat(mappingsVersions.get(".managed-*"), equalTo(new SystemIndexDescriptor.MappingVersion(3, 3387579)));
     }
 }

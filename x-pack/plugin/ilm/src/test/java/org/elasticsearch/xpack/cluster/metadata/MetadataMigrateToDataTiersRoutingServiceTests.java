@@ -873,11 +873,9 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
             IndexMetadata migratedIndex = migratedState.metadata().index("foo");
             assertThat(migratedIndex.getSettings().get(BOX_ROUTING_REQUIRE_SETTING), is("cold"));
-            // partially mounted index must remain in `data_frozen`
-            assertThat(
-                migratedIndex.getSettings().get(TIER_PREFERENCE),
-                is(MountSearchableSnapshotRequest.Storage.SHARED_CACHE.defaultDataTiersPreference())
-            );
+            // partially mounted index must remain in `data_frozen`, however we do not change the setting
+            assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is(nullValue()));
+            assertThat(migratedIndex.getTierPreference(), is(IndexMetadata.PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE));
         }
 
         {

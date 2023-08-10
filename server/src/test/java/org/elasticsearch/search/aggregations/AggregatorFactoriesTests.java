@@ -333,19 +333,19 @@ public class AggregatorFactoriesTests extends ESTestCase {
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
             builder.addAggregator(new CardinalityAggregationBuilder("cardinality"));
-            assertTrue(builder.supportsParallelCollection());
+            assertFalse(builder.supportsParallelCollection());
         }
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
             builder.addAggregator(new NestedAggregationBuilder("nested", "path"));
-            assertTrue(builder.supportsParallelCollection());
+            assertFalse(builder.supportsParallelCollection());
         }
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
             builder.addAggregator(
                 new CompositeAggregationBuilder("composite", Collections.singletonList(new TermsValuesSourceBuilder("name")))
             );
-            assertTrue(builder.supportsParallelCollection());
+            assertFalse(builder.supportsParallelCollection());
         }
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();

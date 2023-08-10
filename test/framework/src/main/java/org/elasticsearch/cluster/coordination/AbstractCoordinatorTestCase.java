@@ -730,10 +730,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 lastAcceptedState.getLastCommittedConfiguration(),
                 equalTo(lastAcceptedState.getLastAcceptedConfiguration())
             );
-            assertThat(
-                "current configuration is already optimal",
-                leader.improveConfiguration(lastAcceptedState),
-                sameInstance(lastAcceptedState)
+            leader.onNode(
+                () -> assertThat(
+                    "current configuration is already optimal",
+                    leader.improveConfiguration(lastAcceptedState),
+                    sameInstance(lastAcceptedState)
+                )
             );
 
             logger.info("checking linearizability of history with size {}: {}", history.size(), history);

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application;
 
 public class EnterpriseSearchFeature {
-    // Enum of features
     public enum Feature {
         SEARCH_APPLICATION("Search Application"),
         BEHAVIORAL_ANALYTICS("Behavioral Analytics"),
@@ -16,12 +15,10 @@ public class EnterpriseSearchFeature {
 
         private final String name;
 
-        // Constructor to initialize the feature name
         Feature(String name) {
             this.name = name;
         }
-
-        // Getter method to retrieve the feature name
+        
         public String getName() {
             return name;
         }

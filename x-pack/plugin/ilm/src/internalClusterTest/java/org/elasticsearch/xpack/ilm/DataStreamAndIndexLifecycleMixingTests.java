@@ -623,7 +623,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         });
 
         // Then we opt out the data stream lifecycle
-        // let's migrate this data stream to use the data stream lifecycle starting with the next generation
+        // let's migrate this data stream to disable using the data stream lifecycle
         client().execute(
             PutDataStreamLifecycleAction.INSTANCE,
             new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90), false)

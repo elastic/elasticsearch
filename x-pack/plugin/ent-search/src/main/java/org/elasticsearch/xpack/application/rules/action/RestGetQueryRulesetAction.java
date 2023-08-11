@@ -25,7 +25,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetQueryRulesetAction extends EnterpriseSearchBaseRestHandler {
     public RestGetQueryRulesetAction(XPackLicenseState licenseState) {
-        super(licenseState, EnterpriseSearchFeature.Feature.QUERY_RULE);
+        super(licenseState, EnterpriseSearchFeature.Feature.QUERY_RULES);
     }
 
     @Override

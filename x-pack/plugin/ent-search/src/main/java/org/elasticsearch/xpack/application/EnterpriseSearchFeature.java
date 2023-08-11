@@ -11,14 +11,14 @@ public class EnterpriseSearchFeature {
     public enum Feature {
         SEARCH_APPLICATION("Search Application"),
         BEHAVIORAL_ANALYTICS("Behavioral Analytics"),
-        QUERY_RULE("Query Rule");
+        QUERY_RULES("Query Rules");
 
         private final String name;
 
         Feature(String name) {
             this.name = name;
         }
-        
+
         public String getName() {
             return name;
         }

@@ -398,27 +398,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                         }
                     }
                 } else if (Clusters._CLUSTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    int successful = -1;
-                    int total = -1;
-                    int skipped = -1;
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token.isValue()) {
-                            if (Clusters.SUCCESSFUL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                successful = parser.intValue();
-                            } else if (Clusters.TOTAL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                total = parser.intValue();
-                            } else if (Clusters.SKIPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                skipped = parser.intValue();
-                            } else {
-                                parser.skipChildren();
-                            }
-                        } else {
-                            parser.skipChildren();
-                        }
-                    }
-                    clusters = new Clusters(total, successful, skipped);
+                    clusters = Clusters.fromXContent(parser);
                 } else {
                     parser.skipChildren();
                 }
@@ -955,33 +935,33 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                         timedOut = parser.booleanValue();
                     } else if (TOOK.match(currentFieldName, parser.getDeprecationHandler())) {
                         took = parser.longValue();
-                    } else if (RestActions._SHARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                            if (token == Token.FIELD_NAME) {
-                                currentFieldName = parser.currentName();
-                            } else if (token.isValue()) {
-                                if (RestActions.FAILED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                    parser.intValue(); // we don't need it but need to consume it
-                                } else if (RestActions.SUCCESSFUL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                    successfulShards = parser.intValue();
-                                } else if (RestActions.TOTAL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                    totalShards = parser.intValue();
-                                } else if (RestActions.SKIPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                    skippedShards = parser.intValue();
-                                } else {
-                                    parser.skipChildren();
-                                }
-                            } else if (token == Token.START_ARRAY) {
-                                if (RestActions.FAILURES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                    while ((token = parser.nextToken()) != Token.END_ARRAY) {
-                                        failures.add(ShardSearchFailure.fromXContent(parser));
-                                    }
-                                } else {
-                                    parser.skipChildren();
-                                }
+                    } else {
+                        parser.skipChildren();
+                    }
+                } else if (RestActions._SHARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    while ((token = parser.nextToken()) != Token.END_OBJECT) {
+                        if (token == Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (token.isValue()) {
+                            if (RestActions.FAILED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                failedShards = parser.intValue();
+                            } else if (RestActions.SUCCESSFUL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                successfulShards = parser.intValue();
+                            } else if (RestActions.TOTAL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                totalShards = parser.intValue();
+                            } else if (RestActions.SKIPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                skippedShards = parser.intValue();
                             } else {
                                 parser.skipChildren();
                             }
+                        } else {
+                            parser.skipChildren();
+                        }
+                    }
+                } else if (token == Token.START_ARRAY) {
+                    if (RestActions.FAILURES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                            failures.add(ShardSearchFailure.fromXContent(parser));
                         }
                     } else {
                         parser.skipChildren();
@@ -991,20 +971,20 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 }
             }
 
-            /// MP TODO: need more -1 checks on the numeric fields
-            TimeValue tookTimeValue = null;
-            if (took == -1L) {
-                tookTimeValue = new TimeValue(took);
-            }
+            Integer totalShardsFinal = totalShards == -1 ? null : totalShards;
+            Integer successfulShardsFinal = successfulShards == -1 ? null : successfulShards;
+            Integer skippedShardsFinal = skippedShards == -1 ? null : skippedShards;
+            Integer failedShardsFinal = failedShards == -1 ? null : failedShards;
+            TimeValue tookTimeValue = took == -1L ? null : new TimeValue(took);
 
             return new Cluster(
                 clusterName,
                 indexExpression,
-                SearchResponse.Cluster.Status.valueOf(status),
-                totalShards,
-                successfulShards,
-                skippedShards,
-                failedShards,
+                SearchResponse.Cluster.Status.valueOf(status.toUpperCase(Locale.ROOT)),
+                totalShardsFinal,
+                successfulShardsFinal,
+                skippedShardsFinal,
+                failedShardsFinal,
                 failures,
                 tookTimeValue,
                 timedOut

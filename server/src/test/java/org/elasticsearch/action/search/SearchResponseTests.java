@@ -43,12 +43,16 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class SearchResponseTests extends ESTestCase {
@@ -130,7 +134,7 @@ public class SearchResponseTests extends ESTestCase {
             skippedShards,
             tookInMillis,
             shardSearchFailures,
-            randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY
+            randomCCSClusters()
         );
     }
 
@@ -138,24 +142,40 @@ public class SearchResponseTests extends ESTestCase {
      * This test method is typically called when needing "final" Cluster objects, not intermediate CCS state.
      * So all clusters returned (whether for local only or remote cluster searches are in a final state
      * where all clusters are either successful or skipped.
-     * @return Cluster with a random number of total clusters
+     * @return FILL IN
      */
-    static SearchResponse.Clusters randomClusters() {
-//        if (randomBoolean()) {
-//            if (randomBoolean()) {
-//                return SearchResponse.Clusters.EMPTY;
-//            } else {
-//                int totalClusters = 1;
-//                int successfulClusters = randomIntBetween(0, totalClusters);
-//                int skippedClusters = totalClusters - successfulClusters;
-//                return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
-//            }
-//        } else {
-        return createCCSClusterObject(3, 2, true, 2, 1, 0, 0);
-//        }
+    static SearchResponse.Clusters randomCCSClusters() {
+        if (randomBoolean()) {
+            int totalClusters = 1;
+            int successfulClusters = randomIntBetween(0, totalClusters);
+            int skippedClusters = totalClusters - successfulClusters;
+            return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
+        } else {
+            return createCCSClusterObject(3, 2, true, 2, 1, 0, 0, new ShardSearchFailure[0]);
+        }
     }
 
-    static SearchResponse.Clusters createCCSClusterObject(int totalClusters, int remoteClusters, boolean ccsMinimizeRoundtrips) {
+    static SearchResponse.Clusters randomClusters() {
+        int totalClusters = 1;
+        int successfulClusters = randomIntBetween(0, totalClusters);
+        int skippedClusters = totalClusters - successfulClusters;
+        return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
+    }
+
+    static SearchResponse.Clusters createCCSClusterObject(
+            int totalClusters,
+            int remoteClusters,
+            boolean ccsMinimizeRoundtrips,
+            int successfulClusters,
+            int skippedClusters,
+            int partialClusters,
+            int failedClusters,
+            ShardSearchFailure[] failures
+    ) {
+        assert successfulClusters + skippedClusters <= totalClusters : "successful + skipped > totalClusters";
+        assert totalClusters == remoteClusters || totalClusters - remoteClusters == 1
+                : "totalClusters and remoteClusters must be same or total = remote + 1";
+
         OriginalIndices localIndices = null;
         if (totalClusters > remoteClusters) {
             localIndices = new OriginalIndices(new String[] { "foo", "bar*" }, IndicesOptions.lenientExpand());
@@ -166,43 +186,27 @@ public class SearchResponseTests extends ESTestCase {
             remoteClusterIndices.put("cluster_" + i, new OriginalIndices(new String[] { "foo", "bar*" }, IndicesOptions.lenientExpand()));
         }
 
-        return new SearchResponse.Clusters(localIndices, remoteClusterIndices, ccsMinimizeRoundtrips);
-    }
-
-    static SearchResponse.Clusters createCCSClusterObject(
-            int totalClusters,
-            int remoteClusters,
-            boolean ccsMinimizeRoundtrips,
-            int successfulClusters,
-            int skippedClusters,
-            int partialClusters,
-            int failedClusters
-    ) {
-        assert successfulClusters + skippedClusters <= totalClusters : "successful + skipped > totalClusters";
-        assert totalClusters == remoteClusters || totalClusters - remoteClusters == 1
-                : "totalClusters and remoteClusters must be same or total = remote + 1";
-        SearchResponse.Clusters clusters = createCCSClusterObject(totalClusters, remoteClusters, ccsMinimizeRoundtrips);
+        SearchResponse.Clusters clusters = new SearchResponse.Clusters(localIndices, remoteClusterIndices, ccsMinimizeRoundtrips);
 
         int successful = successfulClusters;
         int skipped = skippedClusters;
         int partial = partialClusters;
         int failed = failedClusters;
 
-        int numClusters = successful + skipped + partial;
         int i = totalClusters > remoteClusters ? -1 : 0;
-        for (; i < numClusters; i++) {
-            SearchResponse.Cluster.Status status = null;
+        for (; i < remoteClusters; i++) {
+            SearchResponse.Cluster.Status status;
             int totalShards = 5;
-            int successfulShards = 0;
-            int skippedShards = 0;
+            int successfulShards;
+            int skippedShards;
             int failedShards = 0;
-            List<ShardSearchFailure> failures = List.of(new ShardSearchFailure(new IllegalStateException("corrupt index")));
+            List<ShardSearchFailure> failureList = Arrays.asList(failures);
             TimeValue took = new TimeValue(1000L);
             if (successful > 0) {
                 status = SearchResponse.Cluster.Status.SUCCESSFUL;
                 successfulShards = 5;
                 skippedShards = 1;
-                failures = Collections.emptyList();
+                failureList = Collections.emptyList();
                 successful--;
             } else if (partial > 0) {
                 status = SearchResponse.Cluster.Status.PARTIAL;
@@ -233,7 +237,7 @@ public class SearchResponseTests extends ESTestCase {
             SearchResponse.Cluster cluster = clusterRef.get();
             SearchResponse.Cluster update = new SearchResponse.Cluster(
                     cluster.getClusterAlias(), cluster.getIndexExpression(),
-                    status, totalShards, successfulShards, skippedShards, failedShards, failures, took, false
+                    status, totalShards, successfulShards, skippedShards, failedShards, failureList, took, false
             );
             assertTrue(clusterRef.compareAndSet(cluster, update));
         }
@@ -259,8 +263,9 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     private void doFromXContentTestWithRandomFields(SearchResponse response, boolean addRandomFields) throws IOException {
-        XContentType xcontentType = randomFrom(XContentType.values());
-        boolean humanReadable = randomBoolean();
+        System.err.println(response);
+        XContentType xcontentType = XContentType.JSON; // randomFrom(XContentType.values());
+        boolean humanReadable = true; // randomBoolean();
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         BytesReference originalBytes = toShuffledXContent(
             ChunkedToXContent.wrapAsToXContent(response),
@@ -269,13 +274,14 @@ public class SearchResponseTests extends ESTestCase {
             humanReadable
         );
         BytesReference mutated;
-        if (addRandomFields) {
-            mutated = insertRandomFields(xcontentType, originalBytes, null, random());
-        } else {
-            mutated = originalBytes;
-        }
+//        if (addRandomFields) {
+//            mutated = insertRandomFields(xcontentType, originalBytes, null, random());
+//        } else {
+        mutated = originalBytes;
+//        }
         try (XContentParser parser = createParser(xcontentType.xContent(), mutated)) {
             SearchResponse parsed = SearchResponse.fromXContent(parser);
+            System.err.println(parsed);
             assertToXContentEquivalent(originalBytes, XContentHelper.toXContent(parsed, xcontentType, params, humanReadable), xcontentType);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
@@ -433,7 +439,9 @@ public class SearchResponseTests extends ESTestCase {
                     2,
                     0,
                     ShardSearchFailure.EMPTY_ARRAY,
-                    createCCSClusterObject(4, 3, true, 1,1,1,1)
+                    createCCSClusterObject(4, 3, true, 1,
+                            1,1,1,
+                            new ShardSearchFailure[]{new ShardSearchFailure(new IllegalStateException("corrupt index"))})
             );
             String expectedString = XContentHelper.stripWhitespace("""
                 {

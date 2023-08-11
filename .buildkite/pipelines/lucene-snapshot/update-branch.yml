@@ -4,4 +4,6 @@ steps:
     timeout_in_minutes: 15
   - wait
   - trigger: "elasticsearch-lucene-snapshot-tests"
+    build:
+      branch: "${BUILDKITE_BRANCH}"
     async: true

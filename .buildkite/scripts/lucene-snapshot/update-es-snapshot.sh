@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+if [[ "$BUILDKITE_BRANCH" != "lucene_snapshot" ]]; then
+  echo "Error: This script should only be run on the lucene_snapshot branch"
+  exit 1
+fi
+
 echo --- Update Lucene snapshot in Elasticsearch
 
 LUCENE_SNAPSHOT_VERSION=${LUCENE_SNAPSHOT_VERSION:-}

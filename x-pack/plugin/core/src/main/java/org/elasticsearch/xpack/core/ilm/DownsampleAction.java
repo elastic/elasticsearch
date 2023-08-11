@@ -167,16 +167,9 @@ public class DownsampleAction implements LifecycleAction {
         // Mark source index as read-only
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, cleanupDownsampleIndexKey, client);
 
-        // We generate a unique downsample index name, but we also retry if the allocation of the downsample index
-        // is not possible, so we want to delete the "previously generated" downsample index (this is a no-op if it's
-        // the first run of the action, and we haven't generated a downsample index name)
-        CleanupTargetIndexStep cleanupDownsampleIndexStep = new CleanupTargetIndexStep(
-            cleanupDownsampleIndexKey,
-            generateDownsampleIndexNameKey,
-            client,
-            (indexMetadata) -> IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(indexMetadata.getSettings()),
-            (indexMetadata) -> indexMetadata.getLifecycleExecutionState().downsampleIndexName()
-        );
+        // Before the downsample action was retry-able, we used to generate a unique downsample index name and delete the previous index in
+        // case a failure occurred. The downsample action can now retry execution in case of failure and start where it left off.
+        NoopStep cleanupDownsampleIndexStep = new NoopStep(cleanupDownsampleIndexKey, generateDownsampleIndexNameKey);
 
         // Generate a predictable downsample index name and store it in the ILM execution state
         GenerateUniqueIndexNameStep generateDownsampleIndexNameStep = new GenerateDownsampleIndexNameStep(

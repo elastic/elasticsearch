@@ -80,6 +80,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -564,11 +565,12 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         settingsRequest.setSettings(Settings.builder().putNull(DataTier.TIER_PREFERENCE));
         indicesAdmin().updateSettings(settingsRequest.request()).actionGet();
 
-        // we're expecting the tier preference to still be present and to be the correct data_frozen value
+        // we're expecting the tier preference to not be explicitly set in the settings (as we nullified it) but
+        // the index to still have the default value of `data_frozen`
         GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(restoredIndexName).get();
         final Settings settings = getSettingsResponse.getIndexToSettings().get(restoredIndexName);
-        assertThat(settings.get(DataTier.TIER_PREFERENCE), notNullValue());
-        assertThat(settings.get(DataTier.TIER_PREFERENCE), is("data_frozen"));
+        assertThat(settings.get(DataTier.TIER_PREFERENCE), nullValue());
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(settings), is("data_frozen"));
     }
 
     private static void assertRequestCacheState(Client client, String index, long expectedHits, long expectedMisses) {

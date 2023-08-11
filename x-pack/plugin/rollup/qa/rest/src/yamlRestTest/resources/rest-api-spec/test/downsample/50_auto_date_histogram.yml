@@ -103,7 +103,7 @@ setup:
   - do:
       indices.downsample:
         index: test1-raw
-        target_index: test1-rollup
+        target_index: test1-downsample
         body: >
           {
             "fixed_interval": "1h"
@@ -113,7 +113,7 @@ setup:
 "Auto date histogram aggregation 2 buckets":
   - do:
       search:
-        index: test1-rollup,test2-raw
+        index: test1-downsample,test2-raw
         body:
           size: 0
           aggs:
@@ -134,7 +134,7 @@ setup:
 "Auto date histogram aggregation 10 buckets":
   - do:
       search:
-        index: test1-rollup,test2-raw
+        index: test1-downsample,test2-raw
         body:
           size: 0
           aggs:
@@ -169,7 +169,7 @@ setup:
 "Auto date histogram aggregation 200 buckets":
   - do:
       search:
-        index: test1-rollup,test2-raw
+        index: test1-downsample,test2-raw
         body:
           size: 0
           aggs:

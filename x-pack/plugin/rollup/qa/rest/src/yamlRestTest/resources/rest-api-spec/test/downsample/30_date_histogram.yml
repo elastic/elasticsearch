@@ -56,7 +56,7 @@ setup:
   - do:
       indices.downsample:
         index: test
-        target_index: rollup-test
+        target_index: test-downsample
         body:  >
           {
             "fixed_interval": "1h"
@@ -66,13 +66,13 @@ setup:
 
   - do:
       search:
-        index: rollup-test
+        index: test-downsample
         body:
           sort: [ "_tsid", "@timestamp" ]
 
   - length: { hits.hits: 4 }
 
-  - match: { hits.hits.0._index: "rollup-test" }
+  - match: { hits.hits.0._index: "test-downsample" }
   - match: { hits.hits.0._source._doc_count: 1 }
   - match: { hits.hits.0._source.@timestamp: "2021-04-28T18:00:00.000Z" }
   - match: { hits.hits.0._source.uid: "001" }
@@ -81,7 +81,7 @@ setup:
   - close_to: { hits.hits.0._source.total_memory_used.sum: { value: 106780.0, error: 0.00001 } }
   - match: { hits.hits.0._source.total_memory_used.value_count: 1 }
 
-  - match: { hits.hits.1._index: "rollup-test" }
+  - match: { hits.hits.1._index: "test-downsample" }
   - match: { hits.hits.1._source._doc_count: 1 }
   - match: { hits.hits.1._source.@timestamp: "2021-04-28T18:00:00.000Z" }
   - match: { hits.hits.1._source.uid: "002" }
@@ -90,7 +90,7 @@ setup:
   - close_to: { hits.hits.1._source.total_memory_used.sum: { value: 110450.0, error: 0.00001 } }
   - match: { hits.hits.1._source.total_memory_used.value_count: 1 }
 
-  - match: { hits.hits.2._index: "rollup-test" }
+  - match: { hits.hits.2._index: "test-downsample" }
   - match: { hits.hits.2._source._doc_count: 1 }
   - match: { hits.hits.2._source.@timestamp: "2021-04-28T18:00:00.000Z" }
   - match: { hits.hits.2._source.uid: "003" }
@@ -99,7 +99,7 @@ setup:
   - close_to: { hits.hits.2._source.total_memory_used.sum: { value: 109009.0, error: 0.00001 } }
   - match: { hits.hits.2._source.total_memory_used.value_count: 1 }
 
-  - match: { hits.hits.3._index: "rollup-test" }
+  - match: { hits.hits.3._index: "test-downsample" }
   - match: { hits.hits.3._source._doc_count: 1 }
   - match: { hits.hits.3._source.@timestamp: "2021-04-28T18:00:00.000Z" }
   - match: { hits.hits.3._source.uid: "004" }
@@ -112,7 +112,7 @@ setup:
   - do:
       catch: bad_request
       search:
-        index: rollup-test
+        index: test-downsample
         body:
           size: 0
           aggs:
@@ -147,7 +147,7 @@ setup:
   - do:
       catch: bad_request
       search:
-        index: rollup-test
+        index: test-downsample
         body:
           size: 0
           aggs:
@@ -183,7 +183,7 @@ setup:
   # date histogram aggregation with fixed interval and utc timezone on rollup index supported
   - do:
       search:
-        index: rollup-test
+        index: test-downsample
         body:
           size: 0
           aggs:
@@ -223,7 +223,7 @@ setup:
   # date histogram aggregation on both indices resulting in partial results and shard failures
   - do:
       search:
-        index: test,rollup-test
+        index: test,test-downsample
         body:
           size: 0
           aggs:
@@ -234,7 +234,7 @@ setup:
                 min_doc_count: 1
 
   # NOTE: the rollup index is created with the same number of shards of the source index.
-  # As a result we have 1 shard for the 'test' index and 1 shard for the 'rollup-test' index.
+  # As a result we have 1 shard for the 'test' index and 1 shard for the 'test-downsample' index.
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 1 }
   - match: { _shards.failed: 1 }
@@ -245,6 +245,6 @@ setup:
   - match: { aggregations.date_histogram.buckets.0.key: 1619632800000 }
   - match: { aggregations.date_histogram.buckets.0.doc_count: 4 }
   - length: { _shards.failures: 1 }
-  - match: { _shards.failures.0.index: "rollup-test" }
+  - match: { _shards.failures.0.index: "test-downsample" }
   - match: { _shards.failures.0.reason.type: illegal_argument_exception }
   - match: { _shards.failures.0.reason.reason: "Field [@timestamp] of type [date] is not supported for aggregation [date_histogram] with interval type [calendar_interval]" }

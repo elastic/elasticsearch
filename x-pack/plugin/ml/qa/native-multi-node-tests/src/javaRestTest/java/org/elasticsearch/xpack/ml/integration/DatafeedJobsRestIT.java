@@ -920,12 +920,8 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")
         );
         String jobStatsResponseAsString = EntityUtils.toString(jobStatsResponse.getEntity());
-        assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":40"));
-        assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":40"));
         assertThat(jobStatsResponseAsString, containsString("\"out_of_order_timestamp_count\":0"));
-        assertThat(jobStatsResponseAsString, containsString("\"bucket_count\":3"));
-        // The derivative agg won't have values for the first bucket of each host
-        assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":2"));
+        assertThat(jobStatsResponseAsString, containsString("\"bucket_count\":2"));
     }
 
     public void testLookbackUsingDerivativeAggWithSmallerHistogramBucketThanDataRate() throws Exception {

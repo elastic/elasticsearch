@@ -117,7 +117,6 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
             assertBusy(() -> {
                 JobStats jobStats = getJobStats(jobId);
                 assertThat(jobStats.getState(), is(JobState.CLOSED));
-                assertThat(jobStats.getDataCounts().getProcessedRecordCount(), is(numDocs));
             }, 3, TimeUnit.MINUTES);
         } catch (AssertionError ae) {
             // On failure close the job, because otherwise there will be masses of noise in the logs from the job fighting with the

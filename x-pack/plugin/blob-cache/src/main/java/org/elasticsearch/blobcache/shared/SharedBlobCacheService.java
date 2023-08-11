@@ -403,7 +403,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final long effectiveRegionSize = getRegionSize(fileLength, region);
             entry = keyMapping.computeIfAbsent(regionKey, key -> new Entry<>(new CacheFileRegion(key, effectiveRegionSize), now));
         }
-        // sharedBytesPos is volatile, double locking is fine, as long as we assign it last.
+        // io is volatile, double locking is fine, as long as we assign it last.
         if (entry.chunk.io == null) {
             synchronized (entry.chunk) {
                 if (entry.chunk.io == null) {
@@ -474,7 +474,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 throwAlreadyClosed("evicted during free region allocation");
             }
             pushEntryToBack(entry);
-            // assign sharedBytesPos only when chunk is ready for use. Under lock to avoid concurrent tryEvict.
+            // assign io only when chunk is ready for use. Under lock to avoid concurrent tryEvict.
             entry.chunk.io = freeSlot;
         }
     }
@@ -803,7 +803,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         @Override
         protected void closeInternal() {
             // now actually free the region associated with this chunk
-            // we held the "this" lock when this was evicted, hence if sharedBytesPos is not filled in, chunk will never be registered.
+            // we held the "this" lock when this was evicted, hence if io is not filled in, chunk will never be registered.
             if (io != null) {
                 assert regionOwners.remove(io) == this;
                 freeRegions.add(io);

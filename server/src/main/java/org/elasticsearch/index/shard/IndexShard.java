@@ -1374,6 +1374,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().completionStats(fields);
     }
 
+    public DenseVectorStats denseVectorStats() {
+        readAllowed();
+        return getEngine().denseVectorStats();
+    }
+
     public BulkStats bulkStats() {
         return bulkOperationListener.stats();
     }

@@ -289,6 +289,22 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 for (TrainedModelConfig model : models) {
                     if (model.getModelType() == TrainedModelType.PYTORCH) {
                         long totalDefinitionLength = pytorchTotalDefinitionLengthsByModelId.getOrDefault(model.getModelId(), 0L);
+                        long estimatedMemoryUsageBytes = totalDefinitionLength > 0L
+                            ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
+                                model.getModelId(),
+                                totalDefinitionLength,
+                                model.getPerDeploymentMemoryBytes(),
+                                model.getPerAllocationMemoryBytes(),
+                                numberOfAllocations
+                            )
+                            : 0L;
+                        logger.info(
+                            "***modelSizeStats: model id: [{}], total definition length: [{}], estimated memory usage: [{}], number of allocations: [{}]",
+                            model.getModelId(),
+                            totalDefinitionLength,
+                            estimatedMemoryUsageBytes,
+                            numberOfAllocations
+                        );
                         modelSizeStatsByModelId.put(
                             model.getModelId(),
                             new TrainedModelSizeStats(
@@ -307,8 +323,15 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                             )
                         );
                     } else {
-                        modelSizeStatsByModelId.put(model.getModelId(), 
-                        new TrainedModelSizeStats(model.getModelSize(), 0, model.getPerDeploymentMemoryBytes(), model.getPerAllocationMemoryBytes()));
+                        modelSizeStatsByModelId.put(
+                            model.getModelId(),
+                            new TrainedModelSizeStats(
+                                model.getModelSize(),
+                                0,
+                                model.getPerDeploymentMemoryBytes(),
+                                model.getPerAllocationMemoryBytes()
+                            )
+                        );
                     }
                 }
                 listener.onResponse(modelSizeStatsByModelId);
@@ -322,6 +345,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             parentTaskId,
             modelsListener
         );
+
     }
 
     private void definitionLengths(List<String> modelIds, TaskId parentTaskId, ActionListener<Map<String, Long>> listener) {

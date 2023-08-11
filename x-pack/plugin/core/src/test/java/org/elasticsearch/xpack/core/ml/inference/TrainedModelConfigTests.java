@@ -104,9 +104,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             .setLicenseLevel(randomFrom(License.OperationMode.PLATINUM.description(), License.OperationMode.BASIC.description()))
             .setInferenceConfig(randomFrom(inferenceConfigs))
             .setTags(tags)
-            .setLocation(randomBoolean() ? null : IndexLocationTests.randomInstance())
-            .setPerDeploymentMemoryBytes(randomNonNegativeLong())
-            .setPerAllocationMemoryBytes(randomNonNegativeLong());
+            .setLocation(randomBoolean() ? null : IndexLocationTests.randomInstance());
     }
 
     @Before
@@ -193,9 +191,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                     .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
             randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()),
             null,
-            ModelPackageConfigTests.randomModulePackageConfig(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
+            ModelPackageConfigTests.randomModulePackageConfig()
         );
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
@@ -245,9 +241,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                     .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
             randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()),
             null,
-            ModelPackageConfigTests.randomModulePackageConfig(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
+            ModelPackageConfigTests.randomModulePackageConfig()
         );
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
@@ -455,10 +449,6 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         if (version.before(TrainedModelConfig.VERSION_3RD_PARTY_CONFIG_ADDED)) {
             builder.setModelType(null);
             builder.setLocation(null);
-        }
-        if (version.before(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
-            builder.setPerDeploymentMemoryBytes(0);
-            builder.setPerAllocationMemoryBytes(0);
         }
         if (instance.getInferenceConfig() instanceof NlpConfig nlpConfig) {
             builder.setInferenceConfig(InferenceConfigItemTestCase.mutateForVersion(nlpConfig, version));

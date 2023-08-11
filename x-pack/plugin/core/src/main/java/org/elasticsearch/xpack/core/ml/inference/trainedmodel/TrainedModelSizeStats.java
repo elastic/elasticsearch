@@ -76,20 +76,20 @@ public class TrainedModelSizeStats implements ToXContentObject, Writeable {
             "required_native_memory",
             ByteSizeValue.ofBytes(requiredNativeMemoryBytes)
         );
-        // if (perDeploymentMemoryBytes > 0) {
+        if (perDeploymentMemoryBytes > 0) {
             builder.humanReadableField(
                 PER_DEPLOYMENT_MEMORY_BYTES.getPreferredName(),
                 "per_deployment_memory",
                 ByteSizeValue.ofBytes(perDeploymentMemoryBytes)
             );
-        // }
-        // if (perAllocationMemoryBytes > 0) {
+        }
+        if (perAllocationMemoryBytes > 0) {
             builder.humanReadableField(
                 PER_ALLOCATION_MEMORY_BYTES.getPreferredName(),
                 "per_allocation_memory",
                 ByteSizeValue.ofBytes(perAllocationMemoryBytes)
             );
-        // }
+        }
         builder.endObject();
         return builder;
     }

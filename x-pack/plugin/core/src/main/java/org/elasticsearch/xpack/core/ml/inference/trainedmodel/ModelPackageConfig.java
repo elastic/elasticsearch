@@ -38,8 +38,6 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
     public static final ParseField SIZE = new ParseField("size");
     public static final ParseField CHECKSUM_SHA256 = new ParseField("sha256");
     public static final ParseField VOCABULARY_FILE = new ParseField("vocabulary_file");
-    // public static final ParseField PER_DEPLOYMENT_MEMORY_BYTES = new ParseField("per_deployment_memory_bytes");
-    // public static final ParseField PER_ALLOCATION_MEMORY_BYTES = new ParseField("per_allocation_memory_bytes");
 
     private static final ConstructingObjectParser<ModelPackageConfig, Void> LENIENT_PARSER = createParser(true);
     private static final ConstructingObjectParser<ModelPackageConfig, Void> STRICT_PARSER = createParser(false);
@@ -68,9 +66,7 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
                     metadata,
                     (String) a[9], // model_type
                     tags,
-                    (String) a[11], // vocabulary file
-                    (Long) a[12], // per deployment memory bytes
-                    (Long) a[13] // per allocation memory bytes
+                    (String) a[11] // vocabulary file
                 );
             }
         );
@@ -95,8 +91,6 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), TrainedModelConfig.MODEL_TYPE);
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), TrainedModelConfig.TAGS);
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), VOCABULARY_FILE);
-        parser.declareLong(ConstructingObjectParser.optionalConstructorArg(), TrainedModelConfig.PER_DEPLOYMENT_MEMORY_BYTES);
-        parser.declareLong(ConstructingObjectParser.optionalConstructorArg(), TrainedModelConfig.PER_ALLOCATION_MEMORY_BYTES);
 
         return parser;
     }
@@ -123,8 +117,6 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
     private final String modelType;
     private final List<String> tags;
     private final String vocabularyFile;
-    private final long perDeploymentMemoryBytes;
-    private final long perAllocationMemoryBytes;
 
     public ModelPackageConfig(
         String packagedModelId,
@@ -138,9 +130,7 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         Map<String, Object> metadata,
         String modelType,
         List<String> tags,
-        String vocabularyFile,
-        Long perDeploymentMemoryBytes,
-        Long perAllocationMemoryBytes
+        String vocabularyFile
     ) {
         this.packagedModelId = ExceptionsHelper.requireNonNull(packagedModelId, PACKAGED_MODEL_ID);
         this.modelRepository = modelRepository;
@@ -157,8 +147,6 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         this.modelType = modelType;
         this.tags = tags == null ? Collections.emptyList() : Collections.unmodifiableList(tags);
         this.vocabularyFile = vocabularyFile;
-        this.perDeploymentMemoryBytes = perDeploymentMemoryBytes == null ? 0 : perDeploymentMemoryBytes;
-        this.perAllocationMemoryBytes = perAllocationMemoryBytes == null ? 0 : perAllocationMemoryBytes;
     }
 
     public ModelPackageConfig(StreamInput in) throws IOException {
@@ -174,13 +162,6 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         this.modelType = in.readOptionalString();
         this.tags = in.readOptionalList(StreamInput::readString);
         this.vocabularyFile = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
-            this.perDeploymentMemoryBytes = in.readVLong();
-            this.perAllocationMemoryBytes = in.readVLong();
-        } else {
-            this.perDeploymentMemoryBytes = 0;
-            this.perAllocationMemoryBytes = 0;
-        }
     }
 
     public String getPackagedModelId() {
@@ -231,14 +212,6 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         return vocabularyFile;
     }
 
-    public long getPerDeploymentMemoryBytes() {
-        return perDeploymentMemoryBytes;
-    }
-
-    public long getPerAllocationMemoryBytes() {
-        return perAllocationMemoryBytes;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -277,14 +250,6 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
             builder.field(VOCABULARY_FILE.getPreferredName(), vocabularyFile);
         }
 
-        if (perDeploymentMemoryBytes > 0) {
-            builder.field(TrainedModelConfig.PER_DEPLOYMENT_MEMORY_BYTES.getPreferredName(), perDeploymentMemoryBytes);
-        }
-
-        if (perAllocationMemoryBytes > 0) {
-            builder.field(TrainedModelConfig.PER_ALLOCATION_MEMORY_BYTES.getPreferredName(), perAllocationMemoryBytes);
-        }
-
         builder.endObject();
         return builder;
     }
@@ -303,10 +268,6 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         out.writeOptionalString(modelType);
         out.writeOptionalCollection(tags, StreamOutput::writeString);
         out.writeOptionalString(vocabularyFile);
-        if (out.getTransportVersion().onOrAfter(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
-            out.writeVLong(perDeploymentMemoryBytes);
-            out.writeVLong(perAllocationMemoryBytes);
-        }
     }
 
     @Override
@@ -329,9 +290,7 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
             && Objects.equals(metadata, that.metadata)
             && Objects.equals(modelType, that.modelType)
             && Objects.equals(tags, that.tags)
-            && Objects.equals(vocabularyFile, that.vocabularyFile)
-            && Objects.equals(perDeploymentMemoryBytes, that.perDeploymentMemoryBytes)
-            && Objects.equals(perAllocationMemoryBytes, that.perAllocationMemoryBytes);
+            && Objects.equals(vocabularyFile, that.vocabularyFile);
     }
 
     @Override
@@ -348,9 +307,7 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
             metadata,
             modelType,
             tags,
-            vocabularyFile,
-            perDeploymentMemoryBytes,
-            perAllocationMemoryBytes
+            vocabularyFile
         );
     }
 
@@ -373,8 +330,6 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         private String modelType;
         private List<String> tags;
         private String vocabularyFile;
-        private long perDeploymentMemoryBytes;
-        private long perAllocationMemoryBytes;
 
         public Builder(ModelPackageConfig modelPackageConfig) {
             this.packagedModelId = modelPackageConfig.packagedModelId;
@@ -389,8 +344,6 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
             this.modelType = modelPackageConfig.modelType;
             this.tags = modelPackageConfig.tags;
             this.vocabularyFile = modelPackageConfig.vocabularyFile;
-            this.perDeploymentMemoryBytes = modelPackageConfig.perDeploymentMemoryBytes;
-            this.perAllocationMemoryBytes = modelPackageConfig.perAllocationMemoryBytes;
         }
 
         public Builder setPackedModelId(String packagedModelId) {
@@ -453,16 +406,6 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setPerDeploymentMemoryBytes(long perDeploymentMemoryBytes) {
-            this.perDeploymentMemoryBytes = perDeploymentMemoryBytes;
-            return this;
-        }
-
-        public Builder setPerAllocationMemoryBytes(long perAllocationMemoryBytes) {
-            this.perAllocationMemoryBytes = perAllocationMemoryBytes;
-            return this;
-        }
-
         /**
          * Reset all fields which are only part of the package metadata, but not be part
          * of the config.
@@ -498,9 +441,7 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
                 metadata,
                 modelType,
                 tags,
-                vocabularyFile,
-                perDeploymentMemoryBytes,
-                perAllocationMemoryBytes
+                vocabularyFile
             );
         }
     }

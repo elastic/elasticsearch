@@ -90,10 +90,9 @@ public class EsqlParser {
             if (identifier.getText().equalsIgnoreCase("is_null")) {
                 throw new ParsingException(
                     source(ctx),
-                    "is_null function is not supported anymore, please use 'is null' or " + "'is not null' constructs instead"
+                    "is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
                 );
             }
-            super.exitFunctionExpression(ctx);
         }
     }
 

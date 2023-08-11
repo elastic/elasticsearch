@@ -344,12 +344,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Object visitIsNull(EsqlBaseParser.IsNullContext ctx) {
         Expression exp = expression(ctx.valueExpression());
         Source source = source(ctx.valueExpression(), ctx);
-
-        if (ctx.NOT() != null) {
-            return new IsNotNull(source, exp);
-        } else {
-            return new IsNull(source, exp);
-        }
+        return ctx.NOT() != null ? new IsNotNull(source, exp) : new IsNull(source, exp);
     }
 
     @Override

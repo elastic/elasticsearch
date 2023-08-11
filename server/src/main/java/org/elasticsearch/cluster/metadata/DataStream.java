@@ -669,19 +669,19 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * This is the raw defintion of an index being managed by the data stream lifecycle. An index is managed by the data stream lifecycle
-     * if it's part of a data stream that has a data stream lifecycle configured and depending on the value of
+     * This is the raw definition of an index being managed by the data stream lifecycle. An index is managed by the data stream lifecycle
+     * if it's part of a data stream that has a data stream lifecycle configured and enabled and depending on the value of
      * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING} having an ILM policy configured will play into the decision.
      * This method also skips any validation to make sure the index is part of this data stream, hence the private
      * access method.
      */
     private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
         boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
-        if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null) {
+        if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null && lifecycle.isEnabled()) {
             // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index
             return preferIlm == false;
         }
-        return lifecycle != null;
+        return lifecycle != null && lifecycle.isEnabled();
     }
 
     /**

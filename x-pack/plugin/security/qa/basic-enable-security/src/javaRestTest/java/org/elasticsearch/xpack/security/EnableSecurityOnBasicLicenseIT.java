@@ -61,7 +61,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user("admin_user", "admin-password")
-        .user("security_test_user", "security-test-password", "security_test_role")
+        .user("security_test_user", "security-test-password", "security_test_role", false)
         .build();
 
     @Override

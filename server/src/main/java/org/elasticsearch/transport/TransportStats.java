@@ -121,14 +121,6 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         return serverOpen();
     }
 
-    public long totalOutboundConnections() {
-        return this.totalOutboundConnections;
-    }
-
-    public long getTotalOutboundConnections() {
-        return totalOutboundConnections();
-    }
-
     public long rxCount() {
         return rxCount;
     }
@@ -186,31 +178,29 @@ public class TransportStats implements Writeable, ChunkedToXContent {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-        return Iterators.<ToXContent>concat(
-
-            Iterators.single((builder, params) -> {
-                builder.startObject(Fields.TRANSPORT);
-                builder.field(Fields.SERVER_OPEN, serverOpen);
-                builder.field(Fields.TOTAL_OUTBOUND_CONNECTIONS, totalOutboundConnections);
-                builder.field(Fields.RX_COUNT, rxCount);
-                builder.humanReadableField(Fields.RX_SIZE_IN_BYTES, Fields.RX_SIZE, ByteSizeValue.ofBytes(rxSize));
-                builder.field(Fields.TX_COUNT, txCount);
-                builder.humanReadableField(Fields.TX_SIZE_IN_BYTES, Fields.TX_SIZE, ByteSizeValue.ofBytes(txSize));
-                if (inboundHandlingTimeBucketFrequencies.length > 0) {
-                    histogramToXContent(builder, inboundHandlingTimeBucketFrequencies, Fields.INBOUND_HANDLING_TIME_HISTOGRAM);
-                    histogramToXContent(builder, outboundHandlingTimeBucketFrequencies, Fields.OUTBOUND_HANDLING_TIME_HISTOGRAM);
-                } else {
-                    // Stats came from before v8.1
-                    assert Version.CURRENT.major == Version.V_7_0_0.major + 1;
-                }
-                if (transportActionStats.isEmpty() == false) {
-                    builder.startObject(Fields.ACTIONS);
-                } else {
-                    // Stats came from before v8.8
-                    assert Version.CURRENT.major == Version.V_7_0_0.major + 1;
-                }
-                return builder;
-            }),
+        return Iterators.concat(Iterators.single((builder, params) -> {
+            builder.startObject(Fields.TRANSPORT);
+            builder.field(Fields.SERVER_OPEN, serverOpen);
+            builder.field(Fields.TOTAL_OUTBOUND_CONNECTIONS, totalOutboundConnections);
+            builder.field(Fields.RX_COUNT, rxCount);
+            builder.humanReadableField(Fields.RX_SIZE_IN_BYTES, Fields.RX_SIZE, ByteSizeValue.ofBytes(rxSize));
+            builder.field(Fields.TX_COUNT, txCount);
+            builder.humanReadableField(Fields.TX_SIZE_IN_BYTES, Fields.TX_SIZE, ByteSizeValue.ofBytes(txSize));
+            if (inboundHandlingTimeBucketFrequencies.length > 0) {
+                histogramToXContent(builder, inboundHandlingTimeBucketFrequencies, Fields.INBOUND_HANDLING_TIME_HISTOGRAM);
+                histogramToXContent(builder, outboundHandlingTimeBucketFrequencies, Fields.OUTBOUND_HANDLING_TIME_HISTOGRAM);
+            } else {
+                // Stats came from before v8.1
+                assert Version.CURRENT.major == Version.V_7_0_0.major + 1;
+            }
+            if (transportActionStats.isEmpty() == false) {
+                builder.startObject(Fields.ACTIONS);
+            } else {
+                // Stats came from before v8.8
+                assert Version.CURRENT.major == Version.V_7_0_0.major + 1;
+            }
+            return builder;
+        }),
 
             Iterators.map(transportActionStats.entrySet().iterator(), entry -> (builder, params) -> {
                 builder.field(entry.getKey());

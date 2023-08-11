@@ -33,7 +33,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
       synonyms.put_synonym:
-        synonyms_set: test-synonyms
+        id: test-synonyms
         body:
           synonyms_set:
             - synonyms: "hello, hi"
@@ -44,7 +44,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
       synonyms.get_synonym:
-        synonyms_set: test-synonyms
+        id: test-synonyms
 
   - match:
       count: 1
@@ -59,8 +59,8 @@ teardown:
   - do:
       headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
       synonyms.put_synonym_rule:
-        synonyms_set: "test-synonyms"
-        synonym_rule: "test-id-0"
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
         body:
           synonyms: "i-phone, iphone"
 
@@ -69,21 +69,21 @@ teardown:
   - do:
       headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
       synonyms.get_synonym_rule:
-        synonyms_set: "test-synonyms"
-        synonym_rule: "test-id-0"
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
 
   - match: {id: "test-id-0"}
 
   - do:
       headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
       synonyms.delete_synonym_rule:
-        synonyms_set: test-synonyms
-        synonym_rule: test-id-0
+        set_id: test-synonyms
+        rule_id: test-id-0
 
   - do:
       headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
       synonyms.delete_synonym:
-        synonyms_set: test-synonyms
+        id: test-synonyms
 
   - match:
       acknowledged: true

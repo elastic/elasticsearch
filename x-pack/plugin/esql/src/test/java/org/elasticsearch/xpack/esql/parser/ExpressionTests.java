@@ -63,17 +63,17 @@ public class ExpressionTests extends ESTestCase {
     public void testNumberLiterals() {
         assertEquals(l(123, INTEGER), whereExpression("123"));
         assertEquals(l(123, INTEGER), whereExpression("+123"));
-        assertEquals(new Neg(null, l(123, INTEGER)), whereExpression("-123"));
+        assertEquals(l(-123, INTEGER), whereExpression("-123"));
         assertEquals(l(123.123, DOUBLE), whereExpression("123.123"));
         assertEquals(l(123.123, DOUBLE), whereExpression("+123.123"));
-        assertEquals(new Neg(null, l(123.123, DOUBLE)), whereExpression("-123.123"));
+        assertEquals(l(-123.123, DOUBLE), whereExpression("-123.123"));
         assertEquals(l(0.123, DOUBLE), whereExpression(".123"));
         assertEquals(l(0.123, DOUBLE), whereExpression("0.123"));
         assertEquals(l(0.123, DOUBLE), whereExpression("+0.123"));
-        assertEquals(new Neg(null, l(0.123, DOUBLE)), whereExpression("-0.123"));
+        assertEquals(l(-0.123, DOUBLE), whereExpression("-0.123"));
         assertEquals(l(12345678901L, LONG), whereExpression("12345678901"));
         assertEquals(l(12345678901L, LONG), whereExpression("+12345678901"));
-        assertEquals(new Neg(null, l(12345678901L, LONG)), whereExpression("-12345678901"));
+        assertEquals(l(-12345678901L, LONG), whereExpression("-12345678901"));
         assertEquals(l(123e12, DOUBLE), whereExpression("123e12"));
         assertEquals(l(123e-12, DOUBLE), whereExpression("123e-12"));
         assertEquals(l(123E12, DOUBLE), whereExpression("123E12"));
@@ -81,10 +81,10 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testMinusSign() {
-        assertEquals(new Neg(null, l(123, INTEGER)), whereExpression("+(-123)"));
-        assertEquals(new Neg(null, l(123, INTEGER)), whereExpression("+(+(-123))"));
+        assertEquals(l(-123, INTEGER), whereExpression("+(-123)"));
+        assertEquals(l(-123, INTEGER), whereExpression("+(+(-123))"));
         // we could do better here. ES SQL is smarter and accounts for the number of minuses
-        assertEquals(new Neg(null, new Neg(null, l(123, INTEGER))), whereExpression("-(-123)"));
+        assertEquals(new Neg(null, l(-123, INTEGER)), whereExpression("-(-123)"));
     }
 
     public void testStringLiterals() {
@@ -330,11 +330,11 @@ public class ExpressionTests extends ESTestCase {
         );
         assertThat(
             whereExpression("10 days > 5 hours and 1/5 minutes > 8 seconds * 3 and -1 minutes > foo"),
-            equalTo(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-(1 minute) > foo)"))
+            equalTo(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-1 minute > foo)"))
         );
         assertThat(
             whereExpression("10 DAYS > 5 HOURS and 1/5 MINUTES > 8 SECONDS * 3 and -1 MINUTES > foo"),
-            equalTo(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-(1 minute) > foo)"))
+            equalTo(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-1 minute > foo)"))
         );
     }
 
@@ -383,7 +383,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(l(Duration.ofHours(value), TIME_DURATION), whereExpression(value + "hour"));
         assertEquals(l(Duration.ofHours(value), TIME_DURATION), whereExpression(value + " hours"));
 
-        assertEquals(new Neg(EMPTY, l(Duration.ofHours(value), TIME_DURATION)), whereExpression("-" + value + " hours"));
+        assertEquals(l(Duration.ofHours(-value), TIME_DURATION), whereExpression("-" + value + " hours"));
     }
 
     public void testDatePeriodLiterals() {
@@ -405,7 +405,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + "year"));
         assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + " years"));
 
-        assertEquals(new Neg(EMPTY, l(Period.ofYears(value), DATE_PERIOD)), whereExpression("-" + value + " years"));
+        assertEquals(l(Period.ofYears(-value), DATE_PERIOD), whereExpression("-" + value + " years"));
     }
 
     public void testUnknownNumericQualifier() {

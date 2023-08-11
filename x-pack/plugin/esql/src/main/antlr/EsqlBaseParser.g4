@@ -199,15 +199,16 @@ booleanValue
     ;
 
 numericValue
-    : (PLUS | MINUS)? (decimalValue | integerValue)
+    : decimalValue
+    | integerValue
     ;
 
 decimalValue
-    : DECIMAL_LITERAL
+    : (PLUS | MINUS)? DECIMAL_LITERAL
     ;
 
 integerValue
-    : INTEGER_LITERAL
+    : (PLUS | MINUS)? INTEGER_LITERAL
     ;
 
 string

@@ -157,27 +157,6 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         return new Literal(source, mapNumbers(numbers, (no, dt) -> no.intValue()), DataTypes.INTEGER);
     }
 
-    @Override
-    public Literal visitNumericValue(EsqlBaseParser.NumericValueContext ctx) {
-        Literal result = (Literal) super.visitNumericValue(ctx);
-        if (ctx.MINUS() == null) {
-            return result;
-        }
-        if (result.dataType() == DataTypes.INTEGER) {
-            return new Literal(result.source(), -(int) result.value(), result.dataType());
-        }
-        if (result.dataType() == DataTypes.LONG) {
-            return new Literal(result.source(), -(long) result.value(), result.dataType());
-        }
-        if (result.dataType() == DataTypes.FLOAT) {
-            return new Literal(result.source(), -(float) result.value(), result.dataType());
-        }
-        if (result.dataType() == DataTypes.DOUBLE) {
-            return new Literal(result.source(), -(double) result.value(), result.dataType());
-        }
-        throw new ParsingException(source(ctx), "Unexpected numeric type for '{}': {}", result, result.dataType());
-    }
-
     private List<Object> mapNumbers(List<Literal> numbers, BiFunction<Number, DataType, Object> map) {
         return numbers.stream().map(l -> map.apply((Number) l.value(), l.dataType())).toList();
     }

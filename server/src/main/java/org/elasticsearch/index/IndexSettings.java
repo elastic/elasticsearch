@@ -10,6 +10,7 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -183,6 +184,17 @@ public final class IndexSettings {
         "index.highlight.max_analyzed_offset",
         1000000,
         1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
+     * Index setting to enable/disable the {@link UnifiedHighlighter.HighlightFlag#WEIGHT_MATCHES}
+     * mode of the unified highlighter.
+     */
+    public static final Setting<Boolean> WEIGHT_MATCHES_MODE_ENABLED_SETTING = Setting.boolSetting(
+        "index.highlight.weight_matches_mode.enabled",
+        true,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -730,6 +742,7 @@ public final class IndexSettings {
     private volatile int maxShingleDiff;
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
+    private volatile boolean weightMatchesEnabled;
     private volatile int maxTermsCount;
     private volatile String defaultPipeline;
     private volatile String requiredPipeline;
@@ -871,6 +884,7 @@ public final class IndexSettings {
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
         maxAnalyzedOffset = scopedSettings.get(MAX_ANALYZED_OFFSET_SETTING);
+        weightMatchesEnabled = scopedSettings.get(WEIGHT_MATCHES_MODE_ENABLED_SETTING);
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
@@ -946,6 +960,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setHighlightMaxAnalyzedOffset);
+        scopedSettings.addSettingsUpdateConsumer(WEIGHT_MATCHES_MODE_ENABLED_SETTING, this::setWeightMatchesEnabled);
         scopedSettings.addSettingsUpdateConsumer(MAX_TERMS_COUNT_SETTING, this::setMaxTermsCount);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
@@ -1323,6 +1338,14 @@ public final class IndexSettings {
 
     private void setHighlightMaxAnalyzedOffset(int maxAnalyzedOffset) {
         this.maxAnalyzedOffset = maxAnalyzedOffset;
+    }
+
+    public boolean isWeightMatchesEnabled() {
+        return this.weightMatchesEnabled;
+    }
+
+    private void setWeightMatchesEnabled(boolean value) {
+        this.weightMatchesEnabled = value;
     }
 
     /**

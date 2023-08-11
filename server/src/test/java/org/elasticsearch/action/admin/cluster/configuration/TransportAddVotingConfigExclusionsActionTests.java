@@ -313,7 +313,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         safeAwait(countDownLatch);
     }
 
-    public void testSucceedsEvenIfAllExclusionsAlreadyAdded() {
+    public void testTriggersReconfigurationEvenIfAllExclusionsAlreadyAdded() {
         final ClusterState state = clusterService.state();
         final ClusterState.Builder builder = builder(state);
         builder.metadata(

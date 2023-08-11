@@ -94,4 +94,4 @@ setup:
 
   - match: { timeout_policy.policy.phases.warm.min_age: "1d" }
   - match: { timeout_policy.policy.phases.warm.actions.downsample.fixed_interval: "1h" }
-  - match: { timeout_policy.policy.phases.warm.actions.downsample.timeout: "1h" }
+  - match: { timeout_policy.policy.phases.warm.actions.downsample.wait_timeout: "1h" }

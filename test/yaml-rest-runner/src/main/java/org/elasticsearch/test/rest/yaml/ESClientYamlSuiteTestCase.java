@@ -483,29 +483,33 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140")
         );
 
-        final Settings globalTemplateSettings = getGlobalTemplateSettings(testCandidate.getTestSection().getSkipSection().getFeatures());
-        if (globalTemplateSettings.isEmpty() == false) {
-            final XContentBuilder template = jsonBuilder();
-            template.startObject();
-            {
-                template.startArray("index_patterns").value("*").endArray();
-                template.startObject("settings");
-                globalTemplateSettings.toXContent(template, ToXContent.EMPTY_PARAMS);
+        if (ESRestTestCase.has(ProductFeature.LEGACY_TEMPLATES)) {
+            final Settings globalTemplateSettings = getGlobalTemplateSettings(
+                testCandidate.getTestSection().getSkipSection().getFeatures()
+            );
+            if (globalTemplateSettings.isEmpty() == false) {
+                final XContentBuilder template = jsonBuilder();
+                template.startObject();
+                {
+                    template.startArray("index_patterns").value("*").endArray();
+                    template.startObject("settings");
+                    globalTemplateSettings.toXContent(template, ToXContent.EMPTY_PARAMS);
+                    template.endObject();
+                }
                 template.endObject();
-            }
-            template.endObject();
 
-            final Request request = new Request("PUT", "/_template/global");
-            request.setJsonEntity(Strings.toString(template));
-            // Because this has not yet transitioned to a composable template, it's possible that
-            // this can overlap an installed composable template since this is a global (*)
-            // template. In order to avoid this failing the test, we override the warnings handler
-            // to be permissive in this case. This can be removed once all tests use composable
-            // templates instead of legacy templates
-            RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
-            builder.setWarningsHandler(WarningsHandler.PERMISSIVE);
-            request.setOptions(builder.build());
-            adminClient().performRequest(request);
+                final Request request = new Request("PUT", "/_template/global");
+                request.setJsonEntity(Strings.toString(template));
+                // Because this has not yet transitioned to a composable template, it's possible that
+                // this can overlap an installed composable template since this is a global (*)
+                // template. In order to avoid this failing the test, we override the warnings handler
+                // to be permissive in this case. This can be removed once all tests use composable
+                // templates instead of legacy templates
+                RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+                builder.setWarningsHandler(WarningsHandler.PERMISSIVE);
+                request.setOptions(builder.build());
+                adminClient().performRequest(request);
+            }
         }
 
         if (skipSetupSections() == false && testCandidate.getSetupSection().isEmpty() == false) {

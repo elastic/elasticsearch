@@ -276,7 +276,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodeVersions != null;
     }
 
-    private static boolean has(ProductFeature feature) {
+    protected static boolean has(ProductFeature feature) {
         return availableFeatures.contains(feature);
     }
 

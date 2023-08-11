@@ -65,7 +65,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -381,7 +381,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     public void testPutRoleWithRemoteIndicesUnsupportedMinNodeVersion() {
         final Client client = mock(Client.class);
         final TransportVersion transportVersionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
-            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
         );
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
@@ -431,7 +431,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             e.getMessage(),
             containsString(
                 "all nodes must have transport version ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                     + "] or higher to support remote indices privileges"
             )
         );

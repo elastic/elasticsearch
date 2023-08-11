@@ -28,7 +28,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 
 /**
  * Response for a {@link GetUserPrivilegesRequest}
@@ -49,7 +49,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         index = in.readImmutableSet(Indices::new);
         application = in.readImmutableSet(RoleDescriptor.ApplicationResourcePrivileges::new);
         runAs = in.readImmutableSet(StreamInput::readString);
-        if (in.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+        if (in.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
             remoteIndex = in.readImmutableSet(RemoteIndices::new);
         } else {
             remoteIndex = Set.of();
@@ -107,12 +107,12 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         out.writeCollection(index);
         out.writeCollection(application);
         out.writeCollection(runAs, StreamOutput::writeString);
-        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
             out.writeCollection(remoteIndex);
         } else if (hasRemoteIndicesPrivileges()) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                     + "] can't handle remote indices privileges and attempted to send to ["
                     + out.getTransportVersion()
                     + "]"

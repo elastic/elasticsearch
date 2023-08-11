@@ -37,7 +37,6 @@ import static org.elasticsearch.transport.TransportSettings.TCP_SEND_BUFFER_SIZE
  */
 public class RemoteClusterPortSettings {
 
-    public static final TransportVersion TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS = TransportVersion.V_8_8_0;
     public static final TransportVersion TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY = TransportVersion.V_8_500_057;
 
     public static final String REMOTE_CLUSTER_PROFILE = "_remote_cluster";

@@ -47,8 +47,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
-
 /**
  * A holder for a Role that contains user-readable information about the Role
  * without containing the actual Role object.
@@ -196,7 +194,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         this.applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
         this.configurableClusterPrivileges = ConfigurableClusterPrivileges.readArray(in);
-        if (in.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             this.remoteIndicesPrivileges = in.readArray(RemoteIndicesPrivileges::new, RemoteIndicesPrivileges[]::new);
         } else {
             this.remoteIndicesPrivileges = RemoteIndicesPrivileges.NONE;
@@ -415,7 +413,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         out.writeGenericMap(transientMetadata);
         out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
         ConfigurableClusterPrivileges.writeArray(out, getConditionalClusterPrivileges());
-        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             out.writeArray(remoteIndicesPrivileges);
         }
         if (out.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {

@@ -737,6 +737,15 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             }
             return false;
         }
+
+        /**
+         * @return true if this Clusters object was initialized with underlying Cluster objects
+         * for tracking search Cluster details.
+         */
+        public boolean hasClusterObjects() {
+            return clusterInfo.keySet().size() > 0;
+        }
+
     }
 
     /**

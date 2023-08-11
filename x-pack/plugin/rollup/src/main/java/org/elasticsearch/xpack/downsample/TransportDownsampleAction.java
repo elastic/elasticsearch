@@ -303,6 +303,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     final Index sourceIndex = sourceIndexMetadata.getIndex();
                     // NOTE: before we set the number of replicas to 0, as a result here we are
                     // only dealing with primary shards.
+                    final AtomicInteger countDown = new AtomicInteger(numberOfShards);
                     for (int shardNum = 0; shardNum < numberOfShards; shardNum++) {
                         final ShardId shardId = new ShardId(sourceIndex, shardNum);
                         final String persistentRollupTaskId = createRollupShardTaskId(
@@ -343,6 +344,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                                             rollupIndexName,
                                             parentTask,
                                             numberOfShards,
+                                            countDown,
                                             persistentRollupTaskId,
                                             params
                                         );
@@ -364,7 +366,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                                             rollupIndexName,
                                             parentTask,
                                             numberOfShards,
-                                            persistentRollupTaskId,
+                                            countDown, persistentRollupTaskId,
                                             params
                                         );
                                     } else {
@@ -389,11 +391,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final IndexMetadata sourceIndexMetadata,
         final String rollupIndexName,
         final TaskId parentTask,
-        int numberOfShards,
+        final int numberOfShards,
+        final AtomicInteger countDown,
         final String persistentRollupTaskId,
         final RollupShardTaskParams params
     ) {
-        final AtomicInteger countDown = new AtomicInteger(numberOfShards);
         logger.info("Downsampling task [" + persistentRollupTaskId + " completed for shard " + params.shardId());
         if (countDown.decrementAndGet() != 0) {
             return;

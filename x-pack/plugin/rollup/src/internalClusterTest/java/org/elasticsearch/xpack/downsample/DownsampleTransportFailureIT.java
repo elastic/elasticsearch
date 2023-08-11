@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.rollup.Rollup;
-import org.junit.Assert;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -135,7 +134,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
     private static final int DOWNSAMPLE_ACTION_TIMEOUT_MILLIS = 10_000;
     private static final String SOURCE_INDEX_NAME = "source";
     private static final String TARGET_INDEX_NAME = "target";
-    private static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
+    private static final TimeValue WAIT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
     private long startTime;
     private long endTime;
     private TestClusterHelper testCluster;
@@ -221,18 +220,18 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
     public void indexDocuments(final String indexName, final List<String> documentsJson) {
         final BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         documentsJson.forEach(document -> bulkRequestBuilder.add(new IndexRequest(indexName).source(document, XContentType.JSON)));
-        Assert.assertFalse(bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get().hasFailures());
+        assertFalse(bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get().hasFailures());
     }
 
     public void blockIndexWrites(final String indexName) throws ExecutionException, InterruptedException {
         final Settings blockWritesSetting = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
-        Assert.assertTrue(
+        assertTrue(
             client().admin().indices().updateSettings(new UpdateSettingsRequest(blockWritesSetting, indexName)).get().isAcknowledged()
         );
     }
 
     private void createTimeSeriesIndex(final String indexName) throws IOException {
-        Assert.assertTrue(prepareCreate(indexName).setMapping(indexMapping()).get().isShardsAcknowledged());
+        assertTrue(prepareCreate(indexName).setMapping(indexMapping()).get().isShardsAcknowledged());
     }
 
     private void assertDownsampleFailure(final String nodeName) {
@@ -247,7 +246,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
             .setTrackTotalHitsUpTo(Integer.MAX_VALUE)
             .setSize(DOCUMENTS.size())
             .get();
-        Assert.assertEquals(DOCUMENTS.size(), searchResponse.getHits().getHits().length);
+        assertEquals(DOCUMENTS.size(), searchResponse.getHits().getHits().length);
     }
 
     private void assertIndexExists(final String nodeName, final String indexName) {
@@ -257,7 +256,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
             .addIndices(indexName)
             .addFeatures(GetIndexRequest.Feature.values())
             .get();
-        Assert.assertEquals(List.of(indexName), Arrays.stream(getIndexResponse.indices()).toList());
+        assertEquals(List.of(indexName), Arrays.stream(getIndexResponse.indices()).toList());
     }
 
     private void assertIndexDoesNotExist(final String nodeName, final String indexName) {
@@ -271,7 +270,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
                 .addFeatures(GetIndexRequest.Feature.values())
                 .get()
         );
-        Assert.assertEquals("no such index [" + indexName + "]", targetIndexNotFoundException.getMessage());
+        assertEquals("no such index [" + indexName + "]", targetIndexNotFoundException.getMessage());
     }
 
     public void testNoDisruption() {
@@ -280,7 +279,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
             SOURCE_INDEX_NAME,
             TARGET_INDEX_NAME,
-            TIMEOUT,
+            WAIT_TIMEOUT,
             new DownsampleConfig(DateHistogramInterval.MINUTE)
         );
 
@@ -290,7 +289,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
         final AcknowledgedResponse downsampleResponse = testCluster.masterClient()
             .execute(DownsampleAction.INSTANCE, downsampleRequest)
             .actionGet(TimeValue.timeValueMillis(DOWNSAMPLE_ACTION_TIMEOUT_MILLIS));
-        Assert.assertTrue(downsampleResponse.isAcknowledged());
+        assertTrue(downsampleResponse.isAcknowledged());
 
         assertIndexExists(testCluster.coordinatorName(), SOURCE_INDEX_NAME);
         assertDocumentsExist(testCluster.coordinatorName(), SOURCE_INDEX_NAME);
@@ -307,7 +306,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
             SOURCE_INDEX_NAME,
             TARGET_INDEX_NAME,
-            TIMEOUT,
+            WAIT_TIMEOUT,
             new DownsampleConfig(DateHistogramInterval.HOUR)
         );
 

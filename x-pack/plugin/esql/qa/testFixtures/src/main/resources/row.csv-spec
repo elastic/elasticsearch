@@ -319,7 +319,7 @@ strings:keyword |ints:integer
 ;
 
 arraysWithNegatives
-row integers = [1, -2, -300, -2147483648], longs = [1, -2, -2147483649], longs2 = [1, -2, -9223372036854775808], doubles = [1, -.455, -2.43, 3.4, -0.12, 8];
+row integers = [+   1, -2, -300, -2147483648], longs = [1, -          2, -2147483649], longs2 = [+1, -2, -9223372036854775808], doubles = [1, -.455, -2.43, 3.4, -    0.12, 8];
 
 integers:integer            | longs:long            | longs2:long                   | doubles:double 
 [1, -2, -300, -2147483648]  | [1, -2, -2147483649]  | [1, -2, -9223372036854775808] | [1, -0.455, -2.43, 3.4, -0.12, 8]

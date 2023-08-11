@@ -13,8 +13,8 @@ base {
 addQaCheckDependencies(project)
 
 dependencies {
-  testImplementation project(':server')
   compileOnly project(":server")
+  testImplementation testArtifact(project(':server'))
 
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))

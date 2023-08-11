@@ -65,6 +65,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
         public static final String SEARCH = "search";
+        public static final String SEARCH_WORKER = "search_worker";
         public static final String SEARCH_COORDINATION = "search_coordination";
         public static final String AUTO_COMPLETE = "auto_complete";
         public static final String SEARCH_THROTTLED = "search_throttled";
@@ -118,6 +119,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         entry(Names.ANALYZE, ThreadPoolType.FIXED),
         entry(Names.WRITE, ThreadPoolType.FIXED),
         entry(Names.SEARCH, ThreadPoolType.FIXED),
+        entry(Names.SEARCH_WORKER, ThreadPoolType.FIXED),
         entry(Names.SEARCH_COORDINATION, ThreadPoolType.FIXED),
         entry(Names.MANAGEMENT, ThreadPoolType.SCALING),
         entry(Names.FLUSH, ThreadPoolType.SCALING),
@@ -195,26 +197,19 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             Names.WRITE,
             new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000, new TaskTrackingConfig(true, 0.1))
         );
+        int searchOrGetThreadPoolSize = searchOrGetThreadPoolSize(allocatedProcessors);
         builders.put(
             Names.GET,
-            new FixedExecutorBuilder(
-                settings,
-                Names.GET,
-                searchOrGetThreadPoolSize(allocatedProcessors),
-                1000,
-                TaskTrackingConfig.DO_NOT_TRACK
-            )
+            new FixedExecutorBuilder(settings, Names.GET, searchOrGetThreadPoolSize, 1000, TaskTrackingConfig.DO_NOT_TRACK)
         );
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16, TaskTrackingConfig.DO_NOT_TRACK));
         builders.put(
             Names.SEARCH,
-            new FixedExecutorBuilder(
-                settings,
-                Names.SEARCH,
-                searchOrGetThreadPoolSize(allocatedProcessors),
-                1000,
-                TaskTrackingConfig.DEFAULT
-            )
+            new FixedExecutorBuilder(settings, Names.SEARCH, searchOrGetThreadPoolSize, 1000, TaskTrackingConfig.DEFAULT)
+        );
+        builders.put(
+            Names.SEARCH_WORKER,
+            new FixedExecutorBuilder(settings, Names.SEARCH_WORKER, searchOrGetThreadPoolSize, -1, TaskTrackingConfig.DEFAULT)
         );
         builders.put(
             Names.SEARCH_COORDINATION,

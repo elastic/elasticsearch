@@ -13,7 +13,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
@@ -51,20 +50,23 @@ class TrainedModelAssignmentRebalancer {
     private final Map<DiscoveryNode, NodeLoad> nodeLoads;
     private final Map<List<String>, Collection<DiscoveryNode>> mlNodesByZone;
     private final Optional<StartTrainedModelDeploymentAction.TaskParams> deploymentToAdd;
+    private final int allocatedProcessorsScale;
 
     TrainedModelAssignmentRebalancer(
         TrainedModelAssignmentMetadata currentMetadata,
         Map<DiscoveryNode, NodeLoad> nodeLoads,
         Map<List<String>, Collection<DiscoveryNode>> mlNodesByZone,
-        Optional<StartTrainedModelDeploymentAction.TaskParams> deploymentToAdd
+        Optional<StartTrainedModelDeploymentAction.TaskParams> deploymentToAdd,
+        int allocatedProcessorsScale
     ) {
         this.currentMetadata = Objects.requireNonNull(currentMetadata);
         this.nodeLoads = Objects.requireNonNull(nodeLoads);
         this.mlNodesByZone = Objects.requireNonNull(mlNodesByZone);
         this.deploymentToAdd = Objects.requireNonNull(deploymentToAdd);
+        this.allocatedProcessorsScale = allocatedProcessorsScale;
     }
 
-    TrainedModelAssignmentMetadata.Builder rebalance(Settings settings) {
+    TrainedModelAssignmentMetadata.Builder rebalance() {
         if (deploymentToAdd.isPresent() && currentMetadata.hasDeployment(deploymentToAdd.get().getDeploymentId())) {
             throw new ResourceAlreadyExistsException(
                 "[{}] assignment for deployment with model [{}] already exists",
@@ -78,8 +80,8 @@ class TrainedModelAssignmentRebalancer {
             return TrainedModelAssignmentMetadata.Builder.fromMetadata(currentMetadata);
         }
 
-        AssignmentPlan assignmentPlan = computeAssignmentPlan(settings);
-        return buildAssignmentsFromPlan(assignmentPlan, settings);
+        AssignmentPlan assignmentPlan = computeAssignmentPlan();
+        return buildAssignmentsFromPlan(assignmentPlan);
     }
 
     private boolean areAllModelsSatisfiedAndNoOutdatedRoutingEntries() {
@@ -92,8 +94,8 @@ class TrainedModelAssignmentRebalancer {
         return true;
     }
 
-    AssignmentPlan computeAssignmentPlan(Settings settings) {
-        final Map<List<String>, List<AssignmentPlan.Node>> nodesByZone = createNodesByZoneMap(settings);
+    AssignmentPlan computeAssignmentPlan() {
+        final Map<List<String>, List<AssignmentPlan.Node>> nodesByZone = createNodesByZoneMap();
         final Set<String> assignableNodeIds = nodesByZone.values()
             .stream()
             .flatMap(List::stream)
@@ -271,7 +273,7 @@ class TrainedModelAssignmentRebalancer {
         return fittingAssignments;
     }
 
-    private Map<List<String>, List<AssignmentPlan.Node>> createNodesByZoneMap(Settings settings) {
+    private Map<List<String>, List<AssignmentPlan.Node>> createNodesByZoneMap() {
         return mlNodesByZone.entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> {
             Collection<DiscoveryNode> discoveryNodes = e.getValue();
             List<AssignmentPlan.Node> nodes = new ArrayList<>();
@@ -285,7 +287,7 @@ class TrainedModelAssignmentRebalancer {
                                 // We subtract native inference memory as the planner expects available memory for
                                 // native inference including current assignments.
                                 getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(load),
-                                MlProcessors.get(discoveryNode, settings).roundUp()
+                                MlProcessors.get(discoveryNode, allocatedProcessorsScale).roundUp()
                             )
                         );
                     } else {
@@ -305,7 +307,7 @@ class TrainedModelAssignmentRebalancer {
         return load.getFreeMemoryExcludingPerNodeOverhead() - load.getAssignedNativeInferenceMemory();
     }
 
-    private TrainedModelAssignmentMetadata.Builder buildAssignmentsFromPlan(AssignmentPlan assignmentPlan, Settings settings) {
+    private TrainedModelAssignmentMetadata.Builder buildAssignmentsFromPlan(AssignmentPlan assignmentPlan) {
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.Builder.empty();
         for (AssignmentPlan.Deployment deployment : assignmentPlan.models()) {
             TrainedModelAssignment existingAssignment = currentMetadata.getDeploymentAssignment(deployment.id());
@@ -343,7 +345,7 @@ class TrainedModelAssignmentRebalancer {
             }
             assignmentBuilder.calculateAndSetAssignmentState();
 
-            explainAssignments(assignmentPlan, nodeLoads, deployment, settings).ifPresent(assignmentBuilder::setReason);
+            explainAssignments(assignmentPlan, nodeLoads, deployment).ifPresent(assignmentBuilder::setReason);
             builder.addNewAssignment(deployment.id(), assignmentBuilder);
         }
         return builder;
@@ -352,8 +354,7 @@ class TrainedModelAssignmentRebalancer {
     private Optional<String> explainAssignments(
         AssignmentPlan assignmentPlan,
         Map<DiscoveryNode, NodeLoad> nodeLoads,
-        AssignmentPlan.Deployment deployment,
-        Settings settings
+        AssignmentPlan.Deployment deployment
     ) {
         if (assignmentPlan.satisfiesAllocations(deployment)) {
             return Optional.empty();
@@ -365,7 +366,7 @@ class TrainedModelAssignmentRebalancer {
 
         Map<String, String> nodeToReason = new TreeMap<>();
         for (Map.Entry<DiscoveryNode, NodeLoad> nodeAndLoad : nodeLoads.entrySet()) {
-            Optional<String> reason = explainAssignment(assignmentPlan, nodeAndLoad.getKey(), nodeAndLoad.getValue(), deployment, settings);
+            Optional<String> reason = explainAssignment(assignmentPlan, nodeAndLoad.getKey(), nodeAndLoad.getValue(), deployment);
             reason.ifPresent(s -> nodeToReason.put(nodeAndLoad.getKey().getId(), s));
         }
 
@@ -384,8 +385,7 @@ class TrainedModelAssignmentRebalancer {
         AssignmentPlan assignmentPlan,
         DiscoveryNode node,
         NodeLoad load,
-        AssignmentPlan.Deployment deployment,
-        Settings settings
+        AssignmentPlan.Deployment deployment
     ) {
         if (Strings.isNullOrEmpty(load.getError()) == false) {
             return Optional.of(load.getError());
@@ -398,7 +398,7 @@ class TrainedModelAssignmentRebalancer {
             // But we should also check if we managed to assign a model during the rebalance for which
             // we check if the node has used up any of its allocated processors.
             boolean isPerNodeOverheadAccountedFor = load.getNumAssignedJobsAndModels() > 0
-                || assignmentPlan.getRemainingNodeCores(load.getNodeId()) < MlProcessors.get(node, settings).roundUp();
+                || assignmentPlan.getRemainingNodeCores(load.getNodeId()) < MlProcessors.get(node, allocatedProcessorsScale).roundUp();
             long requiredMemory = deployment.memoryBytes() + (isPerNodeOverheadAccountedFor
                 ? 0
                 : MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes());
@@ -427,7 +427,7 @@ class TrainedModelAssignmentRebalancer {
                     "This node has insufficient allocated processors. Available processors [{}], free processors [{}], "
                         + "processors required for each allocation of this model [{}]",
                     new Object[] {
-                        MlProcessors.get(node, settings).roundUp(),
+                        MlProcessors.get(node, allocatedProcessorsScale).roundUp(),
                         assignmentPlan.getRemainingNodeCores(node.getId()),
                         deployment.threadsPerAllocation() }
                 )

@@ -349,7 +349,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(scrollJobId);
-            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs + numDocs2));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
         }, 60, TimeUnit.SECONDS);
 

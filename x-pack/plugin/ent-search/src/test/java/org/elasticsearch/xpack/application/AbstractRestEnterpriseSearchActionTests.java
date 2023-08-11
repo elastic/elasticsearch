@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
 public abstract class AbstractRestEnterpriseSearchActionTests extends ESTestCase {
-    protected void checkLicenseForRequest(FakeRestRequest request) throws Exception {
+    protected void checkLicenseForRequest(FakeRestRequest request, EnterpriseSearchFeature.Feature feature) throws Exception {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final EnterpriseSearchBaseRestHandler action = getRestAction(licenseState);
 
@@ -33,6 +33,7 @@ public abstract class AbstractRestEnterpriseSearchActionTests extends ESTestCase
         assertThat(channel.capturedResponse(), notNullValue());
         assertThat(channel.capturedResponse().status(), equalTo(RestStatus.FORBIDDEN));
         assertThat(channel.capturedResponse().content().utf8ToString(), containsString("Current license is non-compliant"));
+        assertThat(channel.capturedResponse().content().utf8ToString(), containsString(feature.getName()));
     }
 
     protected abstract EnterpriseSearchBaseRestHandler getRestAction(XPackLicenseState licenseState);

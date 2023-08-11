@@ -45,7 +45,7 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
      */
     protected final RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         RestChannelConsumer consumer = innerPrepareRequest(request, client);
-        final Exception failedFeature = checkFeatureAvailable(request);
+        final Exception failedFeature = checkFeatureAvailable();
         if (failedFeature == null) {
             return consumer;
         } else {
@@ -62,7 +62,7 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
      * @return {@code null} if all required features are available, otherwise an exception to be
      * sent to the requestor
      */
-    protected Exception checkFeatureAvailable(RestRequest request) {
+    protected Exception checkFeatureAvailable() {
         if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
             return new IllegalStateException("Security is not enabled but a security rest handler is registered");
         } else {

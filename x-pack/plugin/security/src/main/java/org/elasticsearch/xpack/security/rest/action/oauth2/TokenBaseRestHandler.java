@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
@@ -28,8 +27,8 @@ abstract class TokenBaseRestHandler extends SecurityBaseRestHandler {
     }
 
     @Override
-    protected Exception checkFeatureAvailable(RestRequest request) {
-        Exception failedFeature = super.checkFeatureAvailable(request);
+    protected Exception checkFeatureAvailable() {
+        Exception failedFeature = super.checkFeatureAvailable();
         if (failedFeature != null) {
             return failedFeature;
         } else if (Security.TOKEN_SERVICE_FEATURE.check(licenseState)) {

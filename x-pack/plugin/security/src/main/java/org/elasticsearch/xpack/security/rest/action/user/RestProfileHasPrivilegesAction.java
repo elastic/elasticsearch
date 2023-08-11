@@ -67,8 +67,8 @@ public class RestProfileHasPrivilegesAction extends SecurityBaseRestHandler {
     }
 
     @Override
-    protected Exception checkFeatureAvailable(RestRequest request) {
-        final Exception failedFeature = super.checkFeatureAvailable(request);
+    protected Exception checkFeatureAvailable() {
+        final Exception failedFeature = super.checkFeatureAvailable();
         if (failedFeature != null) {
             return failedFeature;
         }

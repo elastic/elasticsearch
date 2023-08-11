@@ -134,7 +134,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                     length,
                     cacheFile
                 );
-                final int read = SharedBytes.readCacheFile(channel, pos, relativePos, len, byteBufferReference, cacheFile);
+                final int read = SharedBytes.readCacheFile(channel, pos, relativePos, len, byteBufferReference);
                 stats.addCachedBytesRead(read);
                 return read;
             }, (channel, channelPos, relativePos, len, progressUpdater) -> {
@@ -156,8 +156,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                         relativePos,
                         len,
                         progressUpdater,
-                        writeBuffer.get().clear(),
-                        cacheFile
+                        writeBuffer.get().clear()
                     );
                     final long endTimeNanos = stats.currentTimeNanos();
                     stats.addCachedBytesWritten(len, endTimeNanos - startTimeNanos);
@@ -168,11 +167,6 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         } finally {
             byteBufferReference.finish(0);
         }
-    }
-
-    @Override
-    public FrozenIndexInput clone() {
-        return (FrozenIndexInput) super.clone();
     }
 
     @Override
@@ -190,7 +184,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             fileInfo,
             context,
             stats,
-            this.offset + sliceOffset,
+            sliceOffset,
             sliceCompoundFileOffset,
             sliceLength,
             cacheFileReference,

@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -46,6 +47,9 @@ public class TransportPutSearchApplicationAction extends HandledTransportAction<
     ) {
         SearchApplication app = request.getSearchApplication();
         boolean create = request.create();
+        if (app.hasStoredTemplate() == false) {
+            HeaderWarning.addWarning(SearchApplication.NO_TEMPLATE_STORED_WARNING);
+        }
         systemIndexService.putSearchApplication(app, create, listener.map(r -> new PutSearchApplicationAction.Response(r.getResult())));
 
     }

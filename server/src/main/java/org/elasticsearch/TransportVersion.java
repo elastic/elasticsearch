@@ -171,9 +171,19 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     public static final TransportVersion V_8_500_046 = registerTransportVersion(8_500_046, "61666d4c-a4f0-40db-8a3d-4806718247c5");
     public static final TransportVersion V_8_500_047 = registerTransportVersion(8_500_047, "4b1682fe-c37e-4184-80f6-7d57fcba9b3d");
     public static final TransportVersion V_8_500_048 = registerTransportVersion(8_500_048, "f9658aa5-f066-4edb-bcb9-40bf256c9294");
+    public static final TransportVersion V_8_500_049 = registerTransportVersion(8_500_049, "828bb6ce-2fbb-11ee-be56-0242ac120002");
+    public static final TransportVersion V_8_500_050 = registerTransportVersion(8_500_050, "69722fa2-7c0a-4227-86fb-6d6a9a0a0321");
+    public static final TransportVersion V_8_500_051 = registerTransportVersion(8_500_051, "a28b43bc-bb5f-4406-afcf-26900aa98a71");
+    public static final TransportVersion V_8_500_052 = registerTransportVersion(8_500_052, "2d382b3d-9838-4cce-84c8-4142113e5c2b");
+    public static final TransportVersion V_8_500_053 = registerTransportVersion(8_500_053, "aa603bae-01e2-380a-8950-6604468e8c6d");
+    public static final TransportVersion V_8_500_054 = registerTransportVersion(8_500_054, "b76ef950-af03-4dda-85c2-6400ec442e7e");
+    public static final TransportVersion V_8_500_055 = registerTransportVersion(8_500_055, "7831c609-0df1-42d6-aa97-8a346c389ef");
+    public static final TransportVersion V_8_500_056 = registerTransportVersion(8_500_056, "afa8c4be-29c9-48ab-b1ed-7182415c1b71");
+    public static final TransportVersion V_8_500_057 = registerTransportVersion(8_500_057, "80c088c6-358d-43b2-8d9c-1ea3c6c2b9fd");
+    public static final TransportVersion V_8_500_058 = registerTransportVersion(8_500_058, "41d9c98a-1de2-4dc1-86f1-abd4cc1bef57");
 
     private static class CurrentHolder {
-        private static final TransportVersion CURRENT = findCurrent(V_8_500_048);
+        private static final TransportVersion CURRENT = findCurrent(V_8_500_058);
 
         // finds the pluggable current version, or uses the given fallback
         private static TransportVersion findCurrent(TransportVersion fallback) {

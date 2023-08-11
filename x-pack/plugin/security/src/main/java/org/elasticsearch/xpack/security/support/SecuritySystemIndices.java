@@ -12,8 +12,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.transport.TcpTransport;
@@ -58,10 +60,10 @@ public class SecuritySystemIndices {
     private SecurityIndexManager tokenIndexManager;
     private SecurityIndexManager profileIndexManager;
 
-    public SecuritySystemIndices() {
+    public SecuritySystemIndices(Settings settings) {
         this.mainDescriptor = getSecurityMainIndexDescriptor();
         this.tokenDescriptor = getSecurityTokenIndexDescriptor();
-        this.profileDescriptor = getSecurityProfileIndexDescriptor();
+        this.profileDescriptor = getSecurityProfileIndexDescriptor(settings);
         this.initialized = new AtomicBoolean(false);
         this.mainIndexManager = null;
         this.tokenIndexManager = null;
@@ -778,13 +780,13 @@ public class SecuritySystemIndices {
         }
     }
 
-    private SystemIndexDescriptor getSecurityProfileIndexDescriptor() {
+    private SystemIndexDescriptor getSecurityProfileIndexDescriptor(Settings settings) {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(".security-profile-[0-9]+*")
             .setPrimaryIndex(INTERNAL_SECURITY_PROFILE_INDEX_8)
             .setDescription("Contains user profile documents")
             .setMappings(getProfileIndexMappings())
-            .setSettings(getProfileIndexSettings())
+            .setSettings(getProfileIndexSettings(settings))
             .setAliasName(SECURITY_PROFILE_ALIAS)
             .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
             .setVersionMetaKey(SECURITY_VERSION_STRING)
@@ -798,7 +800,7 @@ public class SecuritySystemIndices {
                         .setPrimaryIndex(INTERNAL_SECURITY_PROFILE_INDEX_8)
                         .setDescription("Contains user profile documents")
                         .setMappings(getProfileIndexMappings())
-                        .setSettings(getProfileIndexSettings())
+                        .setSettings(getProfileIndexSettings(settings))
                         .setAliasName(SECURITY_PROFILE_ALIAS)
                         .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
                         .setVersionMetaKey(SECURITY_VERSION_STRING)
@@ -810,8 +812,8 @@ public class SecuritySystemIndices {
             .build();
     }
 
-    private static Settings getProfileIndexSettings() {
-        return Settings.builder()
+    private static Settings getProfileIndexSettings(Settings settings) {
+        final Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
@@ -821,8 +823,15 @@ public class SecuritySystemIndices {
             .put("analysis.filter.email.preserve_original", true)
             .putList("analysis.filter.email.patterns", List.of("([^@]+)", "(\\p{L}+)", "(\\d+)", "@(.+)"))
             .put("analysis.analyzer.email.tokenizer", "uax_url_email")
-            .putList("analysis.analyzer.email.filter", List.of("email", "lowercase", "unique"))
-            .build();
+            .putList("analysis.analyzer.email.filter", List.of("email", "lowercase", "unique"));
+        if (DiscoveryNode.isStateless(settings)) {
+            // The profiles functionality is intrinsically related to Kibana. Only Kibana uses this index (via dedicated APIs).
+            // Since the regular ".kibana" index is marked "fast_refresh", we opt to mark the user profiles index as "fast_refresh" too.
+            // This way the profiles index has the same availability and latency characteristics as the regular ".kibana" index, so APIs
+            // touching either of the two indices are more predictable.
+            settingsBuilder.put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true);
+        }
+        return settingsBuilder.build();
     }
 
     private XContentBuilder getProfileIndexMappings() {

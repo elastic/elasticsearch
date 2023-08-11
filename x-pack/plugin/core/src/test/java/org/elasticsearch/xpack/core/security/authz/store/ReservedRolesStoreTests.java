@@ -753,7 +753,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".fleet-enrollment-api-keys",
             ".fleet-policies",
             ".fleet-actions-results",
-            ".fleet-servers"
+            ".fleet-servers",
+            ".fleet-fileds"
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
 
         final IndexAbstraction dotFleetSecretsIndex = mockIndexAbstraction(".fleet-secrets");
@@ -767,6 +768,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(dotFleetSecretsIndex), is(false));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(dotFleetSecretsIndex), is(false));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotFleetSecretsIndex), is(false));
+
+        assertThat(kibanaRole.cluster().check("cluster:admin/fleet/secrets/get", request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check("cluster:admin/fleet/secrets/post", request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check("cluster:admin/fleet/secrets/delete", request, authentication), is(true));
 
         // read-only indices for Fleet telemetry
         Arrays.asList("logs-elastic_agent-default", "logs-elastic_agent.fleet_server-default").forEach((index) -> {

@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
@@ -221,7 +221,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             .setDescription("trained model config for test")
             .setModelId(modelId)
             .setModelType(TrainedModelType.TREE_ENSEMBLE)
-            .setVersion(Version.CURRENT)
+            .setVersion(MlConfigVersion.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setModelSize(bytesUsed)
             .setEstimatedOperations(operations)

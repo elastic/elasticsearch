@@ -33,6 +33,7 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardCountStats;
@@ -195,6 +196,11 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
     @Nullable
     public NodeMappingStats getNodeMappingStats() {
         return stats.getNodeMappings();
+    }
+
+    @Nullable
+    public DenseVectorStats getDenseVectorStats() {
+        return stats.getDenseVectorStats();
     }
 
     @Override

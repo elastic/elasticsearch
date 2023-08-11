@@ -23,17 +23,30 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class SearchEngineTests extends AbstractEngineTestCase {
@@ -165,5 +178,82 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             case 2 -> new IndexFormatTooNewException("Test corruption", 0, 0, 0);
             default -> throw new AssertionError("Unexpected value");
         };
+    }
+
+    public void testAcquiredPrimaryTermAndGenerations() throws IOException {
+        final AtomicLong primaryTerm = new AtomicLong(randomLongBetween(1L, 1_000L));
+        final var indexConfig = indexConfig(Settings.EMPTY, Settings.EMPTY, primaryTerm::get);
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            var gen = new PrimaryTermAndGeneration(primaryTerm.get(), 2L);
+
+            // no initial active searchers
+            assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), empty());
+            assertThat(searchEngine.getCurrentGeneration(), equalTo(indexEngine.getCurrentGeneration()));
+
+            {
+                // new searcher is recorded
+                var searcher = searchEngine.acquireSearcher("test");
+                assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(gen));
+                searcher.close();
+            }
+
+            {
+                // record is removed when all searchers are closed
+                var searchers = IntStream.range(0, randomIntBetween(2, 50))
+                    .mapToObj(i -> searchEngine.acquireSearcher("searcher#" + i))
+                    .collect(Collectors.toCollection(ArrayList::new));
+                searchers.forEach(searcher -> assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(gen)));
+
+                Collections.shuffle(searchers, random());
+
+                var it = searchers.iterator();
+                while (it.hasNext()) {
+                    IOUtils.close(it.next());
+                    assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), it.hasNext() ? contains(gen) : empty());
+                }
+            }
+
+            {
+                // multiple generations are tracked
+                final Map<PrimaryTermAndGeneration, Engine.Searcher> searchers = new HashMap<>();
+
+                final int newGenerations = randomIntBetween(1, 50);
+                for (int i = 0; i < newGenerations; i++) {
+
+                    searchers.forEach((key, ignored) -> assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), hasItem(key)));
+
+                    indexEngine.index(randomDoc(String.valueOf(i)));
+                    indexEngine.flush();
+
+                    if (randomBoolean()) {
+                        notifyCommits(indexEngine, searchEngine);
+                        searchTaskQueue.runAllRunnableTasks();
+
+                        var key = new PrimaryTermAndGeneration(primaryTerm.get(), indexEngine.getCurrentGeneration());
+                        searchers.put(key, searchEngine.acquireSearcher("searcher#" + i));
+                    }
+
+                    if (randomBoolean() && searchers.isEmpty() == false) {
+                        var key = randomFrom(searchers.keySet());
+                        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), hasItem(key));
+
+                        IOUtils.close(searchers.remove(key));
+                        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), not(hasItem(key)));
+                    }
+                }
+
+                assertThat(indexEngine.getCurrentGeneration(), equalTo(2L + newGenerations));
+                IOUtils.close(searchers.values());
+                assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), empty());
+            }
+        }
     }
 }

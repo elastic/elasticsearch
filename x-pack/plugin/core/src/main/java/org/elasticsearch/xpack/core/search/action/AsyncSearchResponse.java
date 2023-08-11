@@ -227,10 +227,12 @@ public class AsyncSearchResponse extends ActionResponse implements ChunkedToXCon
             TimeValue took = searchResponse.getTook();
             return Iterators.concat(
                 ChunkedToXContentHelper.timeField("completion_time_in_millis", "completion_time", startTimeMillis + took.millis()),
+                Iterators.single((b, p) -> b.field("response")),
                 searchResponse.toXContentChunked(params)
             );
+        } else {
+            return Iterators.concat(Iterators.single((ToXContent) (b, p) -> b.field("response")), searchResponse.toXContentChunked(params));
         }
-        return searchResponse.toXContentChunked(params);
     }
 
     private XContentBuilder errorToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {

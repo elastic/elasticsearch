@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -936,7 +937,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         assertNotNull("TaskCancelledException should be in the causal chain", cause);
         ShardSearchFailure[] shardFailures = searchResponseAfterCompletion.getSearchResponse().getShardFailures();
         assertThat(shardFailures.length, greaterThan(0));
-        String json = Strings.toString(searchResponseAfterCompletion.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
+        String json = Strings.toString(
+            ChunkedToXContent.wrapAsToXContent(searchResponseAfterCompletion)
+                .toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
+        );
         assertThat(json, containsString("task cancelled [by user request]"));
     }
 

@@ -184,16 +184,16 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     /**
      * This builder helps during the composition of the data lifecycle templates.
      */
-    static class Builder {
+    public static class Builder {
         @Nullable
         private Retention dataRetention = null;
 
-        Builder dataRetention(@Nullable Retention value) {
+        public Builder dataRetention(@Nullable Retention value) {
             dataRetention = value;
             return this;
         }
 
-        DataLifecycle build() {
+        public DataLifecycle build() {
             return new DataLifecycle(dataRetention);
         }
 

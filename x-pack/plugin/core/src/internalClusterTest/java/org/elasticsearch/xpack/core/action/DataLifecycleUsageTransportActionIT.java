@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataLifecycle.Retention;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -86,19 +88,25 @@ public class DataLifecycleUsageTransportActionIT extends ESIntegTestCase {
             Map<String, DataStream> dataStreamMap = new HashMap<>();
             for (int dataStreamCount = 0; dataStreamCount < randomInt(200); dataStreamCount++) {
                 boolean hasLifecycle = randomBoolean();
-                long retentionMillis;
+                DataLifecycle lifecycle;
                 if (hasLifecycle) {
-                    retentionMillis = randomLongBetween(1000, 100000);
-                    count.incrementAndGet();
-                    totalRetentionTimes.addAndGet(retentionMillis);
-                    if (retentionMillis < minRetention.get()) {
-                        minRetention.set(retentionMillis);
-                    }
-                    if (retentionMillis > maxRetention.get()) {
-                        maxRetention.set(retentionMillis);
+                    if (randomBoolean()) {
+                        lifecycle = new DataLifecycle((Retention) null);
+                    } else {
+                        long retentionMillis = randomLongBetween(1000, 100000);
+                        count.incrementAndGet();
+                        totalRetentionTimes.addAndGet(retentionMillis);
+                        if (retentionMillis < minRetention.get()) {
+                            minRetention.set(retentionMillis);
+                        }
+                        if (retentionMillis > maxRetention.get()) {
+                            maxRetention.set(retentionMillis);
+                        }
+                        lifecycle = new DataLifecycle.Builder().dataRetention(new Retention(TimeValue.timeValueMillis(retentionMillis)))
+                            .build();
                     }
                 } else {
-                    retentionMillis = 0;
+                    lifecycle = null;
                 }
                 List<Index> indices = new ArrayList<>();
                 for (int indicesCount = 0; indicesCount < randomIntBetween(1, 10); indicesCount++) {
@@ -116,7 +124,7 @@ public class DataLifecycleUsageTransportActionIT extends ESIntegTestCase {
                     systemDataStream,
                     randomBoolean(),
                     IndexMode.STANDARD,
-                    hasLifecycle ? new DataLifecycle(retentionMillis) : null
+                    lifecycle
                 );
                 dataStreamMap.put(dataStream.getName(), dataStream);
             }

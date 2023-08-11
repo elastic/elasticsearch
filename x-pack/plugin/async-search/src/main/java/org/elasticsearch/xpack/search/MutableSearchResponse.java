@@ -220,12 +220,14 @@ class MutableSearchResponse {
             reducedAggsSource = () -> reducedAggs;
             searchResponse = buildResponse(task.getStartTimeNanos(), reducedAggs);
         }
+        boolean runningStatus = isRunningStatus == null ? searchTaskCompleted == false : isRunningStatus;
+        boolean partialStatus = runningStatus || isPartial;  // while still running, keep this marked as partial
         return new AsyncSearchResponse(
             task.getExecutionId().getEncoded(),
             searchResponse,
             failure,
-            isPartial,
-            isRunningStatus == null ? searchTaskCompleted == false : isRunningStatus,
+            partialStatus,
+            runningStatus,
             task.getStartTime(),
             expirationTime
         );
@@ -245,11 +247,13 @@ class MutableSearchResponse {
             // include clusters in the status if present and not Clusters.EMPTY (the case for local searches only)
             clustersInStatus = clusters;
         }
+        boolean runningStatus = searchTaskCompleted == false;
         if (finalResponse != null) {
+            boolean partialStatus = runningStatus || isPartial;  // while still running, keep this marked as partial
             return new AsyncStatusResponse(
                 asyncExecutionId,
                 searchTaskCompleted == false,
-                false,
+                partialStatus,
                 startTime,
                 expirationTime,
                 startTime + finalResponse.getTook().millis(),
@@ -264,7 +268,7 @@ class MutableSearchResponse {
         if (failure != null) {
             return new AsyncStatusResponse(
                 asyncExecutionId,
-                searchTaskCompleted == false,
+                runningStatus,
                 true,
                 startTime,
                 expirationTime,
@@ -279,7 +283,7 @@ class MutableSearchResponse {
         }
         return new AsyncStatusResponse(
             asyncExecutionId,
-            searchTaskCompleted == false,
+            runningStatus,
             true,
             startTime,
             expirationTime,
@@ -307,12 +311,14 @@ class MutableSearchResponse {
         if (this.failure != null) {
             reduceException.addSuppressed(this.failure);
         }
+        boolean runningStatus = isRunningStatus == null ? searchTaskCompleted == false : isRunningStatus;
+        boolean partialStatus = runningStatus || isPartial;  // while still running, keep this marked as partial
         return new AsyncSearchResponse(
             task.getExecutionId().getEncoded(),
             buildResponse(task.getStartTimeNanos(), null),
             reduceException,
-            isPartial,
-            isRunningStatus == null ? searchTaskCompleted == false : isRunningStatus,
+            partialStatus,
+            runningStatus,
             task.getStartTime(),
             expirationTime
         );

@@ -18,6 +18,7 @@ dependencies {
   testImplementation project(path: xpackModule('ilm'))
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(xpackModule('ccr'))
 }
 
 addQaCheckDependencies(project)

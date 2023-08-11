@@ -343,7 +343,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         final ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
-            () -> new CreateApiKeyRequestBuilder(client).get()
+            () -> new CreateApiKeyRequestBuilder(client).setRefreshPolicy(randomFrom(NONE, WAIT_UNTIL, IMMEDIATE)).get()
         );
         assertThat(e.getMessage(), containsString("api key name is required"));
     }

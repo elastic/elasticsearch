@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataLifecycle.Retention;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -86,10 +88,10 @@ public class DataLifecycleUsageTransportActionIT extends ESIntegTestCase {
             Map<String, DataStream> dataStreamMap = new HashMap<>();
             for (int dataStreamCount = 0; dataStreamCount < randomInt(200); dataStreamCount++) {
                 boolean hasLifecycle = randomBoolean();
-                DataStreamLifecycle lifecycle;
+                DataLifecycle lifecycle;
                 if (hasLifecycle) {
                     if (randomBoolean()) {
-                        lifecycle = new DataStreamLifecycle(null, null);
+                        lifecycle = new DataLifecycle((Retention) null);
                     } else {
                         long retentionMillis = randomLongBetween(1000, 100000);
                         count.incrementAndGet();
@@ -100,7 +102,8 @@ public class DataLifecycleUsageTransportActionIT extends ESIntegTestCase {
                         if (retentionMillis > maxRetention.get()) {
                             maxRetention.set(retentionMillis);
                         }
-                        lifecycle = DataStreamLifecycle.newBuilder().dataRetention(retentionMillis).build();
+                        lifecycle = new DataLifecycle.Builder().dataRetention(new Retention(TimeValue.timeValueMillis(retentionMillis)))
+                            .build();
                     }
                 } else {
                     lifecycle = null;

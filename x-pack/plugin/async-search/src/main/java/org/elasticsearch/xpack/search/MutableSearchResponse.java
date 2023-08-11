@@ -188,7 +188,7 @@ class MutableSearchResponse {
      * The final reduce of the aggregations is executed if needed (partial response).
      * This method is synchronized to ensure that we don't perform final reduces concurrently.
      * This method also restores the response headers in the current thread context when requested, if the final response is available.
-     * @param isRunningStatus null means let this class fill in its known running state.
+     * @param isRunningStatusOverride null means let this class fill in its known running state.
      *                        Non-null means to override that and set the isRunning flag
      *                        on the response to match.
      */
@@ -196,7 +196,7 @@ class MutableSearchResponse {
         AsyncSearchTask task,
         long expirationTime,
         boolean restoreResponseHeaders,
-        Boolean isRunningStatus
+        Boolean isRunningStatusOverride
     ) {
         if (restoreResponseHeaders && responseHeaders != null) {
             restoreResponseHeadersContext(threadContext, responseHeaders);
@@ -220,7 +220,7 @@ class MutableSearchResponse {
             reducedAggsSource = () -> reducedAggs;
             searchResponse = buildResponse(task.getStartTimeNanos(), reducedAggs);
         }
-        boolean runningStatus = isRunningStatus == null ? searchTaskCompleted == false : isRunningStatus;
+        boolean runningStatus = isRunningStatusOverride == null ? searchTaskCompleted == false : isRunningStatusOverride;
         boolean partialStatus = runningStatus || isPartial;  // while still running, keep this marked as partial
         return new AsyncSearchResponse(
             task.getExecutionId().getEncoded(),
@@ -298,20 +298,19 @@ class MutableSearchResponse {
     }
 
     /**
-     * @param isRunningStatus null means let this class fill in its known running state.
-     *                        Non-null means to override that and set the isRunning flag
-     *                        on the response to match.
+     * @param isRunningStatusOverride null means let this class fill in its known running state.
+     *        Non-null means to override that and set the isRunning flag on the response to match.
      */
     synchronized AsyncSearchResponse toAsyncSearchResponse(
         AsyncSearchTask task,
         long expirationTime,
         ElasticsearchException reduceException,
-        Boolean isRunningStatus
+        Boolean isRunningStatusOverride
     ) {
         if (this.failure != null) {
             reduceException.addSuppressed(this.failure);
         }
-        boolean runningStatus = isRunningStatus == null ? searchTaskCompleted == false : isRunningStatus;
+        boolean runningStatus = isRunningStatusOverride == null ? searchTaskCompleted == false : isRunningStatusOverride;
         boolean partialStatus = runningStatus || isPartial;  // while still running, keep this marked as partial
         return new AsyncSearchResponse(
             task.getExecutionId().getEncoded(),

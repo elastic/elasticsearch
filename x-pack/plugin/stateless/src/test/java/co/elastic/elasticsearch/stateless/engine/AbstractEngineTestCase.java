@@ -87,6 +87,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -135,10 +136,6 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 terminate(threadPool);
             }
         }
-    }
-
-    protected IndexEngine newIndexEngine() throws IOException {
-        return newIndexEngine(indexConfig());
     }
 
     protected IndexEngine newIndexEngine(final EngineConfig indexConfig) {
@@ -191,11 +188,15 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected EngineConfig indexConfig(Settings settings, Settings nodeSettings) throws IOException {
+        var primaryTerm = new AtomicLong(1L);
+        return indexConfig(settings, nodeSettings, primaryTerm::get);
+    }
+
+    protected EngineConfig indexConfig(Settings settings, Settings nodeSettings, LongSupplier primaryTermSupplier) throws IOException {
         var shardId = new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), UUIDs.randomBase64UUID(random())), randomInt(10));
         var indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings, nodeSettings);
         var translogConfig = new TranslogConfig(shardId, createTempDir(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         var indexWriterConfig = newIndexWriterConfig();
-        var primaryTerm = new AtomicLong(1);
         var threadPool = registerThreadPool(new TestThreadPool(getTestName() + "[" + shardId + "][index]"));
         var directory = newDirectory();
         if (Lucene.indexExists(directory)) {
@@ -207,7 +208,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             translogConfig.getTranslogPath(),
             SequenceNumbers.NO_OPS_PERFORMED,
             shardId,
-            primaryTerm.get()
+            primaryTermSupplier.getAsLong()
         );
         store.associateIndexWithNewTranslog(translogUuid);
 
@@ -232,7 +233,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             new NoneCircuitBreakerService(),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             () -> RetentionLeases.EMPTY,
-            primaryTerm::get,
+            primaryTermSupplier,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             null,
             threadPool::relativeTimeInNanos,
@@ -285,7 +286,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             null,
             new CapturingEngineEventListener(),
             null,
-            null,
+            IndexSearcher.getDefaultQueryCachingPolicy(),
             null,
             null,
             List.of(),
@@ -296,7 +297,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             () -> {
                 throw new AssertionError();
             },
-            null,
+            () -> 1L,
             null,
             null,
             null,
@@ -334,7 +335,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             null,
             new CapturingEngineEventListener(),
             null,
-            null,
+            IndexSearcher.getDefaultQueryCachingPolicy(),
             null,
             null,
             List.of(),
@@ -345,7 +346,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             () -> {
                 throw new AssertionError();
             },
-            null,
+            () -> 1L,
             null,
             null,
             null,

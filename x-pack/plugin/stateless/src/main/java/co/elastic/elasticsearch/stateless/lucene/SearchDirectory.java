@@ -131,6 +131,20 @@ public class SearchDirectory extends ByteSizeDirectory {
         }
     }
 
+    // TODO this method works because we never prune old commits files
+    public Optional<Long> getPrimaryTerm(String segmentsFileName) throws FileNotFoundException {
+        final BlobLocation location = currentMetadata.get(segmentsFileName);
+        if (location != null) {
+            return Optional.of(location.primaryTerm());
+        }
+        if (segmentsFileName.equals(EmptyDirectory.INSTANCE.getSegmentsFileName())) {
+            return Optional.empty();
+        }
+        var exception = new FileNotFoundException(segmentsFileName);
+        assert false : exception;
+        throw exception;
+    }
+
     public Optional<String> getCurrentMetadataNodeEphemeralId() {
         StatelessCompoundCommit compoundCommit = currentCommit.get();
         return compoundCommit != null ? Optional.of(compoundCommit.nodeEphemeralId()) : Optional.empty();

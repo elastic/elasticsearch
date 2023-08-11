@@ -19,6 +19,8 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
@@ -87,6 +89,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -99,11 +102,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
@@ -393,7 +399,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertThat(shardRefreshActionsSent.get(), equalTo(distinctShards));
     }
 
-    public void testBulkRequestFailureWithWaitUntilRefresh() throws Exception {
+    public void testBulkRequestFailureWithWaitUntilRefresh() {
         startIndexNodes(numShards);
         startSearchNodes(numReplicas);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -528,7 +534,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    public void testRefreshOnBulkWithNewShardAllocation() throws Exception {
+    public void testRefreshOnBulkWithNewShardAllocation() {
         startIndexNodes(1);
         startSearchNodes(1);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -572,7 +578,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
     }
 
-    public void testUnpromotableRefreshFailure() throws Exception {
+    public void testUnpromotableRefreshFailure() {
         List<String> indexNodes = startIndexNodes(1);
         startSearchNodes(2);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -670,6 +676,77 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         } finally {
             clearScroll(scrollSearchResponse.getScrollId());
         }
+    }
+
+    public void testAcquiredPrimaryTermAndGenerations() {
+        startIndexNode();
+        startSearchNode();
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        ensureGreen(indexName);
+
+        final Supplier<PrimaryTermAndGeneration> latestPrimaryTermAndGeneration = () -> {
+            var indexShardEngineOrNull = findIndexShard(resolveIndex(indexName), 0).getEngineOrNull();
+            assertThat(indexShardEngineOrNull, notNullValue());
+            return new PrimaryTermAndGeneration(
+                indexShardEngineOrNull.config().getPrimaryTermSupplier().getAsLong(),
+                ((IndexEngine) indexShardEngineOrNull).getCurrentGeneration()
+            );
+        };
+
+        var searchShardEngineOrNull = findSearchShard(resolveIndex(indexName), 0).getEngineOrNull();
+        assertThat(searchShardEngineOrNull, instanceOf(SearchEngine.class));
+        var searchEngine = (SearchEngine) searchShardEngineOrNull;
+        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), empty());
+
+        indexDocs(indexName, 100);
+        flushAndRefresh(indexName);
+
+        var firstScroll = client().prepareSearch().setScroll(TimeValue.timeValueHours(1L)).get();
+        assertNoFailures(firstScroll);
+        assertThat(firstScroll.getHits().getTotalHits().value, equalTo(100L));
+
+        var firstScrollPrimaryTermAndGeneration = latestPrimaryTermAndGeneration.get();
+        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(firstScrollPrimaryTermAndGeneration));
+
+        indexDocs(indexName, 100);
+        flushAndRefresh(indexName);
+
+        var secondScroll = client().prepareSearch().setScroll(TimeValue.timeValueHours(1L)).get();
+        assertNoFailures(secondScroll);
+        assertThat(secondScroll.getHits().getTotalHits().value, equalTo(200L));
+
+        var secondScrollPrimaryTermAndGeneration = latestPrimaryTermAndGeneration.get();
+        assertThat(
+            searchEngine.getAcquiredPrimaryTermAndGenerations(),
+            containsInAnyOrder(firstScrollPrimaryTermAndGeneration, secondScrollPrimaryTermAndGeneration)
+        );
+
+        clearScroll(firstScroll.getScrollId());
+
+        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(secondScrollPrimaryTermAndGeneration));
+
+        indexDocs(indexName, 100);
+        flushAndRefresh(indexName);
+
+        var thirdScroll = client().prepareSearch().setScroll(TimeValue.timeValueHours(1L)).get();
+        assertNoFailures(thirdScroll);
+        assertThat(thirdScroll.getHits().getTotalHits().value, equalTo(300L));
+
+        var thirdScrollPrimaryTermAndGeneration = latestPrimaryTermAndGeneration.get();
+        assertThat(
+            searchEngine.getAcquiredPrimaryTermAndGenerations(),
+            containsInAnyOrder(secondScrollPrimaryTermAndGeneration, thirdScrollPrimaryTermAndGeneration)
+        );
+
+        clearScroll(thirdScroll.getScrollId());
+
+        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(secondScrollPrimaryTermAndGeneration));
+
+        clearScroll(secondScroll.getScrollId());
+
+        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), empty());
     }
 
     public void testSearchNotInterruptedByNewCommit() throws Exception {
@@ -968,7 +1045,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value);
     }
 
-    public void testFastRefreshGetAndMGet() throws Exception {
+    public void testFastRefreshGetAndMGet() {
         startIndexNodes(numShards);
         startSearchNodes(numReplicas);
         final String indexName = SYSTEM_INDEX_NAME;

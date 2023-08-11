@@ -453,7 +453,13 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         String localIndex = "demo";
         int numShardsLocal = randomIntBetween(3, 6);
         Settings localSettings = indexSettings(numShardsLocal, 0).build();
-        assertAcked(client(LOCAL_CLUSTER).admin().indices().prepareCreate(localIndex).setSettings(localSettings));
+        assertAcked(
+            client(LOCAL_CLUSTER).admin()
+                .indices()
+                .prepareCreate(localIndex)
+                .setSettings(localSettings)
+                .setMapping("@timestamp", "type=date", "f", "type=text")
+        );
         indexDocs(client(LOCAL_CLUSTER), localIndex);
 
         String remoteIndex = "prod";
@@ -468,6 +474,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 .indices()
                 .prepareCreate(remoteIndex)
                 .setSettings(Settings.builder().put(remoteSettings.build()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+                .setMapping("@timestamp", "type=date", "f", "type=text")
         );
         assertFalse(
             client(REMOTE_CLUSTER).admin()

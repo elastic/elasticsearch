@@ -1,8 +1,8 @@
 ---
 "Help":
   - skip:
-      version: " - 7.99.99"
-      reason:  bulk stats were added in 8.0.0
+      version: " - 8.9.99"
+      reason:  dense vector stats were added in 8.10.0
   - do:
       cat.shards:
         help: true

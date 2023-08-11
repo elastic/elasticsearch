@@ -156,6 +156,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
 import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
@@ -2419,7 +2420,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersionUtils.getPreviousVersion(ApiKey.CROSS_CLUSTER_KEY_VERSION)
+            TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
         when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
 
@@ -2441,7 +2442,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             e.getMessage(),
             containsString(
                 "all nodes must have transport version ["
-                    + ApiKey.CROSS_CLUSTER_KEY_VERSION
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                     + "] or higher to support creating cross cluster API keys"
             )
         );

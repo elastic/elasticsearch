@@ -17,4 +17,6 @@ steps:
       buildDirectory: /dev/shm/bk
   - wait
   - trigger: "elasticsearch-lucene-snapshot-tests"
+    build:
+      branch: "${BUILDKITE_BRANCH}"
     async: true

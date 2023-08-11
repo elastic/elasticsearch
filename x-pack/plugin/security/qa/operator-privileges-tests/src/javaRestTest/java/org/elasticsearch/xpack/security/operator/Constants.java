@@ -383,7 +383,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/analytics",
         "cluster:monitor/xpack/usage/archive",
         "cluster:monitor/xpack/usage/ccr",
-        DataStreamLifecycle.isFeatureEnabled() ? "cluster:monitor/xpack/usage/data_lifecycle" : null,
+        "cluster:monitor/xpack/usage/data_lifecycle",
         "cluster:monitor/xpack/usage/data_streams",
         "cluster:monitor/xpack/usage/data_tiers",
         "cluster:monitor/xpack/usage/enrich",

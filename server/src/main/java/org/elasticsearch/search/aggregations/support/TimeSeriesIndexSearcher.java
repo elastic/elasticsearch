@@ -108,6 +108,9 @@ public class TimeSeriesIndexSearcher {
         } catch (InterruptedException e) {
             throw new ThreadInterruptedException(e);
         } catch (ExecutionException e) {
+            if (e.getCause() instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
             throw new RuntimeException(e.getCause());
         }
     }

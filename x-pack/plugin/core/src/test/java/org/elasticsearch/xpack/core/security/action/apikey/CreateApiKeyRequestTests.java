@@ -91,20 +91,6 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         assertThat(ve.validationErrors().get(0), containsString("API key metadata keys may not start with [_]"));
     }
 
-    public void testRefreshPolicyValidation() {
-        CreateApiKeyRequest request = new CreateApiKeyRequest();
-        request.setName(randomAlphaOfLengthBetween(1, 256));
-        final TimeValue expiration = randomBoolean()
-            ? null
-            : TimeValue.parseTimeValue(randomTimeValue(), "test validation of create api key");
-        request.setExpiration(expiration);
-        request.setMetadata(randomBoolean() ? Map.of("foo", "bar") : null);
-        final ActionRequestValidationException ve = request.validate();
-        assertNotNull(ve);
-        assertThat(ve.validationErrors().size(), equalTo(1));
-        assertThat(ve.validationErrors().get(0), containsString("refresh policy is required"));
-    }
-
     public void testRoleDescriptorValidation() {
         final String[] unknownWorkflows = randomArray(1, 2, String[]::new, () -> randomAlphaOfLengthBetween(4, 10));
         final CreateApiKeyRequest request1 = new CreateApiKeyRequest(

@@ -98,9 +98,7 @@ public abstract class AbstractCreateApiKeyRequest extends ActionRequest {
                 validationException
             );
         }
-        if (refreshPolicy == null) {
-            validationException = addValidationError("refresh policy is required", validationException);
-        }
+        assert refreshPolicy != null : "refresh policy is required";
         return validationException;
     }
 }

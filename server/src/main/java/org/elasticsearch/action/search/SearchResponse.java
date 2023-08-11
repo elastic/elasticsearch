@@ -912,7 +912,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 clusterName = "";
             }
             String indexExpression = null;
-            String status = null;
+            String status = "running";
             boolean timedOut = false;
             long took = -1L;
             // these are all from the _shards section

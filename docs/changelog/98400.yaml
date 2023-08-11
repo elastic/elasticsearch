@@ -1,0 +1,12 @@
+pr: 98400
+summary: Release highlights for CCS cluster details
+area: Search
+type: non-issue
+issues: []
+highlight:
+  title: Release highlights for CCS cluster details
+  body: |-
+    Release highlights for PR
+    https://github.com/elastic/elasticsearch/pull/97731 and
+    https://github.com/elastic/elasticsearch/pull/97866
+  notable: true

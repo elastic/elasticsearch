@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -313,7 +314,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         safeAwait(countDownLatch);
     }
 
-    public void testTriggersReconfigurationEvenIfAllExclusionsAlreadyAdded() {
+    public void testTriggersReconfigurationEvenIfAllExclusionsAlreadyAddedButStillInConfiguration() {
         final ClusterState state = clusterService.state();
         final ClusterState.Builder builder = builder(state);
         builder.metadata(
@@ -329,7 +330,10 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         transportService.sendRequest(
             localNode,
             AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest("other1"),
+            randomFrom(
+                new AddVotingConfigExclusionsRequest("other1"),
+                new AddVotingConfigExclusionsRequest(new String[] { "other1" }, Strings.EMPTY_ARRAY, TimeValue.timeValueSeconds(30))
+            ),
             expectSuccess(r -> {
                 assertNotNull(r);
                 final var finalState = clusterService.getClusterApplierService().state();
@@ -347,7 +351,11 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         builder.metadata(
             Metadata.builder(state.metadata())
                 .coordinationMetadata(
-                    CoordinationMetadata.builder(state.coordinationMetadata()).addVotingConfigExclusion(otherNode1Exclusion).build()
+                    CoordinationMetadata.builder(state.coordinationMetadata())
+                        .lastCommittedConfiguration(VotingConfiguration.of(localNode, otherNode2))
+                        .lastAcceptedConfiguration(VotingConfiguration.of(localNode, otherNode2))
+                        .addVotingConfigExclusion(otherNode1Exclusion)
+                        .build()
                 )
         );
         setState(clusterService, builder);
@@ -542,10 +550,13 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
     private static class AdjustConfigurationForExclusions implements Listener {
         @Override
         public void onNewClusterState(ClusterState state) {
-            clusterService.getMasterService().submitUnbatchedStateUpdateTask("reconfiguration", new ClusterStateUpdateTask() {
+            final var prio = randomFrom(Priority.values());
+            clusterService.getMasterService().submitUnbatchedStateUpdateTask("reconfiguration", new ClusterStateUpdateTask(prio) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    assertThat(currentState, sameInstance(state));
+                    if (prio.compareTo(Priority.URGENT) <= 0) {
+                        assertThat(currentState, sameInstance(state));
+                    }
                     final Set<String> votingNodeIds = new HashSet<>();
                     currentState.nodes().forEach(n -> votingNodeIds.add(n.getId()));
                     currentState.getVotingConfigExclusions().forEach(t -> votingNodeIds.remove(t.getNodeId()));

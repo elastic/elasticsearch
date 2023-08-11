@@ -1716,6 +1716,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         }
                     } else {
                         closePrevotingRound();
+                        if (electionScheduler != null) {
+                            electionScheduler.close();
+                            electionScheduler = null;
+                        }
                     }
                 }
             }

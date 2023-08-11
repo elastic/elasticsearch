@@ -36,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -128,7 +129,9 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     assertThat(
                         e.getMessage(),
                         containsString(
-                            "all nodes must have transport version [8500058] or higher to support remote indices privileges for API keys"
+                            "all nodes must have transport version ["
+                                + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                                + "] or higher to support remote indices privileges for API keys"
                         )
                     );
                     e = expectThrows(
@@ -138,7 +141,9 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     assertThat(
                         e.getMessage(),
                         containsString(
-                            "all nodes must have transport version [8500058] or higher to support remote indices privileges for API keys"
+                            "all nodes must have transport version ["
+                                + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                                + "] or higher to support remote indices privileges for API keys"
                         )
                     );
                 } finally {

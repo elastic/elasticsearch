@@ -1,8 +1,8 @@
 {
-  "synonyms_sets.get": {
+  "synonyms.get_synonym": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/list-synonyms-sets.html",
-      "description": "Retrieves a summary of all defined synonym sets"
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-synonyms-set.html",
+      "description": "Retrieves a synonym set"
     },
     "stability": "experimental",
     "visibility": "public",
@@ -14,10 +14,16 @@
     "url": {
       "paths": [
         {
-          "path": "/_synonyms",
+          "path": "/_synonyms/{id}",
           "methods": [
             "GET"
-          ]
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The name of the synonyms set to be retrieved"
+            }
+          }
         }
       ]
     },

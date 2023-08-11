@@ -272,13 +272,11 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> task = getTask();
             assertNotNull(task);
-            assertNull(task.getState());
-            putGeoIpPipeline(); // This is to work around the race condition described in #92888
+            assertNotNull(task.getState());
+            putGeoIpPipeline(pipelineId); // This is to work around the race condition described in #92888
         });
         putNonGeoipPipeline(pipelineId);
-        assertBusy(() -> { assertNull(getTask().getState()); });
-        putNonGeoipPipeline(pipelineId);
-        assertNull(getTask().getState());
+        assertNotNull(getTask().getState()); // removing all geoip processors should not result in the task being stopped
         putGeoIpPipeline();
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();

@@ -544,11 +544,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 fail("rollup index has not been created");
             }
         });
-        ResourceAlreadyExistsException exception = expectThrows(
-            ResourceAlreadyExistsException.class,
-            () -> rollup(sourceIndex, rollupIndex, config)
-        );
-        assertThat(exception.getMessage(), containsString(rollupIndex));
+        rollup(sourceIndex, rollupIndex, config);
         // We must wait until the in-progress rollup ends, otherwise data will not be cleaned up
         assertBusy(() -> assertTrue("In progress rollup did not complete", rollupListener.success), 60, TimeUnit.SECONDS);
     }
@@ -1603,7 +1599,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         }).start();
 
         assertTrue(rollupComplete.await(30, TimeUnit.SECONDS));
-        assertTrue(firstFailed.get() ^ secondFailed.get());
+        assertFalse(firstFailed.get() ^ secondFailed.get());
         assertRollupIndex(sourceIndex, targetIndex, config);
     }
 }

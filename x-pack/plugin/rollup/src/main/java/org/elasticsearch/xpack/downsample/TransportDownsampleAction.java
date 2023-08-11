@@ -14,7 +14,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.ActionFilters;
@@ -29,13 +32,16 @@ import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
@@ -44,6 +50,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -84,6 +91,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
@@ -101,7 +109,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private final Client client;
     private final IndicesService indicesService;
     private final ClusterService clusterService;
-    private final MasterServiceTaskQueue<RollupClusterStateUpdateTask> taskQueue;
+    private final MasterServiceTaskQueue<DownsampleClusterStateUpdateTask> taskQueue;
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
     private final ThreadContext threadContext;
@@ -119,15 +127,16 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     /**
      * This is the cluster state task executor for cluster state update actions.
      */
-    private static final SimpleBatchedExecutor<RollupClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR =
+    private static final SimpleBatchedExecutor<DownsampleClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR =
         new SimpleBatchedExecutor<>() {
             @Override
-            public Tuple<ClusterState, Void> executeTask(RollupClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
+            public Tuple<ClusterState, Void> executeTask(DownsampleClusterStateUpdateTask task, ClusterState clusterState)
+                throws Exception {
                 return Tuple.tuple(task.execute(clusterState), null);
             }
 
             @Override
-            public void taskSucceeded(RollupClusterStateUpdateTask task, Void unused) {
+            public void taskSucceeded(DownsampleClusterStateUpdateTask task, Void unused) {
                 task.listener.onResponse(AcknowledgedResponse.TRUE);
             }
         };
@@ -223,9 +232,22 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             return;
         }
 
-        final String rollupIndexName = request.getTargetIndex();
+        // Shortcircuit if target index has been downsampled:
+        final String downsampleIndexName = request.getTargetIndex();
+        IndexMetadata downsampleIndex = state.getMetadata().index(downsampleIndexName);
+        if (downsampleIndex != null) {
+            var downsampleStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(downsampleIndex.getSettings());
+            if (downsampleStatus == DownsampleTaskStatus.UNKNOWN) {
+                // This isn't a downsample index, so fail:
+                listener.onFailure(new ResourceAlreadyExistsException(downsampleIndex.getIndex()));
+                return;
+            } else if (downsampleStatus == DownsampleTaskStatus.SUCCESS) {
+                listener.onResponse(AcknowledgedResponse.TRUE);
+                return;
+            }
+        }
         try {
-            MetadataCreateIndexService.validateIndexName(rollupIndexName, state);
+            MetadataCreateIndexService.validateIndexName(downsampleIndexName, state);
         } catch (ResourceAlreadyExistsException e) {
             // ignore index already exists
         }
@@ -296,113 +318,130 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 return;
             }
             // 3. Create rollup index
-            createRollupIndex(rollupIndexName, sourceIndexMetadata, mapping, request, ActionListener.wrap(createIndexResp -> {
+            createRollupIndex(downsampleIndexName, sourceIndexMetadata, mapping, request, ActionListener.wrap(createIndexResp -> {
                 if (createIndexResp.isAcknowledged()) {
-                    // 3. Rollup index created. Run rollup indexer persistent task on each shard.
-                    final int numberOfShards = sourceIndexMetadata.getNumberOfShards();
-                    final Index sourceIndex = sourceIndexMetadata.getIndex();
-                    // NOTE: before we set the number of replicas to 0, as a result here we are
-                    // only dealing with primary shards.
-                    final AtomicInteger countDown = new AtomicInteger(numberOfShards);
-                    for (int shardNum = 0; shardNum < numberOfShards; shardNum++) {
-                        final ShardId shardId = new ShardId(sourceIndex, shardNum);
-                        final String persistentRollupTaskId = createRollupShardTaskId(
-                            rollupIndexName,
-                            shardId,
-                            request.getDownsampleConfig().getInterval()
-                        );
-                        final RollupShardTaskParams params = createRollupShardTaskParams(
-                            request.getDownsampleConfig(),
-                            sourceIndexMetadata,
-                            rollupIndexName,
-                            metricFields,
-                            labelFields,
-                            shardId
-                        );
-                        persistentTasksService.sendStartRequest(
-                            persistentRollupTaskId,
-                            RollupShardTask.TASK_NAME,
-                            params,
-                            ActionListener.wrap(
-                                startedTask -> persistentTasksService.waitForPersistentTaskCondition(startedTask.getId(), runningTask -> {
-                                    if (runningTask == null) {
-                                        // NOTE: don't need to wait if the persistent task completed and was removed
-                                        return true;
-                                    }
-                                    RollupShardPersistentTaskState runningPersistentTaskState = (RollupShardPersistentTaskState) runningTask
-                                        .getState();
-                                    return runningPersistentTaskState != null && runningPersistentTaskState.done();
-                                }, request.getWaitTimeout(), new PersistentTasksService.WaitForPersistentTaskListener<>() {
-                                    @Override
-                                    public void onResponse(
-                                        PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask
-                                    ) {
-                                        waitForPersistentTask(
-                                            request,
-                                            listener,
-                                            sourceIndexMetadata,
-                                            rollupIndexName,
-                                            parentTask,
-                                            numberOfShards,
-                                            countDown,
-                                            persistentRollupTaskId,
-                                            params
-                                        );
-                                    }
-
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        logger.error("error while waiting for downsampling persistent task", e);
-                                        listener.onFailure(e);
-                                    }
-                                }),
-                                e -> {
-                                    if (e instanceof ResourceAlreadyExistsException) {
-                                        logger.info("Task [" + persistentRollupTaskId + "] already exists. Waiting.");
-                                        waitForPersistentTask(
-                                            request,
-                                            listener,
-                                            sourceIndexMetadata,
-                                            rollupIndexName,
-                                            parentTask,
-                                            numberOfShards,
-                                            countDown,
-                                            persistentRollupTaskId,
-                                            params
-                                        );
-                                    } else {
-                                        listener.onFailure(
-                                            new ElasticsearchException("Task [" + persistentRollupTaskId + "] failed starting", e)
-                                        );
-                                    }
-                                }
-                            )
-                        );
-                    }
+                    performShardDownsampling(
+                        request,
+                        listener,
+                        sourceIndexMetadata,
+                        downsampleIndexName,
+                        parentTask,
+                        metricFields,
+                        labelFields
+                    );
                 } else {
-                    listener.onFailure(new ElasticsearchException("Failed to create rollup index [" + rollupIndexName + "]"));
+                    listener.onFailure(new ElasticsearchException("Failed to create rollup index [" + downsampleIndexName + "]"));
                 }
-            }, listener::onFailure));
+            }, e -> {
+                if (e instanceof ResourceAlreadyExistsException) {
+                    performShardDownsampling(
+                        request,
+                        listener,
+                        sourceIndexMetadata,
+                        downsampleIndexName,
+                        parentTask,
+                        metricFields,
+                        labelFields
+                    );
+                } else {
+                    listener.onFailure(e);
+                }
+            }));
         }, listener::onFailure));
     }
 
-    private void waitForPersistentTask(
+    // 3. Rollup index created or already exist (in case of retry). Run rollup indexer persistent task on each shard.
+    private void performShardDownsampling(
+        DownsampleAction.Request request,
+        ActionListener<AcknowledgedResponse> listener,
+        IndexMetadata sourceIndexMetadata,
+        String rollupIndexName,
+        TaskId parentTask,
+        List<String> metricFields,
+        List<String> labelFields
+    ) {
+        final int numberOfShards = sourceIndexMetadata.getNumberOfShards();
+        final Index sourceIndex = sourceIndexMetadata.getIndex();
+        // NOTE: before we set the number of replicas to 0, as a result here we are
+        // only dealing with primary shards.
+        final AtomicInteger countDown = new AtomicInteger(numberOfShards);
+        for (int shardNum = 0; shardNum < numberOfShards; shardNum++) {
+            final ShardId shardId = new ShardId(sourceIndex, shardNum);
+            final String persistentRollupTaskId = createRollupShardTaskId(
+                rollupIndexName,
+                shardId,
+                request.getDownsampleConfig().getInterval()
+            );
+            final RollupShardTaskParams params = createRollupShardTaskParams(
+                request.getDownsampleConfig(),
+                sourceIndexMetadata,
+                rollupIndexName,
+                metricFields,
+                labelFields,
+                shardId
+            );
+            Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> predicate = runningTask -> {
+                if (runningTask == null) {
+                    // NOTE: don't need to wait if the persistent task completed and was removed
+                    return true;
+                }
+                RollupShardPersistentTaskState runningPersistentTaskState = (RollupShardPersistentTaskState) runningTask.getState();
+                return runningPersistentTaskState != null && runningPersistentTaskState.done();
+            };
+            var taskListener = new PersistentTasksService.WaitForPersistentTaskListener<>() {
+
+                @Override
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask) {
+                    logger.info("Downsampling task [" + persistentRollupTaskId + " completed for shard " + params.shardId());
+                    if (countDown.decrementAndGet() == 0) {
+                        logger.info("All downsampling tasks completed [" + numberOfShards + "]");
+                        updateTargetIndexSettingStep(request, listener, sourceIndexMetadata, rollupIndexName, parentTask);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("error while waiting for downsampling persistent task", e);
+                    listener.onFailure(e);
+                }
+            };
+            persistentTasksService.sendStartRequest(
+                persistentRollupTaskId,
+                RollupShardTask.TASK_NAME,
+                params,
+                ActionListener.wrap(
+                    startedTask -> persistentTasksService.waitForPersistentTaskCondition(
+                        startedTask.getId(),
+                        predicate,
+                        request.getWaitTimeout(),
+                        taskListener
+                    ),
+                    e -> {
+                        if (e instanceof ResourceAlreadyExistsException) {
+                            logger.info("Task [" + persistentRollupTaskId + "] already exists. Waiting.");
+                            persistentTasksService.waitForPersistentTaskCondition(
+                                persistentRollupTaskId,
+                                predicate,
+                                request.getWaitTimeout(),
+                                taskListener
+                            );
+                        } else {
+                            listener.onFailure(new ElasticsearchException("Task [" + persistentRollupTaskId + "] failed starting", e));
+                        }
+                    }
+                )
+            );
+        }
+    }
+
+    // 4. Make rollup index read-only and set the correct number of replicas
+    private void updateTargetIndexSettingStep(
         final DownsampleAction.Request request,
         final ActionListener<AcknowledgedResponse> listener,
         final IndexMetadata sourceIndexMetadata,
-        final String rollupIndexName,
-        final TaskId parentTask,
-        final int numberOfShards,
-        final AtomicInteger countDown,
-        final String persistentRollupTaskId,
-        final RollupShardTaskParams params
+        final String downsampleIndexName,
+        final TaskId parentTask
     ) {
-        logger.info("Downsampling task [" + persistentRollupTaskId + " completed for shard " + params.shardId());
-        if (countDown.decrementAndGet() != 0) {
-            return;
-        }
-        logger.info("All downsampling tasks completed [" + numberOfShards + "]");
-
         // 4. Make rollup index read-only and set the correct number of replicas
         final Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true);
         // Number of replicas had been previously set to 0 to speed up index population
@@ -418,20 +457,13 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 settings.putNull(IndexMetadata.SETTING_INDEX_HIDDEN);
             }
         }
-        UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(settings.build(), rollupIndexName);
+        UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(settings.build(), downsampleIndexName);
         updateSettingsReq.setParentTask(parentTask);
         client.admin()
             .indices()
             .updateSettings(
                 updateSettingsReq,
-                new UpdateRollupIndexSettingsActionListener(
-                    listener,
-                    client,
-                    parentTask,
-                    rollupIndexName,
-                    request.getWaitTimeout(),
-                    taskQueue
-                )
+                new UpdateRollupIndexSettingsActionListener(listener, parentTask, downsampleIndexName, request.getWaitTimeout())
             );
     }
 
@@ -703,7 +735,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceIndexMetadata.getNumberOfShards())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
-            .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.STARTED);
+            .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), DownsampleTaskStatus.STARTED);
         if (sourceIndexMetadata.getSettings().hasValue(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())) {
             builder.put(
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
@@ -717,7 +749,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             rollupIndexName
         ).settings(builder.build()).mappings(mapping).waitForActiveShards(ActiveShardCount.ONE);
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
-        taskQueue.submitTask("create-rollup-index [" + rollupIndexName + "]", new RollupClusterStateUpdateTask(listener) {
+        taskQueue.submitTask("create-rollup-index [" + rollupIndexName + "]", new DownsampleClusterStateUpdateTask(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 return metadataCreateIndexService.applyCreateIndexRequest(
@@ -738,10 +770,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
      * A specialized cluster state update task that always takes a listener handling an
      * AcknowledgedResponse, as all template actions have simple acknowledged yes/no responses.
      */
-    abstract static class RollupClusterStateUpdateTask implements ClusterStateTaskListener {
+    abstract static class DownsampleClusterStateUpdateTask implements ClusterStateTaskListener {
         final ActionListener<AcknowledgedResponse> listener;
 
-        RollupClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener) {
+        DownsampleClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener) {
             this.listener = listener;
         }
 
@@ -751,5 +783,153 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         public void onFailure(Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Refreshes the downsample target index
+     */
+    class UpdateRollupIndexSettingsActionListener implements ActionListener<AcknowledgedResponse> {
+        final ActionListener<AcknowledgedResponse> listener;
+        final TaskId parentTask;
+        final String downsampleIndexName;
+        final TimeValue timeout;
+
+        UpdateRollupIndexSettingsActionListener(
+            final ActionListener<AcknowledgedResponse> listener,
+            final TaskId parentTask,
+            final String downsampleIndexName,
+            final TimeValue timeout
+        ) {
+            this.listener = listener;
+            this.parentTask = parentTask;
+            this.downsampleIndexName = downsampleIndexName;
+            this.timeout = timeout;
+        }
+
+        @Override
+        public void onResponse(final AcknowledgedResponse response) {
+            final RefreshRequest request = new RefreshRequest(downsampleIndexName);
+            request.setParentTask(parentTask);
+            client.admin()
+                .indices()
+                .refresh(request, new RefreshRollupIndexActionListener(listener, parentTask, downsampleIndexName, timeout));
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+    }
+
+    /**
+     * Updates the downsample target index metadata (task status)
+     */
+    class RefreshRollupIndexActionListener implements ActionListener<RefreshResponse> {
+
+        private final ActionListener<AcknowledgedResponse> actionListener;
+        private final TaskId parentTask;
+        private final String downsampleIndexName;
+        private final TimeValue timeout;
+
+        RefreshRollupIndexActionListener(
+            final ActionListener<AcknowledgedResponse> actionListener,
+            TaskId parentTask,
+            final String downsampleIndexName,
+            final TimeValue timeout
+        ) {
+            this.actionListener = actionListener;
+            this.parentTask = parentTask;
+            this.downsampleIndexName = downsampleIndexName;
+            this.timeout = timeout;
+        }
+
+        @Override
+        public void onResponse(final RefreshResponse response) {
+            if (response.getFailedShards() != 0) {
+                logger.info("Post refresh failed [{}],{}", downsampleIndexName, Strings.toString(response));
+            }
+            // Mark rollup index as "completed successfully" ("index.rollup.status": "success")
+            taskQueue.submitTask(
+                "update-rollup-metadata [" + downsampleIndexName + "]",
+                new DownsampleClusterStateUpdateTask(new ForceMergeActionListener(parentTask, downsampleIndexName, actionListener)) {
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        final Metadata metadata = currentState.metadata();
+                        final IndexMetadata downsampleIndex = metadata.index(metadata.index(downsampleIndexName).getIndex());
+                        if (IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(downsampleIndex.getSettings()) == DownsampleTaskStatus.SUCCESS) {
+                            return currentState;
+                        }
+
+                        final Metadata.Builder metadataBuilder = Metadata.builder(metadata);
+                        metadataBuilder.updateSettings(
+                            Settings.builder()
+                                .put(downsampleIndex.getSettings())
+                                .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), DownsampleTaskStatus.SUCCESS)
+                                .build(),
+                            downsampleIndexName
+                        );
+                        return ClusterState.builder(currentState).metadata(metadataBuilder.build()).build();
+                    }
+                },
+                timeout
+            );
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            actionListener.onFailure(e);
+        }
+
+    }
+
+    /**
+     * Triggers a force merge operation on the downsample target index
+     */
+    class ForceMergeActionListener implements ActionListener<AcknowledgedResponse> {
+
+        final ActionListener<AcknowledgedResponse> actionListener;
+        private final TaskId parentTask;
+        private final String downsampleIndexName;
+
+        ForceMergeActionListener(
+            final TaskId parentTask,
+            final String downsampleIndexName,
+            final ActionListener<AcknowledgedResponse> onFailure
+        ) {
+            this.parentTask = parentTask;
+            this.downsampleIndexName = downsampleIndexName;
+            this.actionListener = onFailure;
+        }
+
+        @Override
+        public void onResponse(final AcknowledgedResponse response) {
+            /*
+             * At this point rollup has been created
+             * successfully even force merge fails.
+             * So, we should not fail the rollup operation
+             */
+            ForceMergeRequest request = new ForceMergeRequest(downsampleIndexName);
+            request.maxNumSegments(1);
+            request.setParentTask(parentTask);
+            client.admin()
+                .indices()
+                .forceMerge(request, ActionListener.wrap(mergeIndexResp -> actionListener.onResponse(AcknowledgedResponse.TRUE), t -> {
+                    /*
+                     * At this point rollup has been created
+                     * successfully even force merge fails.
+                     * So, we should not fail the rollup operation
+                     */
+                    logger.error("Failed to force-merge " + "rollup index [" + downsampleIndexName + "]", t);
+                    actionListener.onResponse(AcknowledgedResponse.TRUE);
+                }));
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            this.actionListener.onFailure(e);
+        }
+
     }
 }

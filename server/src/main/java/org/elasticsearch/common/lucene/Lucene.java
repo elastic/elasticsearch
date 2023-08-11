@@ -822,14 +822,16 @@ public class Lucene {
 
         return new DocIdSetIterator() {
 
+            int docId = -1;
+
             @Override
             public int docID() {
-                return iterator.docID();
+                return docId;
             }
 
             @Override
             public int nextDoc() throws IOException {
-                return advance(docID() + 1);
+                return advance(docId + 1);
             }
 
             @Override
@@ -838,12 +840,12 @@ public class Lucene {
                     target = iterator.advance(target);
                     if (target < maxDoc) {
                         if (twoPhase == null || twoPhase.matches()) {
-                            return target;
+                            return docId = target;
                         }
                         target++;
                     }
                 }
-                return NO_MORE_DOCS;
+                return docId = NO_MORE_DOCS;
             }
 
             @Override

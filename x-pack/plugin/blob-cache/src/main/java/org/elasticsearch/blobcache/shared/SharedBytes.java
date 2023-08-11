@@ -250,12 +250,6 @@ public class SharedBytes extends AbstractRefCounted {
         return ios[sharedBytesPos];
     }
 
-    long getPhysicalOffset(long chunkPosition) {
-        long physicalOffset = chunkPosition * regionSize;
-        assert physicalOffset <= numRegions * regionSize;
-        return physicalOffset;
-    }
-
     public final class IO {
 
         private final long pageStart;
@@ -263,8 +257,14 @@ public class SharedBytes extends AbstractRefCounted {
         private final MappedByteBuffer mappedByteBuffer;
 
         private IO(final int sharedBytesPos, MappedByteBuffer mappedByteBuffer) {
-            pageStart = getPhysicalOffset(sharedBytesPos);
+            long physicalOffset = sharedBytesPos * regionSize;
+            assert physicalOffset <= numRegions * regionSize;
+            this.pageStart = physicalOffset;
             this.mappedByteBuffer = mappedByteBuffer;
+        }
+
+        public long pageStart() {
+            return pageStart;
         }
 
         @SuppressForbidden(reason = "Use positional reads on purpose")

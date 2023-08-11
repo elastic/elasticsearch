@@ -919,14 +919,14 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         matchesMap().entry("segments_with_doc_count_field", 0)
                             .entry("segments_with_deleted_docs", 0)
                             .entry("segments_collected", 0)
-                            .entry("segments_counted", greaterThanOrEqualTo(1))
+                            .entry("segments_counted", 0)
                             .entry(
                                 "filters",
                                 matchesList().item(
                                     matchesMap().entry(
                                         "query",
                                         "MatchNoDocsQuery(\"The \"range\" query was rewritten to a \"match_none\" query.\")"
-                                    ).entry("segments_counted_in_constant_time", greaterThan(0))
+                                    ).entry("segments_counted_in_constant_time", 0)
                                 )
                             )
                     )
@@ -958,14 +958,14 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         matchesMap().entry("segments_with_doc_count_field", 0)
                             .entry("segments_with_deleted_docs", 0)
                             .entry("segments_collected", 0)
-                            .entry("segments_counted", greaterThanOrEqualTo(1))
+                            .entry("segments_counted", 0)
                             .entry(
                                 "filters",
                                 matchesList().item(
                                     matchesMap().entry(
                                         "query",
                                         "MatchNoDocsQuery(\"The \"range\" query was rewritten to a \"match_none\" query.\")"
-                                    ).entry("segments_counted_in_constant_time", greaterThan(0))
+                                    ).entry("segments_counted_in_constant_time", 0)
                                 )
                             )
                     )

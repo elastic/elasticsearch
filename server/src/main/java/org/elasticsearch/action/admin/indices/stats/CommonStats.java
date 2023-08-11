@@ -47,7 +47,7 @@ import java.util.Objects;
 public class CommonStats implements Writeable, ToXContentFragment {
 
     private static final TransportVersion VERSION_SUPPORTING_NODE_MAPPINGS = TransportVersion.V_8_5_0;
-    private static final TransportVersion VERSION_SUPPORTING_DENSE_VECTOR_STATS = TransportVersion.V_8_500_057;
+    private static final TransportVersion VERSION_SUPPORTING_DENSE_VECTOR_STATS = TransportVersion.V_8_500_058;
 
     @Nullable
     public DocsStats docs;

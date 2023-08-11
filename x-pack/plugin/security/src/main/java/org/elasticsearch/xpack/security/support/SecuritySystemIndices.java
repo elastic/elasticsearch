@@ -61,8 +61,8 @@ public class SecuritySystemIndices {
     private SecurityIndexManager profileIndexManager;
 
     public SecuritySystemIndices(Settings settings) {
-        this.mainDescriptor = getSecurityMainIndexDescriptor(settings);
-        this.tokenDescriptor = getSecurityTokenIndexDescriptor(settings);
+        this.mainDescriptor = getSecurityMainIndexDescriptor();
+        this.tokenDescriptor = getSecurityTokenIndexDescriptor();
         this.profileDescriptor = getSecurityProfileIndexDescriptor(settings);
         this.initialized = new AtomicBoolean(false);
         this.mainIndexManager = null;
@@ -105,7 +105,7 @@ public class SecuritySystemIndices {
         }
     }
 
-    private SystemIndexDescriptor getSecurityMainIndexDescriptor(Settings settings) {
+    private SystemIndexDescriptor getSecurityMainIndexDescriptor() {
         return SystemIndexDescriptor.builder()
             // This can't just be `.security-*` because that would overlap with the tokens index pattern
             .setIndexPattern(".security-[0-9]+*")
@@ -597,7 +597,7 @@ public class SecuritySystemIndices {
         }
     }
 
-    private static SystemIndexDescriptor getSecurityTokenIndexDescriptor(Settings settings) {
+    private static SystemIndexDescriptor getSecurityTokenIndexDescriptor() {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(".security-tokens-[0-9]+*")
             .setPrimaryIndex(TOKENS_INDEX_CONCRETE_NAME)

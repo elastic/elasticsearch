@@ -15,12 +15,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
 
 /**
  * ILM step that invokes the downsample action for an index using a {@link DateHistogramInterval}. The downsample
@@ -73,16 +74,7 @@ public class DownsampleStep extends AsyncActionStep {
 
         final String policyName = indexMetadata.getLifecyclePolicyName();
         final String indexName = indexMetadata.getIndex().getName();
-        final String downsampleIndexName = lifecycleState.downsampleIndexName();
-        if (Strings.hasText(downsampleIndexName) == false) {
-            downsampleFailed = true;
-            listener.onFailure(
-                new IllegalStateException(
-                    "downsample index name was not generated for policy [" + policyName + "] and index [" + indexName + "]"
-                )
-            );
-            return;
-        }
+        final String downsampleIndexName = DOWNSAMPLED_INDEX_PREFIX + "-" + indexName + "-" + fixedInterval;
 
         IndexMetadata downsampleIndexMetadata = currentState.metadata().index(downsampleIndexName);
         if (downsampleIndexMetadata != null) {
@@ -92,7 +84,7 @@ public class DownsampleStep extends AsyncActionStep {
             if (IndexMetadata.DownsampleTaskStatus.SUCCESS.equals(downsampleIndexStatus)) {
                 // Downsample index has already been created with the generated name and its status is "success".
                 // So we skip index downsample creation.
-                logger.warn(
+                logger.info(
                     "skipping [{}] step for index [{}] as part of policy [{}] as the downsample index [{}] already exists",
                     DownsampleStep.NAME,
                     indexName,
@@ -100,33 +92,12 @@ public class DownsampleStep extends AsyncActionStep {
                     downsampleIndexName
                 );
                 listener.onResponse(null);
-            } else {
-                // Downsample index has already been created with the generated name but its status is not "success".
-                // So we fail this step so that we go back to cleaning up the index and try again with a new downsample
-                // index name.
-                downsampleFailed = true;
-                listener.onFailure(
-                    new IllegalStateException(
-                        "failing ["
-                            + DownsampleStep.NAME
-                            + "] step for index ["
-                            + indexName
-                            + "] as part of policy ["
-                            + policyName
-                            + "] because the downsample index ["
-                            + downsampleIndexName
-                            + "] already exists with downsample status ["
-                            + downsampleIndexStatus
-                            + "]"
-                    )
-                );
             }
-        } else {
-            performDownsampleIndex(indexName, downsampleIndexName, ActionListener.wrap(listener::onResponse, e -> {
-                downsampleFailed = true;
-                listener.onFailure(e);
-            }));
         }
+        performDownsampleIndex(indexName, downsampleIndexName, ActionListener.wrap(listener::onResponse, e -> {
+            downsampleFailed = true;
+            listener.onFailure(e);
+        }));
     }
 
     void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {

@@ -90,7 +90,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
         assertThat(steps.get(4).getKey().name(), equalTo(CleanupTargetIndexStep.NAME));
         assertThat(steps.get(4).getNextStepKey().name(), equalTo(GENERATE_DOWNSAMPLE_STEP_NAME));
 
-        assertTrue(steps.get(5) instanceof GenerateUniqueIndexNameStep);
+        assertTrue(steps.get(5) instanceof NoopStep);
         assertThat(steps.get(5).getKey().name(), equalTo(GENERATE_DOWNSAMPLE_STEP_NAME));
         assertThat(steps.get(5).getNextStepKey().name(), equalTo(DownsampleStep.NAME));
 

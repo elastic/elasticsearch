@@ -171,14 +171,8 @@ public class DownsampleAction implements LifecycleAction {
         // case a failure occurred. The downsample action can now retry execution in case of failure and start where it left off.
         NoopStep cleanupDownsampleIndexStep = new NoopStep(cleanupDownsampleIndexKey, generateDownsampleIndexNameKey);
 
-        // Generate a predictable downsample index name and store it in the ILM execution state
-        GenerateUniqueIndexNameStep generateDownsampleIndexNameStep = new GenerateDownsampleIndexNameStep(
-            generateDownsampleIndexNameKey,
-            downsampleKey,
-            DOWNSAMPLED_INDEX_PREFIX,
-            fixedInterval,
-            (downsampleIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setDownsampleIndexName(downsampleIndexName)
-        );
+        // Before a random downsample index name was generated.
+        NoopStep generateDownsampleIndexNameStep = new NoopStep(generateDownsampleIndexNameKey, downsampleKey);
 
         // Here is where the actual downsample action takes place
         DownsampleStep downsampleStep = new DownsampleStep(

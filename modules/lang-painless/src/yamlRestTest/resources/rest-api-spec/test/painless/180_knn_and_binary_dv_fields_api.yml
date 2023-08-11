@@ -14,6 +14,7 @@
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector
@@ -100,6 +101,7 @@
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector
@@ -186,6 +188,7 @@
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector
@@ -305,6 +308,7 @@
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector
@@ -423,6 +427,7 @@
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector
@@ -499,6 +504,7 @@
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector
@@ -601,6 +607,7 @@
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector
@@ -719,6 +726,7 @@
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector
@@ -817,6 +825,7 @@
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector

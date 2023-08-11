@@ -9,6 +9,7 @@
               v:
                 type: dense_vector
                 dims: 3
+                index: false
 
   - do:
       bulk:

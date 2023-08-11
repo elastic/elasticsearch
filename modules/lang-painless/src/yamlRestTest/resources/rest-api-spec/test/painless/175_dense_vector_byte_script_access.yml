@@ -14,6 +14,7 @@ setup:
               v:
                 type: dense_vector
                 element_type: byte
+                index: false
                 dims: 3
 
   - do:

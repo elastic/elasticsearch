@@ -1,9 +1,6 @@
 [[elasticsearch-reference]]
 = Elasticsearch Guide
 
-// Temporary workaround until we merge into the primary Elasticsearch branch.
-:elasticsearch-root: {elasticsearch-internal-root}
-
 :include-xpack:         true
 :es-test-dir:           {elasticsearch-root}/docs/src/test
 :plugins-examples-dir:  {elasticsearch-root}/plugins/examples

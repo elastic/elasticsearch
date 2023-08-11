@@ -67,7 +67,10 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
@@ -212,21 +215,32 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Object visitQualifiedIntegerLiteral(EsqlBaseParser.QualifiedIntegerLiteralContext ctx) {
         Source source = source(ctx);
         Literal intLit = typedParsing(this, ctx.integerValue(), Literal.class);
-        Integer value = (Integer) intLit.value();
+        Number value = (Number) intLit.value();
+        if (intLit.dataType() == DataTypes.UNSIGNED_LONG) {
+            value = unsignedLongAsNumber(value.longValue());
+        }
         String qualifier = ctx.UNQUOTED_IDENTIFIER().getText().toLowerCase(Locale.ROOT);
 
-        return switch (qualifier) {
-            case "millisecond", "milliseconds" -> new Literal(source, Duration.ofMillis(value), TIME_DURATION);
-            case "second", "seconds" -> new Literal(source, Duration.ofSeconds(value), TIME_DURATION);
-            case "minute", "minutes" -> new Literal(source, Duration.ofMinutes(value), TIME_DURATION);
-            case "hour", "hours" -> new Literal(source, Duration.ofHours(value), TIME_DURATION);
+        try {
+            Object quantity = switch (qualifier) {
+                case "millisecond", "milliseconds" -> Duration.ofMillis(safeToLong(value));
+                case "second", "seconds" -> Duration.ofSeconds(safeToLong(value));
+                case "minute", "minutes" -> Duration.ofMinutes(safeToLong(value));
+                case "hour", "hours" -> Duration.ofHours(safeToLong(value));
 
-            case "day", "days" -> new Literal(source, Period.ofDays(value), DATE_PERIOD);
-            case "week", "weeks" -> new Literal(source, Period.ofDays(value * 7), DATE_PERIOD);
-            case "month", "months" -> new Literal(source, Period.ofMonths(value), DATE_PERIOD);
-            case "year", "years" -> new Literal(source, Period.ofYears(value), DATE_PERIOD);
-            default -> throw new ParsingException(source, "Unexpected numeric qualifier '{}'", qualifier);
-        };
+                case "day", "days" -> Period.ofDays(safeToInt(safeToLong(value)));
+                case "week", "weeks" -> Period.ofWeeks(safeToInt(safeToLong(value)));
+                case "month", "months" -> Period.ofMonths(safeToInt(safeToLong(value)));
+                case "year", "years" -> Period.ofYears(safeToInt(safeToLong(value)));
+
+                default -> throw new ParsingException(source, "Unexpected numeric qualifier '{}'", qualifier);
+            };
+            return new Literal(source, quantity, quantity instanceof Duration ? TIME_DURATION : DATE_PERIOD);
+        } catch (QlIllegalArgumentException | ArithmeticException e) {
+            // the range varies by unit: Duration#ofMinutes(), #ofHours() will Math#multiplyExact() to reduce the unit to seconds;
+            // and same for Period#ofWeeks()
+            throw new ParsingException(source, "Number [{}] outside of [{}] range", ctx.integerValue().getText(), qualifier);
+        }
     }
 
     @Override

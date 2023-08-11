@@ -98,7 +98,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
         this.clusterService = clusterService;
-        if (isDataStreamsLifecycleOnlyMode(settings) == false) {
+        if (isDataStreamsLifecycleOnlyMode(clusterService.getSettings()) == false) {
             this.lifecyclePolicies = getLifecycleConfigs().stream()
                 .map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY))
                 .toList();
@@ -261,7 +261,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addLegacyTemplatesIfMissing(ClusterState state) {
-        if (isDataStreamsLifecycleOnlyMode(settings)) {
+        if (isDataStreamsLifecycleOnlyMode(clusterService.getSettings())) {
             // data stream lifecycle cannot be configured via legacy templates
             return;
         }
@@ -540,7 +540,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addIndexLifecyclePoliciesIfMissing(ClusterState state) {
-        if (isDataStreamsLifecycleOnlyMode(state.getMetadata().settings())) {
+        if (isDataStreamsLifecycleOnlyMode(clusterService.getSettings())) {
             logger.trace("running in data stream lifecycle only mode. skipping the installation of ILM policies.");
             return;
         }

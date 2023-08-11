@@ -142,16 +142,17 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
-                false
+                null,
+                randomInt(),
+                randomInt()
             );
             contextWithoutScroll.from(300);
             contextWithoutScroll.close();
 
             // resultWindow greater than maxResultWindow and scrollContext is null
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> contextWithoutScroll.preProcess());
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, contextWithoutScroll::preProcess);
             assertThat(
                 exception.getMessage(),
                 equalTo(
@@ -181,13 +182,14 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
-                false
+                null,
+                randomInt(),
+                randomInt()
             );
             context1.from(300);
-            exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess());
+            exception = expectThrows(IllegalArgumentException.class, context1::preProcess);
             assertThat(
                 exception.getMessage(),
                 equalTo(
@@ -210,12 +212,12 @@ public class DefaultSearchContextTests extends ESTestCase {
             when(rescoreContext.getWindowSize()).thenReturn(500);
             context1.addRescore(rescoreContext);
 
-            exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess());
+            exception = expectThrows(IllegalArgumentException.class, context1::preProcess);
             assertThat(exception.getMessage(), equalTo("Cannot use [sort] option in conjunction with [rescore]."));
 
             // rescore is null but sort is not null and rescoreContext.getWindowSize() exceeds maxResultWindow
             context1.sort(null);
-            exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess());
+            exception = expectThrows(IllegalArgumentException.class, context1::preProcess);
 
             assertThat(
                 exception.getMessage(),
@@ -255,10 +257,11 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
-                false
+                null,
+                randomInt(),
+                randomInt()
             );
 
             SliceBuilder sliceBuilder = mock(SliceBuilder.class);
@@ -266,7 +269,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             when(sliceBuilder.getMax()).thenReturn(numSlices);
             context2.sliceBuilder(sliceBuilder);
 
-            exception = expectThrows(IllegalArgumentException.class, () -> context2.preProcess());
+            exception = expectThrows(IllegalArgumentException.class, context2::preProcess);
             assertThat(
                 exception.getMessage(),
                 equalTo(
@@ -291,10 +294,11 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
-                false
+                null,
+                randomInt(),
+                randomInt()
             );
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess();
@@ -317,10 +321,11 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
-                false
+                null,
+                randomInt(),
+                randomInt()
             );
             context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess();
             Query query1 = context4.query();
@@ -384,10 +389,11 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
-                false
+                null,
+                randomInt(),
+                randomInt()
             );
 
             assertThat(context.searcher().hasCancellations(), is(false));

@@ -388,7 +388,7 @@ public class DeploymentManager {
             resultProcessor = new PyTorchResultProcessor(task.getDeploymentId(), threadSettings -> {
                 this.numThreadsPerAllocation = threadSettings.numThreadsPerAllocation();
                 this.numAllocations = threadSettings.numAllocations();
-            });
+            }, threadPool);
             // We want to use the inference thread pool to load the model as it is a possibly long operation
             // and knowing it is an inference thread would enable better understanding during debugging.
             // Even though we account for 3 threads per process in the thread pool, loading the model

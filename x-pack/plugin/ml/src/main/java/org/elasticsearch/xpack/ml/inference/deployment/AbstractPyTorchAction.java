@@ -55,7 +55,8 @@ abstract class AbstractPyTorchAction<T> extends AbstractInitializableRunnable {
      */
     @Override
     public final void init() {
-        if (this.timeoutHandler == null) {
+        // Don't schedule for a timeout that will never happen
+        if (this.timeoutHandler == null && timeout != TimeValue.MAX_VALUE) {
             this.timeoutHandler = threadPool.schedule(this::onTimeout, timeout, MachineLearning.UTILITY_THREAD_POOL_NAME);
         }
     }
@@ -76,7 +77,7 @@ abstract class AbstractPyTorchAction<T> extends AbstractInitializableRunnable {
         if (timeoutHandler != null) {
             timeoutHandler.cancel();
         } else {
-            assert false : "init() not called, timeout handler unexpectedly null";
+            assert timeout == TimeValue.MAX_VALUE : "init() not called, timeout handler unexpectedly null";
         }
         if (notified.compareAndSet(false, true)) {
             listener.onResponse(result);
@@ -96,7 +97,7 @@ abstract class AbstractPyTorchAction<T> extends AbstractInitializableRunnable {
         if (timeoutHandler != null) {
             timeoutHandler.cancel();
         } else {
-            assert false : "init() not called, timeout handler unexpectedly null";
+            assert timeout == TimeValue.MAX_VALUE : "init() not called, timeout handler unexpectedly null";
         }
         if (notified.compareAndSet(false, true)) {
             processContext.getResultProcessor().ignoreResponseWithoutNotifying(String.valueOf(requestId));

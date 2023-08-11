@@ -66,7 +66,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
 
     public void testInferListenerOnlyCalledOnce() {
         DeploymentManager.ProcessContext processContext = mock(DeploymentManager.ProcessContext.class);
-        PyTorchResultProcessor resultProcessor = new PyTorchResultProcessor("1", threadSettings -> {});
+        PyTorchResultProcessor resultProcessor = new PyTorchResultProcessor("1", threadSettings -> {}, tp);
         when(processContext.getResultProcessor()).thenReturn(resultProcessor);
         AtomicInteger timeoutCount = new AtomicInteger();
         when(processContext.getTimeoutCount()).thenReturn(timeoutCount);

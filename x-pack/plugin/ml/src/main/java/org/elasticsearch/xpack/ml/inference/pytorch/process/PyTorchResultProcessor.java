@@ -9,9 +9,14 @@ package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.AckResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.ErrorResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
@@ -46,6 +51,7 @@ public class PyTorchResultProcessor {
 
     private static final Logger logger = LogManager.getLogger(PyTorchResultProcessor.class);
     static long REPORTING_PERIOD_MS = TimeValue.timeValueMinutes(1).millis();
+    static TimeValue WAIT_FOR_RESPONSE_TIMEOUT = TimeValue.timeValueMinutes(2);
 
     private final ConcurrentMap<String, PendingResult> pendingResults = new ConcurrentHashMap<>();
     private final String modelId;
@@ -64,13 +70,19 @@ public class PyTorchResultProcessor {
     private long lastResultTimeMs;
     private final long startTime;
     private final LongSupplier currentTimeMsSupplier;
+    private final ThreadPool threadPool;
 
-    public PyTorchResultProcessor(String modelId, Consumer<ThreadSettings> threadSettingsConsumer) {
-        this(modelId, threadSettingsConsumer, System::currentTimeMillis);
+    public PyTorchResultProcessor(String modelId, Consumer<ThreadSettings> threadSettingsConsumer, ThreadPool threadPool) {
+        this(modelId, threadSettingsConsumer, System::currentTimeMillis, threadPool);
     }
 
     // for testing
-    PyTorchResultProcessor(String modelId, Consumer<ThreadSettings> threadSettingsConsumer, LongSupplier currentTimeSupplier) {
+    PyTorchResultProcessor(
+        String modelId,
+        Consumer<ThreadSettings> threadSettingsConsumer,
+        LongSupplier currentTimeSupplier,
+        ThreadPool threadPool
+    ) {
         this.modelId = Objects.requireNonNull(modelId);
         this.timingStats = new LongSummaryStatistics();
         this.timingStatsExcludingCacheHits = new LongSummaryStatistics();
@@ -79,10 +91,44 @@ public class PyTorchResultProcessor {
         this.currentTimeMsSupplier = currentTimeSupplier;
         this.startTime = currentTimeSupplier.getAsLong();
         this.currentPeriodEndTimeMs = startTime + REPORTING_PERIOD_MS;
+        this.threadPool = threadPool;
     }
 
     public void registerRequest(String requestId, ActionListener<PyTorchResult> listener) {
-        pendingResults.computeIfAbsent(requestId, k -> new PendingResult(listener));
+        registerRequest(requestId, WAIT_FOR_RESPONSE_TIMEOUT, listener);
+    }
+
+    // for testing
+    void registerRequest(String requestId, TimeValue requestTimeout, ActionListener<PyTorchResult> listener) {
+        if (pendingResults.containsKey(requestId)) {
+            logger.error("[" + modelId + "] duplicate pending result for request [" + requestId + "]");
+        }
+        Scheduler.ScheduledCancellable timeoutHandler = threadPool.schedule(
+            () -> onResponseTimeout(requestId),
+            requestTimeout,
+            MachineLearning.UTILITY_THREAD_POOL_NAME
+        );
+        pendingResults.computeIfAbsent(requestId, k -> new PendingResult(timeoutHandler, listener));
+    }
+
+    private void onResponseTimeout(String requestId) {
+        var pending = pendingResults.remove(requestId);
+        if (pending == null) {
+            logger.debug(() -> format("[%s] timed out pending result [%s] already removed", modelId, requestId));
+            return;
+        }
+        pending.listener.onFailure(
+            new ElasticsearchStatusException("[{}] timeout waiting for inference result", RestStatus.REQUEST_TIMEOUT, modelId)
+        );
+        logger.error(
+            "["
+                + modelId
+                + "] timed out waiting for inference response ["
+                + requestId
+                + "] after ["
+                + WAIT_FOR_RESPONSE_TIMEOUT.toString()
+                + "]"
+        );
     }
 
     /**
@@ -92,7 +138,10 @@ public class PyTorchResultProcessor {
      * @param requestId The request ID that is no longer being waited on
      */
     public void ignoreResponseWithoutNotifying(String requestId) {
-        pendingResults.remove(requestId);
+        var pending = pendingResults.remove(requestId);
+        if (pending != null) {
+            pending.timeoutHandler.cancel();
+        }
     }
 
     public void process(PyTorchProcess process) {
@@ -134,9 +183,10 @@ public class PyTorchResultProcessor {
     }
 
     private void notifyAndClearPendingResults(ErrorResult errorResult) {
-        pendingResults.forEach(
-            (id, pendingResult) -> pendingResult.listener.onResponse(new PyTorchResult(id, null, null, null, null, null, errorResult))
-        );
+        pendingResults.forEach((id, pendingResult) -> {
+            pendingResult.timeoutHandler.cancel();
+            pendingResult.listener.onResponse(new PyTorchResult(id, null, null, null, null, null, errorResult));
+        });
         pendingResults.clear();
     }
 
@@ -155,7 +205,7 @@ public class PyTorchResultProcessor {
         if (pendingResult == null) {
             logger.debug(() -> format("[%s] no pending result for inference [%s]", modelId, result.requestId()));
         } else {
-            pendingResult.listener.onResponse(result);
+            respondToPending(pendingResult, result);
         }
     }
 
@@ -168,7 +218,7 @@ public class PyTorchResultProcessor {
         if (pendingResult == null) {
             logger.debug(() -> format("[%s] no pending result for thread settings [%s]", modelId, result.requestId()));
         } else {
-            pendingResult.listener.onResponse(result);
+            respondToPending(pendingResult, result);
         }
     }
 
@@ -181,7 +231,7 @@ public class PyTorchResultProcessor {
         if (pendingResult == null) {
             logger.debug(() -> format("[%s] no pending result for ack [%s]", modelId, result.requestId()));
         } else {
-            pendingResult.listener.onResponse(result);
+            respondToPending(pendingResult, result);
         }
     }
 
@@ -199,8 +249,13 @@ public class PyTorchResultProcessor {
         if (pendingResult == null) {
             logger.debug(() -> format("[%s] no pending result for error [%s]", modelId, result.requestId()));
         } else {
-            pendingResult.listener.onResponse(result);
+            respondToPending(pendingResult, result);
         }
+    }
+
+    private void respondToPending(PendingResult pendingResult, PyTorchResult result) {
+        pendingResult.timeoutHandler.cancel();
+        pendingResult.listener.onResponse(result);
     }
 
     public synchronized ResultStats getResultStats() {
@@ -288,9 +343,11 @@ public class PyTorchResultProcessor {
 
     public static class PendingResult {
         public final ActionListener<PyTorchResult> listener;
+        public final Scheduler.ScheduledCancellable timeoutHandler;
 
-        public PendingResult(ActionListener<PyTorchResult> listener) {
+        public PendingResult(Scheduler.ScheduledCancellable timeoutHandler, ActionListener<PyTorchResult> listener) {
             this.listener = Objects.requireNonNull(listener);
+            this.timeoutHandler = Objects.requireNonNull(timeoutHandler);
         }
     }
 }

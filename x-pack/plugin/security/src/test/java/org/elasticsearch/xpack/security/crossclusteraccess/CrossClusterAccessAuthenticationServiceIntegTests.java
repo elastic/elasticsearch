@@ -35,6 +35,9 @@ import java.util.Base64;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 import static org.hamcrest.Matchers.containsString;
@@ -142,6 +145,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
     private String getEncodedCrossClusterAccessApiKey() throws IOException {
         final CreateCrossClusterApiKeyRequest request = CreateCrossClusterApiKeyRequest.withNameAndAccess("cross_cluster_access_key", """
             {"search": [{"names": ["*"]}]}""");
+        request.setRefreshPolicy(randomFrom(NONE, IMMEDIATE, WAIT_UNTIL));
         final CreateApiKeyResponse response = client().execute(CreateCrossClusterApiKeyAction.INSTANCE, request).actionGet();
         return ApiKeyService.withApiKeyPrefix(
             Base64.getEncoder().encodeToString((response.getId() + ":" + response.getKey()).getBytes(StandardCharsets.UTF_8))

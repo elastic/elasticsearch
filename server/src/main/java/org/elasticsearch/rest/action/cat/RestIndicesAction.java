@@ -501,6 +501,12 @@ public class RestIndicesAction extends AbstractCatAction {
         );
         table.addCell("pri.bulk.avg_size_in_bytes", "default:false;text-align:right;desc:average size in bytes of shard bulk");
 
+        table.addCell(
+            "dense_vector.value_count",
+            "sibling:pri;alias:dvc,denseVectorCount;default:false;text-align:right;desc:total count of indexed dense vector"
+        );
+        table.addCell("pri.dense_vector.value_count", "default:false;text-align:right;desc:total count of indexed dense vector");
+
         table.endHeaders();
         return table;
     }
@@ -773,6 +779,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getBulk() == null ? null : totalStats.getBulk().getAvgSizeInBytes());
             table.addCell(primaryStats.getBulk() == null ? null : primaryStats.getBulk().getAvgSizeInBytes());
+
+            table.addCell(totalStats.getDenseVectorStats() == null ? null : totalStats.getDenseVectorStats().getValueCount());
+            table.addCell(primaryStats.getDenseVectorStats() == null ? null : primaryStats.getDenseVectorStats().getValueCount());
 
             table.endRow();
         });

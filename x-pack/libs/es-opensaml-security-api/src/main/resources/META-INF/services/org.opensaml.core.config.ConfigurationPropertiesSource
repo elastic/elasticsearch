@@ -1,1 +1,1 @@
-org.elasticsearch.xpack.security.authc.saml.OpenSamlXpackSecurityConfigurationPropertiesSource
+org.opensaml.security.config.org.elasticsearch.xpack.security.authc.saml.OpenSamlXpackSecurityConfigurationPropertiesSource

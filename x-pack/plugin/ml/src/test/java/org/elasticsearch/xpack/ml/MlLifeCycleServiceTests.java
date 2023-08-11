@@ -200,10 +200,9 @@ public class MlLifeCycleServiceTests extends ESTestCase {
             )
             .build();
 
-        Instant shutdownStartTime = randomFrom(Instant.now(), null);
-        Clock clock = Clock.fixed(randomFrom(Instant.now(), Instant.now().plus(Duration.ofDays(1))), ZoneId.systemDefault());
+        Clock clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
 
-        assertThat(isNodeSafeToShutdown("node-1", currentState, shutdownStartTime, clock), is(false));
+        assertThat(isNodeSafeToShutdown("node-1", currentState, null, clock), is(false));
     }
 
     public void testIsNodeSafeToShutdownReturnsFalseWhenStoppingAndStoppedAllocationsExist() {
@@ -230,10 +229,9 @@ public class MlLifeCycleServiceTests extends ESTestCase {
             )
             .build();
 
-        Instant shutdownStartTime = randomFrom(Instant.now(), null);
-        Clock clock = Clock.fixed(randomFrom(Instant.now(), Instant.now().plus(Duration.ofDays(1))), ZoneId.systemDefault());
+        Clock clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
 
-        assertThat(isNodeSafeToShutdown("node-1", currentState, shutdownStartTime, clock), is(false));
+        assertThat(isNodeSafeToShutdown("node-1", currentState, null, clock), is(false));
     }
 
     public void testIsNodeSafeToShutdownReturnsTrueWhenStoppedAllocationsExist() {
@@ -260,10 +258,9 @@ public class MlLifeCycleServiceTests extends ESTestCase {
             )
             .build();
 
-        Instant shutdownStartTime = randomFrom(Instant.now(), null);
-        Clock clock = Clock.fixed(randomFrom(Instant.now(), Instant.now().plus(Duration.ofDays(1))), ZoneId.systemDefault());
+        Clock clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
 
-        assertThat(isNodeSafeToShutdown("node-1", currentState, shutdownStartTime, clock), is(true));
+        assertThat(isNodeSafeToShutdown("node-1", currentState, null, clock), is(true));
     }
 
     public void testSignalGracefulShutdownIncludingLocalNode() {

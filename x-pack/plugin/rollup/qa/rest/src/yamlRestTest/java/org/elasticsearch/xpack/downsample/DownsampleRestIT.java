@@ -5,16 +5,16 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.rollup.v2;
+package org.elasticsearch.xpack.downsample;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-public class RollupRestIT extends ESClientYamlSuiteTestCase {
+public class DownsampleRestIT extends ESClientYamlSuiteTestCase {
 
-    public RollupRestIT(final ClientYamlTestCandidate testCandidate) {
+    public DownsampleRestIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

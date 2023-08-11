@@ -151,7 +151,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareCreate(sourceIndex).setSettings(settings.build()).setMapping(mapping).get());
     }
 
-    public void testRollupIndexWithDataNodeRestart() throws IOException, InterruptedException {
+    public void testDownsampleIndexWithDataNodeRestart() throws IOException, InterruptedException {
         try (InternalTestCluster cluster = internalCluster()) {
             final List<String> masterNodes = cluster.startMasterOnlyNodes(1);
             cluster.startDataOnlyNodes(3);
@@ -159,7 +159,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
             ensureGreen();
 
             final String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-            final String rollupIndex = randomAlphaOfLength(11).toLowerCase(Locale.ROOT);
+            final String targetIndex = randomAlphaOfLength(11).toLowerCase(Locale.ROOT);
             long startTime = LocalDateTime.parse("2020-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
             setup(sourceIndex, 1, 0, startTime);
             final DownsampleConfig config = new DownsampleConfig(randomInterval());
@@ -206,16 +206,16 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
                 }
             })).start();
 
-            if (maybeStartRollupTaskDuringDisruption(sourceIndex, rollupIndex, config, disruptionStart, disruptionEnd) == false) {
+            if (maybeStartDownsampleTaskDuringDisruption(sourceIndex, targetIndex, config, disruptionStart, disruptionEnd) == false) {
                 return;
             }
             waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
             ensureStableCluster(cluster.numDataAndMasterNodes());
-            assertRollupIndex(cluster, sourceIndex, rollupIndex, indexedDocs);
+            assertTargetIndex(cluster, sourceIndex, targetIndex, indexedDocs);
         }
     }
 
-    public void testRollupIndexWithRollingRestart() throws IOException, InterruptedException {
+    public void testDownsampleIndexWithRollingRestart() throws IOException, InterruptedException {
         try (InternalTestCluster cluster = internalCluster()) {
             final List<String> masterNodes = cluster.startMasterOnlyNodes(1);
             cluster.startDataOnlyNodes(3);
@@ -223,7 +223,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
             ensureGreen();
 
             final String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-            final String rollupIndex = randomAlphaOfLength(11).toLowerCase(Locale.ROOT);
+            final String targetIndex = randomAlphaOfLength(11).toLowerCase(Locale.ROOT);
             long startTime = LocalDateTime.parse("2020-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
             setup(sourceIndex, 1, 0, startTime);
             final DownsampleConfig config = new DownsampleConfig(randomInterval());
@@ -270,12 +270,12 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
                 }
             })).start();
 
-            if (maybeStartRollupTaskDuringDisruption(sourceIndex, rollupIndex, config, disruptionStart, disruptionEnd) == false) {
+            if (maybeStartDownsampleTaskDuringDisruption(sourceIndex, targetIndex, config, disruptionStart, disruptionEnd) == false) {
                 return;
             }
             waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
             ensureStableCluster(cluster.numDataAndMasterNodes());
-            assertRollupIndex(cluster, sourceIndex, rollupIndex, indexedDocs);
+            assertTargetIndex(cluster, sourceIndex, targetIndex, indexedDocs);
         }
     }
 
@@ -283,23 +283,23 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
      * Starts a downsample operation.
      *
      * @param sourceIndex the idex to read data from
-     * @param rollupIndex the idnex to write downsampled data to
+     * @param targetIndex the idnex to write downsampled data to
      * @param config the downsample configuration including the downsample granularity
      * @param disruptionStart a latch to synchronize on the disruption starting
      * @param disruptionEnd a latch to synchronize on the disruption ending
      * @return true if the downsample task was actually started, false if an error happened before being able to start it
      * @throws InterruptedException if the thread is interrupted while waiting
      */
-    private boolean maybeStartRollupTaskDuringDisruption(
+    private boolean maybeStartDownsampleTaskDuringDisruption(
         final String sourceIndex,
-        final String rollupIndex,
+        final String targetIndex,
         final DownsampleConfig config,
         final CountDownLatch disruptionStart,
         final CountDownLatch disruptionEnd
     ) throws InterruptedException {
         disruptionStart.await();
         try {
-            rollup(sourceIndex, rollupIndex, config);
+            downsample(sourceIndex, targetIndex, config);
             disruptionEnd.await();
         } catch (EsRejectedExecutionException | NodeClosedException e) {
             // NOTE: cluster failure happens before the downsampling task is created. An error in this situation is acceptable.
@@ -309,7 +309,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         return true;
     }
 
-    public void testRollupIndexWithFullClusterRestart() throws IOException, InterruptedException {
+    public void testDownsampleIndexWithFullClusterRestart() throws IOException, InterruptedException {
         try (InternalTestCluster cluster = internalCluster()) {
             final List<String> masterNodes = cluster.startMasterOnlyNodes(1);
             cluster.startDataOnlyNodes(3);
@@ -317,7 +317,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
             ensureGreen();
 
             final String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-            final String rollupIndex = randomAlphaOfLength(11).toLowerCase(Locale.ROOT);
+            final String downsampleIndex = randomAlphaOfLength(11).toLowerCase(Locale.ROOT);
             long startTime = LocalDateTime.parse("2020-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
             setup(sourceIndex, 1, 0, startTime);
             final DownsampleConfig config = new DownsampleConfig(randomInterval());
@@ -364,20 +364,20 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
                 }
             })).start();
 
-            if (maybeStartRollupTaskDuringDisruption(sourceIndex, rollupIndex, config, disruptionStart, disruptionEnd) == false) {
+            if (maybeStartDownsampleTaskDuringDisruption(sourceIndex, downsampleIndex, config, disruptionStart, disruptionEnd) == false) {
                 return;
             }
             waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
             ensureStableCluster(cluster.numDataAndMasterNodes());
-            assertRollupIndex(cluster, sourceIndex, rollupIndex, indexedDocs);
+            assertTargetIndex(cluster, sourceIndex, downsampleIndex, indexedDocs);
         }
     }
 
-    private void assertRollupIndex(final InternalTestCluster cluster, final String sourceIndex, final String rollupIndex, int indexedDocs) {
+    private void assertTargetIndex(final InternalTestCluster cluster, final String sourceIndex, final String targetIndex, int indexedDocs) {
         final GetIndexResponse getIndexResponse = cluster.client()
             .admin()
             .indices()
-            .getIndex(new GetIndexRequest().indices(rollupIndex))
+            .getIndex(new GetIndexRequest().indices(targetIndex))
             .actionGet();
         assertEquals(1, getIndexResponse.indices().length);
         final SearchResponse sourceIndexSearch = cluster.client()
@@ -388,7 +388,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
             .get();
         assertEquals(indexedDocs, sourceIndexSearch.getHits().getHits().length);
         final SearchResponse targetIndexSearch = cluster.client()
-            .prepareSearch(rollupIndex)
+            .prepareSearch(targetIndex)
             .setQuery(new MatchAllQueryBuilder())
             .setSize(Math.min(DOC_COUNT, indexedDocs))
             .setTrackTotalHitsUpTo(Integer.MAX_VALUE)
@@ -434,10 +434,10 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         );
     }
 
-    private void rollup(final String sourceIndex, final String rollupIndex, final DownsampleConfig config) {
+    private void downsample(final String sourceIndex, final String downsampleIndex, final DownsampleConfig config) {
         assertAcked(
             internalCluster().client()
-                .execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, rollupIndex, TIMEOUT, config))
+                .execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, downsampleIndex, TIMEOUT, config))
                 .actionGet()
         );
     }

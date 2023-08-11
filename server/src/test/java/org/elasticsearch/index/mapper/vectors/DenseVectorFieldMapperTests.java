@@ -466,7 +466,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             }))
         );
 
-        assertThat(e.getMessage(), containsString("Field [index] requires field [similarity] to be configured"));
+        assertThat(e.getMessage(), containsString("Field [index] requires field [similarity] to be configured and not null"));
 
         e = expectThrows(
             MapperParsingException.class,

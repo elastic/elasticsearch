@@ -143,15 +143,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexed.addValidator(v -> {
                 if (v) {
                     if (similarity.getValue() == null) {
-                        throw new IllegalArgumentException("Field [index] requires field [similarity] to be configured");
+                        throw new IllegalArgumentException("Field [index] requires field [similarity] to be configured and not null");
                     }
                 } else {
-                    if (similarity.isConfigured()) {
+                    if (similarity.isConfigured() && similarity.getValue() != null) {
                         throw new IllegalArgumentException(
                             "Field [similarity] can only be specified for a field of type [dense_vector] when it is indexed"
                         );
                     }
-                    if (indexOptions.isConfigured()) {
+                    if (indexOptions.isConfigured() && indexOptions.getValue() != null) {
                         throw new IllegalArgumentException(
                             "Field [index_options] can only be specified for a field of type [dense_vector] when it is indexed"
                         );

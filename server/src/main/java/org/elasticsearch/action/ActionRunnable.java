@@ -81,7 +81,8 @@ public abstract class ActionRunnable<Response> extends AbstractRunnable {
     }
 
     /**
-     * Like {#wrap} except with a {@link Releasable} which is released after executing the consumer, or if the action is rejected.
+     * Like {#wrap} except with a {@link Releasable} which is released after executing the consumer, or if the action is rejected. This is
+     * particularly useful for submitting actions holding resources to a threadpool which might have a bounded queue.
      */
     public static <T> ActionRunnable<T> wrapReleasing(
         ActionListener<T> listener,
@@ -90,16 +91,16 @@ public abstract class ActionRunnable<Response> extends AbstractRunnable {
     ) {
         return new ActionRunnable<>(listener) {
             @Override
-            protected void doRun() throws Exception {
+            protected void doRun() {
                 try (releasable) {
-                    consumer.accept(listener);
+                    ActionListener.run(listener, consumer);
                 }
             }
 
             @Override
-            public void onRejection(Exception e) {
+            public void onFailure(Exception e) {
                 try (releasable) {
-                    super.onRejection(e);
+                    super.onFailure(e);
                 }
             }
 

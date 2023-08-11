@@ -37,6 +37,7 @@ public class ActionRunnableTests extends ESTestCase {
         try {
             final var resultListener = new PlainActionFuture<Void>();
             final var releaseListener = new PlainActionFuture<Void>();
+            final var safeReleaseListener = ActionListener.assertOnce(releaseListener);
             final var barrier = new CyclicBarrier(2);
 
             executor.execute(() -> safeAwait(barrier)); // block the thread before running the ActionRunnable
@@ -44,8 +45,9 @@ public class ActionRunnableTests extends ESTestCase {
             executor.execute(ActionRunnable.wrapReleasing(resultListener.delegateResponse((l, e) -> {
                 assertThat(e, Matchers.instanceOf(ElasticsearchException.class));
                 assertEquals("simulated", e.getMessage());
+                assertTrue(releaseListener.isDone());
                 l.onResponse(null);
-            }), () -> releaseListener.onResponse(null), l -> executor.execute(() -> ActionListener.completeWith(l, () -> {
+            }), () -> safeReleaseListener.onResponse(null), l -> executor.execute(() -> ActionListener.completeWith(l, () -> {
                 if (randomBoolean()) {
                     throw new ElasticsearchException("simulated");
                 } else {
@@ -108,6 +110,53 @@ public class ActionRunnableTests extends ESTestCase {
         } finally {
             ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
         }
+    }
+
+    public void testWrapReleasingOnFailure() {
+        final var isComplete = new AtomicBoolean();
+        final var isReleased = new AtomicBoolean();
+
+        ActionRunnable.wrapReleasing(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                fail("should not execute");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e, Matchers.instanceOf(ElasticsearchException.class));
+                assertEquals("simulated", e.getMessage());
+                assertFalse(isReleased.get());
+                assertTrue(isComplete.compareAndSet(false, true));
+            }
+        }, () -> assertTrue(isReleased.compareAndSet(false, true)), l -> fail("should not execute"))
+            .onFailure(new ElasticsearchException("simulated"));
+
+        assertTrue(isComplete.get());
+        assertTrue(isReleased.get());
+    }
+
+    public void testWrapReleasingConsumerThrows() {
+        final var isComplete = new AtomicBoolean();
+        final var isReleased = new AtomicBoolean();
+
+        ActionRunnable.wrapReleasing(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                fail("should not execute");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e, Matchers.instanceOf(ElasticsearchException.class));
+                assertEquals("simulated", e.getMessage());
+                assertFalse(isReleased.get());
+                assertTrue(isComplete.compareAndSet(false, true));
+            }
+        }, () -> assertTrue(isReleased.compareAndSet(false, true)), l -> { throw new ElasticsearchException("simulated"); }).run();
+
+        assertTrue(isComplete.get());
+        assertTrue(isReleased.get());
     }
 
 }

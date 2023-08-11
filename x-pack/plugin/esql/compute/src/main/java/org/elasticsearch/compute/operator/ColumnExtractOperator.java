@@ -66,10 +66,7 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
                 }
                 continue;
             }
-
-            // For now more than a single input value will just read the first one
-            int position = input.getFirstValueIndex(row);
-            evaluator.computeRow(input.getBytesRef(position, spare), blockBuilders);
+            evaluator.computeRow(input, row, blockBuilders, spare);
         }
 
         Block[] blocks = new Block[blockBuilders.length];
@@ -90,7 +87,7 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
     }
 
     public interface Evaluator {
-        void computeRow(BytesRef input, Block.Builder[] target);
+        void computeRow(BytesRefBlock input, int row, Block.Builder[] target, BytesRef spare);
     }
 
 }

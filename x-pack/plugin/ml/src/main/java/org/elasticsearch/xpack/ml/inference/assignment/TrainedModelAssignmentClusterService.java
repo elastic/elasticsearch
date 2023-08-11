@@ -62,6 +62,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentConstants.NODES_CHANGED_REASON;
 
 public class TrainedModelAssignmentClusterService implements ClusterStateListener {
 
@@ -490,17 +491,23 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         List<DiscoveryNode> nodes = getAssignableNodes(currentState);
         logger.debug(() -> format("assignable nodes are %s", nodes.stream().map(DiscoveryNode::getId).toList()));
         Map<DiscoveryNode, NodeLoad> nodeLoads = detectNodeLoads(nodes, currentState);
+        TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(currentState);
+        Set<String> shuttingDownNodeIds = currentState.metadata().nodeShutdowns().getAllNodeIds();
+
         TrainedModelAssignmentRebalancer rebalancer = new TrainedModelAssignmentRebalancer(
-            TrainedModelAssignmentMetadata.fromState(currentState),
+            metadata,
             nodeLoads,
             nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(currentState),
             modelToAdd,
-            allocatedProcessorsScale
+            allocatedProcessorsScale,
+            shuttingDownNodeIds
         );
         TrainedModelAssignmentMetadata.Builder rebalanced = rebalancer.rebalance();
+
         if (modelToAdd.isPresent()) {
             checkModelIsFullyAllocatedIfScalingIsNotPossible(modelToAdd.get().getDeploymentId(), rebalanced, nodes);
         }
+
         return rebalanced;
     }
 
@@ -807,7 +814,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         return detectReasonIfMlJobsStopped(event).or(() -> {
             String reason = null;
             if (haveMlNodesChanged(event, newMetadata)) {
-                reason = "nodes changed";
+                reason = NODES_CHANGED_REASON;
             } else if (newMetadata.hasOutdatedAssignments()) {
                 reason = "outdated assignments detected";
             }

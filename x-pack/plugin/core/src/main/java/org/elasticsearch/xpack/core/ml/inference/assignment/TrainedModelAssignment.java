@@ -410,6 +410,15 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             return this;
         }
 
+        /**
+         * Adds the {@link RoutingInfo} regardless of whether it already exists.
+         */
+        public Builder addOrOverwriteRoutingEntry(String nodeId, RoutingInfo routingInfo) {
+            nodeRoutingTable.put(nodeId, routingInfo);
+
+            return this;
+        }
+
         public Builder removeRoutingEntry(String nodeId) {
             nodeRoutingTable.remove(nodeId);
             return this;
@@ -462,6 +471,12 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
                 return this;
             }
             reason = null;
+            return this;
+        }
+
+        public Builder clearNodeRoutingTable() {
+            nodeRoutingTable.clear();
+
             return this;
         }
 

@@ -17,7 +17,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdate;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan;
@@ -41,6 +43,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_LOW_PRIORITY_MODELS_PER_NODE;
+import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentConstants.NODES_CHANGED_REASON;
 
 class TrainedModelAssignmentRebalancer {
 
@@ -51,19 +54,22 @@ class TrainedModelAssignmentRebalancer {
     private final Map<List<String>, Collection<DiscoveryNode>> mlNodesByZone;
     private final Optional<StartTrainedModelDeploymentAction.TaskParams> deploymentToAdd;
     private final int allocatedProcessorsScale;
+    private final Set<String> shuttingDownNodeIds;
 
     TrainedModelAssignmentRebalancer(
         TrainedModelAssignmentMetadata currentMetadata,
         Map<DiscoveryNode, NodeLoad> nodeLoads,
         Map<List<String>, Collection<DiscoveryNode>> mlNodesByZone,
         Optional<StartTrainedModelDeploymentAction.TaskParams> deploymentToAdd,
-        int allocatedProcessorsScale
+        int allocatedProcessorsScale,
+        Set<String> shuttingDownNodeIds
     ) {
         this.currentMetadata = Objects.requireNonNull(currentMetadata);
         this.nodeLoads = Objects.requireNonNull(nodeLoads);
         this.mlNodesByZone = Objects.requireNonNull(mlNodesByZone);
         this.deploymentToAdd = Objects.requireNonNull(deploymentToAdd);
         this.allocatedProcessorsScale = allocatedProcessorsScale;
+        this.shuttingDownNodeIds = shuttingDownNodeIds;
     }
 
     TrainedModelAssignmentMetadata.Builder rebalance() {
@@ -81,7 +87,53 @@ class TrainedModelAssignmentRebalancer {
         }
 
         AssignmentPlan assignmentPlan = computeAssignmentPlan();
-        return buildAssignmentsFromPlan(assignmentPlan);
+        TrainedModelAssignmentMetadata.Builder builder = buildAssignmentsFromPlan(assignmentPlan);
+
+        if (shuttingDownNodeIds.isEmpty()) {
+            return builder;
+        }
+
+        return setShuttingDownNodeRoutesToStopping(builder);
+    }
+
+    private TrainedModelAssignmentMetadata.Builder setShuttingDownNodeRoutesToStopping(TrainedModelAssignmentMetadata.Builder builder) {
+        for (TrainedModelAssignment existingAssignment : currentMetadata.allAssignments().values()) {
+            boolean foundShuttingDownNodeForAssignment = false;
+
+            String existingDeploymentId = existingAssignment.getDeploymentId();
+            // TODO this may be overkill, based on my limited testing, the builder will always have the assignment so maybe that's
+            // guaranteed and we don't need to check?
+            TrainedModelAssignment.Builder assignmentBuilder = builder.hasModelDeployment(existingAssignment.getDeploymentId())
+                ? builder.getAssignment(existingDeploymentId)
+                : TrainedModelAssignment.Builder.fromAssignment(existingAssignment)
+                    .stopAssignment(NODES_CHANGED_REASON)
+                    // If there are other routes that are now outdated after the rebalance we don't want to include them, so let's start
+                    // with a fresh table
+                    .clearNodeRoutingTable();
+
+            for (String nodeId : shuttingDownNodeIds) {
+                if (existingAssignment.isRoutedToNode(nodeId)
+                    && existingAssignment.getNodeRoutingTable()
+                        .get(nodeId)
+                        .getState()
+                        .isAnyOf(RoutingState.STARTED, RoutingState.STARTING)) {
+                    RoutingInfoUpdate routeUpdate = RoutingInfoUpdate.updateStateAndReason(
+                        new RoutingStateAndReason(RoutingState.STOPPING, "node is shutting down")
+                    );
+                    foundShuttingDownNodeForAssignment = true;
+                    RoutingInfo stoppingRouteInfo = routeUpdate.apply(existingAssignment.getNodeRoutingTable().get(nodeId));
+
+                    assignmentBuilder.addOrOverwriteRoutingEntry(nodeId, stoppingRouteInfo);
+                }
+            }
+
+            // if we didn't find a shutting down routing info then we don't want to add an empty assignment here
+            if (foundShuttingDownNodeForAssignment) {
+                builder.addOrOverwriteAssignment(existingDeploymentId, assignmentBuilder);
+            }
+        }
+
+        return builder;
     }
 
     private boolean areAllModelsSatisfiedAndNoOutdatedRoutingEntries() {

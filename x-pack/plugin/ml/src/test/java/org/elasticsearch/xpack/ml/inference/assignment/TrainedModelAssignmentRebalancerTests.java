@@ -11,6 +11,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
@@ -26,6 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -35,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
 
@@ -44,7 +47,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Map.of(),
             Map.of(),
             Optional.empty(),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
         assertThat(result.allAssignments().isEmpty(), is(true));
     }
@@ -78,7 +82,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(),
             Optional.empty(),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         assertThat(currentMetadata, equalTo(result));
@@ -116,7 +121,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2)),
             Optional.empty(),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         assertThat(result.allAssignments(), is(aMapWithSize(2)));
@@ -140,7 +146,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             .build();
         expectThrows(
             ResourceAlreadyExistsException.class,
-            () -> new TrainedModelAssignmentRebalancer(currentMetadata, Map.of(), Map.of(), Optional.of(taskParams), 1).rebalance()
+            () -> new TrainedModelAssignmentRebalancer(currentMetadata, Map.of(), Map.of(), Optional.of(taskParams), 1, Set.of())
+                .rebalance()
         );
     }
 
@@ -154,7 +161,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Map.of(),
             Map.of(),
             Optional.of(taskParams),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
@@ -181,7 +189,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node)),
             Optional.of(taskParams),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
@@ -217,7 +226,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(),
             Optional.of(taskParams),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
@@ -253,7 +263,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(),
             Optional.of(taskParams),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
@@ -289,7 +300,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2)),
             Optional.of(taskParams),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
@@ -322,7 +334,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1)),
             Optional.of(taskParams),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
@@ -361,7 +374,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2)),
             Optional.of(taskParams),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         assertThat(result.allAssignments(), is(aMapWithSize(2)));
@@ -425,7 +439,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2, node3)),
             Optional.empty(),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         assertThat(result.allAssignments(), is(aMapWithSize(2)));
@@ -489,7 +504,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1)),
             Optional.empty(),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         assertThat(result.allAssignments(), is(aMapWithSize(2)));
@@ -559,7 +575,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1)),
             Optional.empty(),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         assertThat(result.allAssignments(), is(aMapWithSize(2)));
@@ -608,7 +625,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1)),
             Optional.empty(),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         assertThat(result.allAssignments(), is(aMapWithSize(1)));
@@ -642,7 +660,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(),
             Optional.of(taskParams),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(deploymentId);
@@ -688,7 +707,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of("zone-1"), List.of(node1), List.of("zone-2"), List.of(node2)),
             Optional.of(taskParams1),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(deployment1);
@@ -727,7 +747,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1)),
             Optional.empty(),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         {
@@ -780,7 +801,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of("zone-1"), List.of(node1), List.of("zone-2"), List.of(node2)),
             Optional.empty(),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         List<String> assignedNodes = new ArrayList<>();
@@ -834,7 +856,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1)),
             Optional.empty(),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         {
@@ -884,7 +907,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2)),
             Optional.empty(),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         {
@@ -934,7 +958,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1)),
             Optional.of(taskParams2),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         {
@@ -986,7 +1011,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2)),
             Optional.of(taskParams2),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         {
@@ -1038,7 +1064,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2)),
             Optional.of(taskParams2),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         {
@@ -1084,7 +1111,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node)),
             Optional.of(taskParams),
-            2
+            2,
+            Set.of()
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
@@ -1106,11 +1134,142 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node)),
             Optional.of(taskParams),
-            1
+            1,
+            Set.of()
         ).rebalance().build();
 
         assignment = result.getDeploymentAssignment(modelId);
         assertThat(assignment.getReason().isPresent(), is(false));
+    }
+
+    public
+        void
+        testRebalance_GivenAnAvailableNodeAndShuttingDownNode_ItMovesAssignmentToAvailableNodeAndSetsShuttingDownNodeRouteToStopping() {
+        var availableNode = "node-1";
+        Tuple<DiscoveryNode, Map<DiscoveryNode, NodeLoad>> nodeLoadsInfo = createNodeLoads(availableNode);
+
+        var shuttingDownNodeId = "shutting-down-1";
+        var shuttingDownModelId = "id1";
+        StartTrainedModelDeploymentAction.TaskParams taskParamsShuttingDown = createTaskParams(shuttingDownModelId);
+
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                shuttingDownModelId,
+                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown)
+                    .addRoutingEntry(shuttingDownNodeId, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .build();
+
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoadsInfo.v2(),
+            Map.of(List.of(), List.of(nodeLoadsInfo.v1())),
+            Optional.empty(),
+            1,
+            Set.of(shuttingDownNodeId)
+        ).rebalance().build();
+
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(shuttingDownModelId);
+        assertThat(assignment, is(notNullValue()));
+        assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
+        assertThat(assignment.getNodeRoutingTable().get(availableNode).getState(), is(RoutingState.STARTING));
+        assertThat(assignment.getNodeRoutingTable().get(shuttingDownNodeId).getState(), is(RoutingState.STOPPING));
+        assertThat(assignment.getReason().isPresent(), is(false));
+    }
+
+    public void testRebalance_GivenTwoAssignmentsWithOneOnAShuttingDownNode_ItMovesAssignmentToAvailableNodeAndSetsRouteToStopping() {
+        var availableNode = "node-1";
+        Tuple<DiscoveryNode, Map<DiscoveryNode, NodeLoad>> nodeLoadsInfo = createNodeLoads(availableNode);
+
+        var shuttingDownModelId = "id1";
+        StartTrainedModelDeploymentAction.TaskParams taskParamsShuttingDown = createTaskParams(shuttingDownModelId);
+
+        var notShuttingDownModelId = "id2";
+        StartTrainedModelDeploymentAction.TaskParams taskParamsNotShuttingDown = createTaskParams(notShuttingDownModelId);
+
+        var shuttingDownNodeId = "shutting-down-1";
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                shuttingDownModelId,
+                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown)
+                    .addRoutingEntry(shuttingDownNodeId, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .addNewAssignment(
+                notShuttingDownModelId,
+                TrainedModelAssignment.Builder.empty(taskParamsNotShuttingDown)
+                    .addRoutingEntry(availableNode, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .build();
+
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoadsInfo.v2(),
+            Map.of(List.of(), List.of(nodeLoadsInfo.v1())),
+            Optional.empty(),
+            1,
+            Set.of(shuttingDownNodeId)
+        ).rebalance().build();
+
+        TrainedModelAssignment shuttingDownAssignment = result.getDeploymentAssignment(shuttingDownModelId);
+        assertThat(shuttingDownAssignment, is(notNullValue()));
+        assertThat(shuttingDownAssignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
+        assertThat(shuttingDownAssignment.getNodeRoutingTable().get(availableNode).getState(), is(RoutingState.STARTING));
+        assertThat(shuttingDownAssignment.getNodeRoutingTable().get(shuttingDownNodeId).getState(), is(RoutingState.STOPPING));
+        assertThat(shuttingDownAssignment.getReason().isPresent(), is(false));
+
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(notShuttingDownModelId);
+        assertThat(assignment, is(notNullValue()));
+        assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTED));
+        assertThat(assignment.getNodeRoutingTable().get(availableNode).getState(), is(RoutingState.STARTED));
+        assertThat(assignment.getNodeRoutingTable().get(shuttingDownNodeId), is(nullValue()));
+        assertThat(assignment.getReason().isPresent(), is(false));
+    }
+
+    public void testRebalance_GivenShuttingDownNodeWithNoAssociatedAssignments_ItDoesNotMarkAnyAssignmentsAsStopping() {
+        var availableNode = "node-1";
+        Tuple<DiscoveryNode, Map<DiscoveryNode, NodeLoad>> nodeLoadsInfo = createNodeLoads(availableNode);
+
+        var shuttingDownNodeId = "shutting-down-1";
+        var modelId = "id1";
+        StartTrainedModelDeploymentAction.TaskParams taskParamsShuttingDown = createTaskParams(modelId);
+
+        var disappearingNodeId = "disappearingNode";
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                modelId,
+                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown)
+                    .addRoutingEntry(disappearingNodeId, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .build();
+
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoadsInfo.v2(),
+            Map.of(List.of(), List.of(nodeLoadsInfo.v1())),
+            Optional.empty(),
+            1,
+            Set.of(shuttingDownNodeId)
+        ).rebalance().build();
+
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
+        assertThat(assignment, is(notNullValue()));
+        assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
+        assertThat(assignment.getNodeRoutingTable().get(availableNode).getState(), is(RoutingState.STARTING));
+        assertThat(assignment.getNodeRoutingTable().get(shuttingDownNodeId), is(nullValue()));
+        assertThat(assignment.getNodeRoutingTable().get(disappearingNodeId), is(nullValue()));
+        assertThat(assignment.getReason().isPresent(), is(false));
+    }
+
+    private static Tuple<DiscoveryNode, Map<DiscoveryNode, NodeLoad>> createNodeLoads(String nodeId) {
+        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
+        DiscoveryNode node = buildNode(nodeId, nodeMemoryBytes, 10);
+        Map<DiscoveryNode, NodeLoad> nodeLoads = Map.of(node, NodeLoad.builder(nodeId).setMaxMemory(nodeMemoryBytes).build());
+
+        return new Tuple<>(node, nodeLoads);
+    }
+
+    private static StartTrainedModelDeploymentAction.TaskParams createTaskParams(String deploymentId) {
+        return lowPriorityParams(deploymentId, ByteSizeValue.ofBytes(300).getBytes());
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams lowPriorityParams(String deploymentId, long modelSize) {

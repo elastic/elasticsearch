@@ -34,7 +34,7 @@ public class DownsampleStep extends AsyncActionStep {
     private static final Logger logger = LogManager.getLogger(DownsampleStep.class);
 
     private final DateHistogramInterval fixedInterval;
-    private final TimeValue timeout;
+    private final TimeValue waitTimeout;
     private final StepKey nextStepOnSuccess;
     private final StepKey nextStepOnFailure;
     private volatile boolean downsampleFailed;
@@ -45,13 +45,13 @@ public class DownsampleStep extends AsyncActionStep {
         final StepKey nextStepOnFailure,
         final Client client,
         final DateHistogramInterval fixedInterval,
-        final TimeValue timeout
+        final TimeValue waitTimeout
     ) {
         super(key, null, client);
         this.nextStepOnSuccess = nextStepOnSuccess;
         this.nextStepOnFailure = nextStepOnFailure;
         this.fixedInterval = fixedInterval;
-        this.timeout = timeout;
+        this.waitTimeout = waitTimeout;
     }
 
     @Override
@@ -131,9 +131,8 @@ public class DownsampleStep extends AsyncActionStep {
 
     void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
         DownsampleConfig config = new DownsampleConfig(fixedInterval);
-        DownsampleAction.Request request = new DownsampleAction.Request(indexName, downsampleIndexName, timeout, config).masterNodeTimeout(
-            TimeValue.MAX_VALUE
-        );
+        DownsampleAction.Request request = new DownsampleAction.Request(indexName, downsampleIndexName, waitTimeout, config)
+            .masterNodeTimeout(TimeValue.MAX_VALUE);
         // Currently, DownsampleAction always acknowledges action was complete when no exceptions are thrown.
         getClient().execute(DownsampleAction.INSTANCE, request, listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));
     }
@@ -147,13 +146,13 @@ public class DownsampleStep extends AsyncActionStep {
         return fixedInterval;
     }
 
-    public TimeValue getTimeout() {
-        return timeout;
+    public TimeValue getWaitTimeout() {
+        return waitTimeout;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fixedInterval, nextStepOnSuccess, nextStepOnFailure, timeout);
+        return Objects.hash(super.hashCode(), fixedInterval, nextStepOnSuccess, nextStepOnFailure, waitTimeout);
     }
 
     @Override
@@ -172,6 +171,6 @@ public class DownsampleStep extends AsyncActionStep {
             && Objects.equals(fixedInterval, other.fixedInterval)
             && Objects.equals(nextStepOnSuccess, other.nextStepOnSuccess)
             && Objects.equals(nextStepOnFailure, other.nextStepOnFailure)
-            && Objects.equals(timeout, other.timeout);
+            && Objects.equals(waitTimeout, other.waitTimeout);
     }
 }

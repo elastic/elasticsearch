@@ -34,7 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class DownsampleAction extends ActionType<AcknowledgedResponse> {
     public static final DownsampleAction INSTANCE = new DownsampleAction();
     public static final String NAME = "indices:admin/xpack/downsample";
-    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.DAYS);
+    public static final TimeValue DEFAULT_WAIT_TIMEOUT = new TimeValue(1, TimeUnit.DAYS);
 
     private DownsampleAction() {
         super(NAME, AcknowledgedResponse::readFrom);
@@ -43,18 +43,18 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
     public static class Request extends MasterNodeRequest<Request> implements IndicesRequest, ToXContentObject {
         private String sourceIndex;
         private String targetIndex;
-        private TimeValue timeout;
+        private TimeValue waitTimeout;
         private DownsampleConfig downsampleConfig;
 
         public Request(
             final String sourceIndex,
             final String targetIndex,
-            final TimeValue timeout,
+            final TimeValue waitTimeout,
             final DownsampleConfig downsampleConfig
         ) {
             this.sourceIndex = sourceIndex;
             this.targetIndex = targetIndex;
-            this.timeout = timeout == null ? DEFAULT_TIMEOUT : timeout;
+            this.waitTimeout = waitTimeout == null ? DEFAULT_WAIT_TIMEOUT : waitTimeout;
             this.downsampleConfig = downsampleConfig;
         }
 
@@ -64,9 +64,9 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             super(in);
             sourceIndex = in.readString();
             targetIndex = in.readString();
-            timeout = in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_054)
+            waitTimeout = in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_054)
                 ? TimeValue.parseTimeValue(in.readString(), "timeout")
-                : DEFAULT_TIMEOUT;
+                : DEFAULT_WAIT_TIMEOUT;
             downsampleConfig = new DownsampleConfig(in);
         }
 
@@ -91,7 +91,9 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             out.writeString(sourceIndex);
             out.writeString(targetIndex);
             out.writeString(
-                out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_054) ? timeout.getStringRep() : DEFAULT_TIMEOUT.getStringRep()
+                out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_054)
+                    ? waitTimeout.getStringRep()
+                    : DEFAULT_WAIT_TIMEOUT.getStringRep()
             );
             downsampleConfig.writeTo(out);
         }
@@ -104,8 +106,11 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             return targetIndex;
         }
 
-        public TimeValue getTimeout() {
-            return timeout;
+        /**
+         * @return the time to wait for the persistent tasks the complete downsampling
+         */
+        public TimeValue getWaitTimeout() {
+            return waitTimeout;
         }
 
         public DownsampleConfig getDownsampleConfig() {
@@ -132,7 +137,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             builder.startObject();
             builder.field("source_index", sourceIndex);
             builder.field("target_index", targetIndex);
-            builder.field("timeout", timeout);
+            builder.field("wait_timeout", waitTimeout);
             downsampleConfig.toXContent(builder, params);
             builder.endObject();
             return builder;
@@ -140,7 +145,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(sourceIndex, targetIndex, timeout, downsampleConfig);
+            return Objects.hash(sourceIndex, targetIndex, waitTimeout, downsampleConfig);
         }
 
         @Override
@@ -154,7 +159,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             Request other = (Request) obj;
             return Objects.equals(sourceIndex, other.sourceIndex)
                 && Objects.equals(targetIndex, other.targetIndex)
-                && Objects.equals(timeout, other.timeout)
+                && Objects.equals(waitTimeout, other.waitTimeout)
                 && Objects.equals(downsampleConfig, other.downsampleConfig);
         }
     }

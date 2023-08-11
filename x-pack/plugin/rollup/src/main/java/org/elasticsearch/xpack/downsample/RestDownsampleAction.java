@@ -39,7 +39,7 @@ public class RestDownsampleAction extends BaseRestHandler {
         DownsampleAction.Request request = new DownsampleAction.Request(
             sourceIndex,
             targetIndex,
-            TimeValue.parseTimeValue(timeout, null, "timeout"),
+            TimeValue.parseTimeValue(timeout, null, "wait_timeout"),
             config
         );
         return channel -> client.execute(DownsampleAction.INSTANCE, request, new RestToXContentListener<>(channel));

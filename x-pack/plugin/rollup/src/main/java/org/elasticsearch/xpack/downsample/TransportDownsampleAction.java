@@ -331,7 +331,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                                     RollupShardPersistentTaskState runningPersistentTaskState = (RollupShardPersistentTaskState) runningTask
                                         .getState();
                                     return runningPersistentTaskState != null && runningPersistentTaskState.done();
-                                }, request.getTimeout(), new PersistentTasksService.WaitForPersistentTaskListener<>() {
+                                }, request.getWaitTimeout(), new PersistentTasksService.WaitForPersistentTaskListener<>() {
                                     @Override
                                     public void onResponse(
                                         PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask
@@ -421,7 +421,14 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .indices()
             .updateSettings(
                 updateSettingsReq,
-                new UpdateRollupIndexSettingsActionListener(listener, client, parentTask, rollupIndexName, request.getTimeout(), taskQueue)
+                new UpdateRollupIndexSettingsActionListener(
+                    listener,
+                    client,
+                    parentTask,
+                    rollupIndexName,
+                    request.getWaitTimeout(),
+                    taskQueue
+                )
             );
     }
 

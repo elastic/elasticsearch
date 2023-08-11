@@ -57,14 +57,14 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
         DateHistogramInterval fixedInterval = instance.getFixedInterval();
-        TimeValue timeout = instance.getTimeout();
+        TimeValue timeout = instance.getWaitTimeout();
 
         switch (between(0, 3)) {
             case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
             case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             case 2 -> fixedInterval = randomValueOtherThan(instance.getFixedInterval(), ConfigTestHelpers::randomInterval);
             case 3 -> timeout = randomValueOtherThan(
-                instance.getTimeout(),
+                instance.getWaitTimeout(),
                 () -> TimeValue.parseTimeValue(randomTimeValue(1, 1000, "d", "h", "ms", "s", "m"), "timeout")
             );
             default -> throw new AssertionError("Illegal randomisation branch");
@@ -81,7 +81,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             null,
             instance.getClient(),
             instance.getFixedInterval(),
-            instance.getTimeout()
+            instance.getWaitTimeout()
         );
     }
 
@@ -300,7 +300,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
-                TimeValue timeout = DownsampleAction.DEFAULT_TIMEOUT;
+                TimeValue timeout = DownsampleAction.DEFAULT_WAIT_TIMEOUT;
                 DownsampleStep completeStep = new DownsampleStep(
                     randomStepKey(),
                     nextKeyOnComplete,
@@ -322,7 +322,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
-                TimeValue timeout = DownsampleAction.DEFAULT_TIMEOUT;
+                TimeValue timeout = DownsampleAction.DEFAULT_WAIT_TIMEOUT;
                 DownsampleStep doubleInvocationStep = new DownsampleStep(
                     randomStepKey(),
                     nextKeyOnComplete,

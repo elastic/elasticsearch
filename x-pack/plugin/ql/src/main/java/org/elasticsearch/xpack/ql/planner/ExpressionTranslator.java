@@ -51,10 +51,8 @@ public abstract class ExpressionTranslator<E extends Expression> {
     }
 
     public static String pushableAttributeName(TypedAttribute attribute) {
-        if (attribute instanceof FieldAttribute fa) {
-            // equality should always be against an exact match (which is important for strings)
-            return fa.exactAttribute().name();
-        }
-        return attribute.name();
+        return attribute instanceof FieldAttribute fa
+            ? fa.exactAttribute().name() // equality should always be against an exact match (which is important for strings)
+            : attribute.name();
     }
 }

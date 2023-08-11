@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -217,20 +218,20 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         private static boolean canPushToSource(Expression exp) {
             if (exp instanceof BinaryComparison bc) {
-                return canPushAttribute(bc.left(), bc) && bc.right().foldable();
+                return isAttributePushable(bc.left(), bc) && bc.right().foldable();
             } else if (exp instanceof BinaryLogic bl) {
                 return canPushToSource(bl.left()) && canPushToSource(bl.right());
             } else if (exp instanceof RegexMatch<?> rm) {
-                return canPushAttribute(rm.field(), rm);
+                return isAttributePushable(rm.field(), rm);
             } else if (exp instanceof In in) {
-                return canPushAttribute(in.value(), null) && Expressions.foldable(in.list());
+                return isAttributePushable(in.value(), null) && Expressions.foldable(in.list());
             } else if (exp instanceof Not not) {
                 return canPushToSource(not.field());
             }
             return false;
         }
 
-        private static boolean canPushAttribute(Expression expression, ScalarFunction operation) {
+        private static boolean isAttributePushable(Expression expression, ScalarFunction operation) {
             if (expression instanceof FieldAttribute) {
                 return true;
             }
@@ -303,7 +304,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             if (field instanceof MetadataAttribute) {
                 return querySupplier.get(); // MetadataAttributes are always single valued
             }
-            throw new IllegalStateException("Expected a FieldAttribute or MetadataAttribute but received [" + field + "]");
+            throw new EsqlIllegalArgumentException("Expected a FieldAttribute or MetadataAttribute but received [" + field + "]");
         }
     }
 }

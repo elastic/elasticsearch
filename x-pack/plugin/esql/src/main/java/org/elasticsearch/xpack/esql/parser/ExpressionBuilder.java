@@ -92,24 +92,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Literal visitDecimalValue(EsqlBaseParser.DecimalValueContext ctx) {
-        boolean minus = false;
-        while (ctx.decimalValue() != null) {
-            if (ctx.MINUS() != null) {
-                minus = minus == false;
-            }
-            ctx = ctx.decimalValue();
-        }
         Source source = source(ctx);
         String text = ctx.getText();
-        if (minus) {
-            if (text.startsWith("-")) {
-                text = text.substring(1);
-            } else if (text.startsWith("+")) {
-                text = "-" + text.substring(1);
-            } else {
-                text = "-" + text;
-            }
-        }
+
         try {
             return new Literal(source, Double.valueOf(StringUtils.parseDouble(text)), DataTypes.DOUBLE);
         } catch (QlIllegalArgumentException siae) {
@@ -119,24 +104,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Literal visitIntegerValue(EsqlBaseParser.IntegerValueContext ctx) {
-        boolean minus = false;
-        while (ctx.integerValue() != null) {
-            if (ctx.MINUS() != null) {
-                minus = minus == false;
-            }
-            ctx = ctx.integerValue();
-        }
         Source source = source(ctx);
         String text = ctx.getText();
-        if (minus) {
-            if (text.startsWith("-")) {
-                text = text.substring(1);
-            } else if (text.startsWith("+")) {
-                text = "-" + text.substring(1);
-            } else {
-                text = "-" + text;
-            }
-        }
         Number number;
 
         try {

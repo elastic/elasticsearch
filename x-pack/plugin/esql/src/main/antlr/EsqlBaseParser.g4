@@ -204,15 +204,11 @@ numericValue
     ;
 
 decimalValue
-    : DECIMAL_LITERAL
-    | (PLUS | MINUS) decimalValue
-    | LP decimalValue RP
+    : (PLUS | MINUS)? DECIMAL_LITERAL
     ;
 
 integerValue
-    : INTEGER_LITERAL
-    | (PLUS | MINUS) integerValue
-    | LP integerValue RP
+    : (PLUS | MINUS)? INTEGER_LITERAL
     ;
 
 string

@@ -393,7 +393,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return effectiveRegionSize;
     }
 
-    public Entry<CacheFileRegion> get(KeyType cacheKey, long fileLength, int region) {
+    Entry<CacheFileRegion> get(KeyType cacheKey, long fileLength, int region) {
         final RegionKey<KeyType> regionKey = new RegionKey<>(cacheKey, region);
         final long now = threadPool.relativeTimeInMillis();
         // try to just get from the map on the fast-path to save instantiating the capturing lambda needed on the slow path if we did not
@@ -419,6 +419,15 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         return entry;
+    }
+
+    public void prefetch(KeyType cacheKey, long length, RangeMissingHandler writer) {
+        int finalRegion = getRegion(length);
+        for (int region = 0; region <= finalRegion; region++) {
+            var entry = get(cacheKey, length, region);
+            ByteRange rangeToWrite = ByteRange.of(0, length);
+            entry.chunk.populateAndRead(rangeToWrite, ByteRange.EMPTY, (channel, pos, relativePos, len) -> 0, writer, null);
+        }
     }
 
     private Entry<CacheFileRegion> initChunk(Entry<CacheFileRegion> entry) {

@@ -81,7 +81,7 @@ setup:
                   "actions": {
                     "downsample": {
                       "fixed_interval": "1h",
-                      "timeout": "1h"
+                      "wait_timeout": "1h"
                     }
                   }
                 }

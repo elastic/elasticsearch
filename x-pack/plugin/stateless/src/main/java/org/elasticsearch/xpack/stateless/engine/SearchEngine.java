@@ -33,6 +33,8 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.engine.CompletionStatsCache;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
 import org.elasticsearch.index.engine.Engine;
@@ -53,11 +55,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -85,10 +89,10 @@ public class SearchEngine extends Engine {
     private final SearchDirectory directory;
 
     private volatile SegmentInfos segmentInfos;
-
     private volatile long maxSequenceNumber = SequenceNumbers.NO_OPS_PERFORMED;
-
     private volatile long processedLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
+
+    private final Map<PrimaryTermAndGeneration, Long> acquiredPrimaryTermAndGenerations = new ConcurrentHashMap<>();
 
     public SearchEngine(EngineConfig config) {
         super(config);
@@ -132,6 +136,10 @@ public class SearchEngine extends Engine {
         return pendingCommitNotifications.get();
     }
 
+    public Set<PrimaryTermAndGeneration> getAcquiredPrimaryTermAndGenerations() {
+        return Set.copyOf(acquiredPrimaryTermAndGenerations.keySet());
+    }
+
     public void onCommitNotification(StatelessCompoundCommit commit, ActionListener<Void> listener) {
         if (addOrExecuteSegmentGenerationListener(commit.generation(), listener.map(g -> null))) {
             commitNotifications.add(commit);
@@ -142,8 +150,7 @@ public class SearchEngine extends Engine {
     }
 
     private void processCommitNotifications() {
-        var executor = engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH);
-        executor.execute(new AbstractRunnable() {
+        engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
 
             int batchSize = 0;
 
@@ -346,6 +353,46 @@ public class SearchEngine extends Engine {
         Function<Searcher, Searcher> searcherWrapper
     ) {
         return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
+    }
+
+    @Override
+    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+        return super.acquireSearcherSupplier(wrapper.andThen(searcher -> {
+            final var releasable = acquirePrimaryTermAndGeneration(searcher.getDirectoryReader());
+            return new Searcher(
+                searcher.source(),
+                searcher.getIndexReader(),
+                searcher.getSimilarity(),
+                searcher.getQueryCache(),
+                searcher.getQueryCachingPolicy(),
+                () -> Releasables.close(searcher, releasable)
+            );
+        }), scope);
+    }
+
+    Releasable acquirePrimaryTermAndGeneration(DirectoryReader directoryReader) {
+        try {
+            var indexCommit = directoryReader.getIndexCommit();
+            var primaryTerm = SearchDirectory.unwrapDirectory(indexCommit.getDirectory()).getPrimaryTerm(indexCommit.getSegmentsFileName());
+            if (primaryTerm.isEmpty()) {
+                return () -> {};
+            }
+
+            final var key = new PrimaryTermAndGeneration(primaryTerm.get(), indexCommit.getGeneration());
+            var refCount = acquiredPrimaryTermAndGenerations.compute(key, (ignored, value) -> value != null ? value + 1L : 1L);
+            logger.trace("acquired {} (refCount={})", key, refCount);
+
+            return () -> {
+                var newRefCount = acquiredPrimaryTermAndGenerations.compute(key, (ignored, value) -> {
+                    assert value != null : key;
+                    return value > 1L ? value - 1L : null;
+                });
+                logger.trace("released {} (refCount={})", key, newRefCount);
+            };
+        } catch (IOException e) {
+            assert false : e;
+            throw new UncheckedIOException("Failed to acquire primary term and generation", e);
+        }
     }
 
     @Override

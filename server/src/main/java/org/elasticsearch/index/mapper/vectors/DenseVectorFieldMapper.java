@@ -132,7 +132,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
             final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexedByDefault).alwaysSerialize();
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexedByDefault);
+            if (indexedByDefault) {
+                // Only serialize on newer index versions to prevent breaking existing indices when upgrading
+                this.indexed.alwaysSerialize();
+            }
             this.similarity = Parameter.enumParam(
                 "similarity",
                 false,

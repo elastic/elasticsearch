@@ -74,11 +74,23 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
+        indexMapping(b, true);
+    }
+
+    @Override
+    protected void minimalMapping(XContentBuilder b, IndexVersion indexVersion) throws IOException {
+        indexMapping(b, indexVersion.onOrAfter(DenseVectorFieldMapper.INDEXED_BY_DEFAULT_INDEX_VERSION));
+    }
+
+    private void indexMapping(XContentBuilder b, boolean indexedByDefault) throws IOException {
         b.field("type", "dense_vector").field("dims", 4);
         if (elementType != ElementType.FLOAT) {
             b.field("element_type", elementType.toString());
         }
-        b.field("index", indexed);
+        if (indexedByDefault || indexed) {
+            // Serialize if it's new index version, or it was not the default for previous indices
+            b.field("index", indexed);
+        }
         if (indexed) {
             b.field("similarity", "dot_product");
             if (indexOptionsSet) {

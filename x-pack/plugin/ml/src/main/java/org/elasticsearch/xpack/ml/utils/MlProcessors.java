@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.utils;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
@@ -16,7 +15,7 @@ public final class MlProcessors {
 
     private MlProcessors() {}
 
-    public static Processors get(DiscoveryNode node, Settings settings) {
+    public static Processors get(DiscoveryNode node, Integer allocatedProcessorScale) {
         // Try getting the most modern setting, and if that's null then instead get the older setting. (If both are null then return zero.)
         String allocatedProcessorsString = node.getAttributes().get(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR);
         if (allocatedProcessorsString == null) {
@@ -31,12 +30,8 @@ public final class MlProcessors {
                 return Processors.ZERO;
             }
 
-            Integer scale = null;
-            if (settings != null) {
-                scale = MachineLearning.ALLOCATED_PROCESSORS_SCALE.get(settings);
-            }
-            if (scale != null) {
-                processorsAsDouble = processorsAsDouble / scale;
+            if (allocatedProcessorScale != null) {
+                processorsAsDouble = processorsAsDouble / allocatedProcessorScale;
             }
             return Processors.of(processorsAsDouble);
 

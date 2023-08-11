@@ -85,14 +85,6 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         return modeInfo;
     }
 
-    public TimeValue getInitialConnectionTimeout() {
-        return initialConnectionTimeout;
-    }
-
-    public boolean isSkipUnavailable() {
-        return skipUnavailable;
-    }
-
     public boolean hasClusterCredentials() {
         return hasClusterCredentials;
     }

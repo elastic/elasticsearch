@@ -418,12 +418,9 @@ public class SparseFileTracker {
     }
 
     private void onGapSuccess(final Range gapRange) {
-        final ProgressListenableActionFuture completionListener;
-
         synchronized (mutex) {
             assert invariant();
             assert assertPendingRangeExists(gapRange);
-            completionListener = gapRange.completionListener;
             ranges.remove(gapRange);
 
             final SortedSet<Range> prevRanges = ranges.headSet(gapRange);
@@ -462,7 +459,7 @@ public class SparseFileTracker {
             assert invariant();
         }
 
-        completionListener.onResponse(gapRange.end);
+        gapRange.completionListener.onResponse(gapRange.end);
     }
 
     private void maybeUpdateCompletePointer(Range gapRange) {
@@ -473,32 +470,24 @@ public class SparseFileTracker {
         }
     }
 
-    private void onGapProgress(final Range gapRange, long value) {
-        final ProgressListenableActionFuture completionListener;
-
+    private boolean assertGapRangePending(Range gapRange) {
         synchronized (mutex) {
             assert invariant();
             assert assertPendingRangeExists(gapRange);
-            completionListener = gapRange.completionListener;
-            assert invariant();
         }
-
-        completionListener.onProgress(value);
+        return true;
     }
 
     private void onGapFailure(final Range gapRange, Exception e) {
-        final ProgressListenableActionFuture completionListener;
-
         synchronized (mutex) {
             assert invariant();
             assert assertPendingRangeExists(gapRange);
-            completionListener = gapRange.completionListener;
             final boolean removed = ranges.remove(gapRange);
             assert removed : gapRange + " not found";
             assert invariant();
         }
 
-        completionListener.onFailure(e);
+        gapRange.completionListener.onFailure(e);
     }
 
     private boolean invariant() {
@@ -567,7 +556,8 @@ public class SparseFileTracker {
         }
 
         public void onProgress(long value) {
-            onGapProgress(range, value);
+            assert assertGapRangePending(range);
+            range.completionListener.onProgress(value);
         }
 
         public void onFailure(Exception e) {

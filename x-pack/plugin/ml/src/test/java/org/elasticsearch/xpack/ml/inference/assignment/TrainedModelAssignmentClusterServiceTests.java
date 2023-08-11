@@ -98,7 +98,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                 MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT,
                 MachineLearning.MAX_OPEN_JOBS_PER_NODE,
                 MachineLearning.MAX_LAZY_ML_NODES,
-                MachineLearning.MAX_ML_NODE_SIZE
+                MachineLearning.MAX_ML_NODE_SIZE,
+                MachineLearning.ALLOCATED_PROCESSORS_SCALE
             )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);

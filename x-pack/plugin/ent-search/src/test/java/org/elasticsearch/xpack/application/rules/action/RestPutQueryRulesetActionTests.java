@@ -50,7 +50,7 @@ public class RestPutQueryRulesetActionTests extends AbstractRestEnterpriseSearch
                     }
                     """), XContentType.JSON)
                 .build(),
-            EnterpriseSearchFeature.Feature.QUERY_RULE
+            EnterpriseSearchFeature.Feature.QUERY_RULES
         );
     }
 
@@ -60,7 +60,7 @@ public class RestPutQueryRulesetActionTests extends AbstractRestEnterpriseSearch
                 .withParams(Map.of("invalid_param_name", "invalid_value"))
                 .withContent(new BytesArray("{}"), XContentType.JSON)
                 .build(),
-            EnterpriseSearchFeature.Feature.QUERY_RULE
+            EnterpriseSearchFeature.Feature.QUERY_RULES
         );
     }
 

@@ -23,7 +23,7 @@ public class RestGetQueryRulesetActionTests extends AbstractRestEnterpriseSearch
             new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.GET)
                 .withParams(Map.of("ruleset_id", "ruleset-id"))
                 .build(),
-            EnterpriseSearchFeature.Feature.QUERY_RULE
+            EnterpriseSearchFeature.Feature.QUERY_RULES
         );
     }
 

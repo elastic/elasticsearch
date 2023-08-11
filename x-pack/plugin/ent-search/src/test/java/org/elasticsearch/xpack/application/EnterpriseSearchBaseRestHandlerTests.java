@@ -27,7 +27,7 @@ import static org.mockito.Mockito.when;
 public class EnterpriseSearchBaseRestHandlerTests extends ESTestCase {
     public void testLicenseEnforcement() throws Exception {
         MockLicenseState licenseState = MockLicenseState.createMock();
-        final EnterpriseSearchFeature.Feature feature = EnterpriseSearchFeature.Feature.QUERY_RULE;
+        final EnterpriseSearchFeature.Feature feature = EnterpriseSearchFeature.Feature.QUERY_RULES;
         final boolean licensedFeature = randomBoolean();
 
         when(licenseState.isAllowed(LicenseUtils.LICENSED_ENT_SEARCH_FEATURE)).thenReturn(licensedFeature);

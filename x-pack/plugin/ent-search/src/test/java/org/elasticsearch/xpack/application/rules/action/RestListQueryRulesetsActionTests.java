@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.application.EnterpriseSearchFeature;
 
 public class RestListQueryRulesetsActionTests extends AbstractRestEnterpriseSearchActionTests {
     public void testWithNonCompliantLicense() throws Exception {
-        checkLicenseForRequest(new FakeRestRequest(), EnterpriseSearchFeature.Feature.QUERY_RULE);
+        checkLicenseForRequest(new FakeRestRequest(), EnterpriseSearchFeature.Feature.QUERY_RULES);
     }
 
     @Override

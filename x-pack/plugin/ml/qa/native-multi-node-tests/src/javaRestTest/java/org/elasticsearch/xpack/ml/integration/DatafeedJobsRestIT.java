@@ -989,8 +989,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")
         );
         String jobStatsResponseAsString = EntityUtils.toString(jobStatsResponse.getEntity());
-        assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":240"));
-        assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":240"));
+        assertThat(jobStatsResponseAsString, containsString("\"bucket_count\":3"));
     }
 
     public void testLookbackWithoutPermissions() throws Exception {

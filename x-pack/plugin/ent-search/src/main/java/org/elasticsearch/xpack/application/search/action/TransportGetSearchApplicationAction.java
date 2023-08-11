@@ -46,26 +46,18 @@ public class TransportGetSearchApplicationAction extends HandledTransportAction<
         GetSearchApplicationAction.Request request,
         ActionListener<GetSearchApplicationAction.Response> listener
     ) {
-        systemIndexService.getSearchApplication(
-            request.getName(),
-            listener.delegateFailure(
-                (l, searchApplication) -> systemIndexService.checkAliasConsistency(searchApplication, l.safeMap(inconsistentIndices -> {
-                    for (String key : inconsistentIndices.keySet()) {
-                        HeaderWarning.addWarning(key + " " + inconsistentIndices.get(key));
-                    }
-                    if (searchApplication.hasStoredTemplate() == false) {
-                        HeaderWarning.addWarning(SearchApplication.NO_TEMPLATE_STORED_WARNING);
-                    }
-                    // Construct a new object to ensure we backfill the stored application with the default template
-                    return new GetSearchApplicationAction.Response(
-                        searchApplication.name(),
-                        searchApplication.indices(),
-                        searchApplication.analyticsCollectionName(),
-                        searchApplication.updatedAtMillis(),
-                        searchApplication.searchApplicationTemplateOrDefault()
-                    );
-                }))
-            )
-        );
+        systemIndexService.getSearchApplication(request.getName(), listener.map(searchApplication -> {
+            if (searchApplication.hasStoredTemplate() == false) {
+                HeaderWarning.addWarning(SearchApplication.NO_TEMPLATE_STORED_WARNING);
+            }
+            // Construct a new object to ensure we backfill the stored application with the default template
+            return new GetSearchApplicationAction.Response(
+                searchApplication.name(),
+                searchApplication.indices(),
+                searchApplication.analyticsCollectionName(),
+                searchApplication.updatedAtMillis(),
+                searchApplication.searchApplicationTemplateOrDefault()
+            );
+        }));
     }
 }

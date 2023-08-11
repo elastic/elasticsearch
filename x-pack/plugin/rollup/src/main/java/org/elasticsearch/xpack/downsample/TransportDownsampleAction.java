@@ -366,7 +366,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                                             rollupIndexName,
                                             parentTask,
                                             numberOfShards,
-                                            countDown, persistentRollupTaskId,
+                                            countDown,
+                                            persistentRollupTaskId,
                                             params
                                         );
                                     } else {

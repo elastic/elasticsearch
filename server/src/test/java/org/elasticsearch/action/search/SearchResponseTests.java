@@ -285,8 +285,8 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     private void doFromXContentTestWithRandomFields(SearchResponse response, boolean addRandomFields) throws IOException {
-        XContentType xcontentType = XContentType.JSON; // randomFrom(XContentType.values());
-        boolean humanReadable = true; // randomBoolean();
+        XContentType xcontentType = randomFrom(XContentType.values());
+        boolean humanReadable = randomBoolean();
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         BytesReference originalBytes = toShuffledXContent(
             ChunkedToXContent.wrapAsToXContent(response),

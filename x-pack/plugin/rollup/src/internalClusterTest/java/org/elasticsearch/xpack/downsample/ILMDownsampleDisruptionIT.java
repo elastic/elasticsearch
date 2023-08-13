@@ -57,6 +57,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -191,7 +192,7 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
                 }
             })).start();
 
-            final String targetIndex = "downsample--" + sourceIndex + "-1h";
+            final String targetIndex = "downsample-" + sourceIndex + "-1h";
             if (startRollupTaskViaIlm(sourceIndex, targetIndex, disruptionStart, disruptionEnd) == false) {
                 return;
             }
@@ -222,7 +223,7 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
             assertTrue("target index [" + targetIndex + "] does not exist", indexExists(targetIndex));
             var getSettingsResponse = client().admin().indices().getSettings(new GetSettingsRequest().indices(targetIndex)).actionGet();
             assertThat(getSettingsResponse.getSetting(targetIndex, IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()), equalTo("success"));
-        });
+        }, 60, TimeUnit.SECONDS);
         disruptionEnd.await();
         return true;
     }

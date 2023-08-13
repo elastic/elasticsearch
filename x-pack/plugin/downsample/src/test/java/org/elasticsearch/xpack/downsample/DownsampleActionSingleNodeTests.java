@@ -86,7 +86,6 @@ import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.elasticsearch.xpack.rollup.Rollup;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -150,7 +149,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(
             LocalStateCompositeXPackPlugin.class,
-            Rollup.class,
+            Downsample.class,
             AggregateMetricMapperPlugin.class,
             DataStreamsPlugin.class,
             IndexLifecycle.class

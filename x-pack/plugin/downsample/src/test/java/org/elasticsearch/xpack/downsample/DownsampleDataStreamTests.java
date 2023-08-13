@@ -49,7 +49,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
-import org.elasticsearch.xpack.rollup.Rollup;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -67,7 +66,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(Rollup.class, DataStreamsPlugin.class);
+        return List.of(Downsample.class, DataStreamsPlugin.class);
     }
 
     public void testDataStreamDownsample() throws ExecutionException, InterruptedException, IOException {

@@ -31,8 +31,6 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.core.downsample.DownsampleAction;
-import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
@@ -42,9 +40,6 @@ import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
-import org.elasticsearch.xpack.downsample.RestDownsampleAction;
-import org.elasticsearch.xpack.downsample.TransportDownsampleAction;
-import org.elasticsearch.xpack.downsample.TransportDownsampleIndexerAction;
 import org.elasticsearch.xpack.rollup.action.TransportDeleteRollupJobAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupCapsAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupIndexCapsAction;
@@ -79,8 +74,6 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public static final int CURRENT_ROLLUP_VERSION = ROLLUP_VERSION_V2;
 
     public static final String TASK_THREAD_POOL_NAME = RollupField.NAME + "_indexing";
-    public static final String DOWSAMPLE_TASK_THREAD_POOL_NAME = "downsample_indexing";
-    public static final int DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE = 256;
 
     public static final String ROLLUP_TEMPLATE_VERSION_FIELD = "rollup-version";
 
@@ -109,8 +102,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             new RestDeleteRollupJobAction(),
             new RestGetRollupJobsAction(),
             new RestGetRollupCapsAction(),
-            new RestGetRollupIndexCapsAction(),
-            new RestDownsampleAction() // TSDB Downsampling
+            new RestGetRollupIndexCapsAction()
         );
     }
 
@@ -126,9 +118,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             new ActionHandler<>(GetRollupCapsAction.INSTANCE, TransportGetRollupCapsAction.class),
             new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class),
-            new ActionHandler<>(DownsampleIndexerAction.INSTANCE, TransportDownsampleIndexerAction.class),
-            new ActionHandler<>(DownsampleAction.INSTANCE, TransportDownsampleAction.class)
+            new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class)
         );
     }
 
@@ -142,17 +132,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             "xpack.rollup.task_thread_pool",
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
-
-        final FixedExecutorBuilder downsample = new FixedExecutorBuilder(
-            settingsToUse,
-            Rollup.DOWSAMPLE_TASK_THREAD_POOL_NAME,
-            ThreadPool.oneEighthAllocatedProcessors(EsExecutors.allocatedProcessors(settingsToUse)),
-            Rollup.DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE,
-            "xpack.downsample.thread_pool",
-            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
-        );
-
-        return List.of(rollup, downsample);
+        return List.of(rollup);
     }
 
     @Override

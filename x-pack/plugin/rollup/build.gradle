@@ -11,8 +11,6 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  testImplementation project(':modules:data-streams')
-  testImplementation project(path: xpackModule('ilm'))
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 

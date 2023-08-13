@@ -3,3 +3,8 @@ summary: Beta release for API key based cross-cluster access
 area: Security
 type: feature
 issues: []
+highlight:
+  title: API key based cross-cluster search and replication (Beta)
+  body: |-
+    
+  notable: false

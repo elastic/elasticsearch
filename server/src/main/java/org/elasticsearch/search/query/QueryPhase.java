@@ -209,8 +209,7 @@ public class QueryPhase {
             try {
                 QueryPhaseResult queryPhaseResult = searcher.search(query, collectorManager);
                 if (searchContext.getProfilers() != null) {
-                    // TODO do we still need a supplier?
-                    searchContext.getProfilers().getCurrentQueryProfiler().setCollectorManager(queryPhaseResult::collectorResult);
+                    searchContext.getProfilers().getCurrentQueryProfiler().setCollectorResult(queryPhaseResult.collectorResult());
                 }
                 queryResult.topDocs(queryPhaseResult.topDocsAndMaxScore(), queryPhaseResult.sortValueFormats());
                 if (searcher.timeExceeded()) {

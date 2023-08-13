@@ -112,11 +112,18 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
             minScore
         );
         if (profile) {
+            if (aggsCollector == null) {
+                return new InternalProfileCollector(
+                    queryPhaseCollector,
+                    REASON_SEARCH_QUERY_PHASE,
+                    (InternalProfileCollector) topDocsCollector
+                );
+            }
             return new InternalProfileCollector(
                 queryPhaseCollector,
                 REASON_SEARCH_QUERY_PHASE,
-                (InternalProfileCollector) aggsCollector,
-                (InternalProfileCollector) topDocsCollector
+                (InternalProfileCollector) topDocsCollector,
+                (InternalProfileCollector) aggsCollector
             );
         }
         return queryPhaseCollector;

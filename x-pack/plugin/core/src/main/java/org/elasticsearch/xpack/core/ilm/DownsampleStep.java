@@ -67,7 +67,7 @@ public class DownsampleStep extends AsyncActionStep {
 
         final String policyName = indexMetadata.getLifecyclePolicyName();
         final String indexName = indexMetadata.getIndex().getName();
-        final String downsampleIndexName = DOWNSAMPLED_INDEX_PREFIX + indexName + "-" + fixedInterval;
+        final String downsampleIndexName = generateDownsampleIndexName(indexName, fixedInterval);
 
         IndexMetadata downsampleIndexMetadata = currentState.metadata().index(downsampleIndexName);
         if (downsampleIndexMetadata != null) {
@@ -125,5 +125,9 @@ public class DownsampleStep extends AsyncActionStep {
         }
         DownsampleStep other = (DownsampleStep) obj;
         return super.equals(obj) && Objects.equals(fixedInterval, other.fixedInterval) && Objects.equals(waitTimeout, other.waitTimeout);
+    }
+
+    static String generateDownsampleIndexName(String sourceIndexName, DateHistogramInterval fixedInterval) {
+        return DOWNSAMPLED_INDEX_PREFIX + sourceIndexName + "-" + fixedInterval;
     }
 }

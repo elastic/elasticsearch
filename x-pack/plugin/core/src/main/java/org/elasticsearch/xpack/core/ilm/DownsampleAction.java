@@ -33,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.core.ilm.DownsampleStep.generateDownsampleIndexName;
 
 /**
  * A {@link LifecycleAction} which calls {@link org.elasticsearch.xpack.core.downsample.DownsampleAction} on an index
@@ -190,7 +191,7 @@ public class DownsampleAction implements LifecycleAction {
                 waitForDownsampleIndexKey,
                 copyMetadataKey,
                 ClusterHealthStatus.YELLOW,
-                (indexName, lifecycleState) -> lifecycleState.downsampleIndexName()
+                (indexName, lifecycleState) -> generateDownsampleIndexName(indexName, fixedInterval)
             ),
             cleanupDownsampleIndexKey
         );
@@ -198,14 +199,14 @@ public class DownsampleAction implements LifecycleAction {
         CopyExecutionStateStep copyExecutionStateStep = new CopyExecutionStateStep(
             copyMetadataKey,
             copyIndexLifecycleKey,
-            (indexName, lifecycleState) -> lifecycleState.downsampleIndexName(),
+            (indexName, lifecycleState) -> generateDownsampleIndexName(indexName, fixedInterval),
             nextStepKey
         );
 
         CopySettingsStep copyLifecycleSettingsStep = new CopySettingsStep(
             copyIndexLifecycleKey,
             dataStreamCheckBranchingKey,
-            (index, lifecycleState) -> lifecycleState.downsampleIndexName(),
+            (indexName, lifecycleState) -> generateDownsampleIndexName(indexName, fixedInterval),
             LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()
         );
 
@@ -227,7 +228,7 @@ public class DownsampleAction implements LifecycleAction {
         ReplaceDataStreamBackingIndexStep replaceDataStreamBackingIndex = new ReplaceDataStreamBackingIndexStep(
             replaceDataStreamIndexKey,
             deleteIndexKey,
-            (sourceIndexName, lifecycleState) -> lifecycleState.downsampleIndexName()
+            (sourceIndexName, lifecycleState) -> generateDownsampleIndexName(sourceIndexName, fixedInterval)
         );
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, nextStepKey, client);
 
@@ -235,7 +236,7 @@ public class DownsampleAction implements LifecycleAction {
             swapAliasesKey,
             nextStepKey,
             client,
-            (indexName, lifecycleState) -> lifecycleState.downsampleIndexName(),
+            (indexName, lifecycleState) -> generateDownsampleIndexName(indexName, fixedInterval),
             false
         );
 

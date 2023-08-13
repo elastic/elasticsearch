@@ -159,7 +159,7 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         String rollupIndex = waitAndGetRollupIndexName(client(), index, fixedInterval);
         assertNotNull("Cannot retrieve rollup index name", rollupIndex);
-        assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertTrue("Rollup index does exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(index)), 30, TimeUnit.SECONDS);
         assertBusy(
             () -> assertThat(getStepKeyForIndex(client(), rollupIndex), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())),
@@ -339,11 +339,10 @@ public class DownsampleActionIT extends ESRestTestCase {
         throws IOException {
         String endpoint = "/"
             + DownsampleAction.DOWNSAMPLED_INDEX_PREFIX
-            + "*-"
             + originalIndexName
             + "-"
             + fixedInterval
-            + "/?expand_wildcards=all";
+            + "*/?expand_wildcards=all";
         Response response = client.performRequest(new Request("GET", endpoint));
         Map<String, Object> asMap = responseAsMap(response);
         if (asMap.size() == 1) {

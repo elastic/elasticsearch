@@ -368,7 +368,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         for (int shardNum = 0; shardNum < numberOfShards; shardNum++) {
             final ShardId shardId = new ShardId(sourceIndex, shardNum);
             final String persistentRollupTaskId = createRollupShardTaskId(
-                rollupIndexName,
+                sourceIndex.getName(),
                 shardId,
                 request.getDownsampleConfig().getInterval()
             );
@@ -492,12 +492,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .toEpochMilli();
     }
 
-    private static String createRollupShardTaskId(
-        final String rollupIndexName,
-        final ShardId shardId,
-        final DateHistogramInterval interval
-    ) {
-        return DOWNSAMPLED_INDEX_PREFIX + rollupIndexName + "-" + shardId.id() + "-" + interval;
+    private static String createRollupShardTaskId(final String sourceIndex, final ShardId shardId, final DateHistogramInterval interval) {
+        return DOWNSAMPLED_INDEX_PREFIX + sourceIndex + "-" + shardId.id() + "-" + interval;
     }
 
     @Override

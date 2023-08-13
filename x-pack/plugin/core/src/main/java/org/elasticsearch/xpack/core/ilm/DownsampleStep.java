@@ -31,26 +31,19 @@ import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDE
  */
 public class DownsampleStep extends AsyncActionStep {
     public static final String NAME = "rollup";
-
-    private static final Logger logger = LogManager.getLogger(DownsampleStep.class);
+    private static final Logger LOGGER = LogManager.getLogger(DownsampleStep.class);
 
     private final DateHistogramInterval fixedInterval;
     private final TimeValue waitTimeout;
-    private final StepKey nextStepOnSuccess;
-    private final StepKey nextStepOnFailure;
-    private volatile boolean downsampleFailed;
 
     public DownsampleStep(
         final StepKey key,
-        final StepKey nextStepOnSuccess,
-        final StepKey nextStepOnFailure,
+        final StepKey nextStepKey,
         final Client client,
         final DateHistogramInterval fixedInterval,
         final TimeValue waitTimeout
     ) {
-        super(key, null, client);
-        this.nextStepOnSuccess = nextStepOnSuccess;
-        this.nextStepOnFailure = nextStepOnFailure;
+        super(key, nextStepKey, client);
         this.fixedInterval = fixedInterval;
         this.waitTimeout = waitTimeout;
     }
@@ -74,7 +67,7 @@ public class DownsampleStep extends AsyncActionStep {
 
         final String policyName = indexMetadata.getLifecyclePolicyName();
         final String indexName = indexMetadata.getIndex().getName();
-        final String downsampleIndexName = DOWNSAMPLED_INDEX_PREFIX + "-" + indexName + "-" + fixedInterval;
+        final String downsampleIndexName = DOWNSAMPLED_INDEX_PREFIX + indexName + "-" + fixedInterval;
 
         IndexMetadata downsampleIndexMetadata = currentState.metadata().index(downsampleIndexName);
         if (downsampleIndexMetadata != null) {
@@ -84,7 +77,7 @@ public class DownsampleStep extends AsyncActionStep {
             if (IndexMetadata.DownsampleTaskStatus.SUCCESS.equals(downsampleIndexStatus)) {
                 // Downsample index has already been created with the generated name and its status is "success".
                 // So we skip index downsample creation.
-                logger.info(
+                LOGGER.info(
                     "skipping [{}] step for index [{}] as part of policy [{}] as the downsample index [{}] already exists",
                     DownsampleStep.NAME,
                     indexName,
@@ -93,11 +86,9 @@ public class DownsampleStep extends AsyncActionStep {
                 );
                 listener.onResponse(null);
             }
+        } else {
+            performDownsampleIndex(indexName, downsampleIndexName, ActionListener.wrap(listener::onResponse, listener::onFailure));
         }
-        performDownsampleIndex(indexName, downsampleIndexName, ActionListener.wrap(listener::onResponse, e -> {
-            downsampleFailed = true;
-            listener.onFailure(e);
-        }));
     }
 
     void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
@@ -106,11 +97,6 @@ public class DownsampleStep extends AsyncActionStep {
             .masterNodeTimeout(TimeValue.MAX_VALUE);
         // Currently, DownsampleAction always acknowledges action was complete when no exceptions are thrown.
         getClient().execute(DownsampleAction.INSTANCE, request, listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));
-    }
-
-    @Override
-    public final StepKey getNextStepKey() {
-        return downsampleFailed ? nextStepOnFailure : nextStepOnSuccess;
     }
 
     public DateHistogramInterval getFixedInterval() {
@@ -123,7 +109,7 @@ public class DownsampleStep extends AsyncActionStep {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fixedInterval, nextStepOnSuccess, nextStepOnFailure, waitTimeout);
+        return Objects.hash(super.hashCode(), fixedInterval, waitTimeout);
     }
 
     @Override
@@ -140,8 +126,6 @@ public class DownsampleStep extends AsyncActionStep {
         DownsampleStep other = (DownsampleStep) obj;
         return super.equals(obj)
             && Objects.equals(fixedInterval, other.fixedInterval)
-            && Objects.equals(nextStepOnSuccess, other.nextStepOnSuccess)
-            && Objects.equals(nextStepOnFailure, other.nextStepOnFailure)
             && Objects.equals(waitTimeout, other.waitTimeout);
     }
 }

@@ -165,24 +165,21 @@ public class DownsampleAction implements LifecycleAction {
         WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);
 
         // Mark source index as read-only
-        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, cleanupDownsampleIndexKey, client);
+        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, downsampleKey, client);
 
         // Before the downsample action was retry-able, we used to generate a unique downsample index name and delete the previous index in
-        // case a failure occurred. The downsample action can now retry execution in case of failure and start where it left off.
-        NoopStep cleanupDownsampleIndexStep = new NoopStep(cleanupDownsampleIndexKey, generateDownsampleIndexNameKey);
+        // case a failure occurred. The downsample action can now retry execution in case of failure and start where it left off, so no
+        // unique name needs to be generated and the target index is now predictable and generated in the downsample step.
+        // (This noop step exists so deployments that are in this step (that has been converted to a noop) when the Elasticsearch
+        // upgrade was performed resume the ILM execution and complete the downsample action after upgrade.)
+        NoopStep cleanupDownsampleIndexStep = new NoopStep(cleanupDownsampleIndexKey, downsampleKey);
 
         // Before a random downsample index name was generated.
+        // (this noop step allows ILM to resume after a rollover without failing)
         NoopStep generateDownsampleIndexNameStep = new NoopStep(generateDownsampleIndexNameKey, downsampleKey);
 
         // Here is where the actual downsample action takes place
-        DownsampleStep downsampleStep = new DownsampleStep(
-            downsampleKey,
-            waitForDownsampleIndexKey,
-            cleanupDownsampleIndexKey,
-            client,
-            fixedInterval,
-            waitTimeout
-        );
+        DownsampleStep downsampleStep = new DownsampleStep(downsampleKey, waitForDownsampleIndexKey, client, fixedInterval, waitTimeout);
 
         // Wait until the downsampled index is recovered. We again wait until the configured threshold is breached and
         // if the downsampled index has not successfully recovered until then, we rewind to the "cleanup-downsample-index"

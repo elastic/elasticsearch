@@ -45,7 +45,6 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         return new DownsampleStep(
             stepKey,
             nextStepKey,
-            null,
             client,
             fixedInterval,
             TimeValue.parseTimeValue(randomTimeValue(1, 1000, "d", "h", "ms", "s", "m"), "timeout")
@@ -70,7 +69,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new DownsampleStep(key, nextKey, null, instance.getClient(), fixedInterval, timeout);
+        return new DownsampleStep(key, nextKey, instance.getClient(), fixedInterval, timeout);
     }
 
     @Override
@@ -78,7 +77,6 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         return new DownsampleStep(
             instance.getKey(),
             instance.getNextStepKey(),
-            null,
             instance.getClient(),
             instance.getFixedInterval(),
             instance.getWaitTimeout()
@@ -91,7 +89,6 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         lifecycleState.setAction(step.getKey().action());
         lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
-        lifecycleState.setDownsampleIndexName("downsample-index");
 
         return IndexMetadata.builder(index)
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
@@ -104,7 +101,10 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
     private static void assertDownsampleActionRequest(DownsampleAction.Request request, String sourceIndex) {
         assertNotNull(request);
         assertThat(request.getSourceIndex(), equalTo(sourceIndex));
-        assertThat(request.getTargetIndex(), equalTo("downsample-index"));
+        assertThat(
+            request.getTargetIndex(),
+            equalTo(DOWNSAMPLED_INDEX_PREFIX + sourceIndex + "-" + request.getDownsampleConfig().getFixedInterval())
+        );
     }
 
     public void testPerformAction() throws Exception {
@@ -168,59 +168,6 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             .metadata(Metadata.builder().put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()))).put(indexMetadata, true))
             .build();
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
-    }
-
-    /**
-     * Test downsample step when a successfully completed downsample index already exists.
-     */
-    public void testPerformActionCompletedDownsampleIndexExists() {
-        String sourceIndexName = randomAlphaOfLength(10);
-        String lifecycleName = randomAlphaOfLength(5);
-        DownsampleStep step = createRandomInstance();
-
-        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(step.getKey().phase());
-        lifecycleState.setAction(step.getKey().action());
-        lifecycleState.setStep(step.getKey().name());
-        lifecycleState.setIndexCreationDate(randomNonNegativeLong());
-
-        String downsampleIndex = generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
-        lifecycleState.setDownsampleIndexName(downsampleIndex);
-
-        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
-            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
-            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
-            .numberOfShards(randomIntBetween(1, 5))
-            .numberOfReplicas(randomIntBetween(0, 5))
-            .build();
-
-        // Create a successfully completed downsample index (index.downsample.status: success)
-        IndexMetadata indexMetadata = IndexMetadata.builder(downsampleIndex)
-            .settings(
-                settings(IndexVersion.current()).put(
-                    IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(),
-                    IndexMetadata.DownsampleTaskStatus.SUCCESS
-                )
-            )
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
-        Map<String, IndexMetadata> indices = Map.of(downsampleIndex, indexMetadata);
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices)).build();
-
-        Mockito.doThrow(new IllegalStateException("Downsample action should not be invoked"))
-            .when(client)
-            .execute(Mockito.any(), Mockito.any(), Mockito.any());
-
-        step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {}
-
-            @Override
-            public void onFailure(Exception e) {
-                fail("onFailure should not be called in this test, called with exception: " + e.getMessage());
-            }
-        });
     }
 
     /**
@@ -297,14 +244,12 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             .build();
         {
             try (NoOpClient client = new NoOpClient(getTestName())) {
-                StepKey nextKeyOnComplete = randomStepKey();
-                StepKey nextKeyOnIncomplete = randomStepKey();
+                StepKey nextKey = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
                 TimeValue timeout = DownsampleAction.DEFAULT_WAIT_TIMEOUT;
                 DownsampleStep completeStep = new DownsampleStep(
                     randomStepKey(),
-                    nextKeyOnComplete,
-                    nextKeyOnIncomplete,
+                    nextKey,
                     client,
                     fixedInterval,
                     timeout
@@ -314,19 +259,17 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
                     }
                 };
                 completeStep.performAction(sourceIndexMetadata, clusterState, null, ActionListener.noop());
-                assertThat(completeStep.getNextStepKey(), is(nextKeyOnComplete));
+                assertThat(completeStep.getNextStepKey(), is(nextKey));
             }
         }
         {
             try (NoOpClient client = new NoOpClient(getTestName())) {
-                StepKey nextKeyOnComplete = randomStepKey();
-                StepKey nextKeyOnIncomplete = randomStepKey();
+                StepKey nextKey = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
                 TimeValue timeout = DownsampleAction.DEFAULT_WAIT_TIMEOUT;
                 DownsampleStep doubleInvocationStep = new DownsampleStep(
                     randomStepKey(),
-                    nextKeyOnComplete,
-                    nextKeyOnIncomplete,
+                    nextKey,
                     client,
                     fixedInterval,
                     timeout
@@ -350,7 +293,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
                     }
                 };
                 doubleInvocationStep.performAction(sourceIndexMetadata, clusterState, null, ActionListener.noop());
-                assertThat(doubleInvocationStep.getNextStepKey(), is(nextKeyOnIncomplete));
+                assertThat(doubleInvocationStep.getNextStepKey(), is(nextKey));
             }
         }
     }

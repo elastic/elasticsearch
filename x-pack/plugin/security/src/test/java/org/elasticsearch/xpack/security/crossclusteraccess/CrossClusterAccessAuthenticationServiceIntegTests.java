@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
@@ -27,7 +26,6 @@ import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -45,11 +43,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityIntegTestCase {
-
-    @BeforeClass
-    public static void checkFeatureFlag() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-    }
 
     public void testInvalidHeaders() throws IOException {
         final String encodedCrossClusterAccessApiKey = getEncodedCrossClusterAccessApiKey();

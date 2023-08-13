@@ -10,7 +10,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.transport.TcpTransport;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
@@ -107,7 +106,6 @@ public class XPackSettingsTests extends ESTestCase {
     }
 
     public void testRemoteClusterSslSettings() {
-        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         final List<Setting<?>> allSettings = XPackSettings.getAllSettings();
 
         final List<String> remoteClusterSslSettingKeys = allSettings.stream()

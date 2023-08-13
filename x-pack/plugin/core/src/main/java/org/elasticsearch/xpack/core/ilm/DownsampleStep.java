@@ -124,8 +124,6 @@ public class DownsampleStep extends AsyncActionStep {
             return false;
         }
         DownsampleStep other = (DownsampleStep) obj;
-        return super.equals(obj)
-            && Objects.equals(fixedInterval, other.fixedInterval)
-            && Objects.equals(waitTimeout, other.waitTimeout);
+        return super.equals(obj) && Objects.equals(fixedInterval, other.fixedInterval) && Objects.equals(waitTimeout, other.waitTimeout);
     }
 }

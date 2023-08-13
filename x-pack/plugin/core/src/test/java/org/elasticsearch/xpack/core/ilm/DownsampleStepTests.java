@@ -247,13 +247,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
                 StepKey nextKey = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
                 TimeValue timeout = DownsampleAction.DEFAULT_WAIT_TIMEOUT;
-                DownsampleStep completeStep = new DownsampleStep(
-                    randomStepKey(),
-                    nextKey,
-                    client,
-                    fixedInterval,
-                    timeout
-                ) {
+                DownsampleStep completeStep = new DownsampleStep(randomStepKey(), nextKey, client, fixedInterval, timeout) {
                     void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
                         listener.onResponse(null);
                     }
@@ -267,13 +261,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
                 StepKey nextKey = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
                 TimeValue timeout = DownsampleAction.DEFAULT_WAIT_TIMEOUT;
-                DownsampleStep doubleInvocationStep = new DownsampleStep(
-                    randomStepKey(),
-                    nextKey,
-                    client,
-                    fixedInterval,
-                    timeout
-                ) {
+                DownsampleStep doubleInvocationStep = new DownsampleStep(randomStepKey(), nextKey, client, fixedInterval, timeout) {
                     void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
                         listener.onFailure(
                             new IllegalStateException(

@@ -768,7 +768,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 updateMaxTermSeen(joinRequest.getTerm());
 
                 final CoordinationState coordState = coordinationState.get();
-                final boolean prevElectionWon = coordState.electionWon();
+                final boolean prevElectionWon = coordState.electionWon()
+                    && optionalJoin.stream().allMatch(j -> j.getTerm() <= getCurrentTerm());
 
                 optionalJoin.ifPresent(this::handleJoin);
                 joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinRequest.getTransportVersion(), joinListener);
@@ -1666,6 +1667,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         return joinValidationService.isIdle();
     }
 
+    // for tests, not synchronized
+    boolean electionSchedulerActive() {
+        return electionScheduler != null;
+    }
+
     public void addPeerFinderListener(PeerFinderListener peerFinderListener) {
         this.peerFinderListeners.add(peerFinderListener);
     }
@@ -1718,6 +1724,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
                     if (foundQuorum) {
                         if (electionScheduler == null) {
+                            logger.debug("starting election scheduler, expecting votes [{}]", expectedVotes);
                             startElectionScheduler();
                         }
                     } else {
@@ -1730,6 +1737,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     private void startElectionScheduler() {
+        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         assert electionScheduler == null : electionScheduler;
 
         if (getLocalNode().isMasterNode() == false) {

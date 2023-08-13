@@ -143,6 +143,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.elasticsearch.transport.TransportSettings.CONNECT_TIMEOUT;
 import static org.hamcrest.Matchers.empty;
@@ -697,6 +698,16 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         }
                     }
                 }
+
+                assertTrue(
+                    nodeId + " is not scheduling elections",
+                    coordinatorStrategy.verifyElectionSchedulerState() == false
+                        || clusterNode.coordinator.electionSchedulerActive() == false
+                        // In the stable state the election scheduler should be inactive (rather than retrying in vain and backing off) on
+                        // all nodes. However today we do the health service checks within the election, so we keep trying if the node
+                        // health state is UNHEALTHY too. See https://github.com/elastic/elasticsearch/issues/98419.
+                        || clusterNode.nodeHealthService.getHealth().getStatus() == UNHEALTHY
+                );
 
                 if (expectIdleJoinValidationService) {
                     // Tests run stabilise(long stabilisationDurationMillis) to assert timely recovery from a disruption. There's no need
@@ -1590,7 +1601,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             ThreadPool threadPool
         );
 
-        default void close() {};
+        default void close() {}
+
+        default boolean verifyElectionSchedulerState() {
+            // TODO remove once https://github.com/elastic/elasticsearch/issues/98423 fixed
+            return true;
+        }
     }
 
     protected interface CoordinationServices {

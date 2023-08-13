@@ -60,7 +60,9 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.DEFAULT_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
+import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
+import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_MAX_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING;
@@ -1924,6 +1926,105 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
             assertTrue(cluster.clusterNodes.contains(nodeWithListener));
             assertBusy(() -> assertTrue(listenerCalled.get()));
+        }
+    }
+
+    public void testElectionSchedulingAfterDiscoveryOutage() {
+        try (
+            Cluster cluster = new Cluster(
+                3,
+                true,
+                Settings.builder()
+                    .put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(10))
+                    .put(ELECTION_BACK_OFF_TIME_SETTING.getKey(), TimeValue.timeValueMinutes(1))
+                    .build()
+            )
+        ) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final long followerCheckMillis = defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + 2 * DEFAULT_DELAY_VARIABILITY;
+            final long leaderCheckMillis = defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + 2 * DEFAULT_DELAY_VARIABILITY;
+            final long discoveryMillis = defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) + 2 * DEFAULT_DELAY_VARIABILITY;
+
+            final long minOutageMillis =
+                // Allow long enough for the leader to stand down
+                followerCheckMillis * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING) + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+                // and then for the followers to detect the leader failure
+                    + leaderCheckMillis * defaultInt(LEADER_CHECK_RETRY_COUNT_SETTING)
+                    // and then long enough for discovery to stop working
+                    + discoveryMillis;
+
+            final var leader = cluster.getAnyLeader();
+
+            // This test is checking for a potential bug where an active election scheduler would remain active, repeatedly failing and
+            // backing off, while not even being able to discover a quorum of nodes. In that situation when the discovery problem is
+            // resolved it can take far too long for the next election to occur because of the backoff.
+
+            if (randomBoolean()) {
+                // STEP 1 (optional): get the cluster into a state where all the election schedulers are active:
+                logger.info("--> blocking key actions until cluster falls apart");
+                leader.addActionBlock(FollowersChecker.FOLLOWER_CHECK_ACTION_NAME);
+                for (ClusterNode clusterNode : cluster.clusterNodes) {
+                    clusterNode.addActionBlock(StatefulPreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME);
+                }
+                cluster.runFor(
+                    randomLongBetween(minOutageMillis, TimeValue.timeValueMinutes(2).millis()),
+                    "simulate extended election failure"
+                );
+                assertTrue(
+                    cluster.clusterNodes.stream()
+                        .map(n -> n.coordinator)
+                        .allMatch(c -> c.getMode() == CANDIDATE && c.electionSchedulerActive())
+                );
+            }
+
+            // STEP 2: now block discovery:
+            logger.info("--> blocking discovery");
+            for (ClusterNode clusterNode : cluster.clusterNodes) {
+                clusterNode.clearActionBlocks();
+                clusterNode.disconnect();
+                for (ClusterNode otherNode : cluster.clusterNodes) {
+                    clusterNode.transportService.disconnectFromNode(otherNode.getLocalNode());
+                }
+            }
+            cluster.runFor(
+                randomLongBetween(minOutageMillis, TimeValue.timeValueHours(2).millis()),
+                "simulate extended discovery problems"
+            );
+            assertTrue(
+                cluster.clusterNodes.stream()
+                    .map(n -> n.coordinator)
+                    .allMatch(
+                        c -> c.getMode() == CANDIDATE
+                            && c.electionSchedulerActive() == false
+                            && c.getFoundPeers().iterator().hasNext() == false
+                    )
+            );
+
+            // STEP 3: now heal the discovery problem, fix elections (on one node only to avoid election clashes), and see that the cluster
+            // stabilises immediately:
+            logger.info("--> healing discovery and permitting elections on [{}]", leader);
+            for (ClusterNode clusterNode : cluster.clusterNodes) {
+                clusterNode.heal();
+                if (clusterNode != leader) {
+                    clusterNode.addActionBlock(StatefulPreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME);
+                }
+            }
+            cluster.stabilise(
+                // Pinging all peers once should be enough to discover the other nodes
+                defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING)
+                    // Then wait for an election to be scheduled
+                    + defaultMillis(ELECTION_INITIAL_TIMEOUT_SETTING)
+                    // Allow two round-trips for pre-voting and voting
+                    + 4 * DEFAULT_DELAY_VARIABILITY
+                    // Then a commit of the new leader's first cluster state
+                    + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+                    // Then the remaining node may join
+                    + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+            );
+
+            cluster.clusterNodes.forEach(ClusterNode::clearActionBlocks);
         }
     }
 

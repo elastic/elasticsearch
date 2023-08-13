@@ -23,6 +23,8 @@ import org.elasticsearch.test.MockLogAppender;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedTransferQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING;
@@ -334,6 +336,26 @@ public class ThreadPoolTests extends ESTestCase {
         }
     }
 
+    public void testSearchCoordinationThreadPoolSize() {
+        final int expectedSize = randomIntBetween(1, EsExecutors.allocatedProcessors(Settings.EMPTY) / 2);
+        final int allocatedProcessors = Math.min(
+            EsExecutors.allocatedProcessors(Settings.EMPTY),
+            expectedSize * 2 - (randomIntBetween(0, 1))
+        );
+        final ThreadPool threadPool = new TestThreadPool(
+            "test",
+            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), allocatedProcessors).build()
+        );
+        try {
+            ThreadPool.Info info = threadPool.info(ThreadPool.Names.SEARCH_COORDINATION);
+            assertThat(info.getThreadPoolType(), equalTo(ThreadPool.ThreadPoolType.FIXED));
+            assertThat(info.getMin(), equalTo(expectedSize));
+            assertThat(info.getMax(), equalTo(expectedSize));
+        } finally {
+            assertTrue(terminate(threadPool));
+        }
+    }
+
     public void testGetMaxSnapshotCores() {
         int allocatedProcessors = randomIntBetween(1, 16);
         assertThat(
@@ -360,6 +382,25 @@ public class ThreadPoolTests extends ESTestCase {
                 threadPool.executor(ThreadPool.Names.SYSTEM_CRITICAL_WRITE),
                 instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class)
             );
+        } finally {
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testSearchWorkedThreadPool() {
+        final int allocatedProcessors = randomIntBetween(1, EsExecutors.allocatedProcessors(Settings.EMPTY));
+        final ThreadPool threadPool = new TestThreadPool(
+            "test",
+            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), allocatedProcessors).build()
+        );
+        try {
+            ExecutorService executor = threadPool.executor(ThreadPool.Names.SEARCH_WORKER);
+            assertThat(executor, instanceOf(ThreadPoolExecutor.class));
+            ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) executor;
+            int expectedPoolSize = allocatedProcessors * 3 / 2 + 1;
+            assertEquals(expectedPoolSize, threadPoolExecutor.getCorePoolSize());
+            assertEquals(expectedPoolSize, threadPoolExecutor.getMaximumPoolSize());
+            assertThat(threadPoolExecutor.getQueue(), instanceOf(LinkedTransferQueue.class));
         } finally {
             assertTrue(terminate(threadPool));
         }

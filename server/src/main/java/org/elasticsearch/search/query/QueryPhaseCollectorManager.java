@@ -585,7 +585,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
 
             @Override
             protected TopDocsAndMaxScore reduceTopDocsCollectors(Collection<Collector> collectors) throws IOException {
-                assert collectors.size() == 1 && collectors.iterator().next() == topDocsCollector;
+                assert collectors.size() == 1 : "Field collapsing does not support concurrent execution";
                 TopFieldGroups topDocs = topDocsCollector.getTopGroups(0);
                 float maxScore = getMaxScore(topDocs, sortAndFormats, trackMaxScore, Collections.singletonList(maxScoreCollector));
                 return new TopDocsAndMaxScore(topDocs, maxScore);

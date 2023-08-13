@@ -1104,7 +1104,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         /*
         TODO uncomment this block to enable inter-segment concurrency for the query phase
         if (resultsType == ResultsType.QUERY) {
-            return source == null || source.aggregations() == null || source.aggregations().supportsParallelCollection();
+            return source == null || source.collapse() == null || source.aggregations() == null
+            || source.aggregations().supportsParallelCollection();
         }
         */
         return false;

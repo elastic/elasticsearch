@@ -26,7 +26,7 @@ import java.util.List;
  * @param <T> the return type of the wrapped collector manager, which the reduce method returns.
  */
 public final class ProfileCollectorManager<T> implements CollectorManager<InternalProfileCollector, T> {
-
+    // TODO this class can be removed!!!
     private final CollectorManager<? extends Collector, T> collectorManager;
     private final String reason;
     private final ProfileCollectorManager<?> topDocsSubCollectorManager;

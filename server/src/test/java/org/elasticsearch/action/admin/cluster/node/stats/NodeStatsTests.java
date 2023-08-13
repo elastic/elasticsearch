@@ -45,6 +45,7 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardCountStats;
@@ -636,6 +637,8 @@ public class NodeStatsTests extends ESTestCase {
 
         indicesCommonStats.getBulk().add(new BulkStats(++iota, ++iota, ++iota, ++iota, ++iota));
         indicesCommonStats.getShards().add(new ShardCountStats(++iota));
+
+        indicesCommonStats.getDenseVectorStats().add(new DenseVectorStats(++iota));
 
         return indicesCommonStats;
     }

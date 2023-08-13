@@ -141,9 +141,6 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             String type = (String) definitions.get("type");
             if (OMIT_FIELD_TYPES.contains(type)) {
                 iterator.remove();
-            } else if ("bool".equals(type)) {
-                // for some reason, 'container.security_context.privileged' has a type "bool" in ECS definitions so we are standardizing
-                definitions.put("type", "boolean");
             }
 
             List<Map<String, String>> multiFields = (List<Map<String, String>>) definitions.get("multi_fields");
@@ -278,7 +275,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             case "ip" -> {
                 return NetworkAddress.format(randomIp(true));
             }
-            case "boolean", "bool" -> {
+            case "boolean" -> {
                 return randomBoolean();
             }
             case "flattened" -> {

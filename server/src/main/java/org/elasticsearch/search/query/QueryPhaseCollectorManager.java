@@ -68,6 +68,9 @@ import static org.elasticsearch.search.profile.query.CollectorResult.REASON_AGGR
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_QUERY_PHASE;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_TOP_HITS;
 
+/**
+ * Base collector manager that
+ */
 abstract class QueryPhaseCollectorManager implements CollectorManager<Collector, QueryPhaseResult> {
     private final Weight postFilterWeight;
     private final QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker;
@@ -292,9 +295,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         }
     }
 
-    // TODO update / add javadocs
-
-    static final class EmptyHits extends QueryPhaseCollectorManager {
+    private static final class EmptyHits extends QueryPhaseCollectorManager {
         private final PartialHitCountCollector.HitsThresholdChecker hitsThresholdChecker;
         private final SortAndFormats sortAndFormats;
 
@@ -379,7 +380,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         }
     }
 
-    static class WithHits extends QueryPhaseCollectorManager {
+    private static class WithHits extends QueryPhaseCollectorManager {
         private final SortAndFormats sortAndFormats;
         private final boolean trackMaxScore;
         private final TotalHits shortcutTotalHits;
@@ -587,7 +588,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
             protected Collector newTopDocsCollector() {
                 assert newCollectorCalled == false;
                 newCollectorCalled = true;
-                return MultiCollector.wrap(topDocsCollector, new MaxScoreCollector());
+                return MultiCollector.wrap(topDocsCollector, maxScoreCollector);
             }
 
             @Override

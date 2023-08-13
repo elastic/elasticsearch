@@ -1582,13 +1582,15 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         CollectorManager<? extends Collector, A> aggsCollectorManager,
         Float minScore
     ) {
+        QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker = resolveTerminateAfterChecker(terminateAfter);
+
         return new CollectorManager<>() {
             @Override
             public QueryPhaseCollector newCollector() throws IOException {
                 return new QueryPhaseCollector(
                     topDocsCollectorManager.newCollector(),
                     postFilterWeight,
-                    resolveTerminateAfterChecker(terminateAfter),
+                    terminateAfterChecker,
                     aggsCollectorManager == null ? null : aggsCollectorManager.newCollector(),
                     minScore
                 );

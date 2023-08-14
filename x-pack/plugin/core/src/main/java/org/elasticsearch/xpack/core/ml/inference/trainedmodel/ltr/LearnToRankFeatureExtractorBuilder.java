@@ -8,10 +8,15 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
-public interface LearnToRankFeatureExtractorBuilder extends NamedXContentObject, NamedWriteable {
+public interface LearnToRankFeatureExtractorBuilder
+    extends
+        NamedXContentObject,
+        NamedWriteable,
+        Rewriteable<LearnToRankFeatureExtractorBuilder> {
 
     ParseField FEATURE_NAME = new ParseField("feature_name");
 
@@ -19,4 +24,9 @@ public interface LearnToRankFeatureExtractorBuilder extends NamedXContentObject,
      * @return The input feature that this extractor satisfies
      */
     String featureName();
+
+    /**
+     * @throws Exception If the extractor is invalid.
+     */
+    void validate() throws Exception;
 }

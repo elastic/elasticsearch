@@ -84,7 +84,7 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
         indexTemplateVersion = ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION;
         datastreamManager = new ProfilingDataStreamManager(threadPool, client, clusterService) {
             @Override
-            protected boolean isAllResourcesCreated(ClusterChangedEvent event) {
+            protected boolean isAllResourcesCreated(ClusterChangedEvent event, Settings settings) {
                 return templatesCreated.get();
             }
 
@@ -243,11 +243,12 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         templatesCreated.set(true);
+        int nextIndexTemplateVersion = ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION + 1;
 
         ProfilingDataStreamManager.ProfilingDataStream ds = ProfilingDataStreamManager.ProfilingDataStream.of(
             "profiling-test",
             1,
-            new Migration.Builder().migrateToIndexTemplateVersion(2).addProperty("test", "keyword")
+            new Migration.Builder().migrateToIndexTemplateVersion(nextIndexTemplateVersion).addProperty("test", "keyword")
         );
 
         managedDataStreams = List.of(ds);
@@ -264,11 +265,12 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         templatesCreated.set(true);
+        int nextIndexTemplateVersion = ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION + 1;
 
         ProfilingDataStreamManager.ProfilingDataStream ds = ProfilingDataStreamManager.ProfilingDataStream.of(
             "profiling-test",
             1,
-            new Migration.Builder().migrateToIndexTemplateVersion(2).addProperty("test", "keyword")
+            new Migration.Builder().migrateToIndexTemplateVersion(nextIndexTemplateVersion).addProperty("test", "keyword")
         );
         ProfilingDataStreamManager.ProfilingDataStream ds2 = ProfilingDataStreamManager.ProfilingDataStream.of("profiling-no-change", 1
         // no migration specified, should not be changed
@@ -276,7 +278,7 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
 
         managedDataStreams = List.of(ds, ds2);
         // index is out of date and should be migrated
-        indexTemplateVersion = 2;
+        indexTemplateVersion = nextIndexTemplateVersion;
         ClusterChangedEvent event = createClusterChangedEvent(managedDataStreams, nodes);
 
         AtomicInteger mappingUpdates = new AtomicInteger(0);

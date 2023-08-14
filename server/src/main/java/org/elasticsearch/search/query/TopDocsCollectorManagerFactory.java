@@ -38,7 +38,6 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.lucene.Lucene;
@@ -81,7 +80,7 @@ abstract class TopDocsCollectorManagerFactory {
     /**
      * Returns the collector manager used to collect top hits, created depending on the incoming request options
      */
-    CollectorManager<Collector, Void> collectorManager() {
+    CollectorManager<? extends Collector, Void> collectorManager() {
         return new SingleThreadCollectorManager(collector());
     }
 
@@ -98,7 +97,7 @@ abstract class TopDocsCollectorManagerFactory {
 
     static class EmptyTopDocsCollectorManagerFactory extends TopDocsCollectorManagerFactory {
         private final Sort sort;
-        private final Collector collector;
+        private final CollectorManager<? extends Collector, Void> collectorManager;
         private final Supplier<TotalHits> hitCountSupplier;
 
         /**
@@ -110,28 +109,27 @@ abstract class TopDocsCollectorManagerFactory {
             super(REASON_SEARCH_COUNT, null);
             this.sort = sortAndFormats == null ? null : sortAndFormats.sort;
             if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-                this.collector = new PartialHitCountCollector(0);
+                this.collectorManager = new PartialHitCountCollector.CollectorManager(0);
                 // for bwc hit count is set to 0, it will be converted to -1 by the coordinating node
                 this.hitCountSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
             } else {
-                if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
-                    TotalHitCountCollector hitCountCollector = new TotalHitCountCollector();
-                    this.collector = hitCountCollector;
-                    this.hitCountSupplier = () -> new TotalHits(hitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO);
-                } else {
-                    PartialHitCountCollector col = new PartialHitCountCollector(trackTotalHitsUpTo);
-                    this.collector = col;
-                    this.hitCountSupplier = () -> new TotalHits(
-                        col.getTotalHits(),
-                        col.hasEarlyTerminated() ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO
-                    );
-                }
+                PartialHitCountCollector.CollectorManager cm = new PartialHitCountCollector.CollectorManager(trackTotalHitsUpTo);
+                this.collectorManager = cm;
+                this.hitCountSupplier = () -> new TotalHits(
+                    cm.getTotalHits(),
+                    cm.hasEarlyTerminated() ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO
+                );
             }
         }
 
         @Override
+        CollectorManager<? extends Collector, Void> collectorManager() {
+            return collectorManager;
+        }
+
+        @Override
         Collector collector() {
-            return collector;
+            throw new UnsupportedOperationException();
         }
 
         @Override

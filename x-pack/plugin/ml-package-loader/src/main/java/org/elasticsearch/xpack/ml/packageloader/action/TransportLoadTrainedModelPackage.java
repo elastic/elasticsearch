@@ -193,7 +193,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
             public CancellableTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
                 return new CancellableTask(id, type, action, downloadModelTaskDescription(request.getModelId()), parentTaskId, headers);
             }
-        });
+        }, false);
     }
 
     private static void recordError(Client client, String modelId, AtomicReference<Exception> exceptionRef, Exception e) {

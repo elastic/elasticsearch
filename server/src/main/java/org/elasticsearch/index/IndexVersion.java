@@ -62,7 +62,7 @@ import java.util.TreeMap;
  * representing the reverted change. <em>Do not</em> let the index version go backwards, it must <em>always</em> be incremented.
  */
 @SuppressWarnings({"checkstyle:linelength", "deprecation"})
-public record IndexVersion(int id, Version luceneVersion) implements VersionId, Comparable<IndexVersion>, ToXContentFragment {
+public record IndexVersion(int id, Version luceneVersion) implements VersionId<IndexVersion>, ToXContentFragment {
 
     /*
      * NOTE: IntelliJ lies!
@@ -311,34 +311,8 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId, 
         return CurrentHolder.CURRENT;
     }
 
-    public boolean after(IndexVersion version) {
-        return version.id < id;
-    }
-
-    public boolean onOrAfter(IndexVersion version) {
-        return version.id <= id;
-    }
-
-    public boolean before(IndexVersion version) {
-        return version.id > id;
-    }
-
-    public boolean onOrBefore(IndexVersion version) {
-        return version.id >= id;
-    }
-
-    public boolean between(IndexVersion lowerInclusive, IndexVersion upperExclusive) {
-        if (upperExclusive.onOrBefore(lowerInclusive)) throw new IllegalArgumentException();
-        return onOrAfter(lowerInclusive) && before(upperExclusive);
-    }
-
     public boolean isLegacyIndexVersion() {
         return before(MINIMUM_COMPATIBLE);
-    }
-
-    @Override
-    public int compareTo(IndexVersion other) {
-        return Integer.compare(this.id, other.id);
     }
 
     @Override

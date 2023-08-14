@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.operator;
 
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.transport.TcpTransport;
 
 import java.util.Objects;
 import java.util.Set;
@@ -26,6 +25,9 @@ public class Constants {
         "cluster:admin/component_template/get",
         "cluster:admin/component_template/put",
         "cluster:admin/deprecation/cache/reset",
+        "cluster:admin/fleet/secrets/delete",
+        "cluster:admin/fleet/secrets/get",
+        "cluster:admin/fleet/secrets/post",
         "cluster:admin/ilm/_move/post",
         "cluster:admin/ilm/delete",
         "cluster:admin/ilm/get",
@@ -210,8 +212,8 @@ public class Constants {
         "cluster:admin/xpack/security/api_key/update",
         "cluster:admin/xpack/security/api_key/bulk_update",
         "cluster:admin/xpack/security/cache/clear",
-        TcpTransport.isUntrustedRemoteClusterEnabled() ? "cluster:admin/xpack/security/cross_cluster/api_key/create" : null,
-        TcpTransport.isUntrustedRemoteClusterEnabled() ? "cluster:admin/xpack/security/cross_cluster/api_key/update" : null,
+        "cluster:admin/xpack/security/cross_cluster/api_key/create",
+        "cluster:admin/xpack/security/cross_cluster/api_key/update",
         "cluster:admin/xpack/security/delegate_pki",
         "cluster:admin/xpack/security/enroll/node",
         "cluster:admin/xpack/security/enroll/kibana",
@@ -247,6 +249,8 @@ public class Constants {
         "cluster:admin/xpack/security/service_account/credential/get[n]",
         "cluster:admin/xpack/security/service_account/token/create",
         "cluster:admin/xpack/security/service_account/token/delete",
+        "cluster:admin/xpack/security/settings/get",
+        "cluster:admin/xpack/security/settings/update",
         "cluster:admin/xpack/security/token/create",
         "cluster:admin/xpack/security/token/invalidate",
         "cluster:admin/xpack/security/token/refresh",
@@ -379,7 +383,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/analytics",
         "cluster:monitor/xpack/usage/archive",
         "cluster:monitor/xpack/usage/ccr",
-        DataStreamLifecycle.isFeatureEnabled() ? "cluster:monitor/xpack/usage/data_lifecycle" : null,
+        "cluster:monitor/xpack/usage/data_lifecycle",
         "cluster:monitor/xpack/usage/data_streams",
         "cluster:monitor/xpack/usage/data_tiers",
         "cluster:monitor/xpack/usage/enrich",

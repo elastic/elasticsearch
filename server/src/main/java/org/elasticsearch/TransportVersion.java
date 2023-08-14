@@ -181,7 +181,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      *       |____/ |_| \___/|_|   (_)      |_| \_\_____/_/   \_\____/    |_| |_| |_|___|____/  |_|   |___|_| \_\____/ |_| (_)
      *
      * A new transport version should be added EVERY TIME a change is made to the serialization protocol of one or more classes. Each
-     * transport version should only be used in a single merged commit (apart from BwC versions copied from o.e.Version).
+     * transport version should only be used in a single merged commit (apart from the BwC versions copied from o.e.Version, ≤V_8_8_1).
      *
      * To add a new transport version, add a new constant at the bottom of the list, above this comment, which is one greater than the
      * current highest version, ensure it has a fresh UUID, and update CurrentHolder#CURRENT to point to the new version. Don't add other

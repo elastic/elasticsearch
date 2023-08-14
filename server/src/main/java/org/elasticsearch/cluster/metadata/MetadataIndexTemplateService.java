@@ -98,6 +98,9 @@ public class MetadataIndexTemplateService {
         try {
             DEFAULT_TIMESTAMP_MAPPING_WITHOUT_ROUTING = new CompressedXContent(
                 (builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                    // adding explicit "_routing": {"required": false}, even though this is the default, because this snippet is used
+                    // later for resolving a RoutingFieldMapper, where we need this information to validate that does not conflict with
+                    // any mapping.
                     .startObject(RoutingFieldMapper.NAME)
                     .field("required", false)
                     .endObject()

@@ -209,7 +209,7 @@ GET /_xpack/usage
     "features" : {
       "eval" : 0,
       "stats" : 0,
-      "dissect ": 0,
+      "dissect": 0,
       "grok" : 0,
       "limit" : 0,
       "where" : 0,

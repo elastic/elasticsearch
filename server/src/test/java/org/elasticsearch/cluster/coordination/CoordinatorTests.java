@@ -570,6 +570,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             assertTrue("expected nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
             assertTrue("expected ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
             assertThat("leader should be last to ack", ackCollector.getSuccessfulAckIndex(leader), equalTo(1));
+
+            follower0.setClusterStateApplyResponse(ClusterStateApplyResponse.SUCCEED);
         }
     }
 

@@ -373,12 +373,13 @@ public class SearchEngine extends Engine {
     Releasable acquirePrimaryTermAndGeneration(DirectoryReader directoryReader) {
         try {
             var indexCommit = directoryReader.getIndexCommit();
-            var primaryTerm = SearchDirectory.unwrapDirectory(indexCommit.getDirectory()).getPrimaryTerm(indexCommit.getSegmentsFileName());
+            assert SearchDirectory.unwrapDirectory(indexCommit.getDirectory()) == directory;
+            var primaryTerm = directory.getPrimaryTerm(indexCommit.getSegmentsFileName());
             if (primaryTerm.isEmpty()) {
                 return () -> {};
             }
 
-            final var key = new PrimaryTermAndGeneration(primaryTerm.get(), indexCommit.getGeneration());
+            final var key = new PrimaryTermAndGeneration(primaryTerm.getAsLong(), indexCommit.getGeneration());
             var refCount = acquiredPrimaryTermAndGenerations.compute(key, (ignored, value) -> value != null ? value + 1L : 1L);
             logger.trace("acquired {} (refCount={})", key, refCount);
 

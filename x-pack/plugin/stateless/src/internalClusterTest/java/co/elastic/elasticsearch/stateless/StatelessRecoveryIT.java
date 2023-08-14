@@ -1015,7 +1015,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
     public void testRecoverIndexingShardWithStaleIndexingShard() throws Exception {
         String indexNodeA = startIndexNode();
-        startSearchNode();
+        String searchNode = startSearchNode();
 
         final String indexName = "index-name";
         createIndex(indexName, indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms").build());
@@ -1083,7 +1083,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
                 .waitForNoInitializingShards(true)
                 .waitForNodes(Integer.toString(3));
 
-            clusterAdmin().health(healthRequest).actionGet();
+            client(randomFrom(indexNodeB, searchNode)).admin().cluster().health(healthRequest).actionGet();
 
             var staleBulkRequest = client(indexNodeA).prepareBulk();
             for (int i = 0; i < 10; i++) {

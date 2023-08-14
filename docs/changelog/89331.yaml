@@ -1,0 +1,5 @@
+pr: 89331
+summary: Add sorting support on collapse
+area: Search
+type: feature
+issues: [45646]

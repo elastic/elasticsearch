@@ -155,12 +155,14 @@ abstract class TopDocsCollectorManagerFactory {
          * @param collapseContext The collapsing context
          * @param sortAndFormats The query sort
          * @param numHits The number of collapsed top hits to retrieve.
+         * @param totalNumDocs The number of total documents.
          * @param trackMaxScore True if max score should be tracked
          */
         private CollapsingTopDocsCollectorManagerFactory(
             CollapseContext collapseContext,
             @Nullable SortAndFormats sortAndFormats,
             int numHits,
+            int totalNumDocs,
             boolean trackMaxScore,
             @Nullable FieldDoc after
         ) {
@@ -168,7 +170,7 @@ abstract class TopDocsCollectorManagerFactory {
             assert numHits > 0;
             assert collapseContext != null;
             Sort sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort;
-            this.topDocsCollector = collapseContext.createTopDocs(sort, numHits, after);
+            this.topDocsCollector = collapseContext.createTopDocs(sort, numHits, totalNumDocs, after);
 
             final MaxScoreCollector maxScoreCollector;
             if (sortAndFormats == null) {
@@ -462,6 +464,7 @@ abstract class TopDocsCollectorManagerFactory {
                 searchContext.collapse(),
                 searchContext.sort(),
                 numDocs,
+                totalNumDocs,
                 trackScores,
                 searchContext.searchAfter()
             );

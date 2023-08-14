@@ -58,22 +58,6 @@ import static org.apache.lucene.search.SortField.Type.SCORE;
  */
 public class SinglePassGroupingCollector<T> extends SimpleCollector {
 
-    private static class SearchGroup<T> extends ScoreDoc {
-        T groupValue;
-        int slot;
-
-        SearchGroup(int doc, int slot, T groupValue) {
-            super(doc, Float.NaN);
-            this.slot = slot;
-            this.groupValue = groupValue;
-        }
-
-        @Override
-        public String toString() {
-            return "slot:" + slot + " " + super.toString();
-        }
-    }
-
     /**
      * Creates a {@link SinglePassGroupingCollector} on a {@link NumericDocValues} field.
      * It accepts also {@link SortedNumericDocValues} field but
@@ -142,7 +126,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
     private int docBase;
     private int spareSlot;
 
-    private SinglePassGroupingCollector(
+    SinglePassGroupingCollector(
         GroupSelector<T> groupSelector,
         String groupField,
         Sort groupSort,

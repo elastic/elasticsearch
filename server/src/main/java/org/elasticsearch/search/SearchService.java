@@ -1426,7 +1426,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (context.rescore() != null && context.rescore().isEmpty() == false) {
                 throw new SearchException(shardTarget, "cannot use `collapse` in conjunction with `rescore`");
             }
-            final CollapseContext collapseContext = source.collapse().build(searchExecutionContext);
+            final CollapseContext collapseContext = source.collapse().build(searchExecutionContext, shardTarget);
             context.collapse(collapseContext);
         }
 

@@ -400,7 +400,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                             // todo: verify this check is valid
                             if (oldValue.equals(newValue) == false
                                 && (OBJECT_FIELD_TYPES.contains(String.valueOf(oldValue))
-                                || OBJECT_FIELD_TYPES.contains(String.valueOf(newValue)))) {
+                                    || OBJECT_FIELD_TYPES.contains(String.valueOf(newValue)))) {
                                 throw new MapperParsingException(
                                     "can't merge a non object mapping [" + parent + "] with an object mapping"
                                 );

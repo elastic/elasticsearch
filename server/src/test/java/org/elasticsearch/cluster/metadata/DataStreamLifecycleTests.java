@@ -51,43 +51,50 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
 
     @Override
     protected DataStreamLifecycle mutateInstance(DataStreamLifecycle instance) throws IOException {
+        var enabled = instance.isEnabled();
         var retention = instance.getDataRetention();
         var downsampling = instance.getDownsampling();
-        if (randomBoolean()) {
-            if (retention == null || retention == DataStreamLifecycle.Retention.NULL) {
-                retention = randomValueOtherThan(retention, DataStreamLifecycleTests::randomRetention);
-            } else {
-                retention = switch (randomInt(2)) {
-                    case 0 -> null;
-                    case 1 -> DataStreamLifecycle.Retention.NULL;
-                    default -> new DataStreamLifecycle.Retention(
-                        TimeValue.timeValueMillis(randomValueOtherThan(retention.value().millis(), ESTestCase::randomMillisUpToYear9999))
-                    );
-                };
+        switch (randomInt(2)) {
+            case 0 -> {
+                if (retention == null || retention == DataStreamLifecycle.Retention.NULL) {
+                    retention = randomValueOtherThan(retention, DataStreamLifecycleTests::randomRetention);
+                } else {
+                    retention = switch (randomInt(2)) {
+                        case 0 -> null;
+                        case 1 -> DataStreamLifecycle.Retention.NULL;
+                        default -> new DataStreamLifecycle.Retention(
+                            TimeValue.timeValueMillis(
+                                randomValueOtherThan(retention.value().millis(), ESTestCase::randomMillisUpToYear9999)
+                            )
+                        );
+                    };
+                }
             }
-        } else {
-            if (downsampling == null || downsampling == DataStreamLifecycle.Downsampling.NULL) {
-                downsampling = randomValueOtherThan(downsampling, DataStreamLifecycleTests::randomDownsampling);
-            } else {
-                downsampling = switch (randomInt(2)) {
-                    case 0 -> null;
-                    case 1 -> DataStreamLifecycle.Downsampling.NULL;
-                    default -> {
-                        if (downsampling.rounds().size() == 1) {
-                            yield new DataStreamLifecycle.Downsampling(
-                                List.of(downsampling.rounds().get(0), nextRound(downsampling.rounds().get(0)))
-                            );
+            case 1 -> {
+                if (downsampling == null || downsampling == DataStreamLifecycle.Downsampling.NULL) {
+                    downsampling = randomValueOtherThan(downsampling, DataStreamLifecycleTests::randomDownsampling);
+                } else {
+                    downsampling = switch (randomInt(2)) {
+                        case 0 -> null;
+                        case 1 -> DataStreamLifecycle.Downsampling.NULL;
+                        default -> {
+                            if (downsampling.rounds().size() == 1) {
+                                yield new DataStreamLifecycle.Downsampling(
+                                    List.of(downsampling.rounds().get(0), nextRound(downsampling.rounds().get(0)))
+                                );
 
-                        } else {
-                            var updatedRounds = new ArrayList<>(downsampling.rounds());
-                            updatedRounds.remove(randomInt(downsampling.rounds().size() - 1));
-                            yield new DataStreamLifecycle.Downsampling(updatedRounds);
+                            } else {
+                                var updatedRounds = new ArrayList<>(downsampling.rounds());
+                                updatedRounds.remove(randomInt(downsampling.rounds().size() - 1));
+                                yield new DataStreamLifecycle.Downsampling(updatedRounds);
+                            }
                         }
-                    }
-                };
+                    };
+                }
             }
+            default -> enabled = enabled == false;
         }
-        return DataStreamLifecycle.newBuilder().dataRetention(retention).downsampling(downsampling).build();
+        return DataStreamLifecycle.newBuilder().dataRetention(retention).downsampling(downsampling).enabled(enabled).build();
     }
 
     @Override
@@ -230,7 +237,11 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
 
     @Nullable
     public static DataStreamLifecycle randomLifecycle() {
-        return DataStreamLifecycle.newBuilder().dataRetention(randomRetention()).downsampling(randomDownsampling()).build();
+        return DataStreamLifecycle.newBuilder()
+            .dataRetention(randomRetention())
+            .downsampling(randomDownsampling())
+            .enabled(frequently())
+            .build();
     }
 
     @Nullable

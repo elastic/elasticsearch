@@ -143,6 +143,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.elasticsearch.transport.TransportSettings.CONNECT_TIMEOUT;
 import static org.hamcrest.Matchers.empty;
@@ -697,6 +698,19 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         }
                     }
                 }
+
+                assertTrue(
+                    nodeId + " is not scheduling elections",
+                    // In the stable state all election schedulers should be inactive, rather than retrying in vain and backing off.
+                    clusterNode.coordinator.electionSchedulerActive() == false
+                        // However today we do the health service checks within the election, so we keep trying if the node health state is
+                        // UNHEALTHY too. See https://github.com/elastic/elasticsearch/issues/98419.
+                        || clusterNode.nodeHealthService.getHealth().getStatus() == UNHEALTHY
+                        // Moreover this property does not hold (yet) when using an atomic-register-based coordinator.
+                        // See https://github.com/elastic/elasticsearch/issues/98423
+                        || coordinatorStrategy.verifyElectionSchedulerState() == false
+
+                );
 
                 if (expectIdleJoinValidationService) {
                     // Tests run stabilise(long stabilisationDurationMillis) to assert timely recovery from a disruption. There's no need
@@ -1619,7 +1633,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             ThreadPool threadPool
         );
 
-        default void close() {};
+        default void close() {}
+
+        default boolean verifyElectionSchedulerState() {
+            // TODO remove once https://github.com/elastic/elasticsearch/issues/98423 fixed
+            return true;
+        }
     }
 
     protected interface CoordinationServices {
@@ -2042,11 +2061,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     }
 
     class MockPersistedState implements CoordinationState.PersistedState {
+        private final DiscoveryNode localNode;
         private final CoordinationState.PersistedState delegate;
         private final NodeEnvironment nodeEnvironment;
         private final BooleanSupplier disruptStorage;
 
         MockPersistedState(DiscoveryNode localNode, BooleanSupplier disruptStorage) {
+            this.localNode = localNode;
             this.disruptStorage = disruptStorage;
             try {
                 if (rarely()) {
@@ -2078,6 +2099,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             NamedWriteableRegistry namedWriteableRegistry,
             BooleanSupplier disruptStorage
         ) {
+            this.localNode = newLocalNode;
             this.disruptStorage = disruptStorage;
             try {
                 if (oldState.nodeEnvironment != null) {
@@ -2234,6 +2256,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             } catch (IOException e) {
                 throw new AssertionError("unexpected", e);
             }
+        }
+
+        @Override
+        public String toString() {
+            return "MockPersistedState[" + localNode.descriptionWithoutAttributes() + "]";
         }
     }
 }

@@ -764,7 +764,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 updateMaxTermSeen(joinRequest.getTerm());
 
                 final CoordinationState coordState = coordinationState.get();
-                final boolean prevElectionWon = coordState.electionWon();
+                final boolean prevElectionWon = coordState.electionWon()
+                    && optionalJoin.stream().allMatch(j -> j.getTerm() <= getCurrentTerm());
 
                 optionalJoin.ifPresent(this::handleJoin);
                 joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinRequest.getTransportVersion(), joinListener);
@@ -891,6 +892,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
         lastKnownLeader = Optional.of(getLocalNode());
         peerFinder.deactivate(getLocalNode());
+        peerFinder.closePeers();
         clusterFormationFailureHelper.stop();
         closePrevotingRound();
         preVoteCollector.update(getPreVoteResponse(), getLocalNode());
@@ -959,6 +961,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         updateSingleNodeClusterChecker();
         lastKnownLeader = Optional.of(leaderNode);
         peerFinder.deactivate(leaderNode);
+        peerFinder.closePeers();
         clusterFormationFailureHelper.stop();
         closePrevotingRound();
         cancelActivePublication("become follower: " + method);
@@ -1660,6 +1663,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         return joinValidationService.isIdle();
     }
 
+    // for tests, not synchronized
+    boolean electionSchedulerActive() {
+        return electionScheduler != null;
+    }
+
     public void addPeerFinderListener(PeerFinderListener peerFinderListener) {
         this.peerFinderListeners.add(peerFinderListener);
     }
@@ -1712,6 +1720,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
                     if (foundQuorum) {
                         if (electionScheduler == null) {
+                            logger.debug("starting election scheduler, expecting votes [{}]", expectedVotes);
                             startElectionScheduler();
                         }
                     } else {

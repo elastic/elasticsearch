@@ -221,41 +221,19 @@ public class InboundHandler {
                 channel.close();
             }
         } else {
-            final TransportChannel transportChannel;
-            final RequestHandlerRegistry<T> reg;
-            try {
-                reg = requestHandlers.getHandler(action);
-                assert message.isShortCircuit() || reg != null : action;
-                transportChannel = new TcpTransportChannel(
-                    outboundHandler,
-                    channel,
-                    action,
-                    requestId,
-                    version,
-                    header.getCompressionScheme(),
-                    reg == null ? ResponseStatsConsumer.NONE : reg,
-                    header.isHandshake(),
-                    message.takeBreakerReleaseControl()
-                );
-            } catch (Exception e) {
-                assert false : e;
-                sendErrorResponse(
-                    action,
-                    new TcpTransportChannel(
-                        outboundHandler,
-                        channel,
-                        action,
-                        requestId,
-                        version,
-                        header.getCompressionScheme(),
-                        ResponseStatsConsumer.NONE,
-                        header.isHandshake(),
-                        message.takeBreakerReleaseControl()
-                    ),
-                    e
-                );
-                return;
-            }
+            final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
+            assert message.isShortCircuit() || reg != null : action;
+            final TransportChannel transportChannel = new TcpTransportChannel(
+                outboundHandler,
+                channel,
+                action,
+                requestId,
+                version,
+                header.getCompressionScheme(),
+                reg == null ? ResponseStatsConsumer.NONE : reg,
+                header.isHandshake(),
+                message.takeBreakerReleaseControl()
+            );
 
             try {
                 messageListener.onRequestReceived(requestId, action);

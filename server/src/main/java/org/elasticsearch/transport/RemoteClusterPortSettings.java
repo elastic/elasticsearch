@@ -37,8 +37,7 @@ import static org.elasticsearch.transport.TransportSettings.TCP_SEND_BUFFER_SIZE
  */
 public class RemoteClusterPortSettings {
 
-    public static final TransportVersion TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS = TransportVersion.V_8_8_0;
-    public static final TransportVersion TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR = TransportVersion.V_8_500_010;
+    public static final TransportVersion TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY = TransportVersion.V_8_500_059;
 
     public static final String REMOTE_CLUSTER_PROFILE = "_remote_cluster";
     public static final String REMOTE_CLUSTER_PREFIX = "remote_cluster.";
@@ -133,7 +132,7 @@ public class RemoteClusterPortSettings {
 
     static void validateRemoteAccessSettings(Settings settings) {
         if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings)
-            && settings.getGroups("transport.profiles.", true).keySet().contains(REMOTE_CLUSTER_PROFILE)) {
+            && settings.getGroups("transport.profiles.", true).containsKey(REMOTE_CLUSTER_PROFILE)) {
             throw new IllegalArgumentException(
                 "Remote Access settings should not be configured using the ["
                     + REMOTE_CLUSTER_PROFILE

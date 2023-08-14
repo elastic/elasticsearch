@@ -2013,11 +2013,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     }
 
     class MockPersistedState implements CoordinationState.PersistedState {
+        private final DiscoveryNode localNode;
         private final CoordinationState.PersistedState delegate;
         private final NodeEnvironment nodeEnvironment;
         private final BooleanSupplier disruptStorage;
 
         MockPersistedState(DiscoveryNode localNode, BooleanSupplier disruptStorage) {
+            this.localNode = localNode;
             this.disruptStorage = disruptStorage;
             try {
                 if (rarely()) {
@@ -2049,6 +2051,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             NamedWriteableRegistry namedWriteableRegistry,
             BooleanSupplier disruptStorage
         ) {
+            this.localNode = newLocalNode;
             this.disruptStorage = disruptStorage;
             try {
                 if (oldState.nodeEnvironment != null) {
@@ -2205,6 +2208,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             } catch (IOException e) {
                 throw new AssertionError("unexpected", e);
             }
+        }
+
+        @Override
+        public String toString() {
+            return "MockPersistedState[" + localNode.descriptionWithoutAttributes() + "]";
         }
     }
 }

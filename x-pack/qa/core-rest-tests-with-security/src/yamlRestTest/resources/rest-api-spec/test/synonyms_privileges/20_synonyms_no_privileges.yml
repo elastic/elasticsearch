@@ -34,8 +34,8 @@ teardown:
   - do:
       catch: "forbidden"
       headers: { Authorization: "Basic bm9uLXN5bm9ueW1zLXVzZXI6bm9uLXN5bm9ueW1zLXVzZXItcGFzc3dvcmQ=" }  # non-synonyms-user
-      synonyms.put:
-        synonyms_set: test-synonyms
+      synonyms.put_synonym:
+        id: test-synonyms
         body:
           synonyms_set:
             - synonyms: "hello, hi"
@@ -46,31 +46,31 @@ teardown:
   - do:
       catch: "forbidden"
       headers: { Authorization: "Basic bm9uLXN5bm9ueW1zLXVzZXI6bm9uLXN5bm9ueW1zLXVzZXItcGFzc3dvcmQ=" }  # non-synonyms-user
-      synonyms.get:
-        synonyms_set: test-synonyms
+      synonyms.get_synonym:
+        id: test-synonyms
 
 ---
 "Delete synonyms set - no manage_search_synonyms privilege":
   - do:
       catch: "forbidden"
       headers: { Authorization: "Basic bm9uLXN5bm9ueW1zLXVzZXI6bm9uLXN5bm9ueW1zLXVzZXItcGFzc3dvcmQ=" }  # non-synonyms-user
-      synonyms.delete:
-        synonyms_set: test-synonyms
+      synonyms.delete_synonym:
+        id: test-synonyms
 ---
 "List synonyms sets - no manage_search_synonyms privilege":
   - do:
       catch: "forbidden"
       headers: { Authorization: "Basic bm9uLXN5bm9ueW1zLXVzZXI6bm9uLXN5bm9ueW1zLXVzZXItcGFzc3dvcmQ=" }  # non-synonyms-user
-      synonyms_sets.get: { }
+      synonyms.get_synonyms_sets: { }
 
 ---
 "Update a synonyms rule - no manage_search_synonyms privilege":
   - do:
       catch: "forbidden"
       headers: { Authorization: "Basic bm9uLXN5bm9ueW1zLXVzZXI6bm9uLXN5bm9ueW1zLXVzZXItcGFzc3dvcmQ=" }  # non-synonyms-user
-      synonym_rule.put:
-        synonyms_set: "test-synonyms"
-        synonym_rule: "test-id-2"
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-2"
         body:
           synonyms: "bye, goodbye, seeya"
 
@@ -79,15 +79,15 @@ teardown:
   - do:
       catch: "forbidden"
       headers: { Authorization: "Basic bm9uLXN5bm9ueW1zLXVzZXI6bm9uLXN5bm9ueW1zLXVzZXItcGFzc3dvcmQ=" }  # non-synonyms-user
-      synonym_rule.get:
-        synonyms_set: "test-synonyms"
-        synonym_rule: "test-id-2"
+      synonyms.get_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-2"
 
 ---
 "Delete synonym rule - no manage_search_synonyms privilege":
   - do:
       catch: "forbidden"
       headers: { Authorization: "Basic bm9uLXN5bm9ueW1zLXVzZXI6bm9uLXN5bm9ueW1zLXVzZXItcGFzc3dvcmQ=" }  # non-synonyms-user
-      synonym_rule.delete:
-        synonyms_set: test-synonyms
-        synonym_rule: test-id-2
+      synonyms.delete_synonym_rule:
+        set_id: test-synonyms
+        rule_id: test-id-2

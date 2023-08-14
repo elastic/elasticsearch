@@ -771,7 +771,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return ELSER_1_MEMORY_USAGE.getBytes();
         } else if (perDeploymentMemoryBytes == 0 && perAllocationMemoryBytes == 0) {
             logger.info(
-                "***estimateMemoryUsageBytes: Using static memory estimate for model [{}], memory overhead [{}], totalDefinitionLength [{}]",
+                "***estimateMemoryUsageBytes: Using static memory estimate for model [{}],"
+                    + " memory overhead [{}], totalDefinitionLength [{}]",
                 modelId,
                 MEMORY_OVERHEAD.getBytes(),
                 totalDefinitionLength
@@ -779,7 +780,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return MEMORY_OVERHEAD.getBytes() + 2 * totalDefinitionLength;
         } else {
             logger.info(
-                "***estimateMemoryUsageBytes: Using static memory estimate for model [{}],totalDefinitionLength [{}], perDeploymentMemoryBytes [{}], perAllocationMemoryBytes [{}], numberOfAllocations [{}]",
+                "***estimateMemoryUsageBytes: Using static memory estimate for model [{}],totalDefinitionLength [{}],"
+                    + " perDeploymentMemoryBytes [{}], perAllocationMemoryBytes [{}], numberOfAllocations [{}]",
                 modelId,
                 totalDefinitionLength,
                 perDeploymentMemoryBytes,

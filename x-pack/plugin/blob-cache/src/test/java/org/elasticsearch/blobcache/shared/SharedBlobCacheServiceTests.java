@@ -8,6 +8,7 @@
 package org.elasticsearch.blobcache.shared;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -33,7 +34,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -325,6 +329,40 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             });
         } finally {
             threadPool.shutdownNow();
+        }
+    }
+
+    public void testFetchFullCacheEntry() throws IOException, InterruptedException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool(), ThreadPool.Names.GENERIC)
+        ) {
+            final var cacheKey = generateCacheKey();
+            assertEquals(5, cacheService.freeRegionCount());
+            CountDownLatch latch = new CountDownLatch(3);
+            cacheService.fetchFullEntry(cacheKey, size(250), (channel, channelPos, relativePos, length, progressUpdater) -> {
+
+            }, new ActionListener<>() {
+                @Override
+                public void onResponse(Integer integer) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+            assertEquals(2, cacheService.freeRegionCount());
         }
     }
 

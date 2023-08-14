@@ -421,12 +421,19 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return entry;
     }
 
-    public void prefetch(KeyType cacheKey, long length, RangeMissingHandler writer) {
+    public void fetchFullEntry(KeyType cacheKey, long length, RangeMissingHandler writer, ActionListener<Integer> listener) {
         int finalRegion = getRegion(length);
+        long regionLength = regionSize;
         for (int region = 0; region <= finalRegion; region++) {
             var entry = get(cacheKey, length, region);
-            ByteRange rangeToWrite = ByteRange.of(0, length);
-            entry.chunk.populateAndRead(rangeToWrite, ByteRange.EMPTY, (channel, pos, relativePos, len) -> 0, writer, null);
+            if (region == finalRegion) {
+                regionLength = length - getRegionStart(region);
+            }
+            ByteRange rangeToWrite = ByteRange.of(0, regionLength);
+            if (rangeToWrite.length() == 0) {
+                return;
+            }
+            entry.chunk.populateAndRead(rangeToWrite, ByteRange.EMPTY, (channel, pos, relativePos, len) -> 0, writer, listener);
         }
     }
 
@@ -848,7 +855,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final RangeMissingHandler writer,
             final ActionListener<Integer> listener
         ) {
-            assert rangeToRead.length() > 0;
+            //assert rangeToRead.length() > 0;
             Releasable resource = null;
             try {
                 incRef();

@@ -96,42 +96,36 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
 
     @Override
     public final Collector newCollector() throws IOException {
-        Collector aggsCollector = null;
-        if (aggsCollectorManager != null) {
-            aggsCollector = aggsCollectorManager.newCollector();
-            if (profile) {
-                aggsCollector = new InternalProfileCollector(aggsCollector, REASON_AGGREGATION);
-            }
-        }
-
-        Collector topDocsCollector = newTopDocsCollector();
         if (profile) {
-            topDocsCollector = new InternalProfileCollector(topDocsCollector, getTopDocsProfilerName());
-        }
-
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
-            topDocsCollector,
-            postFilterWeight,
-            terminateAfterChecker,
-            aggsCollector,
-            minScore
-        );
-        if (profile) {
-            if (aggsCollector == null) {
+            InternalProfileCollector topDocsProfileCollector = new InternalProfileCollector(
+                newTopDocsCollector(),
+                getTopDocsProfilerName()
+            );
+            if (aggsCollectorManager == null) {
                 return new InternalProfileCollector(
-                    queryPhaseCollector,
+                    new QueryPhaseCollector(topDocsProfileCollector, postFilterWeight, terminateAfterChecker, null, minScore),
                     REASON_SEARCH_QUERY_PHASE,
-                    (InternalProfileCollector) topDocsCollector
+                    topDocsProfileCollector
                 );
             }
+            InternalProfileCollector aggsProfileCollector = new InternalProfileCollector(
+                aggsCollectorManager.newCollector(),
+                REASON_AGGREGATION
+            );
             return new InternalProfileCollector(
-                queryPhaseCollector,
+                new QueryPhaseCollector(topDocsProfileCollector, postFilterWeight, terminateAfterChecker, aggsProfileCollector, minScore),
                 REASON_SEARCH_QUERY_PHASE,
-                (InternalProfileCollector) topDocsCollector,
-                (InternalProfileCollector) aggsCollector
+                topDocsProfileCollector,
+                aggsProfileCollector
             );
         }
-        return queryPhaseCollector;
+        return new QueryPhaseCollector(
+            newTopDocsCollector(),
+            postFilterWeight,
+            terminateAfterChecker,
+            aggsCollectorManager == null ? null : aggsCollectorManager.newCollector(),
+            minScore
+        );
     }
 
     protected abstract Collector newTopDocsCollector() throws IOException;

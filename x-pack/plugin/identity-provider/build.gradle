@@ -111,17 +111,6 @@ tasks.named("thirdPartyAudit").configure {
         'org.apache.velocity.context.Context',
         'org.apache.velocity.runtime.resource.loader.StringResourceLoader',
         'org.apache.velocity.runtime.resource.util.StringResourceRepository',
-        // [missing classes] OpenSAML depends on Apache XML security which depends on Xalan, but only for functionality that OpenSAML doesn't use
-        // 'org.apache.xml.dtm.DTM',
-        // 'org.apache.xml.utils.PrefixResolver',
-        // 'org.apache.xpath.Expression',
-        // 'org.apache.xpath.NodeSetDTM',
-        // 'org.apache.xpath.XPath',
-        // 'org.apache.xpath.XPathContext',
-        // 'org.apache.xpath.compiler.FunctionTable',
-        // 'org.apache.xpath.functions.Function',
-        // 'org.apache.xpath.objects.XNodeSet',
-        // 'org.apache.xpath.objects.XObject',
         // [missing classes] OpenSAML storage has an optional LDAP storage impl
         'org.ldaptive.AttributeModification',
         'org.ldaptive.AttributeModificationType',

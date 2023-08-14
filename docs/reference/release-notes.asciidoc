@@ -6,8 +6,12 @@
 
 This section summarizes the changes in each release.
 
+<<<<<<< HEAD
 * <<release-notes-8.11.0>>
 * <<release-notes-8.10.0>>
+=======
+* <<release-notes-8.9.1>>
+>>>>>>> 7985f8ef0f7 (Update docs for v8.9.1 release (#98416))
 * <<release-notes-8.9.0>>
 * <<release-notes-8.8.2>>
 * <<release-notes-8.8.1>>
@@ -47,8 +51,12 @@ This section summarizes the changes in each release.
 
 --
 
+<<<<<<< HEAD
 include::release-notes/8.11.0.asciidoc[]
 include::release-notes/8.10.0.asciidoc[]
+=======
+include::release-notes/8.9.1.asciidoc[]
+>>>>>>> 7985f8ef0f7 (Update docs for v8.9.1 release (#98416))
 include::release-notes/8.9.0.asciidoc[]
 include::release-notes/8.8.2.asciidoc[]
 include::release-notes/8.8.1.asciidoc[]

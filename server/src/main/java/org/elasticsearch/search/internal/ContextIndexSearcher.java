@@ -151,7 +151,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             this.leafSlices = null;
         } else {
             // we offload to the executor unconditionally, including requests that don't support concurrency
-            // the few cases that don't support offloading entirely won't get an executor
             this.leafSlices = computeSlices(getLeafContexts(), maximumNumberOfSlices, minimumDocsPerSlice);
             assert this.leafSlices.length <= maximumNumberOfSlices : "more slices created than the maximum allowed";
         }
@@ -264,6 +263,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     public static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int maxSliceNum, int minDocsPerSlice) {
         if (maxSliceNum < 1) {
             throw new IllegalArgumentException("maxSliceNum must be >= 1 (got " + maxSliceNum + ")");
+        }
+        if (maxSliceNum == 1) {
+            return new LeafSlice[] { new LeafSlice(new ArrayList<>(leaves)) };
         }
         // total number of documents to be searched
         final int numDocs = leaves.stream().mapToInt(l -> l.reader().maxDoc()).sum();

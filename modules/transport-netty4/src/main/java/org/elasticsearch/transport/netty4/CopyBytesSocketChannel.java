@@ -26,7 +26,6 @@ package org.elasticsearch.transport.netty4;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelOutboundBuffer;
-import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioSocketChannel;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -109,7 +108,7 @@ public class CopyBytesSocketChannel extends Netty4NioSocketChannel {
 
     @Override
     protected int doReadBytes(ByteBuf byteBuf) throws Exception {
-        final RecvByteBufAllocator.Handle allocHandle = unsafe().recvBufAllocHandle();
+        final var allocHandle = unsafe().recvBufAllocHandle();
         int writeableBytes = Math.min(byteBuf.writableBytes(), MAX_BYTES_PER_WRITE);
         allocHandle.attemptedBytesRead(writeableBytes);
         ByteBuffer limit = getIoBuffer().limit(writeableBytes);

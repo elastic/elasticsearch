@@ -36,7 +36,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
     private final HttpValidator validator;
     private final ThreadContext threadContext;
-    private ArrayDeque<HttpObject> pending = new ArrayDeque<>(4);
+    private final ArrayDeque<HttpObject> pending = new ArrayDeque<>(4);
     private State state = WAITING_TO_START;
 
     public Netty4HttpHeaderValidator(HttpValidator validator, ThreadContext threadContext) {

@@ -701,12 +701,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
                 assertTrue(
                     nodeId + " is not scheduling elections",
-                    coordinatorStrategy.verifyElectionSchedulerState() == false
-                        || clusterNode.coordinator.electionSchedulerActive() == false
-                        // In the stable state the election scheduler should be inactive (rather than retrying in vain and backing off) on
-                        // all nodes. However today we do the health service checks within the election, so we keep trying if the node
-                        // health state is UNHEALTHY too. See https://github.com/elastic/elasticsearch/issues/98419.
+                    // In the stable state all election schedulers should be inactive, rather than retrying in vain and backing off.
+                    clusterNode.coordinator.electionSchedulerActive() == false
+                        // However today we do the health service checks within the election, so we keep trying if the node health state is
+                        // UNHEALTHY too. See https://github.com/elastic/elasticsearch/issues/98419.
                         || clusterNode.nodeHealthService.getHealth().getStatus() == UNHEALTHY
+                        // Moreover this property does not hold (yet) when using an atomic-register-based coordinator.
+                        // See https://github.com/elastic/elasticsearch/issues/98423
+                        || coordinatorStrategy.verifyElectionSchedulerState() == false
+
                 );
 
                 if (expectIdleJoinValidationService) {

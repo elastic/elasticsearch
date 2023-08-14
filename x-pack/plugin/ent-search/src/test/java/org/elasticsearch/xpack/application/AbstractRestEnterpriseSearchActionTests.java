@@ -32,7 +32,7 @@ public abstract class AbstractRestEnterpriseSearchActionTests extends ESTestCase
         }
         assertThat(channel.capturedResponse(), notNullValue());
         assertThat(channel.capturedResponse().status(), equalTo(RestStatus.FORBIDDEN));
-        assertThat(channel.capturedResponse().content().utf8ToString(), containsString("Aurrent license is non-compliant"));
+        assertThat(channel.capturedResponse().content().utf8ToString(), containsString("Current license is non-compliant"));
         assertThat(channel.capturedResponse().content().utf8ToString(), containsString(feature));
     }
 

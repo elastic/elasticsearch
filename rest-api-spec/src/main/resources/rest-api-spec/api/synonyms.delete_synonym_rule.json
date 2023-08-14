@@ -1,0 +1,38 @@
+{
+  "synonyms.delete_synonym_rule": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-synonym-rule.html",
+      "description": "Deletes a synonym rule in a synonym set"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_synonyms/{set_id}/{rule_id}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "set_id": {
+              "type": "string",
+              "description": "The id of the synonym set to be updated"
+            },
+            "rule_id": {
+              "type": "string",
+              "description": "The id of the synonym rule to be deleted"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

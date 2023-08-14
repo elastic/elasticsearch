@@ -1081,10 +1081,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 request.getClusterAlias()
             );
             ExecutorService executor = this.enableSearchWorkerThreads ? threadPool.executor(Names.SEARCH_WORKER) : null;
-            int maximumNumberOfSlices = executor instanceof ThreadPoolExecutor tpe
-                && supportsParallelCollection(resultsType, request.source(), this.enableQueryPhaseParallelCollection)
-                    ? tpe.getMaximumPoolSize()
-                    : 1;
+            int maximumNumberOfSlices = determineMaximumNumberOfSlices(executor, request, resultsType);
             searchContext = new DefaultSearchContext(
                 reader,
                 request,
@@ -1113,6 +1110,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         return searchContext;
+    }
+
+    int determineMaximumNumberOfSlices(ExecutorService executor, ShardSearchRequest request, ResultsType resultsType) {
+        return executor instanceof ThreadPoolExecutor tpe
+            && supportsParallelCollection(resultsType, request.source(), this.enableQueryPhaseParallelCollection)
+            ? tpe.getMaximumPoolSize()
+            : 1;
     }
 
     static boolean supportsParallelCollection(ResultsType resultsType, SearchSourceBuilder source, boolean isQueryPhaseParallelismEnabled) {

@@ -117,11 +117,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -133,6 +129,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
+import static org.elasticsearch.search.SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED;
 import static org.elasticsearch.search.SearchService.SEARCH_WORKER_THREADS_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -146,6 +143,7 @@ import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchServiceTests extends ESSingleNodeTestCase {
 
@@ -1942,6 +1940,62 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     .get();
                 SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean());
                 assertNotNull(searchContext.searcher().getExecutor());
+            }
+        }
+    }
+
+    public void testEnableQueryPhaseParallelCollection() throws IOException {
+        IndexService indexService = createIndex("index", Settings.EMPTY);
+        IndexShard indexShard = indexService.getShard(0);
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(randomBoolean()),
+            indexShard.shardId(),
+            0,
+            indexService.numberOfShards(),
+            AliasFilter.EMPTY,
+            1f,
+            System.currentTimeMillis(),
+            null
+        );
+
+        ThreadPoolExecutor mockThreadPoolExecutor = mock();
+        int executorPoolSize = randomIntBetween(1,100);
+        when(mockThreadPoolExecutor.getMaximumPoolSize()).thenReturn(executorPoolSize);
+
+        ExecutorService mockNotTPExecutor = mock();
+
+        SearchService service = getInstanceFromNode(SearchService.class);
+        {
+            assertEquals(executorPoolSize,service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.DFS));
+            assertEquals(1,service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.QUERY));
+            assertEquals(1,service.determineMaximumNumberOfSlices(mockNotTPExecutor, request, ResultsType.DFS));
+        }
+
+        try {
+            ClusterUpdateSettingsResponse response = client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), true).build())
+                .get();
+            assertTrue(response.isAcknowledged());
+            {
+                assertEquals(executorPoolSize,service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.DFS));
+                // TODO update the following line to expected=executorPoolSize when https://github.com/elastic/elasticsearch/pull/98425is merged.
+                assertEquals(1,service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.QUERY));
+                assertEquals(1,service.determineMaximumNumberOfSlices(mockNotTPExecutor, request, ResultsType.DFS));
+            }
+        } finally {
+            // reset original default setting
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().putNull(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey()).build())
+                .get();
+            {
+                assertEquals(executorPoolSize,service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.DFS));
+                assertEquals(1,service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.QUERY));
+                assertEquals(1,service.determineMaximumNumberOfSlices(mockNotTPExecutor, request, ResultsType.DFS));
             }
         }
     }

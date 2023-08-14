@@ -1115,8 +1115,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     int determineMaximumNumberOfSlices(ExecutorService executor, ShardSearchRequest request, ResultsType resultsType) {
         return executor instanceof ThreadPoolExecutor tpe
             && supportsParallelCollection(resultsType, request.source(), this.enableQueryPhaseParallelCollection)
-            ? tpe.getMaximumPoolSize()
-            : 1;
+                ? tpe.getMaximumPoolSize()
+                : 1;
     }
 
     static boolean supportsParallelCollection(ResultsType resultsType, SearchSourceBuilder source, boolean isQueryPhaseParallelismEnabled) {

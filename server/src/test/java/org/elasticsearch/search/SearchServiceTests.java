@@ -1960,16 +1960,16 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
 
         ThreadPoolExecutor mockThreadPoolExecutor = mock();
-        int executorPoolSize = randomIntBetween(1,100);
+        int executorPoolSize = randomIntBetween(1, 100);
         when(mockThreadPoolExecutor.getMaximumPoolSize()).thenReturn(executorPoolSize);
 
         ExecutorService mockNotTPExecutor = mock();
 
         SearchService service = getInstanceFromNode(SearchService.class);
         {
-            assertEquals(executorPoolSize,service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.DFS));
-            assertEquals(1,service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.QUERY));
-            assertEquals(1,service.determineMaximumNumberOfSlices(mockNotTPExecutor, request, ResultsType.DFS));
+            assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.DFS));
+            assertEquals(1, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.QUERY));
+            assertEquals(1, service.determineMaximumNumberOfSlices(mockNotTPExecutor, request, ResultsType.DFS));
         }
 
         try {
@@ -1980,10 +1980,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 .get();
             assertTrue(response.isAcknowledged());
             {
-                assertEquals(executorPoolSize,service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.DFS));
-                // TODO update the following line to expected=executorPoolSize when https://github.com/elastic/elasticsearch/pull/98425is merged.
-                assertEquals(1,service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.QUERY));
-                assertEquals(1,service.determineMaximumNumberOfSlices(mockNotTPExecutor, request, ResultsType.DFS));
+                assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.DFS));
+                // TODO update the following line to expected=executorPoolSize when https://github.com/elastic/elasticsearch/pull/98425is
+                // merged.
+                assertEquals(1, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.QUERY));
+                assertEquals(1, service.determineMaximumNumberOfSlices(mockNotTPExecutor, request, ResultsType.DFS));
             }
         } finally {
             // reset original default setting
@@ -1993,9 +1994,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 .setPersistentSettings(Settings.builder().putNull(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey()).build())
                 .get();
             {
-                assertEquals(executorPoolSize,service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.DFS));
-                assertEquals(1,service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.QUERY));
-                assertEquals(1,service.determineMaximumNumberOfSlices(mockNotTPExecutor, request, ResultsType.DFS));
+                assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.DFS));
+                assertEquals(1, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.QUERY));
+                assertEquals(1, service.determineMaximumNumberOfSlices(mockNotTPExecutor, request, ResultsType.DFS));
             }
         }
     }

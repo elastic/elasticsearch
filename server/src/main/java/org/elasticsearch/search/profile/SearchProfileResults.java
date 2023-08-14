@@ -49,7 +49,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     public static final String PROFILE_FIELD = "profile";
 
     // map key is the composite "id" of form [nodeId][(clusterName:)indexName][shardId] created from SearchShardTarget.toString
-    private Map<String, SearchProfileShardResult> shardResults;
+    private final Map<String, SearchProfileShardResult> shardResults;
 
     public SearchProfileResults(Map<String, SearchProfileShardResult> shardResults) {
         this.shardResults = Collections.unmodifiableMap(shardResults);
@@ -207,7 +207,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
      */
     record ShardProfileId(String nodeId, String indexName, int shardId, @Nullable String clusterName) {}
 
-    private static Pattern SHARD_ID_DECOMPOSITION = Pattern.compile("\\[([^]]+)\\]\\[([^]]+)\\]\\[(\\d+)\\]");
+    private static final Pattern SHARD_ID_DECOMPOSITION = Pattern.compile("\\[([^]]+)\\]\\[([^]]+)\\]\\[(\\d+)\\]");
 
     /**
      * Parse the composite "shard id" from the profiles output, which comes from the

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
-import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
@@ -188,7 +187,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
             final String checksum = bytes.v1();
 
             final AtomicInteger readBlobCount = new AtomicInteger();
-            final BufferedIndexInput indexInput = createIndexInput(
+            final DirectBlobContainerIndexInput indexInput = createIndexInput(
                 input,
                 partSize,
                 minimumReadSize,

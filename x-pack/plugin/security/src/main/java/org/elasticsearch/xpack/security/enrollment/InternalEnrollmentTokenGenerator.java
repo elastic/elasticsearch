@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.UUIDs;
@@ -192,6 +193,7 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
             List.of(new RoleDescriptor("create_enrollment_token", new String[] { enrollTokenType.toString() }, null, null)),
             TimeValue.timeValueMinutes(ENROLL_API_KEY_EXPIRATION_MINUTES)
         );
+        apiKeyRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         client.execute(CreateApiKeyAction.INSTANCE, apiKeyRequest, ActionListener.wrap(createApiKeyResponse -> {
             final String apiKey = createApiKeyResponse.getId() + ":" + createApiKeyResponse.getKey().toString();
             final EnrollmentToken enrollmentToken = new EnrollmentToken(apiKey, fingerprint, Version.CURRENT.toString(), tokenAddresses);

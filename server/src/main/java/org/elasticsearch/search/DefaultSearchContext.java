@@ -64,6 +64,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.LongSupplier;
 
 final class DefaultSearchContext extends SearchContext {
@@ -136,9 +137,11 @@ final class DefaultSearchContext extends SearchContext {
         SearchShardTarget shardTarget,
         LongSupplier relativeTimeSupplier,
         TimeValue timeout,
-        int minimumDocsPerSlice,
         FetchPhase fetchPhase,
-        boolean lowLevelCancellation
+        boolean lowLevelCancellation,
+        Executor executor,
+        int maximumNumberOfSlices,
+        int minimumDocsPerSlice
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -149,15 +152,26 @@ final class DefaultSearchContext extends SearchContext {
         this.indexShard = readerContext.indexShard();
 
         Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
-        this.searcher = new ContextIndexSearcher(
-            engineSearcher.getIndexReader(),
-            engineSearcher.getSimilarity(),
-            engineSearcher.getQueryCache(),
-            engineSearcher.getQueryCachingPolicy(),
-            minimumDocsPerSlice,
-            lowLevelCancellation,
-            null
-        );
+        if (executor == null) {
+            this.searcher = new ContextIndexSearcher(
+                engineSearcher.getIndexReader(),
+                engineSearcher.getSimilarity(),
+                engineSearcher.getQueryCache(),
+                engineSearcher.getQueryCachingPolicy(),
+                lowLevelCancellation
+            );
+        } else {
+            this.searcher = new ContextIndexSearcher(
+                engineSearcher.getIndexReader(),
+                engineSearcher.getSimilarity(),
+                engineSearcher.getQueryCache(),
+                engineSearcher.getQueryCachingPolicy(),
+                lowLevelCancellation,
+                executor,
+                maximumNumberOfSlices,
+                minimumDocsPerSlice
+            );
+        }
         releasables.addAll(List.of(engineSearcher, searcher));
 
         this.relativeTimeSupplier = relativeTimeSupplier;

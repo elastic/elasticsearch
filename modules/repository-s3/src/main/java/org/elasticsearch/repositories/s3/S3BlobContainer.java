@@ -17,6 +17,7 @@ import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.ListMultipartUploadsRequest;
+import com.amazonaws.services.s3.model.ListNextBatchOfObjectsRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.MultiObjectDeleteException;
 import com.amazonaws.services.s3.model.MultipartUpload;
@@ -250,6 +251,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     private void abortMultiPartUpload(String uploadId, String blobName) {
         final AbortMultipartUploadRequest abortRequest = new AbortMultipartUploadRequest(blobStore.bucket(), blobName, uploadId);
+        abortRequest.setRequestMetricCollector(blobStore.abortPartUploadMetricCollector);
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             SocketAccess.doPrivilegedVoid(() -> clientReference.client().abortMultipartUpload(abortRequest));
         }
@@ -288,8 +290,9 @@ class S3BlobContainer extends AbstractBlobContainer {
             while (true) {
                 ObjectListing list;
                 if (prevListing != null) {
-                    final ObjectListing finalPrevListing = prevListing;
-                    list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(finalPrevListing));
+                    final var listNextBatchOfObjectsRequest = new ListNextBatchOfObjectsRequest(prevListing);
+                    listNextBatchOfObjectsRequest.setRequestMetricCollector(blobStore.listMetricCollector);
+                    list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(listNextBatchOfObjectsRequest));
                 } else {
                     final ListObjectsRequest listObjectsRequest = new ListObjectsRequest();
                     listObjectsRequest.setBucketName(blobStore.bucket());
@@ -378,7 +381,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     private void deletePartition(AmazonS3Reference clientReference, List<String> partition, AtomicReference<Exception> aex) {
         try {
-            clientReference.client().deleteObjects(bulkDelete(blobStore.bucket(), partition));
+            clientReference.client().deleteObjects(bulkDelete(blobStore, partition));
         } catch (MultiObjectDeleteException e) {
             // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
             // first remove all keys that were sent in the request and then add back those that ran into an exception.
@@ -397,8 +400,10 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
     }
 
-    private static DeleteObjectsRequest bulkDelete(String bucket, List<String> blobs) {
-        return new DeleteObjectsRequest(bucket).withKeys(blobs.toArray(Strings.EMPTY_ARRAY)).withQuiet(true);
+    private static DeleteObjectsRequest bulkDelete(S3BlobStore blobStore, List<String> blobs) {
+        return new DeleteObjectsRequest(blobStore.bucket()).withKeys(blobs.toArray(Strings.EMPTY_ARRAY))
+            .withQuiet(true)
+            .withRequestMetricCollector(blobStore.deleteMetricCollector);
     }
 
     @Override
@@ -442,14 +447,15 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
     }
 
-    private static List<ObjectListing> executeListing(AmazonS3Reference clientReference, ListObjectsRequest listObjectsRequest) {
+    private List<ObjectListing> executeListing(AmazonS3Reference clientReference, ListObjectsRequest listObjectsRequest) {
         final List<ObjectListing> results = new ArrayList<>();
         ObjectListing prevListing = null;
         while (true) {
             ObjectListing list;
             if (prevListing != null) {
-                final ObjectListing finalPrevListing = prevListing;
-                list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(finalPrevListing));
+                final var listNextBatchOfObjectsRequest = new ListNextBatchOfObjectsRequest(prevListing);
+                listNextBatchOfObjectsRequest.setRequestMetricCollector(blobStore.listMetricCollector);
+                list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(listNextBatchOfObjectsRequest));
             } else {
                 list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(listObjectsRequest));
             }
@@ -781,6 +787,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         private void abortMultipartUploadIfExists(String uploadId) {
             try {
                 final var request = new AbortMultipartUploadRequest(bucket, blobKey, uploadId);
+                request.setRequestMetricCollector(blobStore.abortPartUploadMetricCollector);
                 SocketAccess.doPrivilegedVoid(() -> client.abortMultipartUpload(request));
             } catch (AmazonS3Exception e) {
                 if (e.getStatusCode() != 404) {

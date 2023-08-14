@@ -56,7 +56,7 @@ public class RemoteClusterSecurityMutualTlsIT extends AbstractRemoteClusterSecur
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.key", "remote-cluster-client.key")
             .setting("xpack.security.remote_cluster_client.ssl.certificate", "remote-cluster-client.crt")
-            .setting("xpack.security.remote_cluster_client.ssl.client_authentication", "required")
+            .setting("xpack.security.remote_cluster_client.ssl.client_authentication", "required") // no actual effect
             .setting("xpack.security.remote_cluster_client.ssl.verification_mode", () -> String.valueOf(VERIFICATION_MODE.get()))
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .keystore("xpack.security.remote_cluster_client.ssl.secure_key_passphrase", "remote-cluster-client-password")
@@ -84,7 +84,7 @@ public class RemoteClusterSecurityMutualTlsIT extends AbstractRemoteClusterSecur
     // `SSL_ENABLED_REF` is used to control the SSL-enabled setting on the test clusters
     // We set it here, since randomization methods are not available in the static initialize context above
     public static TestRule clusterRule = RuleChain.outerRule(new RunnableTestRuleAdapter(() -> {
-        VERIFICATION_MODE.set(usually() ? randomFrom("full", "certificate") : "none");
+        VERIFICATION_MODE.set(randomFrom("full", "certificate", "none"));
     })).around(fulfillingCluster).around(queryCluster);
 
     public void testCrossClusterSearch() throws Exception {

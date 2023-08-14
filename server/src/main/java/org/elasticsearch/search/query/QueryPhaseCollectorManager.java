@@ -69,7 +69,9 @@ import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEAR
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_TOP_HITS;
 
 /**
- * Base collector manager that
+ * Base collector manager that creates and reduces {@link QueryPhaseCollector}s used in the query phase.
+ * It is aware of profiling, in that it applies the proper wrapping as well as reduction of collectors when profiling is enabled.
+ * The different subclasses plug in their specific behaviour that revolves around top docs collection.
  */
 abstract class QueryPhaseCollectorManager implements CollectorManager<Collector, QueryPhaseResult> {
     private final Weight postFilterWeight;
@@ -178,9 +180,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         }
         if (aggsCollectorManager != null) {
             @SuppressWarnings("unchecked")
-            org.apache.lucene.search.CollectorManager<Collector, Void> aggsManager = (org.apache.lucene.search.CollectorManager<
-                Collector,
-                Void>) aggsCollectorManager;
+            CollectorManager<Collector, Void> aggsManager = (CollectorManager<Collector, Void>) aggsCollectorManager;
             aggsManager.reduce(aggsCollectors);
         }
         TopDocsAndMaxScore topDocsAndMaxScore = reduceTopDocsCollectors(topDocsCollectors);
@@ -204,6 +204,10 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
 
     /**
      * Creates a {@link QueryPhaseCollectorManager} from the provided <code>searchContext</code>.
+     *
+     * @param postFilterWeight the weight for the post_filter provided with the search request
+     * @param aggsCollectorManager the collector manager for aggregations
+     * @param searchContext the search context
      * @param hasFilterCollector True if the collector chain contains at least one collector that can filter documents.
      */
     static CollectorManager<Collector, QueryPhaseResult> createQueryPhaseCollectorManager(
@@ -295,15 +299,14 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         }
     }
 
+    /**
+     * Collector manager used when size is set to 0, hence there are no hits to collect. Top docs collection in
+     * this case takes care of retrieving the total hit count.
+     */
     private static final class EmptyHits extends QueryPhaseCollectorManager {
         private final PartialHitCountCollector.HitsThresholdChecker hitsThresholdChecker;
         private final SortAndFormats sortAndFormats;
 
-        /**
-         * Builds a {@link CollectorManager} to be used when <code>size</code> is set to <code>0</code>.
-         * @param sortAndFormats The sort clause if provided
-         * @param trackTotalHitsUpTo The threshold up to which total hit count needs to be tracked
-         */
         EmptyHits(
             Weight postFilterWeight,
             QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker,
@@ -313,31 +316,11 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
             @Nullable SortAndFormats sortAndFormats,
             int trackTotalHitsUpTo
         ) {
-            this(
-                postFilterWeight,
-                terminateAfterChecker,
-                aggsCollectorManager,
-                minScore,
-                profile,
-                sortAndFormats,
-                new PartialHitCountCollector.HitsThresholdChecker(
-                    trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED ? 0 : trackTotalHitsUpTo
-                )
-            );
-        }
-
-        EmptyHits(
-            Weight postFilterWeight,
-            QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker,
-            CollectorManager<? extends Collector, Void> aggsCollectorManager,
-            Float minScore,
-            boolean profile,
-            @Nullable SortAndFormats sortAndFormats,
-            PartialHitCountCollector.HitsThresholdChecker hitsThresholdChecker
-        ) {
             super(postFilterWeight, terminateAfterChecker, aggsCollectorManager, minScore, profile);
             this.sortAndFormats = sortAndFormats;
-            this.hitsThresholdChecker = hitsThresholdChecker;
+            this.hitsThresholdChecker = new PartialHitCountCollector.HitsThresholdChecker(
+                trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED ? 0 : trackTotalHitsUpTo
+            );
         }
 
         @Override
@@ -380,6 +363,9 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         }
     }
 
+    /**
+     * Collector manager used when size is greater than zero, meaning hits need to be collected.
+     */
     private static class WithHits extends QueryPhaseCollectorManager {
         private final SortAndFormats sortAndFormats;
         private final boolean trackMaxScore;
@@ -499,6 +485,10 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         }
     }
 
+    /**
+     * Returns the collector manager used for scroll requests. It is an extension of the {@link WithHits} implementation above but
+     * with some customizations applied to the reduction of top docs.
+     */
     private static WithHits forScroll(
         Weight postFilterWeight,
         QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker,
@@ -557,12 +547,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
 
     /**
      * Builds a {@link CollectorManager} to be used when collapse is used in a search request.
-     *
-     * @param collapseContext The collapsing context
-     * @param sortAndFormats The query sort
-     * @param numHits The number of collapsed top hits to retrieve.
-     * @param trackMaxScore True if max score should be tracked
-     * @param after
+     * Note: does not support concurrency, and enforces that it is used only with single sliced searches.
      */
     private static QueryPhaseCollectorManager forCollapsing(
         Weight postFilterWeight,
@@ -586,7 +571,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
 
             @Override
             protected Collector newTopDocsCollector() {
-                assert newCollectorCalled == false;
+                assert newCollectorCalled == false : "Field collapsing does not support concurrent execution";
                 newCollectorCalled = true;
                 return MultiCollector.wrap(topDocsCollector, maxScoreCollector);
             }

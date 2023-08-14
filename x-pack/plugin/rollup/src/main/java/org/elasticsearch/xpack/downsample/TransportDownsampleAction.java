@@ -97,9 +97,9 @@ import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
 
 /**
- * The master rollup action that coordinates
- *  -  creating the rollup index
- *  -  instantiating {@link RollupShardIndexer}s to index rollup documents
+ * The master downsample action that coordinates
+ *  -  creating the downsample index
+ *  -  instantiating {@link RollupShardIndexer}s to index downsample documents
  *  -  cleaning up state
  */
 public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAction<DownsampleAction.Request> {
@@ -252,16 +252,16 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             // ignore index already exists
         }
 
-        // Rollup will perform the following tasks:
+        // Downsample will perform the following tasks:
         // 1. Extract source index mappings
-        // 2. Extract rollup config from index mappings
-        // 3. Create the rollup index
-        // 4. Run rollup indexer
-        // 5. Make rollup index read-only and set replicas
-        // 6. Refresh rollup index
-        // 7. Mark rollup index as "completed successfully"
-        // 8. Force-merge the rollup index to a single segment
-        // At any point if there is an issue, delete the rollup index
+        // 2. Extract downsample config from index mappings
+        // 3. Create the downsample index
+        // 4. Run downsample indexer
+        // 5. Make downsample index read-only and set replicas
+        // 6. Refresh downsample index
+        // 7. Mark downsample index as "completed successfully"
+        // 8. Force-merge the downsample index to a single segment
+        // At any point if there is an issue, delete the downsample index
 
         // 1. Extract source index mappings
         final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
@@ -276,7 +276,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 .map(mappingMetadata -> mappingMetadata.getValue().sourceAsMap())
                 .orElseThrow(() -> new IllegalArgumentException("No mapping found for rollup source index [" + sourceIndexName + "]"));
 
-            // 2. Extract rollup config from index mappings
+            // 2. Extract downsample config from index mappings
             final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(sourceIndexMetadata);
             final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
             mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
@@ -312,13 +312,13 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
             final String mapping;
             try {
-                mapping = createRollupIndexMapping(helper, request.getDownsampleConfig(), mapperService, sourceIndexMappings);
+                mapping = createDownsampleIndexMapping(helper, request.getDownsampleConfig(), mapperService, sourceIndexMappings);
             } catch (IOException e) {
                 listener.onFailure(e);
                 return;
             }
-            // 3. Create rollup index
-            createRollupIndex(downsampleIndexName, sourceIndexMetadata, mapping, request, ActionListener.wrap(createIndexResp -> {
+            // 3. Create downsample index
+            createDownsampleIndex(downsampleIndexName, sourceIndexMetadata, mapping, request, ActionListener.wrap(createIndexResp -> {
                 if (createIndexResp.isAcknowledged()) {
                     performShardDownsampling(
                         request,
@@ -350,12 +350,12 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }, listener::onFailure));
     }
 
-    // 3. Rollup index created or already exist (in case of retry). Run rollup indexer persistent task on each shard.
+    // 3. downsample index created or already exist (in case of retry). Run downsample indexer persistent task on each shard.
     private void performShardDownsampling(
         DownsampleAction.Request request,
         ActionListener<AcknowledgedResponse> listener,
         IndexMetadata sourceIndexMetadata,
-        String rollupIndexName,
+        String downsampleIndexName,
         TaskId parentTask,
         List<String> metricFields,
         List<String> labelFields
@@ -367,15 +367,15 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final AtomicInteger countDown = new AtomicInteger(numberOfShards);
         for (int shardNum = 0; shardNum < numberOfShards; shardNum++) {
             final ShardId shardId = new ShardId(sourceIndex, shardNum);
-            final String persistentRollupTaskId = createRollupShardTaskId(
+            final String persistentTaskId = createPersistentTaskId(
                 sourceIndex.getName(),
                 shardId,
                 request.getDownsampleConfig().getInterval()
             );
-            final RollupShardTaskParams params = createRollupShardTaskParams(
+            final DownsampleShardTaskParams params = createPersistentTaskParams(
                 request.getDownsampleConfig(),
                 sourceIndexMetadata,
-                rollupIndexName,
+                downsampleIndexName,
                 metricFields,
                 labelFields,
                 shardId
@@ -392,10 +392,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask) {
-                    logger.info("Downsampling task [" + persistentRollupTaskId + " completed for shard " + params.shardId());
+                    logger.info("Downsampling task [" + persistentTaskId + " completed for shard " + params.shardId());
                     if (countDown.decrementAndGet() == 0) {
                         logger.info("All downsampling tasks completed [" + numberOfShards + "]");
-                        updateTargetIndexSettingStep(request, listener, sourceIndexMetadata, rollupIndexName, parentTask);
+                        updateTargetIndexSettingStep(request, listener, sourceIndexMetadata, downsampleIndexName, parentTask);
                     }
                 }
 
@@ -406,7 +406,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 }
             };
             persistentTasksService.sendStartRequest(
-                persistentRollupTaskId,
+                persistentTaskId,
                 RollupShardTask.TASK_NAME,
                 params,
                 ActionListener.wrap(
@@ -418,15 +418,15 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     ),
                     e -> {
                         if (e instanceof ResourceAlreadyExistsException) {
-                            logger.info("Task [" + persistentRollupTaskId + "] already exists. Waiting.");
+                            logger.info("Task [" + persistentTaskId + "] already exists. Waiting.");
                             persistentTasksService.waitForPersistentTaskCondition(
-                                persistentRollupTaskId,
+                                persistentTaskId,
                                 predicate,
                                 request.getWaitTimeout(),
                                 taskListener
                             );
                         } else {
-                            listener.onFailure(new ElasticsearchException("Task [" + persistentRollupTaskId + "] failed starting", e));
+                            listener.onFailure(new ElasticsearchException("Task [" + persistentTaskId + "] failed starting", e));
                         }
                     }
                 )
@@ -434,7 +434,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }
     }
 
-    // 4. Make rollup index read-only and set the correct number of replicas
+    // 4. Make downsample index read-only and set the correct number of replicas
     private void updateTargetIndexSettingStep(
         final DownsampleAction.Request request,
         final ActionListener<AcknowledgedResponse> listener,
@@ -442,7 +442,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final String downsampleIndexName,
         final TaskId parentTask
     ) {
-        // 4. Make rollup index read-only and set the correct number of replicas
+        // 4. Make downsample index read-only and set the correct number of replicas
         final Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true);
         // Number of replicas had been previously set to 0 to speed up index population
         if (sourceIndexMetadata.getNumberOfReplicas() > 0) {
@@ -463,21 +463,21 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .indices()
             .updateSettings(
                 updateSettingsReq,
-                new UpdateRollupIndexSettingsActionListener(listener, parentTask, downsampleIndexName, request.getWaitTimeout())
+                new UpdateDownsampleIndexSettingsActionListener(listener, parentTask, downsampleIndexName, request.getWaitTimeout())
             );
     }
 
-    private static RollupShardTaskParams createRollupShardTaskParams(
+    private static DownsampleShardTaskParams createPersistentTaskParams(
         final DownsampleConfig downsampleConfig,
         final IndexMetadata sourceIndexMetadata,
-        final String rollupIndexName,
+        final String targetIndexName,
         final List<String> metricFields,
         final List<String> labelFields,
         final ShardId shardId
     ) {
-        return new RollupShardTaskParams(
+        return new DownsampleShardTaskParams(
             downsampleConfig,
-            rollupIndexName,
+            targetIndexName,
             parseTimestamp(sourceIndexMetadata, IndexSettings.TIME_SERIES_START_TIME),
             parseTimestamp(sourceIndexMetadata, IndexSettings.TIME_SERIES_END_TIME),
             shardId,
@@ -492,7 +492,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .toEpochMilli();
     }
 
-    private static String createRollupShardTaskId(final String sourceIndex, final ShardId shardId, final DateHistogramInterval interval) {
+    private static String createPersistentTaskId(final String sourceIndex, final ShardId shardId, final DateHistogramInterval interval) {
         return DOWNSAMPLED_INDEX_PREFIX + sourceIndex + "-" + shardId.id() + "-" + interval;
     }
 
@@ -502,15 +502,15 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     }
 
     /**
-     * This method creates the mapping for the rollup index, based on the
+     * This method creates the mapping for the downsample index, based on the
      * mapping (dimensions and metrics) from the source index, as well as the
-     * rollup configuration.
+     * downsample configuration.
      *
-     * @param config the rollup configuration
+     * @param config the downsample configuration
      * @param sourceIndexMappings a map with the source index mapping
-     * @return the mapping of the rollup index
+     * @return the mapping of the downsample index
      */
-    public static String createRollupIndexMapping(
+    public static String createDownsampleIndexMapping(
         final TimeseriesFieldTypeHelper helper,
         final DownsampleConfig config,
         final MapperService mapperService,
@@ -528,10 +528,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         builder.endObject(); // match initial startObject
         builder.endObject(); // match startObject("properties")
 
-        final CompressedXContent rollupDiffXContent = CompressedXContent.fromJSON(
+        final CompressedXContent mappingDiffXContent = CompressedXContent.fromJSON(
             XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON)
         );
-        return mapperService.merge(MapperService.SINGLE_MAPPING_NAME, rollupDiffXContent, MapperService.MergeReason.INDEX_TEMPLATE)
+        return mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappingDiffXContent, MapperService.MergeReason.INDEX_TEMPLATE)
             .mappingSource()
             .uncompressed()
             .utf8ToString();
@@ -643,23 +643,23 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     }
 
     /**
-     * Copy index settings from the source index to the rollup index. Settings that
-     * have already been set in the rollup index will not be overridden.
+     * Copy index settings from the source index to the downsample index. Settings that
+     * have already been set in the downsample index will not be overridden.
      */
     static IndexMetadata.Builder copyIndexMetadata(
         final IndexMetadata sourceIndexMetadata,
-        final IndexMetadata rollupIndexMetadata,
+        final IndexMetadata downsampleIndexMetadata,
         final IndexScopedSettings indexScopedSettings
     ) {
         // Copy index settings from the source index, but do not override the settings
-        // that already have been set in the rollup index
-        final Settings.Builder targetSettings = Settings.builder().put(rollupIndexMetadata.getSettings());
+        // that already have been set in the downsample index
+        final Settings.Builder targetSettings = Settings.builder().put(downsampleIndexMetadata.getSettings());
         for (final String key : sourceIndexMetadata.getSettings().keySet()) {
             final Setting<?> setting = indexScopedSettings.get(key);
             if (setting == null) {
                 assert indexScopedSettings.isPrivateSetting(key) : "expected [" + key + "] to be private but it was not";
             } else if (setting.getProperties().contains(Setting.Property.NotCopyableOnResize)) {
-                // we leverage the NotCopyableOnResize setting property for rollup, because
+                // we leverage the NotCopyableOnResize setting property for downsample, because
                 // the same rules with resize apply
                 continue;
             }
@@ -671,7 +671,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             if (OVERRIDE_SETTINGS.contains(key)) {
                 targetSettings.put(key, sourceIndexMetadata.getSettings().get(key));
             }
-            // Do not override settings that have already been set in the rollup index.
+            // Do not override settings that have already been set in the downsample index.
             if (targetSettings.keys().contains(key)) {
                 continue;
             }
@@ -680,8 +680,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }
 
         /*
-         * Add the source index name and UUID to the rollup index metadata.
-         * If the source index is a rollup index, we will add the name and UUID
+         * Add the source index name and UUID to the downsample index metadata.
+         * If the source index is a downsample index, we will add the name and UUID
          * of the first index that we initially rolled up.
          */
         if (IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.exists(sourceIndexMetadata.getSettings()) == false
@@ -691,7 +691,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 .put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.getKey(), sourceIndex.getUUID());
         }
 
-        return IndexMetadata.builder(rollupIndexMetadata).settings(targetSettings);
+        return IndexMetadata.builder(downsampleIndexMetadata).settings(targetSettings);
     }
 
     /**
@@ -710,21 +710,21 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .endArray();
     }
 
-    private void createRollupIndex(
-        String rollupIndexName,
+    private void createDownsampleIndex(
+        String downsampleIndexName,
         IndexMetadata sourceIndexMetadata,
         String mapping,
         DownsampleAction.Request request,
         ActionListener<AcknowledgedResponse> listener
     ) {
         /*
-         * When creating the rollup index, we copy the index.number_of_shards from source index,
+         * When creating the downsample index, we copy the index.number_of_shards from source index,
          * and we set the index.number_of_replicas to 0, to avoid replicating the index being built.
          * Also, we set the index.refresh_interval to -1.
          * We will set the correct number of replicas and refresh the index later.
          *
-         * We should note that there is a risk of losing a node during the rollup process. In this
-         * case rollup will fail.
+         * We should note that there is a risk of losing a node during the downsample process. In this
+         * case downsample will fail.
          */
         Settings.Builder builder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
@@ -740,21 +740,21 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }
 
         CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest = new CreateIndexClusterStateUpdateRequest(
-            "rollup",
-            rollupIndexName,
-            rollupIndexName
+            "downsample",
+            downsampleIndexName,
+            downsampleIndexName
         ).settings(builder.build()).mappings(mapping).waitForActiveShards(ActiveShardCount.ONE);
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
-        taskQueue.submitTask("create-rollup-index [" + rollupIndexName + "]", new DownsampleClusterStateUpdateTask(listener) {
+        taskQueue.submitTask("create-downsample-index [" + downsampleIndexName + "]", new DownsampleClusterStateUpdateTask(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 return metadataCreateIndexService.applyCreateIndexRequest(
                     currentState,
                     createIndexClusterStateUpdateRequest,
                     true,
-                    // Copy index metadata from source index to rollup index
-                    (builder, rollupIndexMetadata) -> builder.put(
-                        copyIndexMetadata(sourceIndexMetadata, rollupIndexMetadata, indexScopedSettings)
+                    // Copy index metadata from source index to downsample index
+                    (builder, indexMetadata) -> builder.put(
+                        copyIndexMetadata(sourceIndexMetadata, indexMetadata, indexScopedSettings)
                     ),
                     delegate.reroute()
                 );
@@ -784,13 +784,13 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     /**
      * Refreshes the downsample target index
      */
-    class UpdateRollupIndexSettingsActionListener implements ActionListener<AcknowledgedResponse> {
+    class UpdateDownsampleIndexSettingsActionListener implements ActionListener<AcknowledgedResponse> {
         final ActionListener<AcknowledgedResponse> listener;
         final TaskId parentTask;
         final String downsampleIndexName;
         final TimeValue timeout;
 
-        UpdateRollupIndexSettingsActionListener(
+        UpdateDownsampleIndexSettingsActionListener(
             final ActionListener<AcknowledgedResponse> listener,
             final TaskId parentTask,
             final String downsampleIndexName,
@@ -808,7 +808,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             request.setParentTask(parentTask);
             client.admin()
                 .indices()
-                .refresh(request, new RefreshRollupIndexActionListener(listener, parentTask, downsampleIndexName, timeout));
+                .refresh(request, new RefreshDownsampleIndexActionListener(listener, parentTask, downsampleIndexName, timeout));
         }
 
         @Override
@@ -821,14 +821,14 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     /**
      * Updates the downsample target index metadata (task status)
      */
-    class RefreshRollupIndexActionListener implements ActionListener<RefreshResponse> {
+    class RefreshDownsampleIndexActionListener implements ActionListener<RefreshResponse> {
 
         private final ActionListener<AcknowledgedResponse> actionListener;
         private final TaskId parentTask;
         private final String downsampleIndexName;
         private final TimeValue timeout;
 
-        RefreshRollupIndexActionListener(
+        RefreshDownsampleIndexActionListener(
             final ActionListener<AcknowledgedResponse> actionListener,
             TaskId parentTask,
             final String downsampleIndexName,
@@ -845,9 +845,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             if (response.getFailedShards() != 0) {
                 logger.info("Post refresh failed [{}],{}", downsampleIndexName, Strings.toString(response));
             }
-            // Mark rollup index as "completed successfully" ("index.rollup.status": "success")
+            // Mark downsample index as "completed successfully" ("index.downsample.status": "success")
             taskQueue.submitTask(
-                "update-rollup-metadata [" + downsampleIndexName + "]",
+                "update-downsample-metadata [" + downsampleIndexName + "]",
                 new DownsampleClusterStateUpdateTask(new ForceMergeActionListener(parentTask, downsampleIndexName, actionListener)) {
 
                     @Override
@@ -902,9 +902,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         @Override
         public void onResponse(final AcknowledgedResponse response) {
             /*
-             * At this point rollup has been created
+             * At this point downsample index has been created
              * successfully even force merge fails.
-             * So, we should not fail the rollup operation
+             * So, we should not fail the downsmaple operation
              */
             ForceMergeRequest request = new ForceMergeRequest(downsampleIndexName);
             request.maxNumSegments(1);
@@ -913,11 +913,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 .indices()
                 .forceMerge(request, ActionListener.wrap(mergeIndexResp -> actionListener.onResponse(AcknowledgedResponse.TRUE), t -> {
                     /*
-                     * At this point rollup has been created
+                     * At this point downsampel index has been created
                      * successfully even force merge fails.
-                     * So, we should not fail the rollup operation
+                     * So, we should not fail the downsample operation
                      */
-                    logger.error("Failed to force-merge " + "rollup index [" + downsampleIndexName + "]", t);
+                    logger.error("Failed to force-merge " + "downsample index [" + downsampleIndexName + "]", t);
                     actionListener.onResponse(AcknowledgedResponse.TRUE);
                 }));
         }

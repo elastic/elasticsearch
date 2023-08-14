@@ -24,7 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public record RollupShardTaskParams(
+public record DownsampleShardTaskParams(
     DownsampleConfig downsampleConfig,
     String rollupIndex,
     long indexStartTimeMillis,
@@ -42,23 +42,23 @@ public record RollupShardTaskParams(
     private static final ParseField SHARD_ID = new ParseField("shard_id");
     private static final ParseField METRICS = new ParseField("metrics");
     private static final ParseField LABELS = new ParseField("labels");
-    public static final ObjectParser<RollupShardTaskParams.Builder, Void> PARSER = new ObjectParser<>(NAME);
+    public static final ObjectParser<DownsampleShardTaskParams.Builder, Void> PARSER = new ObjectParser<>(NAME);
 
     static {
         PARSER.declareObject(
-            RollupShardTaskParams.Builder::downsampleConfig,
+            DownsampleShardTaskParams.Builder::downsampleConfig,
             (p, c) -> DownsampleConfig.fromXContent(p),
             DOWNSAMPLE_CONFIG
         );
-        PARSER.declareString(RollupShardTaskParams.Builder::rollupIndex, ROLLUP_INDEX);
-        PARSER.declareLong(RollupShardTaskParams.Builder::indexStartTimeMillis, INDEX_START_TIME_MILLIS);
-        PARSER.declareLong(RollupShardTaskParams.Builder::indexEndTimeMillis, INDEX_END_TIME_MILLIS);
-        PARSER.declareString(RollupShardTaskParams.Builder::shardId, SHARD_ID);
-        PARSER.declareStringArray(RollupShardTaskParams.Builder::metrics, METRICS);
-        PARSER.declareStringArray(RollupShardTaskParams.Builder::labels, LABELS);
+        PARSER.declareString(DownsampleShardTaskParams.Builder::rollupIndex, ROLLUP_INDEX);
+        PARSER.declareLong(DownsampleShardTaskParams.Builder::indexStartTimeMillis, INDEX_START_TIME_MILLIS);
+        PARSER.declareLong(DownsampleShardTaskParams.Builder::indexEndTimeMillis, INDEX_END_TIME_MILLIS);
+        PARSER.declareString(DownsampleShardTaskParams.Builder::shardId, SHARD_ID);
+        PARSER.declareStringArray(DownsampleShardTaskParams.Builder::metrics, METRICS);
+        PARSER.declareStringArray(DownsampleShardTaskParams.Builder::labels, LABELS);
     }
 
-    RollupShardTaskParams(final StreamInput in) throws IOException {
+    DownsampleShardTaskParams(final StreamInput in) throws IOException {
         this(
             new DownsampleConfig(in),
             in.readString(),
@@ -104,8 +104,8 @@ public record RollupShardTaskParams(
         out.writeStringArray(labels);
     }
 
-    public static RollupShardTaskParams readFromStream(final StreamInput in) throws IOException {
-        return new RollupShardTaskParams(
+    public static DownsampleShardTaskParams readFromStream(final StreamInput in) throws IOException {
+        return new DownsampleShardTaskParams(
             new DownsampleConfig(in),
             in.readString(),
             in.readVLong(),
@@ -116,8 +116,8 @@ public record RollupShardTaskParams(
         );
     }
 
-    public static RollupShardTaskParams fromXContent(XContentParser parser) throws IOException {
-        final RollupShardTaskParams.Builder builder = new RollupShardTaskParams.Builder();
+    public static DownsampleShardTaskParams fromXContent(XContentParser parser) throws IOException {
+        final DownsampleShardTaskParams.Builder builder = new DownsampleShardTaskParams.Builder();
         PARSER.parse(parser, builder, null);
         return builder.build();
     }
@@ -126,7 +126,7 @@ public record RollupShardTaskParams(
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        RollupShardTaskParams that = (RollupShardTaskParams) o;
+        DownsampleShardTaskParams that = (DownsampleShardTaskParams) o;
         return indexStartTimeMillis == that.indexStartTimeMillis
             && indexEndTimeMillis == that.indexEndTimeMillis
             && Objects.equals(downsampleConfig, that.downsampleConfig)
@@ -196,8 +196,8 @@ public record RollupShardTaskParams(
             return this;
         }
 
-        public RollupShardTaskParams build() {
-            return new RollupShardTaskParams(
+        public DownsampleShardTaskParams build() {
+            return new DownsampleShardTaskParams(
                 downsampleConfig,
                 rollupIndex,
                 indexStartTimeMillis,

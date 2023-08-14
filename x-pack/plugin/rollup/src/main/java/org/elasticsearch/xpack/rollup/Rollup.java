@@ -59,7 +59,7 @@ import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.downsample.RestDownsampleAction;
 import org.elasticsearch.xpack.downsample.RollupShardPersistentTaskExecutor;
-import org.elasticsearch.xpack.downsample.RollupShardTaskParams;
+import org.elasticsearch.xpack.downsample.DownsampleShardTaskParams;
 import org.elasticsearch.xpack.downsample.TransportDownsampleAction;
 import org.elasticsearch.xpack.downsample.TransportDownsampleIndexerAction;
 import org.elasticsearch.xpack.rollup.action.TransportDeleteRollupJobAction;
@@ -215,8 +215,8 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             ),
             new NamedXContentRegistry.Entry(
                 PersistentTaskParams.class,
-                new ParseField(RollupShardTaskParams.NAME),
-                RollupShardTaskParams::fromXContent
+                new ParseField(DownsampleShardTaskParams.NAME),
+                DownsampleShardTaskParams::fromXContent
             )
         );
     }
@@ -229,7 +229,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
                 RollupShardPersistentTaskState.NAME,
                 RollupShardPersistentTaskState::readFromStream
             ),
-            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, RollupShardTaskParams.NAME, RollupShardTaskParams::readFromStream)
+            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, DownsampleShardTaskParams.NAME, DownsampleShardTaskParams::readFromStream)
         );
     }
 

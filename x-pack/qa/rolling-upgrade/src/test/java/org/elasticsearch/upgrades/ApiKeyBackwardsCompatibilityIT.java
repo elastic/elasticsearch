@@ -46,12 +46,13 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
-    public static final Version API_KEY_SUPPORT_REMOTE_INDICES_VERSION = Build.current().isSnapshot() ? Version.V_8_8_0 : Version.V_8_10_0;
+    public static final Version API_KEY_SUPPORT_REMOTE_INDICES_VERSION = Build.current().isSnapshot() ? Version.V_8_8_0 : Version.V_8_9_1;
 
     private RestClient oldVersionClient = null;
     private RestClient newVersionClient = null;
 
     public void testCreatingAndUpdatingApiKeys() throws Exception {
+        System.out.println("ASDF " + UPGRADE_FROM_VERSION);
         assumeTrue(
             "The remote_indices for API Keys are not supported before version " + API_KEY_SUPPORT_REMOTE_INDICES_VERSION,
             UPGRADE_FROM_VERSION.before(API_KEY_SUPPORT_REMOTE_INDICES_VERSION)

@@ -502,7 +502,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
         SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING,
         SearchService.SEARCH_WORKER_THREADS_ENABLED,
-        SearchService.QUERY_PHASE_PARALLELISM_ENABLED,
+        SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED,
         ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
         ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING,
         ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING,

@@ -219,7 +219,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic
     );
 
-    public static final Setting<Boolean> QUERY_PHASE_PARALLELISM_ENABLED = Setting.boolSetting(
+    public static final Setting<Boolean> QUERY_PHASE_PARALLEL_COLLECTION_ENABLED = Setting.boolSetting(
         "search.query_phase_parallel_collection_enabled",
         false,
         Property.NodeScope,
@@ -269,7 +269,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final FetchPhase fetchPhase;
     private volatile boolean enableSearchWorkerThreads;
-    private volatile boolean enableQueryPhaseParallelism;
+    private volatile boolean enableQueryPhaseParallelCollection;
 
     private volatile long defaultKeepAlive;
 
@@ -363,17 +363,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         enableSearchWorkerThreads = SEARCH_WORKER_THREADS_ENABLED.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_WORKER_THREADS_ENABLED, this::setEnableSearchWorkerThreads);
 
-        enableQueryPhaseParallelism = QUERY_PHASE_PARALLELISM_ENABLED.get(settings);
+        enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(QUERY_PHASE_PARALLELISM_ENABLED, this::setEnableQueryPhaseParallelism);
+            .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
     }
 
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
         this.enableSearchWorkerThreads = enableSearchWorkerThreads;
     }
 
-    private void setEnableQueryPhaseParallelism(boolean enableQueryPhaseParallelism) {
-        this.enableQueryPhaseParallelism = enableQueryPhaseParallelism;
+    private void setEnableQueryPhaseParallelCollection(boolean enableQueryPhaseParallelCollection) {
+        this.enableQueryPhaseParallelCollection = enableQueryPhaseParallelCollection;
     }
 
     private static void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -1082,7 +1082,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             );
             ExecutorService executor = this.enableSearchWorkerThreads ? threadPool.executor(Names.SEARCH_WORKER) : null;
             int maximumNumberOfSlices = executor instanceof ThreadPoolExecutor tpe
-                && supportsParallelCollection(resultsType, request.source(), this.enableQueryPhaseParallelism)
+                && supportsParallelCollection(resultsType, request.source(), this.enableQueryPhaseParallelCollection)
                     ? tpe.getMaximumPoolSize()
                     : 1;
             searchContext = new DefaultSearchContext(

@@ -2020,11 +2020,20 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         if (searchSourceBuilder != null && randomBoolean()) {
             searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));
         }
-        assertTrue(SearchService.supportsParallelCollection(ResultsType.DFS, searchSourceBuilder));
+        assertTrue(SearchService.supportsParallelCollection(ResultsType.DFS, searchSourceBuilder, true));
         assertFalse(
             SearchService.supportsParallelCollection(
                 randomFrom(randomFrom(ResultsType.QUERY, ResultsType.NONE, ResultsType.FETCH)),
-                searchSourceBuilder
+                searchSourceBuilder,
+                false
+            )
+        );
+        assertFalse(
+            // TODO: until https://github.com/elastic/elasticsearch/pull/98425 is merged, this should always return false.
+            SearchService.supportsParallelCollection(
+                randomFrom(randomFrom(ResultsType.QUERY, ResultsType.NONE, ResultsType.FETCH)),
+                searchSourceBuilder,
+                true
             )
         );
     }

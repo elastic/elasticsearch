@@ -1,0 +1,104 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: source
+        body:
+          mappings:
+            properties:
+              boolean:
+                type: boolean
+              byte:
+                type: byte
+              date:
+                type: date
+              date_nanos:
+                type: date_nanos
+              date_range:
+                type: date_range
+              dense_vector:
+                type: dense_vector
+                dims: 2
+              double:
+                type: double
+              double_range:
+                type: double_range
+              flattened:
+                type: flattened
+              float:
+                type: float
+              float_range:
+                type: float_range
+              geo_point:
+                type: geo_point
+              geo_shape:
+                type: geo_shape
+              half_float:
+                type: half_float
+              integer:
+                type: integer
+              integer_range:
+                type: integer_range
+              ip:
+                type: ip
+              ip_range:
+                type: ip_range
+              keyword:
+                type: keyword
+              long:
+                type: long
+              long_range:
+                type: long_range
+              point:
+                type: point
+              scaled_float:
+                type: scaled_float
+                scaling_factor: 100
+              search_as_you_type:
+                type: search_as_you_type
+              shape:
+                type: shape
+              short:
+                type: short
+              text:
+                type: text
+              token_count:
+                type: token_count
+                analyzer: english
+              unsigned_long:
+                type: unsigned_long
+  - do:
+      bulk:
+        refresh: true
+        index: source
+        body:
+          - '{"index": {}}'
+          - '{"boolean": true, "byte": 127, "date": "2015-01-01T12:10:30Z", "date_nanos": "2015-01-01T12:10:30.123456789Z", "date_range": {"gte": "2015-01-01T12:10:30Z", "lt": "2015-01-02T12:10:30Z"}, "dense_vector": [1.0, 1.0], "double": 0.01, "double_range": {"gte": 0.01, "lt": 0.02}, "flattened": {"key": "value"}, "float": 0.01, "float_range": {"gte": 0.1, "lt": 0.2}, "geo_point": [-71.34, 41.12], "geo_shape": "LINESTRING (-77.03653 38.897676, -77.009051 38.889939)", "half_float": 0.1, "integer": 1, "integer_range": {"gte": 1, "lt": 10}, "ip": "0.0.0.0", "ip_range": {"gte": "0.0.0.0", "lt": "127.0.0.0"}, "keyword": "test", "long": 10000, "long_range": {"gte": 0, "lt": 1000}, "point": [-71.34, 41.12], "scaled_float": 0.01, "search_as_you_type": "test", "shape": "POINT (-377.03653 389.897676)", "short": 1000, "text": "test test test", "token_count": "test", "unsigned_long": 1000}'
+
+  - do:
+      enrich.put_policy:
+        name: test_policy
+        body:
+          match:
+            indices: [ "source*" ]
+            match_field: "keyword"
+            enrich_fields: [ "boolean", "byte", "date", "date_nanos", "date_range", "dense_vector", "double", "double_range", "flattened", "float", "float_range", "geo_point", "geo_shape", "half_float", "icu_collation_keyword", "integer", "integer_range", "ip", "ip_range", "long", "long_range", "point", "scaled_float", "search_as_you_type", "shape", "short", "text", "token_count", "unsigned_long" ]
+
+---
+teardown:
+
+  - do:
+      enrich.delete_policy:
+        name: test_policy
+
+  - do:
+      indices.delete:
+        index: source
+
+---
+check enrich index mappings for index settings:
+
+  - do:
+      enrich.execute_policy:
+        name: test_policy

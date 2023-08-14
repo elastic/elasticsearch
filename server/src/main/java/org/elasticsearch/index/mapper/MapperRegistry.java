@@ -50,6 +50,10 @@ public final class MapperRegistry {
         this.fieldFilter = fieldFilter;
     }
 
+    public Map<String, Mapper.TypeParser> getMapperParsers() {
+        return mapperParsers;
+    }
+
     /**
      * Return a mapper parser for the given type and index creation version.
      */

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.rollup.action;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -124,8 +123,7 @@ public class PutJobStateMachineTests extends ESTestCase {
             assertNotNull(requestCaptor.getValue().mappings());
             String mapping = requestCaptor.getValue().mappings();
 
-            // Make sure the version is present, and we have our date template (the most important aspects)
-            assertThat(mapping, containsString("\"rollup-version\":\"" + Version.CURRENT.toString() + "\""));
+            // Make sure we have our date template (the most important aspect)
             assertThat(mapping, containsString("\"path_match\":\"*.date_histogram.timestamp\""));
 
             listenerCaptor.getValue().onFailure(new ResourceAlreadyExistsException(job.getConfig().getRollupIndex()));
@@ -232,38 +230,6 @@ public class PutJobStateMachineTests extends ESTestCase {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
             Map<String, Object> m = Maps.newMapWithExpectedSize(2);
             m.put("random", Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
-            MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.singletonMap("_meta", m));
-
-            when(response.getMappings()).thenReturn(Map.of(job.getConfig().getRollupIndex(), meta));
-            requestCaptor.getValue().onResponse(response);
-            return null;
-        }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
-
-        TransportPutRollupJobAction.updateMapping(job, testListener, mock(PersistentTasksService.class), client, logger);
-        verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
-    }
-
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void testNoMappingVersion() {
-        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
-
-        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
-            fail("Listener success should not have been triggered.");
-        }, e -> {
-            assertThat(
-                e.getMessage(),
-                equalTo("Could not determine version of existing rollup metadata for index [" + job.getConfig().getRollupIndex() + "]")
-            );
-        });
-
-        Logger logger = mock(Logger.class);
-        Client client = mock(Client.class);
-
-        ArgumentCaptor<ActionListener> requestCaptor = ArgumentCaptor.forClass(ActionListener.class);
-        doAnswer(invocation -> {
-            GetMappingsResponse response = mock(GetMappingsResponse.class);
-            Map<String, Object> m = Maps.newMapWithExpectedSize(2);
-            m.put(RollupField.ROLLUP_META, Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.singletonMap("_meta", m));
 
             when(response.getMappings()).thenReturn(Map.of(job.getConfig().getRollupIndex(), meta));

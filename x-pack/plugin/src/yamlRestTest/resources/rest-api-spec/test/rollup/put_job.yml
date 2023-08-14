@@ -316,8 +316,6 @@ setup:
       indices.get_mapping:
         index: foo_rollup
 
-  - set: {foo_rollup.mappings._meta.rollup-version: version}
-
   - match:
       foo_rollup:
         mappings:
@@ -341,7 +339,6 @@ setup:
                      - "max"
                      - "sum"
                 timeout: "20s"
-            rollup-version: $version
           dynamic_templates:
             - strings:
                 match_mapping_type: "string"

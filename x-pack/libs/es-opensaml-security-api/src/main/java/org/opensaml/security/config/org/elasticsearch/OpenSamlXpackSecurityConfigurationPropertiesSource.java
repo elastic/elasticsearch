@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.opensaml.security.config.org.elasticsearch.xpack.security.authc.saml;
+package org.opensaml.security.config.org.elasticsearch;
 
 import org.opensaml.core.config.ConfigurationPropertiesSource;
 

@@ -108,7 +108,6 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -852,7 +851,7 @@ public class TransportSearchActionTests extends ESTestCase {
             {
                 final CountDownLatch latch = new CountDownLatch(1);
                 AtomicReference<Map<String, SearchShardsResponse>> response = new AtomicReference<>();
-                AtomicInteger skippedClusters = new AtomicInteger();
+                var clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> true);
                 TransportSearchAction.collectSearchShards(
                     IndicesOptions.lenientExpandOpen(),
                     null,
@@ -860,14 +859,12 @@ public class TransportSearchActionTests extends ESTestCase {
                     new MatchAllQueryBuilder(),
                     randomBoolean(),
                     null,
-                    skippedClusters,
                     remoteIndicesByCluster,
-                    new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> true),
+                    clusters,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
-                assertEquals(0, skippedClusters.get());
                 assertNotNull(response.get());
                 Map<String, SearchShardsResponse> map = response.get();
                 assertEquals(numClusters, map.size());
@@ -877,11 +874,12 @@ public class TransportSearchActionTests extends ESTestCase {
                     SearchShardsResponse shardsResponse = map.get(clusterAlias);
                     assertThat(shardsResponse.getNodes(), hasSize(1));
                 }
+                assertThat(clusters.getSkipped(), equalTo(0));
             }
             {
                 final CountDownLatch latch = new CountDownLatch(1);
                 AtomicReference<Exception> failure = new AtomicReference<>();
-                AtomicInteger skippedClusters = new AtomicInteger(0);
+                var clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> true);
                 TransportSearchAction.collectSearchShards(
                     IndicesOptions.lenientExpandOpen(),
                     "index_not_found",
@@ -889,14 +887,13 @@ public class TransportSearchActionTests extends ESTestCase {
                     new MatchAllQueryBuilder(),
                     randomBoolean(),
                     null,
-                    skippedClusters,
                     remoteIndicesByCluster,
-                    new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> true),
+                    clusters,
                     service,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
-                assertEquals(0, skippedClusters.get());
+                assertEquals(numClusters, clusters.getSkipped());
                 assertNotNull(failure.get());
                 assertThat(failure.get(), instanceOf(RemoteTransportException.class));
                 RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get();
@@ -928,8 +925,8 @@ public class TransportSearchActionTests extends ESTestCase {
 
             {
                 final CountDownLatch latch = new CountDownLatch(1);
-                AtomicInteger skippedClusters = new AtomicInteger(0);
                 AtomicReference<Exception> failure = new AtomicReference<>();
+                var clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> false);
                 TransportSearchAction.collectSearchShards(
                     IndicesOptions.lenientExpandOpen(),
                     null,
@@ -937,14 +934,13 @@ public class TransportSearchActionTests extends ESTestCase {
                     new MatchAllQueryBuilder(),
                     randomBoolean(),
                     null,
-                    skippedClusters,
                     remoteIndicesByCluster,
-                    new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> true),
+                    clusters,
                     service,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
-                assertEquals(0, skippedClusters.get());
+                assertEquals(numDisconnectedClusters, clusters.getSkipped());
                 assertNotNull(failure.get());
                 assertThat(failure.get(), instanceOf(RemoteTransportException.class));
                 assertThat(failure.get().getMessage(), containsString("error while communicating with remote cluster ["));
@@ -958,8 +954,8 @@ public class TransportSearchActionTests extends ESTestCase {
 
             {
                 final CountDownLatch latch = new CountDownLatch(1);
-                AtomicInteger skippedClusters = new AtomicInteger(0);
                 AtomicReference<Map<String, SearchShardsResponse>> response = new AtomicReference<>();
+                var clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> true);
                 TransportSearchAction.collectSearchShards(
                     IndicesOptions.lenientExpandOpen(),
                     null,
@@ -967,9 +963,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     new MatchAllQueryBuilder(),
                     randomBoolean(),
                     null,
-                    skippedClusters,
                     remoteIndicesByCluster,
-                    new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> true),
+                    clusters,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch)
                 );
@@ -977,7 +972,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertNotNull(response.get());
                 Map<String, SearchShardsResponse> map = response.get();
                 assertEquals(numClusters - disconnectedNodesIndices.size(), map.size());
-                assertEquals(skippedClusters.get(), disconnectedNodesIndices.size());
+                assertEquals(disconnectedNodesIndices.size(), clusters.getSkipped());
                 for (int i = 0; i < numClusters; i++) {
                     String clusterAlias = "remote" + i;
                     if (disconnectedNodesIndices.contains(i)) {
@@ -1004,8 +999,8 @@ public class TransportSearchActionTests extends ESTestCase {
             // run the following under assertBusy as connections are lazily reestablished
             assertBusy(() -> {
                 final CountDownLatch latch = new CountDownLatch(1);
-                AtomicInteger skippedClusters = new AtomicInteger(0);
                 AtomicReference<Map<String, SearchShardsResponse>> response = new AtomicReference<>();
+                var clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> true);
                 TransportSearchAction.collectSearchShards(
                     IndicesOptions.lenientExpandOpen(),
                     null,
@@ -1013,14 +1008,13 @@ public class TransportSearchActionTests extends ESTestCase {
                     new MatchAllQueryBuilder(),
                     randomBoolean(),
                     null,
-                    skippedClusters,
                     remoteIndicesByCluster,
-                    new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> true),
+                    clusters,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
-                assertEquals(0, skippedClusters.get());
+                assertEquals(0, clusters.getSkipped());
                 assertNotNull(response.get());
                 Map<String, SearchShardsResponse> map = response.get();
                 assertEquals(numClusters, map.size());

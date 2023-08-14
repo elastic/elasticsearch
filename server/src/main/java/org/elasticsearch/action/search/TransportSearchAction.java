@@ -90,7 +90,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -362,8 +361,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         )
                     );
                 } else {
-                    // not minimize roundtrips
-                    AtomicInteger skippedClusters = new AtomicInteger(0);  /// MP TODO: can this be removed now?
                     SearchResponse.Clusters clusters = new SearchResponse.Clusters(
                         localIndices,
                         remoteClusterIndices,
@@ -378,7 +375,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         rewritten.source() != null ? rewritten.source().query() : null,
                         Objects.requireNonNullElse(rewritten.allowPartialSearchResults(), searchService.defaultAllowPartialSearchResults()),
                         searchContext,
-                        skippedClusters,
                         remoteClusterIndices,
                         clusters,
                         transportService,
@@ -563,7 +559,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 timeProvider,
                 aggReduceContextBuilder
             );
-            AtomicInteger skippedClusters = new AtomicInteger(0);
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
             int totalClusters = remoteIndices.size() + (localIndices == null ? 0 : 1);
             final CountDown countDown = new CountDown(totalClusters);
@@ -583,7 +578,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     clusterAlias,
                     skipUnavailable,
                     countDown,
-                    skippedClusters,
                     exceptions,
                     searchResponseMerger,
                     clusters,
@@ -601,7 +595,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                     false,
                     countDown,
-                    skippedClusters,
                     exceptions,
                     searchResponseMerger,
                     clusters,
@@ -655,7 +648,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         QueryBuilder query,
         boolean allowPartialResults,
         SearchContextId searchContext,
-        AtomicInteger skippedClusters,
         Map<String, OriginalIndices> remoteIndicesByCluster,
         SearchResponse.Clusters clusters,
         TransportService transportService,
@@ -673,7 +665,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     clusterAlias,
                     skipUnavailable,
                     responsesCountDown,
-                    skippedClusters,
                     exceptions,
                     clusters.getCluster(clusterAlias),
                     listener
@@ -741,7 +732,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         String clusterAlias,
         boolean skipUnavailable,
         CountDown countDown,
-        AtomicInteger skippedClusters,
         AtomicReference<Exception> exceptions,
         SearchResponseMerger searchResponseMerger,
         SearchResponse.Clusters clusters,
@@ -751,7 +741,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             clusterAlias,
             skipUnavailable,
             countDown,
-            skippedClusters,
             exceptions,
             clusters.getCluster(clusterAlias),
             originalListener
@@ -1398,7 +1387,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         protected final String clusterAlias;
         protected final boolean skipUnavailable;
         private final CountDown countDown;
-        private final AtomicInteger skippedClusters;
         private final AtomicReference<Exception> exceptions;
         protected final AtomicReference<SearchResponse.Cluster> cluster;
         private final ActionListener<FinalResponse> originalListener;
@@ -1411,7 +1399,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             String clusterAlias,
             boolean skipUnavailable,
             CountDown countDown,
-            AtomicInteger skippedClusters,
             AtomicReference<Exception> exceptions,
             @Nullable AtomicReference<SearchResponse.Cluster> cluster, // null for ccs_minimize_roundtrips=false
             ActionListener<FinalResponse> originalListener
@@ -1419,7 +1406,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             this.clusterAlias = clusterAlias;
             this.skipUnavailable = skipUnavailable;
             this.countDown = countDown;
-            this.skippedClusters = skippedClusters;
             this.exceptions = exceptions;
             this.cluster = cluster;
             this.originalListener = originalListener;
@@ -1442,7 +1428,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 if (cluster != null) {
                     ccsClusterInfoUpdate(f, cluster, skipUnavailable);
                 }
-                skippedClusters.incrementAndGet();
+                // skippedClusters.incrementAndGet();
             } else {
                 if (cluster != null) {
                     ccsClusterInfoUpdate(f, cluster, skipUnavailable);

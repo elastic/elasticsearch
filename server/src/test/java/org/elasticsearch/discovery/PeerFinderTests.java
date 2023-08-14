@@ -370,12 +370,15 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(otherNode);
 
         peerFinder.deactivate(localNode);
+        assertFoundPeers();
         assertEquals(Set.of(otherNode), connectedNodes);
 
         peerFinder.activate(DiscoveryNodes.EMPTY_NODES);
         assertFoundPeers(otherNode);
 
         peerFinder.deactivate(localNode);
+        assertFoundPeers();
+        assertEquals(Set.of(otherNode), connectedNodes);
         peerFinder.closeInactivePeers();
         assertThat(connectedNodes, empty());
 

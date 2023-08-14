@@ -17,9 +17,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdate;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan;
@@ -43,7 +41,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_LOW_PRIORITY_MODELS_PER_NODE;
-import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentConstants.NODES_CHANGED_REASON;
+import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils.NODES_CHANGED_REASON;
+import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils.createShuttingDownRoute;
 
 class TrainedModelAssignmentRebalancer {
 
@@ -117,11 +116,16 @@ class TrainedModelAssignmentRebalancer {
                         .get(nodeId)
                         .getState()
                         .isAnyOf(RoutingState.STARTED, RoutingState.STARTING)) {
-                    RoutingInfoUpdate routeUpdate = RoutingInfoUpdate.updateStateAndReason(
-                        new RoutingStateAndReason(RoutingState.STOPPING, "node is shutting down")
+                    logger.debug(
+                        () -> format(
+                            "Found assignment deployment id: [%s] with route to shutting down node id: [%s], adding stopping route",
+                            existingDeploymentId,
+                            nodeId
+                        )
                     );
+
                     foundShuttingDownNodeForAssignment = true;
-                    RoutingInfo stoppingRouteInfo = routeUpdate.apply(existingAssignment.getNodeRoutingTable().get(nodeId));
+                    RoutingInfo stoppingRouteInfo = createShuttingDownRoute(existingAssignment.getNodeRoutingTable().get(nodeId));
 
                     assignmentBuilder.addOrOverwriteRoutingEntry(nodeId, stoppingRouteInfo);
                 }

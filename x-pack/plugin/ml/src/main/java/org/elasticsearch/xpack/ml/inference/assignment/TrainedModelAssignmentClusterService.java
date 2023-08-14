@@ -62,7 +62,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentConstants.NODES_CHANGED_REASON;
+import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils.NODES_CHANGED_REASON;
+import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils.createShuttingDownRoute;
 
 public class TrainedModelAssignmentClusterService implements ClusterStateListener {
 
@@ -233,6 +234,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         Set<String> assignableNodes = getAssignableNodes(currentState).stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(currentState);
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
+
         for (TrainedModelAssignment assignment : metadata.allAssignments().values()) {
             Set<String> routedNodeIdsToRemove = Sets.difference(assignment.getNodeRoutingTable().keySet(), assignableNodes);
             if (routedNodeIdsToRemove.isEmpty() == false) {
@@ -243,12 +245,52 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                         routedNodeIdsToRemove
                     )
                 );
-                TrainedModelAssignment.Builder assignmentBuilder = TrainedModelAssignment.Builder.fromAssignment(assignment);
-                routedNodeIdsToRemove.forEach(assignmentBuilder::removeRoutingEntry);
+
+                TrainedModelAssignment.Builder assignmentBuilder = removeRoutingBuilder(
+                    routedNodeIdsToRemove,
+                    currentState.metadata().nodeShutdowns().getAllNodeIds(),
+                    assignment
+                );
+
                 builder.updateAssignment(assignment.getDeploymentId(), assignmentBuilder.calculateAndSetAssignmentState());
             }
         }
         return update(currentState, builder);
+    }
+
+    private static TrainedModelAssignment.Builder removeRoutingBuilder(
+        Set<String> nodeIds,
+        Set<String> shuttingDownNodes,
+        TrainedModelAssignment assignment
+    ) {
+        TrainedModelAssignment.Builder assignmentBuilder = TrainedModelAssignment.Builder.fromAssignment(assignment);
+
+        for (String nodeIdToRemove : nodeIds) {
+            if (shuttingDownNodes.contains(nodeIdToRemove) == false) {
+                logger.debug(
+                    () -> format("[%s] Removing route for unassignable node id [%s]", assignment.getDeploymentId(), nodeIdToRemove)
+                );
+
+                assignmentBuilder.removeRoutingEntry(nodeIdToRemove);
+            } else if (assignment.getNodeRoutingTable()
+                .get(nodeIdToRemove)
+                .getState()
+                .isAnyOf(RoutingState.STARTED, RoutingState.STARTING)) {
+                    logger.debug(
+                        () -> format(
+                            "[%s] Found assignment with route to shutting down node id [%s], adding stopping route",
+                            assignment.getDeploymentId(),
+                            nodeIdToRemove
+                        )
+                    );
+
+                    RoutingInfo stoppingRouteInfo = createShuttingDownRoute(assignment.getNodeRoutingTable().get(nodeIdToRemove));
+                    assignmentBuilder.addOrOverwriteRoutingEntry(nodeIdToRemove, stoppingRouteInfo);
+                }
+
+        }
+
+        return assignmentBuilder;
     }
 
     public void updateModelRoutingTable(
@@ -913,7 +955,10 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                     continue;
                 }
                 for (var nodeId : exitingShutDownNodes) {
-                    if (trainedModelAssignment.isRoutedToNode(nodeId)) {
+                    if (trainedModelAssignment.isRoutedToNode(nodeId)
+                        // If the route is stopping then it's draining its queue so let that happen and don't try to rebalance until it has
+                        // completely finished
+                        && trainedModelAssignment.getNodeRoutingTable().get(nodeId).getState() != RoutingState.STOPPING) {
                         logger.debug(
                             () -> format(
                                 "should rebalance because model deployment [%s] has allocations on shutting down node [%s]",

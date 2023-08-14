@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
@@ -177,6 +178,18 @@ public class Verifier {
                 Failure f = validateBinaryComparison(bc);
                 if (f != null) {
                     failures.add(f);
+                }
+            });
+            p.forEachExpression(Neg.class, neg -> {
+                DataType childExpressionType = neg.field().dataType();
+                if (childExpressionType.equals(DataTypes.UNSIGNED_LONG) ) {
+                    failures.add(
+                        fail(
+                            neg,
+                            "negation unsupported for arguments of type [{}] in expression [{}]",
+                            childExpressionType.typeName(),
+                            neg.sourceText()
+                    ));
                 }
             });
         });

@@ -52,14 +52,10 @@ abstract class NegMapper extends EvalMapper.ExpressionMapper<Neg> {
             if (type == DataTypes.LONG) {
                 return () -> longs.apply(neg.source(), childEvaluator);
             }
-            if (type == DataTypes.UNSIGNED_LONG) {
-                // TODO requires cast to long
-                throw new AssertionError("negation of a ulong");
-            }
             if (type == DataTypes.DOUBLE) {
                 return () -> doubles.apply(childEvaluator);
             }
         }
-        throw new AssertionError("arithmetic negation operator with non-numeric data type");
+        throw new AssertionError("arithmetic negation operator with unsupported data type");
     }
 }

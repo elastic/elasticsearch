@@ -18,7 +18,6 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateActio
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
@@ -128,39 +127,37 @@ public class PrivilegeTests extends ESTestCase {
         ClusterPermission combinedPermission = builder.build();
         assertTrue(combinedPermission.implies(monitorClusterPermission));
 
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            ClusterPrivilege crossClusterSearchClusterPrivilege = ClusterPrivilegeResolver.resolve("cross_cluster_search");
-            assertThat(crossClusterSearchClusterPrivilege, is(ClusterPrivilegeResolver.CROSS_CLUSTER_SEARCH));
-            verifyClusterActionAllowed(
-                crossClusterSearchClusterPrivilege,
-                "cluster:internal/remote_cluster/handshake",
-                "cluster:internal/remote_cluster/nodes"
-            );
-            verifyClusterActionDenied(crossClusterSearchClusterPrivilege, "internal:transport/handshake", "cluster:admin/xpack/security/*");
-            ClusterPermission crossClusterSearchClusterPermission = crossClusterSearchClusterPrivilege.buildPermission(
-                ClusterPermission.builder()
-            ).build();
-            assertTrue(allClusterPermission.implies(crossClusterSearchClusterPermission));
+        ClusterPrivilege crossClusterSearchClusterPrivilege = ClusterPrivilegeResolver.resolve("cross_cluster_search");
+        assertThat(crossClusterSearchClusterPrivilege, is(ClusterPrivilegeResolver.CROSS_CLUSTER_SEARCH));
+        verifyClusterActionAllowed(
+            crossClusterSearchClusterPrivilege,
+            "cluster:internal/remote_cluster/handshake",
+            "cluster:internal/remote_cluster/nodes"
+        );
+        verifyClusterActionDenied(crossClusterSearchClusterPrivilege, "internal:transport/handshake", "cluster:admin/xpack/security/*");
+        ClusterPermission crossClusterSearchClusterPermission = crossClusterSearchClusterPrivilege.buildPermission(
+            ClusterPermission.builder()
+        ).build();
+        assertTrue(allClusterPermission.implies(crossClusterSearchClusterPermission));
 
-            ClusterPrivilege crossClusterReplicationClusterPrivilege = ClusterPrivilegeResolver.resolve("cross_cluster_replication");
-            assertThat(crossClusterReplicationClusterPrivilege, is(ClusterPrivilegeResolver.CROSS_CLUSTER_REPLICATION));
-            verifyClusterActionAllowed(
-                crossClusterReplicationClusterPrivilege,
-                "cluster:internal/remote_cluster/handshake",
-                "cluster:internal/remote_cluster/nodes",
-                "cluster:monitor/state"
+        ClusterPrivilege crossClusterReplicationClusterPrivilege = ClusterPrivilegeResolver.resolve("cross_cluster_replication");
+        assertThat(crossClusterReplicationClusterPrivilege, is(ClusterPrivilegeResolver.CROSS_CLUSTER_REPLICATION));
+        verifyClusterActionAllowed(
+            crossClusterReplicationClusterPrivilege,
+            "cluster:internal/remote_cluster/handshake",
+            "cluster:internal/remote_cluster/nodes",
+            "cluster:monitor/state"
 
-            );
-            verifyClusterActionDenied(
-                crossClusterReplicationClusterPrivilege,
-                "internal:transport/handshake",
-                "cluster:admin/xpack/security/*"
-            );
-            ClusterPermission crossClusterReplicationClusterPermission = crossClusterReplicationClusterPrivilege.buildPermission(
-                ClusterPermission.builder()
-            ).build();
-            assertTrue(allClusterPermission.implies(crossClusterReplicationClusterPermission));
-        }
+        );
+        verifyClusterActionDenied(
+            crossClusterReplicationClusterPrivilege,
+            "internal:transport/handshake",
+            "cluster:admin/xpack/security/*"
+        );
+        ClusterPermission crossClusterReplicationClusterPermission = crossClusterReplicationClusterPrivilege.buildPermission(
+            ClusterPermission.builder()
+        ).build();
+        assertTrue(allClusterPermission.implies(crossClusterReplicationClusterPermission));
     }
 
     public void testClusterTemplateActions() throws Exception {

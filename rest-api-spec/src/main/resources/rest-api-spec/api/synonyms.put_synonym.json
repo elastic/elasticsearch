@@ -1,5 +1,5 @@
 {
-  "synonyms.put": {
+  "synonyms.put_synonym": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-synonyms-set.html",
       "description": "Creates or updates a synonyms set"
@@ -17,14 +17,14 @@
     "url": {
       "paths": [
         {
-          "path": "/_synonyms/{synonyms_set}",
+          "path": "/_synonyms/{id}",
           "methods": [
             "PUT"
           ],
           "parts": {
-            "synonyms_set": {
+            "id": {
               "type": "string",
-              "description": "The name of the synonyms set to be created or updated"
+              "description": "The id of the synonyms set to be created or updated"
             }
           }
         }

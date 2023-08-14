@@ -1982,8 +1982,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, true);
                 ContextIndexSearcher searcher = searchContext.searcher();
                 assertNotNull(searcher.getExecutor());
-                assertSame(executor, searcher.getExecutor());
-                int maxNumSlices = ((ThreadPoolExecutor) searcher.getExecutor()).getMaximumPoolSize();
+                int maxNumSlices = executor.getMaximumPoolSize();
                 int numSlices = ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), maxNumSlices, 1).length;
                 searcher.search(termQuery, new TotalHitCountCollectorManager());
                 assertBusy(() -> assertEquals(numSlices, executor.getCompletedTaskCount()));
@@ -1993,7 +1992,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.QUERY, true);
                 ContextIndexSearcher searcher = searchContext.searcher();
                 assertNotNull(searcher.getExecutor());
-                assertSame(executor, searcher.getExecutor());
                 searcher.search(termQuery, new TotalHitCountCollectorManager());
                 int expectedTaskCount = ++taskCount;
                 assertBusy(() -> assertEquals(expectedTaskCount, executor.getCompletedTaskCount()));
@@ -2002,7 +2000,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.FETCH, true);
                 ContextIndexSearcher searcher = searchContext.searcher();
                 assertNotNull(searcher.getExecutor());
-                assertSame(executor, searcher.getExecutor());
                 searcher.search(termQuery, new TotalHitCountCollectorManager());
                 int expectedTaskCount = ++taskCount;
                 assertBusy(() -> assertEquals(expectedTaskCount, executor.getCompletedTaskCount()));
@@ -2011,7 +2008,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.NONE, true);
                 ContextIndexSearcher searcher = searchContext.searcher();
                 assertNotNull(searcher.getExecutor());
-                assertSame(executor, searcher.getExecutor());
                 searcher.search(termQuery, new TotalHitCountCollectorManager());
                 int expectedTaskCount = ++taskCount;
                 assertBusy(() -> assertEquals(expectedTaskCount, executor.getCompletedTaskCount()));

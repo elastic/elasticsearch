@@ -697,9 +697,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
 
             final long originalTerm = leader.coordinator.getCurrentTerm();
-            follower0.coordinator.onFollowerCheckRequest(
-                new FollowersChecker.FollowerCheckRequest(originalTerm + 1, leader.coordinator.getLocalNode())
-            );
+            follower0.onNode(
+                () -> follower0.coordinator.onFollowerCheckRequest(
+                    new FollowersChecker.FollowerCheckRequest(originalTerm + 1, leader.coordinator.getLocalNode())
+                )
+            ).run();
 
             AckCollector ackCollector = leader.submitValue(randomLong());
             cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "cluster state update");

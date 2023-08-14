@@ -1725,6 +1725,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     } else {
                         closePrevotingRound();
                         if (electionScheduler != null) {
+                            logger.debug("closing election scheduler, expecting votes [{}]", expectedVotes);
                             electionScheduler.close();
                             electionScheduler = null;
                         }
@@ -1786,6 +1787,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 public void run() {
                     synchronized (mutex) {
                         if (electionScheduler != null && mode != Mode.CANDIDATE && getCurrentTerm() == term) {
+                            logger.debug("stabilised in term [{}], closing election scheduler", term);
                             electionScheduler.close();
                             electionScheduler = null;
                         }

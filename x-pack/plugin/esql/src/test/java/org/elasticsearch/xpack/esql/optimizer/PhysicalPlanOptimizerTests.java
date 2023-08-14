@@ -61,11 +61,16 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -80,6 +85,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
@@ -1511,6 +1517,140 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         var source = source(extract.child());
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES + KEYWORD_EST));
+    }
+
+    public void testPushDownMetadataIndexInWildcard() {
+        var plan = physicalPlan("""
+            from test [metadata _index]
+            | where _index like "test*"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = source(extract.child());
+
+        var tq = as(source.query(), WildcardQueryBuilder.class);
+        assertThat(tq.fieldName(), is("_index"));
+        assertThat(tq.value(), is("test*"));
+    }
+
+    /*
+     * LimitExec[10000[INTEGER]]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, languages{f}#6, last_name{f}#7, salary{f}#8,
+     *     _index{m}#1]]
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+     *       \_EsQueryExec[test], query[{"esql_single_value":{"field":"_index","next":{"term":{"_index":{"value":"test"}}}}}]
+     *         [_doc{f}#10], limit[10000], sort[] estimatedRowSize[266]
+     */
+    public void testPushDownMetadataIndexInEquality() {
+        var plan = physicalPlan("""
+            from test [metadata _index]
+            | where _index == "test"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = source(extract.child());
+
+        var tq = as(source.query(), TermQueryBuilder.class);
+        assertThat(tq.fieldName(), is("_index"));
+        assertThat(tq.value(), is("test"));
+    }
+
+    /*
+     * LimitExec[10000[INTEGER]]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, languages{f}#6, last_name{f}#7, salary{f}#8,
+     *     _index{m}#1]]
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+     *       \_EsQueryExec[test], query[{"bool":{"must_not":[{"term":{"_index":{"value":"test"}}}],"boost":1.0}}]
+     *         [_doc{f}#10], limit[10000], sort[] estimatedRowSize[266]
+     */
+    public void testPushDownMetadataIndexInNotEquality() {
+        var plan = physicalPlan("""
+            from test [metadata _index]
+            | where _index != "test"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = source(extract.child());
+
+        var bq = as(source.query(), BoolQueryBuilder.class);
+        assertThat(bq.mustNot().size(), is(1));
+        var tq = as(bq.mustNot().get(0), TermQueryBuilder.class);
+        assertThat(tq.fieldName(), is("_index"));
+        assertThat(tq.value(), is("test"));
+    }
+
+    /*
+     * LimitExec[10000[INTEGER]]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, languages{f}#6, last_name{f}#7, salary{f}#8, _in
+     *     dex{m}#1]]
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+     *       \_LimitExec[10000[INTEGER]]
+     *         \_FilterExec[_index{m}#1 > [74 65 73 74][KEYWORD]]
+     *           \_FieldExtractExec[_index{m}#1]
+     *             \_EsQueryExec[test], query[][_doc{f}#10], limit[], sort[] estimatedRowSize[266]
+     */
+    public void testDontPushDownMetadataIndexInInequality() {
+        for (var t : List.of(
+            tuple(">", GreaterThan.class),
+            tuple(">=", GreaterThanOrEqual.class),
+            tuple("<", LessThan.class),
+            tuple("<=", LessThanOrEqual.class)
+            // no NullEquals use
+        )) {
+            var plan = physicalPlan("from test [metadata _index] | where _index " + t.v1() + " \"test\"");
+
+            var optimized = optimizedPlan(plan);
+            var limit = as(optimized, LimitExec.class);
+            var exchange = asRemoteExchange(limit.child());
+            var project = as(exchange.child(), ProjectExec.class);
+            var extract = as(project.child(), FieldExtractExec.class);
+            limit = as(extract.child(), LimitExec.class);
+            var filter = as(limit.child(), FilterExec.class);
+
+            var comp = as(filter.condition(), t.v2());
+            var metadataAttribute = as(comp.left(), MetadataAttribute.class);
+            assertThat(metadataAttribute.name(), is("_index"));
+
+            extract = as(filter.child(), FieldExtractExec.class);
+            var source = source(extract.child());
+        }
+    }
+
+    public void testDontPushDownMetadataVersionAndId() {
+        for (var t : List.of(tuple("_version", "2"), tuple("_id", "\"2\""))) {
+            var plan = physicalPlan("from test [metadata " + t.v1() + "] | where " + t.v1() + " == " + t.v2());
+
+            var optimized = optimizedPlan(plan);
+            var limit = as(optimized, LimitExec.class);
+            var exchange = asRemoteExchange(limit.child());
+            var project = as(exchange.child(), ProjectExec.class);
+            var extract = as(project.child(), FieldExtractExec.class);
+            limit = as(extract.child(), LimitExec.class);
+            var filter = as(limit.child(), FilterExec.class);
+
+            assertThat(filter.condition(), instanceOf(Equals.class));
+            assertThat(((Equals) filter.condition()).left(), instanceOf(MetadataAttribute.class));
+            var metadataAttribute = (MetadataAttribute) ((Equals) filter.condition()).left();
+            assertThat(metadataAttribute.name(), is(t.v1()));
+
+            extract = as(filter.child(), FieldExtractExec.class);
+            var source = source(extract.child());
+        }
     }
 
     private static EsQueryExec source(PhysicalPlan plan) {

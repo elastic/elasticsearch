@@ -17,7 +17,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -61,12 +60,11 @@ public class TransportQuerySearchApplicationAction extends HandledTransportActio
                 SearchSourceBuilder sourceBuilder = templateService.renderQuery(searchApplication, request.queryParams());
                 SearchRequest searchRequest = new SearchRequest(searchApplication.name()).source(sourceBuilder);
 
-                systemIndexService.checkAliasConsistency(searchApplication, l.delegateFailure((l2, inconsistentIndices) -> {
-                    for (String key : inconsistentIndices.keySet()) {
-                        HeaderWarning.addWarning(key + " " + inconsistentIndices.get(key));
-                    }
-                    client.execute(SearchAction.INSTANCE, searchRequest, l2);
-                }));
+                client.execute(
+                    SearchAction.INSTANCE,
+                    searchRequest,
+                    listener.delegateFailure((l2, searchResponse) -> l2.onResponse(searchResponse))
+                );
             } catch (Exception e) {
                 l.onFailure(e);
             }

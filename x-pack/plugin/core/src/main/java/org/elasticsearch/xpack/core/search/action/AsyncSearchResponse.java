@@ -19,7 +19,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.async.AsyncResponse;
 
 import java.io.IOException;
@@ -199,49 +198,35 @@ public class AsyncSearchResponse extends ActionResponse implements ChunkedToXCon
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(),
-            ChunkedToXContentHelper.singleChunk(this::headerToXContent),
-            timedResponse(params),
-            ChunkedToXContentHelper.singleChunk(this::errorToXContent),
-            ChunkedToXContentHelper.endObject()
+        return Iterators.concat(ChunkedToXContentHelper.singleChunk((builder, p) -> {
+            builder.startObject();
+            if (id != null) {
+                builder.field("id", id);
+            }
+            builder.field("is_partial", isPartial);
+            builder.field("is_running", isRunning);
+            builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
+            builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
+            if (searchResponse != null) {
+                if (isRunning == false) {
+                    TimeValue took = searchResponse.getTook();
+                    builder.timeField("completion_time_in_millis", "completion_time", startTimeMillis + took.millis());
+                }
+                builder.field("response");
+            }
+            return builder;
+        }),
+            searchResponse == null ? Iterators.concat() : searchResponse.toXContentChunked(params),
+            ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                if (error != null) {
+                    builder.startObject("error");
+                    ElasticsearchException.generateThrowableXContent(builder, params, error);
+                    builder.endObject();
+                }
+                builder.endObject();
+                return builder;
+            })
         );
-    }
-
-    private XContentBuilder headerToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        if (id != null) {
-            builder.field("id", id);
-        }
-        builder.field("is_partial", isPartial);
-        builder.field("is_running", isRunning);
-        builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
-        builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
-        return builder;
-    }
-
-    private Iterator<? extends ToXContent> timedResponse(ToXContent.Params params) {
-        if (searchResponse == null) {
-            return ChunkedToXContentHelper.noop();
-        }
-        if (isRunning == false) {
-            TimeValue took = searchResponse.getTook();
-            return Iterators.concat(
-                ChunkedToXContentHelper.timeField("completion_time_in_millis", "completion_time", startTimeMillis + took.millis()),
-                Iterators.single((b, p) -> b.field("response")),
-                searchResponse.toXContentChunked(params)
-            );
-        } else {
-            return Iterators.concat(Iterators.single((ToXContent) (b, p) -> b.field("response")), searchResponse.toXContentChunked(params));
-        }
-    }
-
-    private XContentBuilder errorToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        if (error != null) {
-            builder.startObject("error");
-            ElasticsearchException.generateThrowableXContent(builder, params, error);
-            builder.endObject();
-        }
-        return builder;
     }
 
     @Override

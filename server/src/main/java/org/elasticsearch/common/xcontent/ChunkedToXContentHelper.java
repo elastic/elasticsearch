@@ -70,10 +70,6 @@ public enum ChunkedToXContentHelper {
         return Iterators.single(((builder, params) -> builder.field(name, value)));
     }
 
-    public static Iterator<ToXContent> timeField(String name, String readableName, long value) {
-        return Iterators.single(((builder, params) -> builder.timeField(name, readableName, value)));
-    }
-
     public static Iterator<ToXContent> array(String name, Iterator<? extends ToXContent> contents) {
         return Iterators.concat(ChunkedToXContentHelper.startArray(name), contents, ChunkedToXContentHelper.endArray());
     }
@@ -93,9 +89,5 @@ public enum ChunkedToXContentHelper {
             }
             return builder;
         });
-    }
-
-    public static Iterator<ToXContent> noop() {
-        return Iterators.single((builder, params) -> builder);
     }
 }

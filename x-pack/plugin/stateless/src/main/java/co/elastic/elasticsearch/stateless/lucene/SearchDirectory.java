@@ -43,6 +43,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongFunction;
@@ -132,13 +133,13 @@ public class SearchDirectory extends ByteSizeDirectory {
     }
 
     // TODO this method works because we never prune old commits files
-    public Optional<Long> getPrimaryTerm(String segmentsFileName) throws FileNotFoundException {
+    public OptionalLong getPrimaryTerm(String segmentsFileName) throws FileNotFoundException {
         final BlobLocation location = currentMetadata.get(segmentsFileName);
         if (location != null) {
-            return Optional.of(location.primaryTerm());
+            return OptionalLong.of(location.primaryTerm());
         }
         if (segmentsFileName.equals(EmptyDirectory.INSTANCE.getSegmentsFileName())) {
-            return Optional.empty();
+            return OptionalLong.empty();
         }
         var exception = new FileNotFoundException(segmentsFileName);
         assert false : exception;

@@ -232,6 +232,11 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
         public void close() {
             IOUtils.closeWhileHandlingException(statelessNode);
         }
+
+        @Override
+        public boolean verifyElectionSchedulerState() {
+            return false;
+        }
     }
 
     static class FilterPersistedState implements CoordinationState.PersistedState {

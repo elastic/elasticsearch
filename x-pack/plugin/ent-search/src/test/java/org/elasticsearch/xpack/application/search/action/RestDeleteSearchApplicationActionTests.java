@@ -20,7 +20,7 @@ public class RestDeleteSearchApplicationActionTests extends AbstractRestEnterpri
     public void testWithNonCompliantLicense() throws Exception {
         checkLicenseForRequest(
             new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of("name", "my-search-application")).build(),
-            LicenseUtils.QUERY_RULES_FEATURE
+            LicenseUtils.SEARCH_APPLICATION_FEATURE
         );
     }
 

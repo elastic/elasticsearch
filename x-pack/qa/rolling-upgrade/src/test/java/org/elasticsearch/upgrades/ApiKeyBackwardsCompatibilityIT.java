@@ -52,7 +52,6 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     private RestClient newVersionClient = null;
 
     public void testCreatingAndUpdatingApiKeys() throws Exception {
-        System.out.println("ASDF " + UPGRADE_FROM_VERSION);
         assumeTrue(
             "The remote_indices for API Keys are not supported before version " + API_KEY_SUPPORT_REMOTE_INDICES_VERSION,
             UPGRADE_FROM_VERSION.before(API_KEY_SUPPORT_REMOTE_INDICES_VERSION)

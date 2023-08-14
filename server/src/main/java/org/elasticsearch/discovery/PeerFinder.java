@@ -149,7 +149,6 @@ public abstract class PeerFinder {
                     iterator.remove();
                 }
             }
-            handleWakeUp();
             this.leader = Optional.of(leader);
             assert assertInactiveWithNoUndiscoveredPeers();
         }

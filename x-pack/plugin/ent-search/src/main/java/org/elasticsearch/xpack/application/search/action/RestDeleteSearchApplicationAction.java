@@ -24,7 +24,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteSearchApplicationAction extends EnterpriseSearchBaseRestHandler {
     public RestDeleteSearchApplicationAction(XPackLicenseState licenseState) {
-        super(licenseState, LicenseUtils.SEARCH_APPLICATION_FEATURE);
+        super(licenseState, LicenseUtils.Product.SEARCH_APPLICATION);
     }
 
     @Override

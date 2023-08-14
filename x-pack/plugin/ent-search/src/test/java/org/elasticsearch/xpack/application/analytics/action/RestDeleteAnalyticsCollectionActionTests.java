@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 public class RestDeleteAnalyticsCollectionActionTests extends AbstractRestEnterpriseSearchActionTests {
     public void testWithNonCompliantLicense() throws Exception {
-        checkLicenseForRequest(new FakeRestRequest(), LicenseUtils.BEHAVIORAL_ANALYTICS_FEATURE);
+        checkLicenseForRequest(new FakeRestRequest(), LicenseUtils.Product.BEHAVIORAL_ANALYTICS);
     }
 
     @Override

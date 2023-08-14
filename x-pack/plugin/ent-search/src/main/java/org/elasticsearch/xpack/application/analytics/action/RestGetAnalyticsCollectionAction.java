@@ -25,7 +25,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetAnalyticsCollectionAction extends EnterpriseSearchBaseRestHandler {
     public RestGetAnalyticsCollectionAction(XPackLicenseState licenseState) {
-        super(licenseState, LicenseUtils.BEHAVIORAL_ANALYTICS_FEATURE);
+        super(licenseState, LicenseUtils.Product.BEHAVIORAL_ANALYTICS);
     }
 
     @Override

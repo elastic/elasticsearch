@@ -30,7 +30,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPostAnalyticsEventAction extends EnterpriseSearchBaseRestHandler {
     public RestPostAnalyticsEventAction(XPackLicenseState licenseState) {
-        super(licenseState, LicenseUtils.BEHAVIORAL_ANALYTICS_FEATURE);
+        super(licenseState, LicenseUtils.Product.BEHAVIORAL_ANALYTICS);
     }
 
     public static final String X_FORWARDED_FOR_HEADER = "X-Forwarded-For";

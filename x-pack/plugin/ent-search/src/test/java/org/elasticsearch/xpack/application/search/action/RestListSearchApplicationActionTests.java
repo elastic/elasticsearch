@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 public class RestListSearchApplicationActionTests extends AbstractRestEnterpriseSearchActionTests {
     public void testWithNonCompliantLicense() throws Exception {
-        checkLicenseForRequest(new FakeRestRequest(), LicenseUtils.SEARCH_APPLICATION_FEATURE);
+        checkLicenseForRequest(new FakeRestRequest(), LicenseUtils.Product.SEARCH_APPLICATION);
     }
 
     @Override

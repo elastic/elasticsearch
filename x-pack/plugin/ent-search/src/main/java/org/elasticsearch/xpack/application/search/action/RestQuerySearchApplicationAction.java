@@ -27,7 +27,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public class RestQuerySearchApplicationAction extends EnterpriseSearchBaseRestHandler {
     public RestQuerySearchApplicationAction(XPackLicenseState licenseState) {
-        super(licenseState, LicenseUtils.SEARCH_APPLICATION_FEATURE);
+        super(licenseState, LicenseUtils.Product.SEARCH_APPLICATION);
     }
 
     public static final String ENDPOINT_PATH = "/" + EnterpriseSearch.SEARCH_APPLICATION_API_ENDPOINT + "/{name}" + "/_search";

@@ -24,7 +24,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetSearchApplicationAction extends EnterpriseSearchBaseRestHandler {
     public RestGetSearchApplicationAction(XPackLicenseState licenseState) {
-        super(licenseState, LicenseUtils.SEARCH_APPLICATION_FEATURE);
+        super(licenseState, LicenseUtils.Product.SEARCH_APPLICATION);
     }
 
     @Override

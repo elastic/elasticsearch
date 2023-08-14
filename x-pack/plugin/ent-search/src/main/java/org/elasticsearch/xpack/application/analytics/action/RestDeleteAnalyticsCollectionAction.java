@@ -25,7 +25,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteAnalyticsCollectionAction extends EnterpriseSearchBaseRestHandler {
     public RestDeleteAnalyticsCollectionAction(XPackLicenseState licenseState) {
-        super(licenseState, LicenseUtils.BEHAVIORAL_ANALYTICS_FEATURE);
+        super(licenseState, LicenseUtils.Product.BEHAVIORAL_ANALYTICS);
     }
 
     @Override

@@ -28,7 +28,7 @@ public class RestPostAnalyticsEventActionTests extends AbstractRestEnterpriseSea
                 .withContent(new BytesArray("{}"), XContentType.JSON)
                 .withRemoteAddress(new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535)))
                 .build(),
-            LicenseUtils.BEHAVIORAL_ANALYTICS_FEATURE
+            LicenseUtils.Product.BEHAVIORAL_ANALYTICS
         );
     }
 

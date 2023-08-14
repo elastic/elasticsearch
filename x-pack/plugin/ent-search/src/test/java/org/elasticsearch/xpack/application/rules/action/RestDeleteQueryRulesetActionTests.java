@@ -23,7 +23,7 @@ public class RestDeleteQueryRulesetActionTests extends AbstractRestEnterpriseSea
             new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.DELETE)
                 .withParams(Map.of("ruleset_id", "ruleset-id"))
                 .build(),
-            LicenseUtils.QUERY_RULES_FEATURE
+            LicenseUtils.Product.QUERY_RULES
         );
     }
 

@@ -26,7 +26,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutQueryRulesetAction extends EnterpriseSearchBaseRestHandler {
     public RestPutQueryRulesetAction(XPackLicenseState licenseState) {
-        super(licenseState, LicenseUtils.QUERY_RULES_FEATURE);
+        super(licenseState, LicenseUtils.Product.QUERY_RULES);
     }
 
     @Override

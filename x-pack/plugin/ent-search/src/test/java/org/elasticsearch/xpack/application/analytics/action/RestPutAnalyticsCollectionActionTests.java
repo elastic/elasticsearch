@@ -23,7 +23,7 @@ public class RestPutAnalyticsCollectionActionTests extends AbstractRestEnterpris
             new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.PUT)
                 .withParams(Map.of("collection_name", "my-collection"))
                 .build(),
-            LicenseUtils.BEHAVIORAL_ANALYTICS_FEATURE
+            LicenseUtils.Product.BEHAVIORAL_ANALYTICS
         );
     }
 

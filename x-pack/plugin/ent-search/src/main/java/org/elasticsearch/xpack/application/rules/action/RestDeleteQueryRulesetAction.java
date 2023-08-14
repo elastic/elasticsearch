@@ -24,7 +24,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteQueryRulesetAction extends EnterpriseSearchBaseRestHandler {
     public RestDeleteQueryRulesetAction(XPackLicenseState licenseState) {
-        super(licenseState, LicenseUtils.QUERY_RULES_FEATURE);
+        super(licenseState, LicenseUtils.Product.QUERY_RULES);
     }
 
     @Override

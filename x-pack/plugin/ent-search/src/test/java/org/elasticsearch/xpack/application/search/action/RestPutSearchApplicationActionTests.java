@@ -26,7 +26,7 @@ public class RestPutSearchApplicationActionTests extends AbstractRestEnterpriseS
                 .withParams(Map.of("name", "my-app"))
                 .withContent(new BytesArray("{\"indices\": [\"my-index\"]}"), XContentType.JSON)
                 .build(),
-            LicenseUtils.SEARCH_APPLICATION_FEATURE
+            LicenseUtils.Product.SEARCH_APPLICATION
         );
     }
 
@@ -36,7 +36,7 @@ public class RestPutSearchApplicationActionTests extends AbstractRestEnterpriseS
                 .withParams(Map.of("invalid_param_name", "invalid_value"))
                 .withContent(new BytesArray("{}"), XContentType.JSON)
                 .build(),
-            LicenseUtils.SEARCH_APPLICATION_FEATURE
+            LicenseUtils.Product.SEARCH_APPLICATION
         );
     }
 

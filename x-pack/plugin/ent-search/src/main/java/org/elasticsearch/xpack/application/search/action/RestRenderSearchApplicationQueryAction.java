@@ -22,7 +22,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestRenderSearchApplicationQueryAction extends EnterpriseSearchBaseRestHandler {
     public RestRenderSearchApplicationQueryAction(XPackLicenseState licenseState) {
-        super(licenseState, LicenseUtils.SEARCH_APPLICATION_FEATURE);
+        super(licenseState, LicenseUtils.Product.SEARCH_APPLICATION);
     }
 
     public static final String ENDPOINT_PATH = "/" + EnterpriseSearch.SEARCH_APPLICATION_API_ENDPOINT + "/{name}" + "/_render_query";

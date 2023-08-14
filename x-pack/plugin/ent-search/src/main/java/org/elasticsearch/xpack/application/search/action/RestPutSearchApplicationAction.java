@@ -26,7 +26,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutSearchApplicationAction extends EnterpriseSearchBaseRestHandler {
     public RestPutSearchApplicationAction(XPackLicenseState licenseState) {
-        super(licenseState, LicenseUtils.SEARCH_APPLICATION_FEATURE);
+        super(licenseState, LicenseUtils.Product.SEARCH_APPLICATION);
     }
 
     @Override

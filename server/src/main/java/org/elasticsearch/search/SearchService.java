@@ -220,8 +220,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     );
 
     public static final Setting<Boolean> QUERY_PHASE_PARALLELISM_ENABLED = Setting.boolSetting(
-        "search.query_phase_parallelism_enabled",
-        false, // TODO: ES-6596 will set this to true once the feature has had time to "bake".
+        "search.query_phase_parallel_collection_enabled",
+        false,
         Property.NodeScope,
         Property.Dynamic
     );

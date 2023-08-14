@@ -74,7 +74,10 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -533,6 +536,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 @Override
                 public void onFailure(Exception e) {
                     ShardSearchFailure failure = new ShardSearchFailure(e);
+                    logCCSError(failure, clusterAlias, skipUnavailable);
                     ccsClusterInfoUpdate(failure, clusters.getCluster(clusterAlias), skipUnavailable);
                     if (skipUnavailable) {
                         listener.onResponse(SearchResponse.empty(timeProvider::buildTookInMillis, clusters));
@@ -1402,6 +1406,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Override
         public final void onFailure(Exception e) {
             ShardSearchFailure f = new ShardSearchFailure(e);
+            logCCSError(f, clusterAlias, skipUnavailable);
             if (skipUnavailable) {
                 if (cluster != null) {
                     ccsClusterInfoUpdate(f, cluster, skipUnavailable);
@@ -1444,6 +1449,30 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         abstract FinalResponse createFinalResponse();
+    }
+
+    /**
+     * In order to gather data on what types of CCS errors happen in the field, we will log
+     * them using the ShardSearchFailure XContent (JSON), which supplies information about underlying
+     * causes of shard failures.
+     * @param f ShardSearchFailure to log
+     * @param clusterAlias cluster on which the failure occurred
+     * @param skipUnavailable the skip_unavailable setting of the cluster with the search error
+     */
+    private static void logCCSError(ShardSearchFailure f, String clusterAlias, boolean skipUnavailable) {
+        String errorInfo;
+        try {
+            errorInfo = Strings.toString(f.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
+        } catch (IOException ex) {
+            // use the toString as a fallback if for some reason the XContent conversion to JSON fails
+            errorInfo = f.toString();
+        }
+        logger.debug(
+            "CCS remote cluster failure. Cluster [{}]. skip_unavailable: [{}]. Error: {}",
+            clusterAlias,
+            skipUnavailable,
+            errorInfo
+        );
     }
 
     private static RemoteTransportException wrapRemoteClusterFailure(String clusterAlias, Exception e) {

@@ -71,7 +71,7 @@
   - do:
       indices.downsample:
         index: test
-        target_index: test-rollup
+        target_index: test-downsample
         body: >
           {
             "fixed_interval": "1h"
@@ -86,10 +86,10 @@
 
   - do:
       indices.get_settings:
-        index: test-rollup
+        index: test-downsample
 
-  - match: { test-rollup.settings.index.default_pipeline: null }
-  - match: { test-rollup.settings.index.final_pipeline: null }
+  - match: { test-downsample.settings.index.default_pipeline: null }
+  - match: { test-downsample.settings.index.final_pipeline: null }
 
 ---
 "Downsample datastream with tier preference":
@@ -161,7 +161,7 @@
   - do:
       indices.downsample:
         index: $datastream-backing-index
-        target_index: rollup-index
+        target_index: downsample-index
         body: >
           {
             "fixed_interval": "1h"
@@ -170,10 +170,10 @@
 
   - do:
       indices.get_settings:
-        index: rollup-index
-  - match: { rollup-index.settings.index.routing.allocation.include._tier_preference: "data_warm" }
+        index: downsample-index
+  - match: { downsample-index.settings.index.routing.allocation.include._tier_preference: "data_warm" }
     # NOTE: copied only if index is managed through ILM
-  - match: { rollup-index.settings.index.lifecycle.name: null }
+  - match: { downsample-index.settings.index.lifecycle.name: null }
 
 ---
 teardown:

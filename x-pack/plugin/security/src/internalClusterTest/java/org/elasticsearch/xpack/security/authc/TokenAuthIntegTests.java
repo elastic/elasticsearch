@@ -531,6 +531,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // We now have two documents, the original(now refreshed) token doc and the new one with the new access doc
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
+            // refresh to make sure the token docs are visible
+            Request refreshRequest = new Request(HttpPost.METHOD_NAME, SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_refresh");
+            refreshRequest.setOptions(SECURITY_REQUEST_OPTIONS);
+            getRestClient().performRequest(refreshRequest);
             Request searchRequest = new Request(HttpPost.METHOD_NAME, SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_search");
             searchRequest.setOptions(SECURITY_REQUEST_OPTIONS);
             searchRequest.setJsonEntity("""

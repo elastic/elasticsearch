@@ -20,7 +20,7 @@ public class ReflectionUtils {
         for (Type type = clazz.getGenericSuperclass(); clazz != Object.class; type = clazz.getGenericSuperclass()) {
             if (type instanceof ParameterizedType) {
                 Type[] typeArguments = ((ParameterizedType) type).getActualTypeArguments();
-                if (typeArguments.length != 2 && typeArguments.length != 1) {
+                if (typeArguments.length > 3 || typeArguments.length < 1) {
                     throw new QlIllegalArgumentException(
                         "Unexpected number of type arguments {} for {}",
                         Arrays.toString(typeArguments),

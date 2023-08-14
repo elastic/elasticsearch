@@ -32,8 +32,8 @@ teardown:
 "Check synonyms set operations - with manage_search_synonyms privilege":
   - do:
       headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
-      synonyms.put:
-        synonyms_set: test-synonyms
+      synonyms.put_synonym:
+        id: test-synonyms
         body:
           synonyms_set:
             - synonyms: "hello, hi"
@@ -43,24 +43,24 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
-      synonyms.get:
-        synonyms_set: test-synonyms
+      synonyms.get_synonym:
+        id: test-synonyms
 
   - match:
       count: 1
 
   - do:
       headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
-      synonyms_sets.get: { }
+      synonyms.get_synonyms_sets: { }
 
   - match:
       count: 1
 
   - do:
       headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
-      synonym_rule.put:
-        synonyms_set: "test-synonyms"
-        synonym_rule: "test-id-0"
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
         body:
           synonyms: "i-phone, iphone"
 
@@ -68,22 +68,22 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
-      synonym_rule.get:
-        synonyms_set: "test-synonyms"
-        synonym_rule: "test-id-0"
+      synonyms.get_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
 
   - match: {id: "test-id-0"}
 
   - do:
       headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
-      synonym_rule.delete:
-        synonyms_set: test-synonyms
-        synonym_rule: test-id-0
+      synonyms.delete_synonym_rule:
+        set_id: test-synonyms
+        rule_id: test-id-0
 
   - do:
       headers: { Authorization: "Basic c3lub255bXMtdXNlcjpzeW5vbnltcy11c2VyLXBhc3N3b3Jk" }  # synonyms-user
-      synonyms.delete:
-        synonyms_set: test-synonyms
+      synonyms.delete_synonym:
+        id: test-synonyms
 
   - match:
       acknowledged: true

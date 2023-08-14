@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -38,6 +37,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -789,7 +789,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(jobId).setLatestResultTimeStamp(dataCounts.getLatestRecordTimeStamp())
             .setLatestRecordTimeStamp(dataCounts.getLatestRecordTimeStamp())
-            .setMinVersion(Version.CURRENT)
+            .setMinVersion(MlConfigVersion.CURRENT)
             .setSnapshotId(jobId + "_mock_snapshot")
             .setTimestamp(new Date())
             .setModelSizeStats(new ModelSizeStats.Builder(jobId).build())

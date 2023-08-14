@@ -2,6 +2,8 @@
 [[security-api-update-cross-cluster-api-key]]
 === Update Cross-Cluster API key API
 
+beta::[]
+
 ++++
 <titleabbrev>Update Cross-Cluster API key</titleabbrev>
 ++++

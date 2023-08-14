@@ -299,7 +299,7 @@ setup:
   - do:
       indices.downsample:
         index: test
-        target_index: rollup-test
+        target_index: test-downsample
         body:  >
           {
             "fixed_interval": "1h"
@@ -308,7 +308,7 @@ setup:
 
   - do:
       search:
-        index: rollup-test
+        index: test-downsample
         body:
           sort: [ "_tsid", "@timestamp" ]
 
@@ -335,32 +335,32 @@ setup:
   # Assert rollup index settings
   - do:
       indices.get_settings:
-        index: rollup-test
+        index: test-downsample
 
-  - match: { rollup-test.settings.index.mode: time_series }
-  - match: { rollup-test.settings.index.time_series.end_time:   2021-04-29T00:00:00Z }
-  - match: { rollup-test.settings.index.time_series.start_time: 2021-04-28T00:00:00Z }
-  - match: { rollup-test.settings.index.routing_path: [ "metricset", "k8s.pod.uid"] }
-  - match: { rollup-test.settings.index.downsample.source.name: test }
-  - match: { rollup-test.settings.index.number_of_shards: "1" }
-  - match: { rollup-test.settings.index.number_of_replicas: "0" }
+  - match: { test-downsample.settings.index.mode: time_series }
+  - match: { test-downsample.settings.index.time_series.end_time:   2021-04-29T00:00:00Z }
+  - match: { test-downsample.settings.index.time_series.start_time: 2021-04-28T00:00:00Z }
+  - match: { test-downsample.settings.index.routing_path: [ "metricset", "k8s.pod.uid"] }
+  - match: { test-downsample.settings.index.downsample.source.name: test }
+  - match: { test-downsample.settings.index.number_of_shards: "1" }
+  - match: { test-downsample.settings.index.number_of_replicas: "0" }
 
   # Assert rollup index mapping
   - do:
       indices.get_mapping:
-        index: rollup-test
+        index: test-downsample
 
-  - match: { rollup-test.mappings.properties.@timestamp.type: date }
-  - match: { rollup-test.mappings.properties.@timestamp.meta.fixed_interval: 1h }
-  - match: { rollup-test.mappings.properties.@timestamp.meta.time_zone: UTC }
-  - match: { rollup-test.mappings.properties.k8s.properties.pod.properties.multi-gauge.type: aggregate_metric_double }
-  - match: { rollup-test.mappings.properties.k8s.properties.pod.properties.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { rollup-test.mappings.properties.k8s.properties.pod.properties.multi-gauge.default_metric: max }
-  - match: { rollup-test.mappings.properties.k8s.properties.pod.properties.multi-gauge.time_series_metric: gauge }
-  - match: { rollup-test.mappings.properties.k8s.properties.pod.properties.multi-counter.type: long }
-  - match: { rollup-test.mappings.properties.k8s.properties.pod.properties.multi-counter.time_series_metric: counter }
-  - match: { rollup-test.mappings.properties.k8s.properties.pod.properties.uid.type: keyword }
-  - match: { rollup-test.mappings.properties.k8s.properties.pod.properties.uid.time_series_dimension: true }
+  - match: { test-downsample.mappings.properties.@timestamp.type: date }
+  - match: { test-downsample.mappings.properties.@timestamp.meta.fixed_interval: 1h }
+  - match: { test-downsample.mappings.properties.@timestamp.meta.time_zone: UTC }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-gauge.type: aggregate_metric_double }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-gauge.default_metric: max }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-gauge.time_series_metric: gauge }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-counter.type: long }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-counter.time_series_metric: counter }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.uid.type: keyword }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.uid.time_series_dimension: true }
 
 
   # Assert source index has not been deleted
@@ -371,11 +371,11 @@ setup:
   # Assert rollup index has been force merged
   - do:
       indices.segments:
-        index: rollup-test
+        index: test-downsample
 
   - match:   { _shards.total: 1}
-  - match:   { indices.rollup-test.shards.0.0.num_committed_segments: 1}
-  - match:   { indices.rollup-test.shards.0.0.num_search_segments: 1}
+  - match:   { indices.test-downsample.shards.0.0.num_committed_segments: 1}
+  - match:   { indices.test-downsample.shards.0.0.num_search_segments: 1}
 
 ---
 "Downsample non-existing index":
@@ -387,7 +387,7 @@ setup:
       catch: /no such index \[non-existing-index\]/
       indices.downsample:
         index: non-existing-index
-        target_index: rollup-test
+        target_index: test-downsample
         body:  >
           {
             "fixed_interval": "1h"
@@ -401,13 +401,13 @@ setup:
 
   - do:
       indices.create:
-        index: rollup-test
+        index: test-downsample
 
   - do:
       catch: /resource_already_exists_exception/
       indices.downsample:
         index: test
-        target_index: rollup-test
+        target_index: test-downsample
         body:  >
           {
             "fixed_interval": "1h"
@@ -456,7 +456,7 @@ setup:
       catch: /index_not_found_exception/
       indices.downsample:
         index: test*
-        target_index: rollup-test
+        target_index: test-downsample
         body:  >
           {
             "fixed_interval": "1h"
@@ -466,7 +466,7 @@ setup:
       catch: /index_not_found_exception/
       indices.downsample:
         index: _all
-        target_index: rollup-test
+        target_index: test-downsample
         body: >
           {
             "fixed_interval": "1h"
@@ -496,7 +496,7 @@ setup:
       catch: /Rollup requires setting \[index.mode=time_series\] for index \[normal-index\]/
       indices.downsample:
         index: normal-index
-        target_index: rollup-test
+        target_index: test-downsample
         body:  >
           {
             "fixed_interval": "1h"
@@ -563,7 +563,7 @@ setup:
   - do:
       indices.downsample:
         index: no-metric-index
-        target_index: rollup-test-no-metric
+        target_index: test-downsample-no-metric
         body:  >
           {
             "fixed_interval": "1h"
@@ -573,7 +573,7 @@ setup:
 
   - do:
       search:
-        index: rollup-test-no-metric
+        index: test-downsample-no-metric
         body:
           sort: [ "_tsid", "@timestamp" ]
 
@@ -655,7 +655,7 @@ setup:
   - do:
       indices.downsample:
         index: no-metric-no-label-index
-        target_index: rollup-test-no-metric-no-label
+        target_index: test-downsample-no-metric-no-label
         body:  >
           {
             "fixed_interval": "1h"
@@ -665,7 +665,7 @@ setup:
 
   - do:
       search:
-        index: rollup-test-no-metric-no-label
+        index: test-downsample-no-metric-no-label
         body:
           sort: [ "_tsid", "@timestamp" ]
 
@@ -692,7 +692,7 @@ setup:
   - do:
       indices.downsample:
         index: test
-        target_index: rollup-test
+        target_index: test-downsample
         body: >
           {
             "fixed_interval": "1h"
@@ -701,8 +701,8 @@ setup:
 
   - do:
       indices.downsample:
-        index: rollup-test
-        target_index: rollup-test-2
+        index: test-downsample
+        target_index: test-downsample-2
         body: >
           {
             "fixed_interval": "2h"
@@ -713,27 +713,27 @@ setup:
   # Assert rollup index mapping
   - do:
       indices.get_mapping:
-        index: rollup-test-2
+        index: test-downsample-2
 
-  - match: { rollup-test-2.mappings.properties.@timestamp.type: date }
-  - match: { rollup-test-2.mappings.properties.@timestamp.meta.fixed_interval: 2h }
-  - match: { rollup-test-2.mappings.properties.@timestamp.meta.time_zone: UTC }
-  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.multi-gauge.type: aggregate_metric_double }
-  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.multi-gauge.default_metric: max }
-  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.multi-gauge.time_series_metric: gauge }
-  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.multi-counter.type: long }
-  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.multi-counter.time_series_metric: counter }
-  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.uid.type: keyword }
-  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.uid.time_series_dimension: true }
-  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.network.properties.tx.type: aggregate_metric_double }
-  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.network.properties.tx.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.network.properties.tx.default_metric: max }
-  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.network.properties.tx.time_series_metric: gauge }
+  - match: { test-downsample-2.mappings.properties.@timestamp.type: date }
+  - match: { test-downsample-2.mappings.properties.@timestamp.meta.fixed_interval: 2h }
+  - match: { test-downsample-2.mappings.properties.@timestamp.meta.time_zone: UTC }
+  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.multi-gauge.type: aggregate_metric_double }
+  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
+  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.multi-gauge.default_metric: max }
+  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.multi-gauge.time_series_metric: gauge }
+  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.multi-counter.type: long }
+  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.multi-counter.time_series_metric: counter }
+  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.uid.type: keyword }
+  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.uid.time_series_dimension: true }
+  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.network.properties.tx.type: aggregate_metric_double }
+  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.network.properties.tx.metrics: [ "min", "max", "sum", "value_count" ] }
+  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.network.properties.tx.default_metric: max }
+  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.network.properties.tx.time_series_metric: gauge }
 
   - do:
       search:
-        index: rollup-test-2
+        index: test-downsample-2
         body:
           sort: [ "_tsid", "@timestamp" ]
 
@@ -768,8 +768,8 @@ setup:
 
   - do:
       indices.downsample:
-        index: rollup-test
-        target_index: rollup-test-3
+        index: test-downsample
+        target_index: test-downsample-3
         body: >
           {
             "fixed_interval": "180m"
@@ -785,7 +785,7 @@ setup:
   - do:
       indices.downsample:
         index: test
-        target_index: rollup-test
+        target_index: test-downsample
         body: >
           {
             "fixed_interval": "1h"
@@ -795,8 +795,8 @@ setup:
   - do:
       catch: /Downsampling interval \[1h\] must be greater than the source index interval \[1h\]/
       indices.downsample:
-        index: rollup-test
-        target_index: rollup-test-2
+        index: test-downsample
+        target_index: test-downsample-2
         body: >
           {
             "fixed_interval": "1h"
@@ -805,8 +805,8 @@ setup:
   - do:
       catch: /Downsampling interval \[30m\] must be greater than the source index interval \[1h\]/
       indices.downsample:
-        index: rollup-test
-        target_index: rollup-test-2
+        index: test-downsample
+        target_index: test-downsample-2
         body: >
           {
             "fixed_interval": "30m"
@@ -815,8 +815,8 @@ setup:
   - do:
       catch: /Downsampling interval \[90m\] must be a multiple of the source index interval \[1h\]/
       indices.downsample:
-        index: rollup-test
-        target_index: rollup-test-2
+        index: test-downsample
+        target_index: test-downsample-2
         body: >
           {
             "fixed_interval": "90m"
@@ -831,7 +831,7 @@ setup:
   - do:
       indices.downsample:
         index: test-histogram
-        target_index: rollup-test-histogram
+        target_index: test-downsample-histogram
         body:  >
           {
             "fixed_interval": "1h"
@@ -840,25 +840,25 @@ setup:
 
   - do:
       indices.get_mapping:
-        index: rollup-test-histogram
+        index: test-downsample-histogram
 
-  - match: { rollup-test-histogram.mappings.properties.@timestamp.type: date }
-  - match: { rollup-test-histogram.mappings.properties.@timestamp.meta.fixed_interval: 1h }
-  - match: { rollup-test-histogram.mappings.properties.@timestamp.meta.time_zone: UTC }
-  - match: { rollup-test-histogram.mappings.properties.k8s.properties.pod.properties.latency.type: histogram }
-  - match: { rollup-test-histogram.mappings.properties.k8s.properties.pod.properties.latency.time_series_metric: null }
-  - match: { rollup-test-histogram.mappings.properties.k8s.properties.pod.properties.empty-histogram.type: histogram }
-  - match: { rollup-test-histogram.mappings.properties.k8s.properties.pod.properties.empty-histogram.time_series_metric: null }
-  - match: { rollup-test-histogram.mappings.properties.k8s.properties.pod.properties.uid.type: keyword }
-  - match: { rollup-test-histogram.mappings.properties.k8s.properties.pod.properties.uid.time_series_dimension: true }
-  - match: { rollup-test-histogram.mappings.properties.k8s.properties.pod.properties.network.properties.tx.type: aggregate_metric_double }
-  - match: { rollup-test-histogram.mappings.properties.k8s.properties.pod.properties.network.properties.tx.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { rollup-test-histogram.mappings.properties.k8s.properties.pod.properties.network.properties.tx.default_metric: max }
-  - match: { rollup-test-histogram.mappings.properties.k8s.properties.pod.properties.network.properties.tx.time_series_metric: gauge }
+  - match: { test-downsample-histogram.mappings.properties.@timestamp.type: date }
+  - match: { test-downsample-histogram.mappings.properties.@timestamp.meta.fixed_interval: 1h }
+  - match: { test-downsample-histogram.mappings.properties.@timestamp.meta.time_zone: UTC }
+  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.latency.type: histogram }
+  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.latency.time_series_metric: null }
+  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.empty-histogram.type: histogram }
+  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.empty-histogram.time_series_metric: null }
+  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.uid.type: keyword }
+  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.uid.time_series_dimension: true }
+  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.network.properties.tx.type: aggregate_metric_double }
+  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.network.properties.tx.metrics: [ "min", "max", "sum", "value_count" ] }
+  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.network.properties.tx.default_metric: max }
+  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.network.properties.tx.time_series_metric: gauge }
 
   - do:
       search:
-        index: rollup-test-histogram
+        index: test-downsample-histogram
         body:
           sort: [ "_tsid", "@timestamp" ]
 
@@ -987,7 +987,7 @@ setup:
   - do:
       indices.downsample:
         index: test-timestamp
-        target_index: rollup-test-timestamp
+        target_index: test-downsample-timestamp
         body: >
           {
             "fixed_interval": "1h"
@@ -997,7 +997,7 @@ setup:
 
   - do:
       search:
-        index: rollup-test-timestamp
+        index: test-downsample-timestamp
         body:
           sort: [ "_tsid", "@timestamp" ]
 
@@ -1019,12 +1019,12 @@ setup:
 
   - do:
       indices.get_mapping:
-        index: rollup-test-timestamp
+        index: test-downsample-timestamp
 
-  - match: { rollup-test-timestamp.mappings.properties.@timestamp.type: date_nanos }
-  - match: { rollup-test-timestamp.mappings.properties.@timestamp.format: "uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSX" }
-  - match: { rollup-test-timestamp.mappings.properties.@timestamp.meta.fixed_interval: 1h }
-  - match: { rollup-test-timestamp.mappings.properties.@timestamp.meta.time_zone: UTC }
+  - match: { test-downsample-timestamp.mappings.properties.@timestamp.type: date_nanos }
+  - match: { test-downsample-timestamp.mappings.properties.@timestamp.format: "uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSX" }
+  - match: { test-downsample-timestamp.mappings.properties.@timestamp.meta.fixed_interval: 1h }
+  - match: { test-downsample-timestamp.mappings.properties.@timestamp.meta.time_zone: UTC }
 
 ---
 "Downsample date timestamp field using strict_date_optional_time_nanos format":
@@ -1090,7 +1090,7 @@ setup:
   - do:
       indices.downsample:
         index: test-timestamp
-        target_index: rollup-test-timestamp
+        target_index: test-downsample-timestamp
         body: >
           {
             "fixed_interval": "1h"
@@ -1100,7 +1100,7 @@ setup:
 
   - do:
       search:
-        index: rollup-test-timestamp
+        index: test-downsample-timestamp
         body:
           sort: [ "_tsid", "@timestamp" ]
 
@@ -1122,12 +1122,12 @@ setup:
 
   - do:
       indices.get_mapping:
-        index: rollup-test-timestamp
+        index: test-downsample-timestamp
 
-  - match: { rollup-test-timestamp.mappings.properties.@timestamp.type: date }
-  - match: { rollup-test-timestamp.mappings.properties.@timestamp.format: strict_date_optional_time_nanos }
-  - match: { rollup-test-timestamp.mappings.properties.@timestamp.meta.fixed_interval: 1h }
-  - match: { rollup-test-timestamp.mappings.properties.@timestamp.meta.time_zone: UTC }
+  - match: { test-downsample-timestamp.mappings.properties.@timestamp.type: date }
+  - match: { test-downsample-timestamp.mappings.properties.@timestamp.format: strict_date_optional_time_nanos }
+  - match: { test-downsample-timestamp.mappings.properties.@timestamp.meta.fixed_interval: 1h }
+  - match: { test-downsample-timestamp.mappings.properties.@timestamp.meta.time_zone: UTC }
 
 ---
 "Downsample using coarse grained timestamp":
@@ -1193,7 +1193,7 @@ setup:
   - do:
       indices.downsample:
         index: test-timestamp-daily
-        target_index: rollup-test-timestamp-hourly
+        target_index: test-downsample-timestamp-hourly
         body: >
           {
             "fixed_interval": "1h"
@@ -1202,7 +1202,7 @@ setup:
 
   - do:
       search:
-        index: rollup-test-timestamp-hourly
+        index: test-downsample-timestamp-hourly
         body:
           sort: [ "_tsid", "@timestamp" ]
 
@@ -1245,7 +1245,7 @@ setup:
   - do:
       indices.downsample:
         index: test-object
-        target_index: rollup-test-object
+        target_index: test-downsample-object
         body:  >
           {
             "fixed_interval": "1h"
@@ -1254,7 +1254,7 @@ setup:
 
   - do:
       search:
-        index: rollup-test-object
+        index: test-downsample-object
         body:
           sort: [ "_tsid", "@timestamp" ]
 
@@ -1313,7 +1313,7 @@ setup:
   - do:
       indices.downsample:
         index: test-empty-missing
-        target_index: rollup-test-empty-missing
+        target_index: test-downsample-empty-missing
         body:  >
           {
             "fixed_interval": "1h"
@@ -1322,7 +1322,7 @@ setup:
 
   - do:
       search:
-        index: rollup-test-empty-missing
+        index: test-downsample-empty-missing
         body:
           sort: [ "_tsid", "@timestamp" ]
 

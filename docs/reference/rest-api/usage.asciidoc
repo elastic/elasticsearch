@@ -419,6 +419,17 @@ GET /_xpack/usage
       "total": 0
     }
   },
+  "remote_clusters": {
+    "size": 0,
+    "mode": {
+      "proxy": 0,
+      "sniff": 0
+    },
+    "security": {
+      "cert": 0,
+      "api_key": 0
+    }
+  },
   "enterprise_search" : {
     "available": true,
     "enabled": true,

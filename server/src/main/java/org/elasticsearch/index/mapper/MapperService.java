@@ -44,7 +44,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -76,7 +75,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public static final String SINGLE_MAPPING_NAME = "_doc";
     public static final String TYPE_FIELD_NAME = "_type";
-    public static final Set<String> OBJECT_FIELD_TYPES = Set.of(ObjectMapper.CONTENT_TYPE, NestedObjectMapper.CONTENT_TYPE);
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.nested_fields.limit",
         50L,
@@ -398,12 +396,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                     switch (key) {
                         case "type" -> {
                             // todo: verify this check is valid
-                            if (oldValue.equals(newValue) == false
-                                && (OBJECT_FIELD_TYPES.contains(String.valueOf(oldValue))
-                                    || OBJECT_FIELD_TYPES.contains(String.valueOf(newValue)))) {
-                                throw new MapperParsingException(
-                                    "can't merge a non object mapping [" + parent + "] with an object mapping"
-                                );
+                            if (oldValue.equals(newValue) == false) {
+                                if (oldValue.equals(ObjectMapper.CONTENT_TYPE) || newValue.equals(ObjectMapper.CONTENT_TYPE)) {
+                                    MapperErrors.throwObjectMappingConflictError(parent);
+                                } else if (oldValue.equals(NestedObjectMapper.CONTENT_TYPE)
+                                    || newValue.equals(NestedObjectMapper.CONTENT_TYPE)) {
+                                        MapperErrors.throwNestedMappingConflictError(parent);
+                                    }
                             }
                         }
                         case "subobjects" -> {

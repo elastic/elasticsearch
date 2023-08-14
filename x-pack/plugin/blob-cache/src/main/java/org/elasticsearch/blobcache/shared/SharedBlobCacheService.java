@@ -855,7 +855,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final RangeMissingHandler writer,
             final ActionListener<Integer> listener
         ) {
-            //assert rangeToRead.length() > 0;
+            // assert rangeToRead.length() > 0;
             Releasable resource = null;
             try {
                 incRef();

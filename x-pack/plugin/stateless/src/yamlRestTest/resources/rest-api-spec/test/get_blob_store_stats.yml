@@ -7,9 +7,11 @@
   - match: { "_nodes.total" : 2 }
   - match: { "_nodes.successful" : 2}
   - match: { "_nodes.failed" : 0}
-  - is_true: "_all.object_store_stats"
+  - is_true: "_all.object_store_stats.request_counts"
+  - is_true: "_all.operational_backup_service_stats.request_counts"
   - length: { "nodes": 2 }
 
   - set:
       nodes._arbitrary_key_: node_id
-  - is_true: "nodes.$node_id.object_store_stats"
+  - is_true: "nodes.$node_id.object_store_stats.request_counts"
+  - is_true: "nodes.$node_id.operational_backup_service_stats.request_counts"

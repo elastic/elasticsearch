@@ -59,8 +59,23 @@ public class GetBlobStoreStatsNodesResponse extends BaseNodesResponse<GetBlobSto
             .map(GetBlobStoreStatsNodeResponse::getRepositoryStats)
             .reduce(RepositoryStats::merge)
             .orElse(RepositoryStats.EMPTY_STATS);
+
+        final RepositoryStats obsAggregatedStats = getNodes().stream()
+            .map(GetBlobStoreStatsNodeResponse::getObsRepositoryStats)
+            .reduce(RepositoryStats::merge)
+            .orElse(RepositoryStats.EMPTY_STATS);
+
         builder.startObject("_all");
-        builder.field("object_store_stats", aggregatedStats.requestCounts);
+        {
+            builder.startObject("object_store_stats");
+            builder.field("request_counts", aggregatedStats.requestCounts);
+            builder.endObject();
+        }
+        {
+            builder.startObject("operational_backup_service_stats");
+            builder.field("request_counts", obsAggregatedStats.requestCounts);
+            builder.endObject();
+        }
         builder.endObject();
         builder.startObject("nodes");
         for (GetBlobStoreStatsNodeResponse nodeStats : getNodes()) {

@@ -17,12 +17,16 @@
 
 package co.elastic.elasticsearch.stateless.metering.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
 
 import java.io.IOException;
@@ -32,6 +36,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class GetBlobStoreStatsNodeResponseTests extends AbstractWireSerializingTestCase<GetBlobStoreStatsNodeResponse> {
 
@@ -48,16 +53,18 @@ public class GetBlobStoreStatsNodeResponseTests extends AbstractWireSerializingT
     public static GetBlobStoreStatsNodeResponse createLabeledTestInstance(String label, Set<String> requestNames) {
         return new GetBlobStoreStatsNodeResponse(
             DiscoveryNodeUtils.builder("node_" + label).roles(Set.copyOf(randomSubsetOf(DiscoveryNodeRole.roles()))).build(),
+            randomRepositoryStats(requestNames),
             randomRepositoryStats(requestNames)
         );
     }
 
     @Override
     protected GetBlobStoreStatsNodeResponse mutateInstance(GetBlobStoreStatsNodeResponse instance) {
-        return switch (between(0, 2)) {
+        return switch (between(0, 3)) {
             case 0 -> new GetBlobStoreStatsNodeResponse(
                 DiscoveryNodeUtils.builder(randomAlphaOfLength(5)).roles(instance.getNode().getRoles()).build(),
-                instance.getRepositoryStats()
+                instance.getRepositoryStats(),
+                instance.getObsRepositoryStats()
             );
             case 1 -> new GetBlobStoreStatsNodeResponse(
                 instance.getNode(),
@@ -66,19 +73,40 @@ public class GetBlobStoreStatsNodeResponseTests extends AbstractWireSerializingT
                         names -> names.equals(instance.getRepositoryStats().requestCounts.keySet()),
                         GetBlobStoreStatsNodeResponseTests::randomRequestNames
                     )
-                )
+                ),
+                instance.getObsRepositoryStats()
             );
             case 2 -> {
                 if (instance.getRepositoryStats().requestCounts.keySet().isEmpty()) {
                     // file
                     yield new GetBlobStoreStatsNodeResponse(
                         instance.getNode(),
+                        randomRepositoryStats(randomValueOtherThan(Set.of(), GetBlobStoreStatsNodeResponseTests::randomRequestNames)),
+                        instance.getObsRepositoryStats()
+                    );
+                } else {
+                    yield new GetBlobStoreStatsNodeResponse(
+                        instance.getNode(),
+                        instance.getRepositoryStats().merge(randomRepositoryStats(instance.getRepositoryStats().requestCounts.keySet())),
+                        instance.getObsRepositoryStats()
+                    );
+                }
+            }
+            case 3 -> {
+                if (instance.getObsRepositoryStats().requestCounts.keySet().isEmpty()) {
+                    // file
+                    yield new GetBlobStoreStatsNodeResponse(
+                        instance.getNode(),
+                        instance.getRepositoryStats(),
                         randomRepositoryStats(randomValueOtherThan(Set.of(), GetBlobStoreStatsNodeResponseTests::randomRequestNames))
                     );
                 } else {
                     yield new GetBlobStoreStatsNodeResponse(
                         instance.getNode(),
-                        instance.getRepositoryStats().merge(randomRepositoryStats(instance.getRepositoryStats().requestCounts.keySet()))
+                        instance.getRepositoryStats(),
+                        instance.getObsRepositoryStats()
+                            .merge(randomRepositoryStats(instance.getObsRepositoryStats().requestCounts.keySet()))
+
                     );
                 }
             }
@@ -92,11 +120,32 @@ public class GetBlobStoreStatsNodeResponseTests extends AbstractWireSerializingT
         assertThat(map.keySet(), containsInAnyOrder("node_1"));
         assertThat(
             map.get("node_1"),
-            equalTo(Map.of("object_store_stats", Maps.transformValues(instance.getRepositoryStats().requestCounts, Math::toIntExact)))
+            equalTo(
+                Map.of(
+                    "object_store_stats",
+                    Map.of("request_counts", Maps.transformValues(instance.getRepositoryStats().requestCounts, Math::toIntExact)),
+                    "operational_backup_service_stats",
+                    Map.of("request_counts", Maps.transformValues(instance.getObsRepositoryStats().requestCounts, Math::toIntExact))
+                )
+            )
         );
     }
 
-    private static RepositoryStats randomRepositoryStats(Set<String> requestNames) {
+    public void testSerializationForOldVersion() throws IOException {
+        final GetBlobStoreStatsNodeResponse instance = createTestInstance();
+        final TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_500_056);
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(oldVersion);
+            instance.writeTo(out);
+            final StreamInput in = out.bytes().streamInput();
+            in.setTransportVersion(oldVersion);
+            final GetBlobStoreStatsNodeResponse deserialized = new GetBlobStoreStatsNodeResponse(in);
+            assertThat(deserialized.getObsRepositoryStats(), is(RepositoryStats.EMPTY_STATS));
+        }
+    }
+
+    public static RepositoryStats randomRepositoryStats(Set<String> requestNames) {
         final Map<String, Long> requestCounts = requestNames.stream()
             .map(name -> Map.entry(name, randomLongBetween(0, 9999)))
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));

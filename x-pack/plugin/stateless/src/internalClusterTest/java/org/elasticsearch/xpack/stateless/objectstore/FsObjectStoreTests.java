@@ -33,7 +33,22 @@ public class FsObjectStoreTests extends AbstractObjectStoreIntegTestCase {
     }
 
     @Override
+    protected String repositoryType() {
+        return "fs";
+    }
+
+    @Override
+    protected Settings repositorySettings() {
+        return Settings.builder().put(super.repositorySettings()).put("location", randomRepoPath()).build();
+    }
+
+    @Override
     protected void assertRepositoryStats(RepositoryStats repositoryStats) {
+        assertThat(repositoryStats.requestCounts, anEmptyMap());
+    }
+
+    @Override
+    protected void assertObsRepositoryStatsSnapshots(RepositoryStats repositoryStats) {
         assertThat(repositoryStats.requestCounts, anEmptyMap());
     }
 }

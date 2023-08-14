@@ -181,15 +181,9 @@ public class Verifier {
                 }
             });
             p.forEachExpression(Neg.class, neg -> {
-                DataType childExpressionType = neg.field().dataType();
-                if (childExpressionType.equals(DataTypes.UNSIGNED_LONG) ) {
-                    failures.add(
-                        fail(
-                            neg,
-                            "negation unsupported for arguments of type [{}] in expression [{}]",
-                            childExpressionType.typeName(),
-                            neg.sourceText()
-                    ));
+                Failure f = validateUnsignedLongNegation(neg);
+                if (f != null) {
+                    failures.add(f);
                 }
             });
         });
@@ -304,6 +298,22 @@ public class Verifier {
                 DataTypes.UNSIGNED_LONG.typeName(),
                 DataTypes.UNSIGNED_LONG.typeName()
             );
+        }
+        return null;
+    }
+
+    /**
+     * Negating an unsigned long is invalid.
+     */
+    static Failure validateUnsignedLongNegation(Neg neg) {
+        DataType childExpressionType = neg.field().dataType();
+        if (childExpressionType.equals(DataTypes.UNSIGNED_LONG) ) {
+            return fail(
+                    neg,
+                    "negation unsupported for arguments of type [{}] in expression [{}]",
+                    childExpressionType.typeName(),
+                    neg.sourceText()
+                );
         }
         return null;
     }

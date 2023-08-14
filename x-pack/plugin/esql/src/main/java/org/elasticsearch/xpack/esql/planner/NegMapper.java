@@ -46,6 +46,8 @@ abstract class NegMapper extends EvalMapper.ExpressionMapper<Neg> {
         if (type.isNumeric()) {
             var childEvaluator = EvalMapper.toEvaluator(neg.field(), layout).get();
 
+            // Unsigned longs are unsupported by choice; negating them does not make much sense without converting to long;
+            // that would require implicit conversions to long also for expressions like `x-y` for consistency.
             if (type == DataTypes.INTEGER) {
                 return () -> ints.apply(neg.source(), childEvaluator);
             }

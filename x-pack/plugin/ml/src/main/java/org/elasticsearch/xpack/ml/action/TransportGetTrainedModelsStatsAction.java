@@ -298,14 +298,6 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                                 numberOfAllocations
                             )
                             : 0L;
-                        logger.info(
-                            "***modelSizeStats: model id: [{}], total definition length: [{}], " + 
-                            "estimated memory usage: [{}], number of allocations: [{}]",
-                            model.getModelId(),
-                            totalDefinitionLength,
-                            estimatedMemoryUsageBytes,
-                            numberOfAllocations
-                        );
                         modelSizeStatsByModelId.put(
                             model.getModelId(),
                             new TrainedModelSizeStats(
@@ -336,7 +328,6 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             parentTaskId,
             modelsListener
         );
-
     }
 
     private void definitionLengths(List<String> modelIds, TaskId parentTaskId, ActionListener<Map<String, Long>> listener) {

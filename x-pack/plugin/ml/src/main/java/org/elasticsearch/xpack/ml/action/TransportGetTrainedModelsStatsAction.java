@@ -299,7 +299,8 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                             )
                             : 0L;
                         logger.info(
-                            "***modelSizeStats: model id: [{}], total definition length: [{}], estimated memory usage: [{}], number of allocations: [{}]",
+                            "***modelSizeStats: model id: [{}], total definition length: [{}], " + 
+                            "estimated memory usage: [{}], number of allocations: [{}]",
                             model.getModelId(),
                             totalDefinitionLength,
                             estimatedMemoryUsageBytes,

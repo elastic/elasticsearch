@@ -391,7 +391,6 @@ public class ClientHelperTests extends ESTestCase {
         final ClusterState clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT));
         // No security header
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final String nonSecurityHeaderKey = "not-a-security-header";

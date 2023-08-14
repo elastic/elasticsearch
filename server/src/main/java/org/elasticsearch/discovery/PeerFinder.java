@@ -159,7 +159,7 @@ public abstract class PeerFinder {
         Releasables.close(connectionReferences);
     }
 
-    public void closeInactivePeers() {
+    public void closePeers() {
 
         // Discovery is over, we're joining a cluster, so we can release all the connections that were being used for discovery. We haven't
         // finished joining/forming the cluster yet, but if we're joining an existing master then the join will hold open the connection

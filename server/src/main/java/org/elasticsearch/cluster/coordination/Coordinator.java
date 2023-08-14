@@ -895,7 +895,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
         lastKnownLeader = Optional.of(getLocalNode());
         peerFinder.deactivate(getLocalNode());
-        peerFinder.closeInactivePeers();
+        peerFinder.closePeers();
         clusterFormationFailureHelper.stop();
         closePrevotingAndElectionScheduler();
         preVoteCollector.update(getPreVoteResponse(), getLocalNode());
@@ -964,7 +964,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         updateSingleNodeClusterChecker();
         lastKnownLeader = Optional.of(leaderNode);
         peerFinder.deactivate(leaderNode);
-        peerFinder.closeInactivePeers();
+        peerFinder.closePeers();
         clusterFormationFailureHelper.stop();
         closePrevotingAndElectionScheduler();
         cancelActivePublication("become follower: " + method);

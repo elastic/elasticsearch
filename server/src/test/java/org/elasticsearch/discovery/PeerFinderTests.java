@@ -250,7 +250,7 @@ public class PeerFinderTests extends ESTestCase {
     @After
     public void deactivateAndRunRemainingTasks() {
         peerFinder.deactivate(localNode);
-        peerFinder.closeInactivePeers();
+        peerFinder.closePeers();
         deterministicTaskQueue.runAllRunnableTasks();
         assertThat(connectedNodes, empty());
     }
@@ -379,7 +379,7 @@ public class PeerFinderTests extends ESTestCase {
         peerFinder.deactivate(localNode);
         assertFoundPeers();
         assertEquals(Set.of(otherNode), connectedNodes);
-        peerFinder.closeInactivePeers();
+        peerFinder.closePeers();
         assertThat(connectedNodes, empty());
 
         providedAddresses.clear();
@@ -402,7 +402,7 @@ public class PeerFinderTests extends ESTestCase {
         } while (deterministicTaskQueue.hasDeferredTasks());
         assertFoundPeers();
 
-        peerFinder.closeInactivePeers();
+        peerFinder.closePeers();
         assertThat(connectedNodes, empty());
     }
 

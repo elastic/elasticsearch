@@ -32,7 +32,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -72,20 +71,7 @@ public class MasterFailoverPlugin extends Plugin implements ShutdownAwarePlugin 
     @Override
     public boolean safeToShutdown(String nodeId, SingleNodeShutdownMetadata.Type shutdownType) {
         // called on the elected master (in a cluster state listener) so we only need to check our own node ID
-        final var clusterState = clusterService.state();
-        if (nodeId.equals(clusterState.nodes().getLocalNodeId()) == false) {
-            return true;
-        }
-
-        // if all other possible master nodes are also shutting down then assume it's a full-cluster shutdown and do not failover
-        final var shutdownNodes = PluginShutdownService.shutdownNodes(clusterState);
-        // Ugly hack: when https://github.com/elastic/elasticsearch/issues/94946 is fixed, just iterate over discoveryNodes here
-        if (clusterState.nodes().mastersFirstStream().noneMatch(n -> n.isMasterNode() && shutdownNodes.contains(n.getId()) == false)) {
-            logger.info("all master-eligible nodes are shutting down, skipping graceful master failover");
-            return true;
-        } else {
-            return false;
-        }
+        return nodeId.equals(clusterService.state().nodes().getLocalNodeId()) == false;
     }
 
     @Override

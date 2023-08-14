@@ -54,7 +54,11 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<D
     }
 
     @Override
-    protected void nodeOperation(final AllocatedPersistentTask task, final DownsampleShardTaskParams params, final PersistentTaskState state) {
+    protected void nodeOperation(
+        final AllocatedPersistentTask task,
+        final DownsampleShardTaskParams params,
+        final PersistentTaskState state
+    ) {
         // NOTE: query the downsampling target index so that we can start the downsampling task from the latest indexed tsid.
         final SearchRequest searchRequest = new SearchRequest(params.rollupIndex());
         searchRequest.source().sort(TimeSeriesIdFieldMapper.NAME, SortOrder.DESC).size(1);

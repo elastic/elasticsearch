@@ -57,9 +57,9 @@ import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
+import org.elasticsearch.xpack.downsample.DownsampleShardTaskParams;
 import org.elasticsearch.xpack.downsample.RestDownsampleAction;
 import org.elasticsearch.xpack.downsample.RollupShardPersistentTaskExecutor;
-import org.elasticsearch.xpack.downsample.DownsampleShardTaskParams;
 import org.elasticsearch.xpack.downsample.TransportDownsampleAction;
 import org.elasticsearch.xpack.downsample.TransportDownsampleIndexerAction;
 import org.elasticsearch.xpack.rollup.action.TransportDeleteRollupJobAction;
@@ -229,7 +229,11 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
                 RollupShardPersistentTaskState.NAME,
                 RollupShardPersistentTaskState::readFromStream
             ),
-            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, DownsampleShardTaskParams.NAME, DownsampleShardTaskParams::readFromStream)
+            new NamedWriteableRegistry.Entry(
+                PersistentTaskParams.class,
+                DownsampleShardTaskParams.NAME,
+                DownsampleShardTaskParams::readFromStream
+            )
         );
     }
 

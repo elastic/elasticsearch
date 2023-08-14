@@ -368,7 +368,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         for (int shardNum = 0; shardNum < numberOfShards; shardNum++) {
             final ShardId shardId = new ShardId(sourceIndex, shardNum);
             final String persistentTaskId = createPersistentTaskId(
-                sourceIndex.getName(),
+                downsampleIndexName,
                 shardId,
                 request.getDownsampleConfig().getInterval()
             );
@@ -492,8 +492,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .toEpochMilli();
     }
 
-    private static String createPersistentTaskId(final String sourceIndex, final ShardId shardId, final DateHistogramInterval interval) {
-        return DOWNSAMPLED_INDEX_PREFIX + sourceIndex + "-" + shardId.id() + "-" + interval;
+    private static String createPersistentTaskId(final String targetIndex, final ShardId shardId, final DateHistogramInterval interval) {
+        return DOWNSAMPLED_INDEX_PREFIX + targetIndex + "-" + shardId.id() + "-" + interval;
     }
 
     @Override
@@ -753,9 +753,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     createIndexClusterStateUpdateRequest,
                     true,
                     // Copy index metadata from source index to downsample index
-                    (builder, indexMetadata) -> builder.put(
-                        copyIndexMetadata(sourceIndexMetadata, indexMetadata, indexScopedSettings)
-                    ),
+                    (builder, indexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, indexMetadata, indexScopedSettings)),
                     delegate.reroute()
                 );
             }

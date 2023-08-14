@@ -48,6 +48,14 @@ import static org.hamcrest.Matchers.greaterThan;
 public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     private static final String DEFAULT_ACCOUNT_NAME = "account";
+    private static final Set<String> EXPECTED_REQUEST_NAMES = Set.of(
+        "GetBlob",
+        "ListBlobs",
+        "GetBlobProperties",
+        "PutBlob",
+        "PutBlock",
+        "PutBlockList"
+    );
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -84,9 +92,29 @@ public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase 
     }
 
     @Override
+    protected String repositoryType() {
+        return "azure";
+    }
+
+    @Override
+    protected Settings repositorySettings() {
+        return Settings.builder()
+            .put(super.repositorySettings())
+            .put("bucket", "container")
+            .put("base_path", "backup")
+            .put("client", "test")
+            .build();
+    }
+
+    @Override
     protected void assertRepositoryStats(RepositoryStats repositoryStats) {
-        final Set<String> expectedRequestNames = Set.of("GetBlob", "ListBlobs", "GetBlobProperties", "PutBlob", "PutBlock", "PutBlockList");
-        assertEquals(expectedRequestNames, repositoryStats.requestCounts.keySet());
+        assertEquals(EXPECTED_REQUEST_NAMES, repositoryStats.requestCounts.keySet());
+        repositoryStats.requestCounts.values().forEach(count -> assertThat(count, greaterThan(0L)));
+    }
+
+    @Override
+    protected void assertObsRepositoryStatsSnapshots(RepositoryStats repositoryStats) {
+        assertEquals(EXPECTED_REQUEST_NAMES, repositoryStats.requestCounts.keySet());
         repositoryStats.requestCounts.values().forEach(count -> assertThat(count, greaterThan(0L)));
     }
 }

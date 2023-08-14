@@ -29,7 +29,6 @@ import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,6 +39,15 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
+    private static final Set<String> EXPECTED_REQUEST_NAMES = Set.of(
+        "GetObject",
+        "ListObjects",
+        "PutObject",
+        "PutMultipartObject",
+        "DeleteObjects",
+        "AbortMultipartObject"
+    );
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(super.nodePlugins().stream(), List.of(S3RepositoryPlugin.class).stream()).toList();
@@ -47,7 +55,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
-        return Collections.singletonMap("/bucket", new S3HttpHandler("bucket"));
+        return Map.of("/bucket", new S3HttpHandler("bucket"));
     }
 
     @Override
@@ -63,18 +71,37 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
     }
 
     @Override
+    protected String repositoryType() {
+        return "s3";
+    }
+
+    @Override
+    protected Settings repositorySettings() {
+        return Settings.builder()
+            .put(super.repositorySettings())
+            .put("bucket", "bucket")
+            .put("base_path", "backup")
+            .put("client", "test")
+            .build();
+    }
+
+    @Override
     protected void assertRepositoryStats(RepositoryStats repositoryStats) {
-        final Set<String> expectedRequestNames = Set.of(
-            "GetObject",
-            "ListObjects",
-            "PutObject",
-            "PutMultipartObject",
-            "DeleteObjects",
-            "AbortMultipartObject"
-        );
-        assertEquals(expectedRequestNames, repositoryStats.requestCounts.keySet());
+        assertEquals(EXPECTED_REQUEST_NAMES, repositoryStats.requestCounts.keySet());
         repositoryStats.requestCounts.forEach((metricName, count) -> {
             if ("AbortMultipartObject".equals(metricName)) {
+                assertThat(count, greaterThanOrEqualTo(0L));
+            } else {
+                assertThat(count, greaterThan(0L));
+            }
+        });
+    }
+
+    @Override
+    protected void assertObsRepositoryStatsSnapshots(RepositoryStats repositoryStats) {
+        assertEquals(EXPECTED_REQUEST_NAMES, repositoryStats.requestCounts.keySet());
+        repositoryStats.requestCounts.forEach((metricName, count) -> {
+            if ("AbortMultipartObject".equals(metricName) || "PutMultipartObject".equals(metricName)) {
                 assertThat(count, greaterThanOrEqualTo(0L));
             } else {
                 assertThat(count, greaterThan(0L));

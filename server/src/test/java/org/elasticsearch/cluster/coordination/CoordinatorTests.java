@@ -1941,7 +1941,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             )
         ) {
             cluster.runRandomly();
-            cluster.stabilise();
+            // must allow extra time for stabilisation due to enthusiastic backoff settings
+            cluster.stabilise(DEFAULT_STABILISATION_TIME + TimeValue.timeValueMinutes(20).millis());
 
             final long followerCheckMillis = defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + 2 * DEFAULT_DELAY_VARIABILITY;
             final long leaderCheckMillis = defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + 2 * DEFAULT_DELAY_VARIABILITY;

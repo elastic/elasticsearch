@@ -78,7 +78,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         // at the end of the search
         addReleasable(resultConsumer);
 
-        if (progressListener != SearchProgressListener.NOOP) {
+        if (progressListener != SearchProgressListener.NOOP) {  /// MP TODO: remove this if check?
             notifyListShards(progressListener, clusters, request.source());
         }
     }

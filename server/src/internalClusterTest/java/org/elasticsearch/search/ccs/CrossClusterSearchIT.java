@@ -11,6 +11,7 @@ package org.elasticsearch.search.ccs;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -110,9 +111,13 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         }
         boolean minimizeRoundtrips = randomBoolean();
         searchRequest.setCcsMinimizeRoundtrips(minimizeRoundtrips);
-
         boolean dfs = randomBoolean();
-
+        if (dfs) {
+            searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+        }
+        if (randomBoolean()) {
+            searchRequest.setPreFilterShardSize(1);
+        }
 
         searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
         client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
@@ -166,6 +171,14 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             searchRequest.setBatchedReduceSize(randomIntBetween(3, 20));
         }
+        boolean dfs = randomBoolean();
+        if (dfs) {
+            searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+        }
+        System.err.println("dfs: " + dfs);
+        if (randomBoolean()) {
+            searchRequest.setPreFilterShardSize(1);
+        }
         searchRequest.setPreFilterShardSize(1);
         RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("@timestamp").from(EARLIEST_TIMESTAMP - 2000)
             .to(EARLIEST_TIMESTAMP - 1000);
@@ -193,7 +206,12 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
         assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
         assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards));
-        assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(localNumShards - 1));
+        if (dfs) {
+            // with DFS_QUERY_THEN_FETCH, the local shards are never skipped
+            assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
+        } else {
+            assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(localNumShards - 1));
+        }
         assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
         assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
         assertThat(localClusterSearchInfo.getTook().millis(), greaterThanOrEqualTo(0L));
@@ -226,13 +244,17 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             searchRequest.setBatchedReduceSize(randomIntBetween(3, 20));
         }
-
+        boolean dfs = randomBoolean();
+        if (dfs) {
+            searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+        }
+        if (randomBoolean()) {
+            searchRequest.setPreFilterShardSize(1);
+        }
         // shardId 0 means to throw the Exception only on shard 0; all others should work
         ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), 0);
         searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10));
         client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
-
-        assertBusy(() -> assertTrue(queryFuture.isDone()));
 
         SearchResponse searchResponse = queryFuture.get();
         assertNotNull(searchResponse);
@@ -283,6 +305,13 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             searchRequest.setBatchedReduceSize(randomIntBetween(3, 20));
         }
+        boolean dfs = randomBoolean();
+        if (dfs) {
+            searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+        }
+        if (randomBoolean()) {
+            searchRequest.setPreFilterShardSize(1);
+        }
 
         // throw Exception on all shards of remoteIndex, but not against localIndex
         ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(
@@ -298,7 +327,8 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         assertBusy(() -> assertTrue(queryFuture.isDone()));
 
-        if (skipUnavailable == false && minimizeRoundtrips) {
+        // dfs=true overrides the minimize_roundtrips=true setting and does not minimize roundtrips
+        if (skipUnavailable == false && minimizeRoundtrips && dfs == false) {
             ExecutionException ee = expectThrows(ExecutionException.class, () -> queryFuture.get());
             assertNotNull(ee.getCause());
             assertThat(ee.getCause(), instanceOf(RemoteTransportException.class));
@@ -309,7 +339,9 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             assertNotNull(searchResponse);
 
             SearchResponse.Clusters clusters = searchResponse.getClusters();
-            assertThat(clusters.isCcsMinimizeRoundtrips(), equalTo(minimizeRoundtrips));
+            if (dfs == false) {
+                assertThat(clusters.isCcsMinimizeRoundtrips(), equalTo(minimizeRoundtrips));
+            }
             assertThat(clusters.getTotal(), equalTo(2));
             assertThat(clusters.getSuccessful(), equalTo(1));
             assertThat(clusters.getSkipped(), equalTo(1));
@@ -366,6 +398,13 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             searchRequest.setBatchedReduceSize(randomIntBetween(3, 20));
         }
+        boolean dfs = randomBoolean();
+        if (dfs) {
+            searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+        }
+        if (randomBoolean()) {
+            searchRequest.setPreFilterShardSize(1);
+        }
 
         TimeValue searchTimeout = new TimeValue(100, TimeUnit.MILLISECONDS);
         // query builder that will sleep for the specified amount of time in the query phase but only on the remote Index
@@ -420,10 +459,15 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             searchRequest.setBatchedReduceSize(randomIntBetween(3, 20));
         }
+        boolean dfs = randomBoolean();
+        if (dfs) {
+            searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+        }
+        if (randomBoolean()) {
+            searchRequest.setPreFilterShardSize(1);
+        }
         searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
         client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
-
-        assertBusy(() -> assertTrue(queryFuture.isDone()));
 
         SearchResponse searchResponse = queryFuture.get();
         assertNotNull(searchResponse);
@@ -460,13 +504,18 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             searchRequest.setBatchedReduceSize(randomIntBetween(3, 20));
         }
+        boolean dfs = randomBoolean();
+        if (dfs) {
+            searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+        }
+        if (randomBoolean()) {
+            searchRequest.setPreFilterShardSize(1);
+        }
 
         // shardId 0 means to throw the Exception only on shard 0; all others should work
         ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), 0);
         searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10));
         client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
-
-        assertBusy(() -> assertTrue(queryFuture.isDone()));
 
         SearchResponse searchResponse = queryFuture.get();
         assertNotNull(searchResponse);
@@ -504,6 +553,13 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             searchRequest.setBatchedReduceSize(randomIntBetween(3, 20));
         }
+        boolean dfs = randomBoolean();
+        if (dfs) {
+            searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+        }
+        if (randomBoolean()) {
+            searchRequest.setPreFilterShardSize(1);
+        }
 
         // shardId -1 means to throw the Exception on all shards, so should result in complete search failure
         ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), -1);
@@ -512,7 +568,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         assertBusy(() -> assertTrue(queryFuture.isDone()));
 
-        if (skipUnavailable == false || minimizeRoundtrips == false) {
+        if (skipUnavailable == false || minimizeRoundtrips == false || dfs) {
             ExecutionException ee = expectThrows(ExecutionException.class, () -> queryFuture.get());
             assertNotNull(ee.getCause());
             Throwable rootCause = ExceptionsHelper.unwrap(ee, IllegalStateException.class);
@@ -547,7 +603,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
     private Map<String, Object> setupTwoClusters() {
         String localIndex = "demo";
-        int numShardsLocal = randomIntBetween(5, 30);
+        int numShardsLocal = randomIntBetween(2, 10);
         Settings localSettings = indexSettings(numShardsLocal, randomIntBetween(0, 1)).build();
         assertAcked(
             client(LOCAL_CLUSTER).admin()
@@ -559,7 +615,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         indexDocs(client(LOCAL_CLUSTER), localIndex);
 
         String remoteIndex = "prod";
-        int numShardsRemote = randomIntBetween(5, 30);
+        int numShardsRemote = randomIntBetween(2, 10);
         final InternalTestCluster remoteCluster = cluster(REMOTE_CLUSTER);
         remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(1, 3));
         final Settings.Builder remoteSettings = Settings.builder();

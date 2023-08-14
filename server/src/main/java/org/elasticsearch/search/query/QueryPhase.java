@@ -179,10 +179,6 @@ public class QueryPhase {
                 }
             }
 
-            CollectorManager<Collector, Void> aggsCollectorManager = searchContext.aggregations() == null
-                ? null
-                : searchContext.aggregations().getAggsCollectorManager();
-
             final boolean hasFilterCollector = searchContext.parsedPostFilter() != null || searchContext.minimumScore() != null;
 
             Weight postFilterWeight = null;
@@ -196,7 +192,7 @@ public class QueryPhase {
 
             CollectorManager<Collector, QueryPhaseResult> collectorManager = QueryPhaseCollectorManager.createQueryPhaseCollectorManager(
                 postFilterWeight,
-                aggsCollectorManager,
+                searchContext.aggregations() == null ? null : searchContext.aggregations().getAggsCollectorManager(),
                 searchContext,
                 hasFilterCollector
             );

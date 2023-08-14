@@ -94,12 +94,24 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         this.profile = profile;
     }
 
+    /**
+     * Returns the reason to set to the profile output when profiling is enabled
+     */
+    String getTopDocsProfilerReason() {
+        return REASON_SEARCH_TOP_HITS;
+    }
+
+    /**
+     * Returns the fields that sorting was applied on, to be returned as part of the search response
+     */
+    abstract DocValueFormat[] getSortValueFormats();
+
     @Override
     public final Collector newCollector() throws IOException {
         if (profile) {
             InternalProfileCollector topDocsProfileCollector = new InternalProfileCollector(
                 newTopDocsCollector(),
-                getTopDocsProfilerName()
+                getTopDocsProfilerReason()
             );
             if (aggsCollectorManager == null) {
                 return new InternalProfileCollector(
@@ -181,20 +193,14 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         return new QueryPhaseResult(topDocsAndMaxScore, getSortValueFormats(), terminatedAfter, collectorResult);
     }
 
+    abstract TopDocsAndMaxScore reduceTopDocsCollectors(Collection<Collector> collectors) throws IOException;
+
     private static CollectorResult reduceCollectorResults(Collection<CollectorResult> collectorResults, List<CollectorResult> children) {
         long totalTime = collectorResults.stream().map(CollectorResult::getTime).reduce(0L, Long::sum);
         String collectorName = collectorResults.iterator().next().getName();
         String reason = collectorResults.iterator().next().getReason();
         return new CollectorResult(collectorName, reason, totalTime, children);
     }
-
-    abstract TopDocsAndMaxScore reduceTopDocsCollectors(Collection<Collector> collectors) throws IOException;
-
-    String getTopDocsProfilerName() {
-        return REASON_SEARCH_TOP_HITS;
-    }
-
-    abstract DocValueFormat[] getSortValueFormats();
 
     /**
      * Creates a {@link QueryPhaseCollectorManager} from the provided <code>searchContext</code>.
@@ -347,7 +353,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         }
 
         @Override
-        protected String getTopDocsProfilerName() {
+        protected String getTopDocsProfilerReason() {
             return CollectorResult.REASON_SEARCH_COUNT;
         }
 
@@ -366,18 +372,6 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         private final TotalHits shortcutTotalHits;
         private final CollectorManager<? extends TopDocsCollector<?>, ? extends TopDocs> topDocsManager;
 
-        /**
-         * Creates a new {@link CollectorManager} for situations where size is greater than 0
-         *
-         * @param reader             The index reader
-         * @param query              The Lucene query
-         * @param sortAndFormats     The sort clause if provided
-         * @param numHits            The number of top hits to retrieve
-         * @param searchAfter        The doc this request should "search after"
-         * @param trackMaxScore      True if max score should be tracked
-         * @param trackTotalHitsUpTo Threshold up to which total hit count should be tracked
-         * @param hasFilterCollector True if the collector chain contains at least one collector that can filter documents out
-         */
         WithHits(
             Weight postFilterWeight,
             QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker,

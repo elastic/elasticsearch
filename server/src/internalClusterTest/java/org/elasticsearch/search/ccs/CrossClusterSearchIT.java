@@ -175,7 +175,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         if (dfs) {
             searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
         }
-        System.err.println("dfs: " + dfs);
         if (randomBoolean()) {
             searchRequest.setPreFilterShardSize(1);
         }
@@ -186,11 +185,8 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         searchRequest.source(new SearchSourceBuilder().query(rangeQueryBuilder).size(10));
         client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
 
-        System.err.println("minimizeRoundtrips: " + minimizeRoundtrips);
-
         SearchResponse searchResponse = queryFuture.get();
         assertNotNull(searchResponse);
-        System.err.println(searchResponse);
 
         SearchResponse.Clusters clusters = searchResponse.getClusters();
         assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
@@ -321,9 +317,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         );
         searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10));
         client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
-
-        System.err.println("skipUnavailable: " + skipUnavailable);
-        System.err.println("minimize_roundtrips: " + minimizeRoundtrips);
 
         assertBusy(() -> assertTrue(queryFuture.isDone()));
 

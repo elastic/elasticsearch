@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
@@ -33,7 +31,6 @@ import java.util.stream.Stream;
  */
 public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressListener {
 
-    private static final Logger logger = LogManager.getLogger(CCSSingleCoordinatorSearchProgressListener.class);
     private SearchResponse.Clusters clusters;
     private TransportSearchAction.SearchTimeProvider timeProvider;
 
@@ -53,10 +50,6 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         boolean fetchPhase,
         TransportSearchAction.SearchTimeProvider timeProvider
     ) {
-        logger.warn("XXX SSS CCSProgListener onListShards: shards size: {}; shards: {}", shards.size(), shards);
-        logger.warn("XXX SSS CCSProgListener onListShards: skipped size: {}; skipped: {}", skipped.size(), skipped);
-        logger.warn("XXX SSS CCSProgListener onListShards: clusters: {}", clusters);
-        logger.warn("XXX SSS CCSProgListener onListShards: fetchPhase: {}", fetchPhase);
         assert clusters.isCcsMinimizeRoundtrips() == false : "minimize_roundtrips must be false to use this SearchListener";
 
         this.clusters = clusters;
@@ -84,9 +77,6 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
             }
             TimeValue took = null;
 
-            System.err.println("XXX SSS CCSProgListener onListShards totalCount for " + clusterAlias + " = " + totalCount);
-            System.err.println("XXX SSS CCSProgListener onListShards skippedCount for " + clusterAlias + " = " + skippedCount);
-
             boolean swapped;
             do {
                 SearchResponse.Cluster curr = clusterRef.get();
@@ -111,7 +101,6 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                 );
                 swapped = clusterRef.compareAndSet(curr, updated);
                 assert swapped : "compareAndSet in onListShards should never fail due to race condition";
-                logger.warn("XXX SSS CCSProgListener onListShards DEBUG 66 swapped: {} ;; new cluster: {}", swapped, updated);
             } while (swapped == false);
         }
     }
@@ -124,9 +113,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
      */
     @Override
     public void onQueryResult(int shardIndex, QuerySearchResult queryResult) {
-        // logger.warn("XXX __Q__ CCSProgListener onQueryResult for : {}", queryResult.getSearchShardTarget());
         if (queryResult.searchTimedOut() && clusters.hasClusterObjects()) {
-            logger.warn("XXX __Q__ CCSProgListener onQueryResult TIMED_OUT on target: {}", queryResult.getSearchShardTarget());
             SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
             String clusterAlias = shardTarget.getClusterAlias();
             if (clusterAlias == null) {
@@ -156,7 +143,6 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                     true
                 );
                 swapped = clusterRef.compareAndSet(curr, updated);
-                logger.warn("XXX __Q__ onQueryResult swapped: {} ;; new cluster: {}", swapped, updated);
             } while (swapped == false);
         }
     }
@@ -170,8 +156,6 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
      */
     @Override
     public void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception e) {
-        // logger.warn("XXX __L__ CCSProgListener onQueryFailure shardTarget: {}; exc: {}", shardTarget, e);
-
         if (clusters.hasClusterObjects() == false) {
             return;
         }
@@ -190,10 +174,8 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
             assert curr.getTotalShards() != null : "total shards should be set on the Cluster but not for " + clusterAlias;
             if (curr.getTotalShards() == numFailedShards) {
                 if (curr.isSkipUnavailable()) {
-                    logger.warn("XXX __L__ onQueryFailure SETTING SKIPPED status bcs total=failed_shards; skipun=true !");
                     status = SearchResponse.Cluster.Status.SKIPPED;
                 } else {
-                    logger.warn("XXX __L__ onQueryFailure SETTING FAILED status bcs total=failed_shards; skipun=false !");
                     status = SearchResponse.Cluster.Status.FAILED;
                     // TODO in the fail-fast ticket, should we throw an exception here to stop the search?
                 }
@@ -219,7 +201,6 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                 curr.isTimedOut()
             );
             swapped = clusterRef.compareAndSet(curr, updated);
-            logger.warn("XXX __L__ onQueryFailure swapped: {} ;;;; new cluster: {}", swapped, updated);
         } while (swapped == false);
     }
 
@@ -234,19 +215,11 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
      */
     @Override
     public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
-        // logger.warn(
-        // "XXX __P__ CCSProgListener onPartialReduce. shards {}, totalHits: {}; reducePhase: {}",
-        // shards,
-        // totalHits.value,
-        // reducePhase
-        // );
-
         Map<String, Integer> totalByClusterAlias = shards.stream().collect(Collectors.groupingBy(shard -> {
             String clusterAlias = shard.clusterAlias();
             return clusterAlias != null ? clusterAlias : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
         }, Collectors.reducing(0, e -> 1, Integer::sum)));
 
-        System.err.println("XXX __P__ CCSProgListener onPartialReduce: " + totalByClusterAlias);
         for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
             String clusterAlias = entry.getKey();
             int successfulCount = entry.getValue().intValue();
@@ -283,7 +256,6 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                     curr.isTimedOut()
                 );
                 swapped = clusterRef.compareAndSet(curr, updated);
-                logger.warn("XXX __P__ DEBUG 33 onPartialReduce swapped: {} ;; new cluster: {}", updated);
             } while (swapped == false);
         }
     }
@@ -298,13 +270,6 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
      */
     @Override
     public void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
-        // logger.warn(
-        // "XXX __L__ CCSProgListener onFinalReduce. shards {}, totalHits: {}; reducePhase: {}",
-        // shards,
-        // totalHits.value,
-        // reducePhase
-        // );
-
         if (clusters.hasClusterObjects() == false) {
             return;
         }
@@ -314,7 +279,6 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
             return clusterAlias != null ? clusterAlias : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
         }, Collectors.reducing(0, e -> 1, Integer::sum)));
 
-        System.err.println("XXX __L__ CCSProgListener onFinalReduce: " + totalByClusterAlias);
         for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
             String clusterAlias = entry.getKey();
             int successfulCount = entry.getValue().intValue();
@@ -359,7 +323,6 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                     curr.isTimedOut()
                 );
                 swapped = clusterRef.compareAndSet(curr, updated);
-                logger.warn("XXX __L__ DEBUG 44 onFinalReduce swapped: {} ;; new cluster: {}", updated);
             } while (swapped == false);
         }
     }

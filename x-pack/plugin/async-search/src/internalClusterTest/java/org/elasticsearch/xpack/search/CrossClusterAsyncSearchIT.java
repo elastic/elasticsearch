@@ -187,10 +187,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
-            System.err.println(Strings.toString(finishedResponse.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)));
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
-
             assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
             assertThat(clusters.getTotal(), equalTo(2));
             assertThat(clusters.getSuccessful(), equalTo(2));
@@ -305,7 +303,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
             assertNotNull(finishedResponse);
-            System.err.println(Strings.toString(finishedResponse.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)));
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
             assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
@@ -385,8 +382,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
-            System.err.println(skipUnavailable);
-            System.err.println(Strings.toString(finishedResponse.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)));
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
             assertThat(clusters.getTotal(), equalTo(2));
@@ -546,9 +541,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
-            System.err.println(Strings.toString(finishedResponse.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)));
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
-            System.err.println(clusters);
             assertThat(clusters.getTotal(), equalTo(2));
             assertThat(clusters.getSuccessful(), equalTo(2));
             assertThat(clusters.getSkipped(), equalTo(0));

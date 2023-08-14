@@ -6,6 +6,9 @@ setup:
 
 ---
 'Create Query Ruleset':
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/98452"
   - do:
       query_ruleset.put:
         ruleset_id: test-ruleset
@@ -68,6 +71,9 @@ setup:
 
 ---
 'Create Query Ruleset - Resource already exists':
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/98452"
   - do:
       query_ruleset.put:
         ruleset_id: test-query-ruleset-recreating
@@ -108,6 +114,8 @@ setup:
 'Create Query Ruleset - Insufficient privilege':
   - skip:
       features: headers
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/98452"
 
   - do:
       catch: forbidden

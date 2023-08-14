@@ -77,7 +77,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     public static final String DATA_STREAM_LIFECYCLE_POLL_INTERVAL = "data_streams.lifecycle.poll_interval";
     public static final Setting<TimeValue> DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING = Setting.timeSetting(
         DATA_STREAM_LIFECYCLE_POLL_INTERVAL,
-        TimeValue.timeValueMinutes(10),
+        TimeValue.timeValueMinutes(5),
         TimeValue.timeValueSeconds(1),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -256,7 +256,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 maybeExecuteRollover(state, dataStream);
             } catch (Exception e) {
                 logger.error(
-                    () -> String.format(Locale.ROOT, "Data stream lifecycle failed to rollver data stream [%s]", dataStream.getName()),
+                    () -> String.format(Locale.ROOT, "Data stream lifecycle failed to rollover data stream [%s]", dataStream.getName()),
                     e
                 );
                 DataStream latestDataStream = clusterService.state().metadata().dataStreams().get(dataStream.getName());

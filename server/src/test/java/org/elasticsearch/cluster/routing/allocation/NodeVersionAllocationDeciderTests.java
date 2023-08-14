@@ -91,7 +91,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(2))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(5).numberOfReplicas(2))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -190,7 +190,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         for (int i = 0; i < numIndices; i++) {
             builder.put(
                 IndexMetadata.builder("test_" + i)
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(between(1, 5))
                     .numberOfReplicas(between(0, 2))
             );
@@ -242,7 +242,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(2))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(5).numberOfReplicas(2))
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -325,14 +325,14 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(shard1.getIndexName())
-                    .settings(settings(Version.CURRENT).put(Settings.EMPTY))
+                    .settings(settings(IndexVersion.current()).put(Settings.EMPTY))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
                     .putInSyncAllocationIds(0, Sets.newHashSet(allocationId1P.getId(), allocationId1R.getId()))
             )
             .put(
                 IndexMetadata.builder(shard2.getIndexName())
-                    .settings(settings(Version.CURRENT).put(Settings.EMPTY))
+                    .settings(settings(IndexVersion.current()).put(Settings.EMPTY))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
                     .putInSyncAllocationIds(0, Sets.newHashSet(allocationId2P.getId(), allocationId2R.getId()))
@@ -429,7 +429,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
 
         final int numberOfShards = randomIntBetween(1, 3);
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(numberOfShards)
             .numberOfReplicas(randomIntBetween(0, 3));
         for (int i = 0; i < numberOfShards; i++) {
@@ -550,7 +550,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     public void testMessages() {
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -609,13 +609,13 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         final SnapshotRecoverySource newVersionSnapshot = new SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
-            newNode.node().getVersion().indexVersion,
+            newNode.node().getMaxIndexVersion(),
             indexId
         );
         final SnapshotRecoverySource oldVersionSnapshot = new SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
-            oldNode.node().getVersion().indexVersion,
+            oldNode.node().getMaxIndexVersion(),
             indexId
         );
 
@@ -628,10 +628,10 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(
             decision.getExplanation(),
             is(
-                "node version ["
-                    + oldNode.node().getVersion()
+                "max supported index version ["
+                    + oldNode.node().getMaxIndexVersion()
                     + "] is older than the snapshot version ["
-                    + newNode.node().getVersion()
+                    + newNode.node().getMaxIndexVersion()
                     + "]"
             )
         );
@@ -645,10 +645,10 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(
             decision.getExplanation(),
             is(
-                "node version ["
-                    + newNode.node().getVersion()
+                "max supported index version ["
+                    + newNode.node().getMaxIndexVersion()
                     + "] is the same or newer than snapshot version ["
-                    + oldNode.node().getVersion()
+                    + oldNode.node().getMaxIndexVersion()
                     + "]"
             )
         );

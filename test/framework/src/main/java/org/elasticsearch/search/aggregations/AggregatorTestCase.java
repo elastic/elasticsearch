@@ -43,7 +43,6 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriConsumer;
@@ -61,6 +60,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -213,7 +213,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             10,
             EsExecutors.daemonThreadFactory("test"),
             threadPool.getThreadContext(),
-            randomBoolean()
+            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
         List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
         plugins.add(new AggCardinalityUpperBoundPlugin());
@@ -443,7 +443,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected IndexSettings createIndexSettings() {
         return new IndexSettings(
             IndexMetadata.builder("_index")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .creationDate(System.currentTimeMillis())
@@ -594,7 +594,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                             return null;
                         }
                     };
-                    if (aggTestConfig.builder().supportsConcurrentExecution()) {
+                    if (aggTestConfig.builder().supportsParallelCollection()) {
                         searcher.search(rewritten, collectorManager);
                     } else {
                         searcher.search(rewritten, collectorManager.newCollector());
@@ -929,14 +929,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(),
                 randomBoolean(),
-                this.threadPoolExecutor
-            ) {
-                @Override
-                protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-                    // get a thread per segment
-                    return slices(leaves, 1, 1);
-                }
-            };
+                this.threadPoolExecutor,
+                this.threadPoolExecutor.getMaximumPoolSize(),
+                1 // forces multiple slices
+            );
         }
     }
 

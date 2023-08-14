@@ -10,6 +10,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -17,11 +18,16 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlLTRNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilderTests;
+import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigTests.randomLearnToRankConfig;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,10 +37,15 @@ import static org.hamcrest.Matchers.is;
 public class LearnToRankConfigUpdateTests extends AbstractBWCSerializationTestCase<LearnToRankConfigUpdate> {
 
     public static LearnToRankConfigUpdate randomLearnToRankConfigUpdate() {
-        return new LearnToRankConfigUpdate(randomBoolean() ? null : randomIntBetween(0, 10), null);
+        return new LearnToRankConfigUpdate(
+            randomBoolean() ? null : randomIntBetween(0, 10),
+            randomBoolean()
+                ? null
+                : Stream.generate(QueryExtractorBuilderTests::randomInstance).limit(randomInt(5)).collect(Collectors.toList())
+        );
     }
 
-    public void testApply() {
+    public void testApply() throws IOException {
         LearnToRankConfig originalConfig = randomLearnToRankConfig();
         assertThat(originalConfig, equalTo(LearnToRankConfigUpdate.EMPTY_PARAMS.apply(originalConfig)));
         assertThat(
@@ -46,8 +57,14 @@ public class LearnToRankConfigUpdateTests extends AbstractBWCSerializationTestCa
             equalTo(new LearnToRankConfigUpdate.Builder().setNumTopFeatureImportanceValues(1).build().apply(originalConfig))
         );
 
-        LearnToRankFeatureExtractorBuilder extractorBuilder = new LearnToRankConfigTests.TestValueExtractor("foo");
-        LearnToRankFeatureExtractorBuilder extractorBuilder2 = new LearnToRankConfigTests.TestValueExtractor("bar");
+        LearnToRankFeatureExtractorBuilder extractorBuilder = new QueryExtractorBuilder(
+            "foo",
+            QueryProvider.fromParsedQuery(QueryBuilders.termQuery("foo", "bar"))
+        );
+        LearnToRankFeatureExtractorBuilder extractorBuilder2 = new QueryExtractorBuilder(
+            "bar",
+            QueryProvider.fromParsedQuery(QueryBuilders.termQuery("foo", "bar"))
+        );
 
         LearnToRankConfig config = new LearnToRankConfigUpdate.Builder().setNumTopFeatureImportanceValues(1)
             .setFeatureExtractorBuilders(List.of(extractorBuilder2, extractorBuilder))
@@ -89,13 +106,6 @@ public class LearnToRankConfigUpdateTests extends AbstractBWCSerializationTestCa
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlLTRNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
-        namedXContent.add(
-            new NamedXContentRegistry.Entry(
-                LearnToRankFeatureExtractorBuilder.class,
-                LearnToRankConfigTests.TestValueExtractor.NAME,
-                LearnToRankConfigTests.TestValueExtractor::fromXContent
-            )
-        );
         return new NamedXContentRegistry(namedXContent);
     }
 
@@ -103,13 +113,7 @@ public class LearnToRankConfigUpdateTests extends AbstractBWCSerializationTestCa
     protected NamedWriteableRegistry writableRegistry() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(new MlInferenceNamedXContentProvider().getNamedWriteables());
         namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                LearnToRankFeatureExtractorBuilder.class,
-                LearnToRankConfigTests.TestValueExtractor.NAME.getPreferredName(),
-                LearnToRankConfigTests.TestValueExtractor::new
-            )
-        );
+        namedWriteables.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
         return new NamedWriteableRegistry(namedWriteables);
     }
 

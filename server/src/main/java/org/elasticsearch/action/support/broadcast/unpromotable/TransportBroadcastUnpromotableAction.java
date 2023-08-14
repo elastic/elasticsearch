@@ -29,6 +29,8 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.Executor;
+
 public abstract class TransportBroadcastUnpromotableAction<Request extends BroadcastUnpromotableRequest> extends HandledTransportAction<
     Request,
     ActionResponse.Empty> {
@@ -38,7 +40,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
     protected final ShardStateAction shardStateAction;
 
     protected final String transportUnpromotableAction;
-    protected final String executor;
+    protected final Executor executor;
 
     protected TransportBroadcastUnpromotableAction(
         String actionName,
@@ -54,7 +56,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
         this.shardStateAction = shardStateAction;
         this.transportService = transportService;
         this.transportUnpromotableAction = actionName + "[u]";
-        this.executor = executor;
+        this.executor = transportService.getThreadPool().executor(executor);
 
         transportService.registerRequestHandler(transportUnpromotableAction, executor, requestReader, new UnpromotableTransportHandler());
     }

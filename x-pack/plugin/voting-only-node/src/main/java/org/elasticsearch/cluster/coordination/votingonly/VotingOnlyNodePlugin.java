@@ -56,6 +56,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -222,8 +223,8 @@ public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationP
                         }
 
                         @Override
-                        public String executor() {
-                            return handler.executor();
+                        public Executor executor(ThreadPool threadPool) {
+                            return handler.executor(threadPool);
                         }
 
                         @Override

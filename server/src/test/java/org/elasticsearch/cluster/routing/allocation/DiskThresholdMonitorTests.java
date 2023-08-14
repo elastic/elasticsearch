@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
@@ -40,6 +39,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -71,25 +71,25 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
-                    .settings(settings(Version.CURRENT).put("index.routing.allocation.require._id", "node2"))
+                    .settings(settings(IndexVersion.current()).put("index.routing.allocation.require._id", "node2"))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
             )
             .put(
                 IndexMetadata.builder("test_1")
-                    .settings(settings(Version.CURRENT).put("index.routing.allocation.require._id", "node1"))
+                    .settings(settings(IndexVersion.current()).put("index.routing.allocation.require._id", "node1"))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
             )
             .put(
                 IndexMetadata.builder("test_2")
-                    .settings(settings(Version.CURRENT).put("index.routing.allocation.require._id", "node1"))
+                    .settings(settings(IndexVersion.current()).put("index.routing.allocation.require._id", "node1"))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
             )
             .put(
                 IndexMetadata.builder("frozen")
-                    .settings(settings(Version.CURRENT).put("index.routing.allocation.require._id", "frozen"))
+                    .settings(settings(IndexVersion.current()).put("index.routing.allocation.require._id", "frozen"))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
             )
@@ -435,8 +435,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test_1").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test_2").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test_1").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test_2").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test_1"))
@@ -771,8 +771,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test_1").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test_2").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test_1").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test_2").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test_1"))
@@ -1285,7 +1285,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
     public void testSkipDiskThresholdMonitorWhenStateNotRecovered() {
         Metadata.Builder metadataBuilder = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1));
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1));
         boolean shutdownMetadataInState = randomBoolean();
         if (shutdownMetadataInState) {
             metadataBuilder.putCustom(

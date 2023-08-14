@@ -11,13 +11,13 @@ package org.elasticsearch.search.dfs;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
@@ -47,7 +47,7 @@ public class DfsPhaseTests extends ESTestCase {
             10,
             EsExecutors.daemonThreadFactory("test"),
             threadPool.getThreadContext(),
-            randomBoolean()
+            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
     }
 
@@ -74,14 +74,10 @@ public class DfsPhaseTests extends ESTestCase {
                 IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(),
                 randomBoolean(),
-                this.threadPoolExecutor
-            ) {
-                @Override
-                protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-                    // get a thread per segment
-                    return slices(leaves, 1, 1);
-                }
-            };
+                threadPoolExecutor,
+                threadPoolExecutor.getMaximumPoolSize(),
+                1
+            );
 
             Query query = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, numDocs, null);
 
@@ -101,7 +97,7 @@ public class DfsPhaseTests extends ESTestCase {
             assertEquals("SimpleTopScoreDocCollector", (collectorResult.getName()));
             assertEquals("search_top_hits", (collectorResult.getReason()));
             assertTrue(collectorResult.getTime() > 0);
-            List<CollectorResult> children = collectorResult.getCollectorResults();
+            List<CollectorResult> children = collectorResult.getChildrenResults();
             if (children.size() > 0) {
                 long totalTime = 0L;
                 for (CollectorResult child : children) {

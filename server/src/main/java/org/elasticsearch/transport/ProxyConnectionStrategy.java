@@ -397,22 +397,6 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
             return "proxy";
         }
 
-        public String getAddress() {
-            return address;
-        }
-
-        public String getServerName() {
-            return serverName;
-        }
-
-        public int getMaxSocketConnections() {
-            return maxSocketConnections;
-        }
-
-        public int getNumSocketsConnected() {
-            return numSocketsConnected;
-        }
-
         @Override
         public RemoteConnectionStrategy.ConnectionStrategy modeType() {
             return RemoteConnectionStrategy.ConnectionStrategy.PROXY;

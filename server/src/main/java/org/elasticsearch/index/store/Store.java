@@ -27,7 +27,6 @@ import org.apache.lucene.store.BufferedChecksum;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -162,10 +161,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock, OnClose onClose) {
         super(shardId, indexSettings);
-        final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
-        logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
-        ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(directory, refreshInterval);
-        this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", shardId));
+        this.directory = new StoreDirectory(
+            byteSizeDirectory(directory, indexSettings, logger),
+            Loggers.getLogger("index.store.deletes", shardId)
+        );
         this.shardLock = shardLock;
         this.onClose = onClose;
 
@@ -355,8 +354,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public StoreStats stats(long reservedBytes, LongUnaryOperator localSizeFunction) throws IOException {
         ensureOpen();
-        long sizeInBytes = directory.estimateSize();
-        return new StoreStats(localSizeFunction.applyAsLong(sizeInBytes), sizeInBytes, reservedBytes);
+        long sizeInBytes = directory.estimateSizeInBytes();
+        long dataSetSizeInBytes = directory.estimateDataSetSizeInBytes();
+        return new StoreStats(localSizeFunction.applyAsLong(sizeInBytes), dataSetSizeInBytes, reservedBytes);
     }
 
     /**
@@ -440,6 +440,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         } catch (IOException e) {
             assert false : e;
             logger.warn(() -> "exception on closing store for [" + shardId + "]", e);
+        }
+    }
+
+    private static ByteSizeDirectory byteSizeDirectory(Directory directory, IndexSettings indexSettings, Logger logger) {
+        if (directory instanceof ByteSizeDirectory byteSizeDirectory) {
+            return byteSizeDirectory;
+        } else {
+            final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
+            logger.debug("store stats are refreshed with {} [{}]", INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval);
+            return new ByteSizeCachingDirectory(directory, refreshInterval);
         }
     }
 
@@ -720,18 +730,23 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         shardLock.setDetails("closing shard");
     }
 
-    static final class StoreDirectory extends FilterDirectory {
+    static final class StoreDirectory extends ByteSizeDirectory {
 
         private final Logger deletesLogger;
 
-        StoreDirectory(ByteSizeCachingDirectory delegateDirectory, Logger deletesLogger) {
+        StoreDirectory(ByteSizeDirectory delegateDirectory, Logger deletesLogger) {
             super(delegateDirectory);
             this.deletesLogger = deletesLogger;
         }
 
-        /** Estimate the cumulative size of all files in this directory in bytes. */
-        long estimateSize() throws IOException {
-            return ((ByteSizeCachingDirectory) getDelegate()).estimateSizeInBytes();
+        @Override
+        public long estimateSizeInBytes() throws IOException {
+            return ((ByteSizeDirectory) getDelegate()).estimateSizeInBytes();
+        }
+
+        @Override
+        public long estimateDataSetSizeInBytes() throws IOException {
+            return ((ByteSizeDirectory) getDelegate()).estimateDataSetSizeInBytes();
         }
 
         @Override

@@ -36,7 +36,7 @@ configured to run both types of scripts. To limit what type of scripts are run,
 set `script.allowed_types` to `inline` or `stored`. To prevent any scripts from 
 running, set `script.allowed_types` to `none`.
 
-IMPORTANT: If you use {kib}, set `script.allowed_types` to `both` or `inline`.
+IMPORTANT: If you use {kib}, set `script.allowed_types` to both or just `inline`.
 Some {kib} features rely on inline scripts and do not function as expected
 if {es} does not allow inline scripts.
 

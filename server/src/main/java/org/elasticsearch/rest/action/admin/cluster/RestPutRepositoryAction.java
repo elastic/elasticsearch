@@ -15,6 +15,8 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -27,6 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Registers repositories
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestPutRepositoryAction extends BaseRestHandler {
 
     @Override

@@ -74,9 +74,9 @@ steps:
         agents:
           provider: aws
           imagePrefix: elasticsearch-{{matrix.image}}
-          instanceType: m5a.8xlarge
+          instanceType: m6g.8xlarge
           diskSizeGb: 350
           diskType: gp3
-          diskName: /dev/xvda
+          diskName: /dev/sda1
         env:
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"

@@ -42,7 +42,8 @@ public class EnrichPolicyMappings {
         "short",
         "text",
         "token_count",
-        "unsigned_long"
+        "unsigned_long",
+        "icu_collation_keyword" // Analysis ICU Plugin
     );
 
     private static final Set<String> REQUIRED_PARAMETER_FIELDS = Set.of(
@@ -58,7 +59,20 @@ public class EnrichPolicyMappings {
         "completion",
         "nested",
         "object",
-        "sparse_vector"
+        "sparse_vector",
+        "histogram", // Analytics Plugin
+        "aggregate_metric_double", // Aggregate Metric Plugin
+        "annotated_text", // Annotated Text Plugin
+        "constant_keyword", // Constant Keyword Mapping Plugin
+        "murmur3", // Murmur3 Field Plugin
+        "_size", // Mapper Size Plugin
+        "rank_feature", // Mapper Extras Module
+        "rank_features", // Mapper Extras Module
+        "match_only_text", // Mapper Extras Module
+        "join", // Parent Join Module
+        "percolator", // Percolator Module
+        "version", // Version Field Plugin
+        "wildcard" // Wildcard Plugin
     ));
     private static final Set<String> UNSUPPORTED_FIELD_TYPES = Set.of();
 

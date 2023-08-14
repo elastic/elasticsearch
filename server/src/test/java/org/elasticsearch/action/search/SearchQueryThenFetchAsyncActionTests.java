@@ -57,6 +57,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.VersionUtils.allVersions;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
@@ -236,7 +237,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
 
     public void testMinimumVersionSameAsNewVersion() throws Exception {
         Version newVersion = Version.CURRENT;
-        Version oldVersion = VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion(newVersion));
+        Version oldVersion = VersionUtils.randomVersionBetween(
+            random(),
+            Version.CURRENT.minimumCompatibilityVersion(),
+            VersionUtils.getPreviousVersion(newVersion)
+        );
         testMixedVersionsShardsSearch(newVersion, oldVersion, newVersion);
     }
 
@@ -337,10 +342,10 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         );
 
         newSearchAsyncAction.start();
-        assertEquals(1, responses.size());
-        assertTrue(responses.get(0) instanceof SearchPhaseExecutionException);
+        assertThat(responses, hasSize(1));
+        assertThat(responses.get(0), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException e = (SearchPhaseExecutionException) responses.get(0);
-        assertTrue(e.getCause() instanceof VersionMismatchException);
+        assertThat(e.getCause(), instanceOf(VersionMismatchException.class));
         assertThat(
             e.getCause().getMessage(),
             equalTo("One of the shards is incompatible with the required minimum version [" + minVersion + "]")

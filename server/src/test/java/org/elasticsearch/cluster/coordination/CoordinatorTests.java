@@ -570,6 +570,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             assertTrue("expected nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
             assertTrue("expected ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
             assertThat("leader should be last to ack", ackCollector.getSuccessfulAckIndex(leader), equalTo(1));
+
+            follower0.setClusterStateApplyResponse(ClusterStateApplyResponse.SUCCEED);
         }
     }
 
@@ -697,9 +699,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
 
             final long originalTerm = leader.coordinator.getCurrentTerm();
-            follower0.coordinator.onFollowerCheckRequest(
-                new FollowersChecker.FollowerCheckRequest(originalTerm + 1, leader.coordinator.getLocalNode())
-            );
+            follower0.onNode(
+                () -> follower0.coordinator.onFollowerCheckRequest(
+                    new FollowersChecker.FollowerCheckRequest(originalTerm + 1, leader.coordinator.getLocalNode())
+                )
+            ).run();
 
             AckCollector ackCollector = leader.submitValue(randomLong());
             cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "cluster state update");
@@ -2026,6 +2030,27 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             );
 
             cluster.clusterNodes.forEach(ClusterNode::clearActionBlocks);
+        }
+    }
+
+    public void testElectionWithSlowPublication() {
+        final var delayedActions = new HashSet<>();
+        try (Cluster cluster = new Cluster(7, true, Settings.EMPTY) {
+            @Override
+            protected long transportDelayMillis(String actionName) {
+                return delayedActions.contains(actionName) ? between(1000, 2000) : 0;
+            }
+        }) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            final var leader = cluster.getAnyLeader();
+
+            logger.info("--> marking leader [{}] as blackholed and adding action delays", leader);
+            delayedActions.add(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME);
+            delayedActions.add(FollowersChecker.FOLLOWER_CHECK_ACTION_NAME);
+            leader.blackhole();
+            cluster.stabilise();
+            delayedActions.clear();
         }
     }
 

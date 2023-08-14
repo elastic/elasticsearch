@@ -956,6 +956,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             );
         }
 
+        protected long transportDelayMillis(String actionName) {
+            return 0;
+        }
+
         public class ClusterNode {
             private final Logger logger = LogManager.getLogger(ClusterNode.class);
 
@@ -1063,7 +1067,32 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             default -> assertThat(action, chanType, equalTo(TransportRequestOptions.Type.REG));
                         }
 
-                        super.onSendRequest(requestId, action, request, options, destinationTransport);
+                        final long transportDelayMillis = transportDelayMillis(action);
+                        final Runnable delivery = () -> super.onSendRequest(requestId, action, request, options, destinationTransport);
+                        if (transportDelayMillis > 0) {
+                            deterministicTaskQueue.scheduleAt(
+                                deterministicTaskQueue.getCurrentTimeMillis() + transportDelayMillis,
+                                onNode(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        delivery.run();
+                                    }
+
+                                    @Override
+                                    public String toString() {
+                                        return Strings.format(
+                                            "delayed onSendRequest for [%d][%s] from [%s] to [%s]",
+                                            requestId,
+                                            action,
+                                            localNode,
+                                            destinationTransport.getLocalNode()
+                                        );
+                                    }
+                                })
+                            );
+                        } else {
+                            delivery.run();
+                        }
                     }
 
                     @Override

@@ -55,7 +55,7 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
     ) {
         boolean pluginEnabled = getValue(state, XPackSettings.PROFILING_ENABLED);
         boolean resourceManagementEnabled = getValue(state, ProfilingPlugin.PROFILING_TEMPLATES_ENABLED);
-        boolean resourcesCreated = ProfilingIndexTemplateRegistry.isAllResourcesCreated(state);
+        boolean resourcesCreated = ProfilingIndexTemplateRegistry.isAllResourcesCreated(state, clusterService.getSettings());
         listener.onResponse(new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated));
     }
 

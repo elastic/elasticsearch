@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.search;
+package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -28,20 +28,38 @@ import java.io.IOException;
  *
  * This QueryBuilder is useful in tests that need a slow running query, such as when
  * you are trying to have a query timeout.
+ *
+ * The sleep can be specified to happen on all indices or only on a specified index.
+ * After sleeping (if at all), it performs a MatchAll query.
  */
 public class SlowRunningQueryBuilder extends AbstractQueryBuilder<SlowRunningQueryBuilder> {
 
     public static final String NAME = "slow";
 
     private long sleepTime;
+    private String index;
 
+    /**
+     * Sleep for sleepTime millis on all indexes
+     * @param sleepTime
+     */
     public SlowRunningQueryBuilder(long sleepTime) {
         this.sleepTime = sleepTime;
+    }
+
+    /**
+     * Sleep for sleepTime millis but only on the specified index
+     * @param sleepTime
+     */
+    public SlowRunningQueryBuilder(long sleepTime, String index) {
+        this.sleepTime = sleepTime;
+        this.index = index;
     }
 
     public SlowRunningQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.sleepTime = in.readLong();
+        this.index = in.readOptionalString();
     }
 
     @Override
@@ -57,6 +75,7 @@ public class SlowRunningQueryBuilder extends AbstractQueryBuilder<SlowRunningQue
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeLong(sleepTime);
+        out.writeOptionalString(index);
     }
 
     @Override
@@ -78,7 +97,9 @@ public class SlowRunningQueryBuilder extends AbstractQueryBuilder<SlowRunningQue
         return new Query() {
             @Override
             public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-                sleep();
+                if (index == null || context.index().getName().equals(index)) {
+                    sleep();
+                }
                 return delegate.createWeight(searcher, scoreMode, boost);
             }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -33,11 +34,11 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX;
@@ -266,17 +267,28 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
                 .allMatch(recoveryState -> recoveryState.getStage() == RecoveryState.Stage.DONE)
         );
 
+        Set<DiscoveryNode> nodesWithIndexData = Sets.difference(dataNodes, Collections.singleton(excludedDataNode));
         assertBusy(() -> {
-            for (DiscoveryNode dataNode : dataNodes) {
+            for (DiscoveryNode dataNode : nodesWithIndexData) {
                 CacheService cacheService = internalCluster().getInstance(CacheService.class, dataNode.getName());
                 cacheService.synchronizeCache();
-
-                assertThat(
-                    cacheService.getPersistentCache().getNumDocs(),
-                    dataNode.equals(excludedDataNode) ? equalTo(0L) : greaterThan(0L)
-                );
+                assertThat(cacheService.getPersistentCache().getNumDocs(), greaterThan(0L));
             }
-        }, 30L, TimeUnit.SECONDS);
+        });
+        assertBusy(() -> {
+            CacheService cacheService = internalCluster().getInstance(CacheService.class, excludedDataNode.getName());
+            cacheService.synchronizeCache();
+            long numberOfDocs = cacheService.getPersistentCache().getNumDocs();
+            // this is for further troubleshooting
+            // key assumption: there should be no files left in persistent cache since index was removed from this node
+            if (numberOfDocs > 0) {
+                logger.warn("--> PersistentCache.getNumDocs: {}", cacheService.getPersistentCache().getNumDocs());
+                logger.warn("--> CacheFilesEventsQueueSize: {}", cacheService.getCacheFilesEventsQueueSize());
+                logger.warn("--> NumberOfCacheFilesEvents: {}", cacheService.getNumberOfCacheFilesEvents());
+                logger.warn("--> Pending shard evictions: {}", cacheService.pendingShardsEvictions().keySet());
+            }
+            assertThat(numberOfDocs, equalTo(0L));
+        });
 
         logger.info("--> deleting mounted index {}", mountedIndex);
         assertAcked(client().admin().indices().prepareDelete(mountedIndexName));
@@ -288,12 +300,11 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         logger.info("--> verifying persistent caches are empty on nodes... {}", dataNodes);
         try {
             assertBusy(() -> {
-                for (DiscoveryNode node : org.elasticsearch.core.List.copyOf(dataNodes)) {
+                for (DiscoveryNode node : dataNodes) {
                     final CacheService cacheService = internalCluster().getInstance(CacheService.class, node.getName());
                     cacheService.synchronizeCache();
                     assertThat(cacheService.getPersistentCache().getNumDocs(), equalTo(0L));
                     logger.info("--> persistent cache is empty on node {}", node);
-                    dataNodes.remove(node);
                 }
             });
             logger.info("--> all persistent caches are empty");

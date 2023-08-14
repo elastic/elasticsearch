@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -74,6 +73,7 @@ import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse.Empty;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -677,7 +677,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         // - we have a healthy PING channel to the node
 
         final ClusterState stateForJoinValidation = getStateForJoinValidationService();
-        final ListenableActionFuture<Empty> validateStateListener = new ListenableActionFuture<>();
+        final ListenableActionFuture<Void> validateStateListener = new ListenableActionFuture<>();
         if (stateForJoinValidation != null) {
             assert stateForJoinValidation.nodes().isLocalNodeElectedMaster();
             onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
@@ -696,8 +696,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
         sendJoinPing(joinRequest.getSourceNode(), TransportRequestOptions.Type.PING, new ActionListener<>() {
             @Override
-            public void onResponse(Empty empty) {
-                validateStateListener.addListener(validateListener.map(ignored -> null));
+            public void onResponse(Void ignored) {
+                validateStateListener.addListener(validateListener);
             }
 
             @Override
@@ -706,7 +706,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 // don't want lots of cluster states in flight.
                 validateStateListener.addListener(new ActionListener<>() {
                     @Override
-                    public void onResponse(Empty empty) {
+                    public void onResponse(Void ignored) {
                         validateListener.onFailure(e);
                     }
 
@@ -720,7 +720,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         });
     }
 
-    private void sendJoinValidate(DiscoveryNode discoveryNode, ActionListener<Empty> listener) {
+    private void sendJoinValidate(DiscoveryNode discoveryNode, ActionListener<Void> listener) {
         joinValidationService.validateJoin(discoveryNode, listener.delegateResponse((delegate, e) -> {
             logger.warn(() -> "failed to validate incoming join request from node [" + discoveryNode + "]", e);
             delegate.onFailure(
@@ -737,13 +737,13 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }));
     }
 
-    private void sendJoinPing(DiscoveryNode discoveryNode, TransportRequestOptions.Type channelType, ActionListener<Empty> listener) {
+    private void sendJoinPing(DiscoveryNode discoveryNode, TransportRequestOptions.Type channelType, ActionListener<Void> listener) {
         transportService.sendRequest(
             discoveryNode,
             JoinHelper.JOIN_PING_ACTION_NAME,
             TransportRequest.Empty.INSTANCE,
             TransportRequestOptions.of(null, channelType),
-            new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
+            TransportResponseHandler.empty(clusterCoordinationExecutor, listener.delegateResponse((l, e) -> {
                 logger.warn(() -> format("failed to ping joining node [%s] on channel type [%s]", discoveryNode, channelType), e);
                 listener.onFailure(
                     new IllegalStateException(
@@ -756,7 +756,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         e
                     )
                 );
-            }), i -> Empty.INSTANCE, clusterCoordinationExecutor)
+            }))
         );
     }
 
@@ -2117,7 +2117,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         protected void sendApplyCommit(
             DiscoveryNode destination,
             ApplyCommitRequest applyCommit,
-            ActionListener<Empty> responseActionListener
+            ActionListener<Void> responseActionListener
         ) {
             assert transportService.getThreadPool().getThreadContext().isSystemContext();
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
@@ -2127,11 +2127,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     COMMIT_STATE_ACTION_NAME,
                     applyCommit,
                     COMMIT_STATE_REQUEST_OPTIONS,
-                    new ActionListenerResponseHandler<>(
-                        wrapWithMutex(responseActionListener),
-                        in -> Empty.INSTANCE,
-                        clusterCoordinationExecutor
-                    )
+                    TransportResponseHandler.empty(clusterCoordinationExecutor, wrapWithMutex(responseActionListener))
                 );
             } catch (Exception e) {
                 responseActionListener.onFailure(e);

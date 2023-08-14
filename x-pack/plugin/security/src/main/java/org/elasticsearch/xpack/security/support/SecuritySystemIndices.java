@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -245,52 +244,50 @@ public class SecuritySystemIndices {
                     }
                     builder.endObject();
 
-                    if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-                        builder.startObject("remote_indices");
+                    builder.startObject("remote_indices");
+                    {
+                        builder.field("type", "object");
+                        builder.startObject("properties");
                         {
-                            builder.field("type", "object");
-                            builder.startObject("properties");
+                            builder.startObject("field_security");
                             {
-                                builder.startObject("field_security");
+                                builder.startObject("properties");
                                 {
-                                    builder.startObject("properties");
-                                    {
-                                        builder.startObject("grant");
-                                        builder.field("type", "keyword");
-                                        builder.endObject();
+                                    builder.startObject("grant");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
 
-                                        builder.startObject("except");
-                                        builder.field("type", "keyword");
-                                        builder.endObject();
-                                    }
+                                    builder.startObject("except");
+                                    builder.field("type", "keyword");
                                     builder.endObject();
                                 }
                                 builder.endObject();
-
-                                builder.startObject("names");
-                                builder.field("type", "keyword");
-                                builder.endObject();
-
-                                builder.startObject("privileges");
-                                builder.field("type", "keyword");
-                                builder.endObject();
-
-                                builder.startObject("query");
-                                builder.field("type", "keyword");
-                                builder.endObject();
-
-                                builder.startObject("allow_restricted_indices");
-                                builder.field("type", "boolean");
-                                builder.endObject();
-
-                                builder.startObject("clusters");
-                                builder.field("type", "keyword");
-                                builder.endObject();
                             }
+                            builder.endObject();
+
+                            builder.startObject("names");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("privileges");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("query");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("allow_restricted_indices");
+                            builder.field("type", "boolean");
+                            builder.endObject();
+
+                            builder.startObject("clusters");
+                            builder.field("type", "keyword");
                             builder.endObject();
                         }
                         builder.endObject();
                     }
+                    builder.endObject();
 
                     builder.startObject("applications");
                     {

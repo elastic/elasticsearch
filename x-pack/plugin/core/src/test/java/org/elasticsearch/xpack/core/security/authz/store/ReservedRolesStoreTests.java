@@ -66,7 +66,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.root.MainAction;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
@@ -231,7 +230,6 @@ import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.R
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -3158,23 +3156,16 @@ public class ReservedRolesStoreTests extends ESTestCase {
             RESTRICTED_INDICES
         );
 
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            assertThat(superuserRoleDescriptor.hasRemoteIndicesPrivileges(), is(true));
-            assertThat(
-                Arrays.stream(superuserRoleDescriptor.getRemoteIndicesPrivileges())
-                    .map(RoleDescriptor.RemoteIndicesPrivileges::indicesPrivileges)
-                    .toArray(RoleDescriptor.IndicesPrivileges[]::new),
-                equalTo(superuserRoleDescriptor.getIndicesPrivileges())
-            );
-            final List<RemoteIndicesPermission.RemoteIndicesGroup> remoteIndicesGroups = superuserRole.remoteIndices()
-                .remoteIndicesGroups();
-            assertThat(remoteIndicesGroups.size(), equalTo(1));
-            assertThat(remoteIndicesGroups.get(0).remoteClusterAliasMatcher().isTotal(), is(true));
-        } else {
-            assertThat(superuserRoleDescriptor.hasRemoteIndicesPrivileges(), is(false));
-            assertThat(superuserRoleDescriptor.getRemoteIndicesPrivileges(), emptyArray());
-            assertThat(superuserRole.remoteIndices(), is(RemoteIndicesPermission.NONE));
-        }
+        assertThat(superuserRoleDescriptor.hasRemoteIndicesPrivileges(), is(true));
+        assertThat(
+            Arrays.stream(superuserRoleDescriptor.getRemoteIndicesPrivileges())
+                .map(RoleDescriptor.RemoteIndicesPrivileges::indicesPrivileges)
+                .toArray(RoleDescriptor.IndicesPrivileges[]::new),
+            equalTo(superuserRoleDescriptor.getIndicesPrivileges())
+        );
+        final List<RemoteIndicesPermission.RemoteIndicesGroup> remoteIndicesGroups = superuserRole.remoteIndices().remoteIndicesGroups();
+        assertThat(remoteIndicesGroups.size(), equalTo(1));
+        assertThat(remoteIndicesGroups.get(0).remoteClusterAliasMatcher().isTotal(), is(true));
     }
 
     public void testRemoteIndicesPrivileges() {
@@ -3186,36 +3177,26 @@ public class ReservedRolesStoreTests extends ESTestCase {
             }
             final Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
 
-            if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-                // The assumption here is that any read_cross_cluster indices privileges should be paired with
-                // a corresponding remote indices privileges
-                final var readCrossClusterIndicesPrivileges = Arrays.stream(roleDescriptor.getIndicesPrivileges())
-                    .filter(ip -> Arrays.asList(ip.getPrivileges()).contains("read_cross_cluster"))
-                    .toArray(RoleDescriptor.IndicesPrivileges[]::new);
-                if (readCrossClusterIndicesPrivileges.length == 0) {
-                    assertThat(roleDescriptor.hasRemoteIndicesPrivileges(), is(false));
-                } else {
-                    assertThat(roleDescriptor.hasRemoteIndicesPrivileges(), is(true));
-                    assertThat(
-                        Arrays.stream(roleDescriptor.getRemoteIndicesPrivileges())
-                            .map(RoleDescriptor.RemoteIndicesPrivileges::indicesPrivileges)
-                            .toList(),
-                        containsInAnyOrder(readCrossClusterIndicesPrivileges)
-                    );
-                    rolesWithRemoteIndicesPrivileges.add(roleDescriptor.getName());
-                }
-            } else {
+            // The assumption here is that any read_cross_cluster indices privileges should be paired with
+            // a corresponding remote indices privileges
+            final var readCrossClusterIndicesPrivileges = Arrays.stream(roleDescriptor.getIndicesPrivileges())
+                .filter(ip -> Arrays.asList(ip.getPrivileges()).contains("read_cross_cluster"))
+                .toArray(RoleDescriptor.IndicesPrivileges[]::new);
+            if (readCrossClusterIndicesPrivileges.length == 0) {
                 assertThat(roleDescriptor.hasRemoteIndicesPrivileges(), is(false));
-                assertThat(roleDescriptor.getRemoteIndicesPrivileges(), emptyArray());
-                assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
+            } else {
+                assertThat(roleDescriptor.hasRemoteIndicesPrivileges(), is(true));
+                assertThat(
+                    Arrays.stream(roleDescriptor.getRemoteIndicesPrivileges())
+                        .map(RoleDescriptor.RemoteIndicesPrivileges::indicesPrivileges)
+                        .toList(),
+                    containsInAnyOrder(readCrossClusterIndicesPrivileges)
+                );
+                rolesWithRemoteIndicesPrivileges.add(roleDescriptor.getName());
             }
         }
 
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            assertThat(rolesWithRemoteIndicesPrivileges, containsInAnyOrder("kibana_system", "monitoring_user"));
-        } else {
-            assertThat(rolesWithRemoteIndicesPrivileges, emptyIterable());
-        }
+        assertThat(rolesWithRemoteIndicesPrivileges, containsInAnyOrder("kibana_system", "monitoring_user"));
     }
 
     private void assertAllIndicesAccessAllowed(Role role, String index) {

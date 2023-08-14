@@ -88,7 +88,7 @@ public final class TransportLogger {
                     sb.append(", header size: ").append(streamInput.readInt()).append('B');
                 } else {
                     streamInput = decompressingStream(status, streamInput);
-                    InboundHandler.assertRemoteVersion(streamInput, version);
+                    assert InboundHandler.assertRemoteVersion(streamInput, version);
                 }
 
                 // read and discard headers

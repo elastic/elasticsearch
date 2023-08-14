@@ -139,8 +139,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -312,24 +311,24 @@ public class ApiKeyService {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
             final TransportVersion transportVersion = getMinTransportVersion();
-            if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)
+            if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
                 && hasRemoteIndices(request.getRoleDescriptors())) {
                 // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
                 listener.onFailure(
                     new IllegalArgumentException(
                         "all nodes must have transport version ["
-                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                             + "] or higher to support remote indices privileges for API keys"
                     )
                 );
                 return;
             }
-            if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR)
+            if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
                 && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
                 listener.onFailure(
                     new IllegalArgumentException(
                         "all nodes must have transport version ["
-                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR
+                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                             + "] or higher to support creating cross cluster API keys"
                     )
                 );
@@ -482,13 +481,12 @@ public class ApiKeyService {
         }
 
         final TransportVersion transportVersion = getMinTransportVersion();
-        if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)
-            && hasRemoteIndices(request.getRoleDescriptors())) {
+        if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY) && hasRemoteIndices(request.getRoleDescriptors())) {
             // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
                 new IllegalArgumentException(
                     "all nodes must have transport version ["
-                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                         + "] or higher to support remote indices privileges for API keys"
                 )
             );
@@ -614,14 +612,14 @@ public class ApiKeyService {
      * when we are in a mixed cluster in which some of the nodes do not support remote indices.
      * Storing these roles would cause parsing issues on old nodes
      * (i.e. nodes running with transport version before
-     * {@link org.elasticsearch.transport.RemoteClusterPortSettings#TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS}).
+     * {@link org.elasticsearch.transport.RemoteClusterPortSettings#TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY}).
      */
     static Set<RoleDescriptor> maybeRemoveRemoteIndicesPrivileges(
         final Set<RoleDescriptor> userRoleDescriptors,
         final TransportVersion transportVersion,
         final String... apiKeyIds
     ) {
-        if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+        if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
             final Set<String> affectedRoles = new TreeSet<>();
             final Set<RoleDescriptor> result = userRoleDescriptors.stream().map(roleDescriptor -> {
                 if (roleDescriptor.hasRemoteIndicesPrivileges()) {

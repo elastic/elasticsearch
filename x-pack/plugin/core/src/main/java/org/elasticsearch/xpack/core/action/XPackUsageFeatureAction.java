@@ -7,12 +7,9 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.Stream;
 
 /**
  * A base action for usage of a feature plugin.
@@ -53,7 +50,7 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     public static final XPackUsageFeatureAction REMOTE_CLUSTERS = new XPackUsageFeatureAction(XPackField.REMOTE_CLUSTERS);
     public static final XPackUsageFeatureAction ENTERPRISE_SEARCH = new XPackUsageFeatureAction(XPackField.ENTERPRISE_SEARCH);
 
-    static final List<XPackUsageFeatureAction> ALL = Stream.of(
+    static final List<XPackUsageFeatureAction> ALL = List.of(
         AGGREGATE_METRIC,
         ANALYTICS,
         CCR,
@@ -78,9 +75,9 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
         WATCHER,
         ARCHIVE,
         HEALTH,
-        TcpTransport.isUntrustedRemoteClusterEnabled() ? REMOTE_CLUSTERS : null,
+        REMOTE_CLUSTERS,
         ENTERPRISE_SEARCH
-    ).filter(Objects::nonNull).toList();
+    );
 
     // public for testing
     public XPackUsageFeatureAction(String name) {

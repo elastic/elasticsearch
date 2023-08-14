@@ -66,7 +66,13 @@ public class Verifier {
         this.metrics = metrics;
     }
 
-    Collection<Failure> verify(LogicalPlan plan) {
+    /**
+     * Verify that a {@link LogicalPlan} can be executed.
+     *
+     * @param plan The logical plan to be verified
+     * @return a collection of verification failures; empty if and only if the plan is valid
+     */
+    public Collection<Failure> verify(LogicalPlan plan) {
         Set<Failure> failures = new LinkedHashSet<>();
 
         // quick verification for unresolved attributes
@@ -220,7 +226,7 @@ public class Verifier {
         }
     }
 
-    public static Collection<Failure> validateRow(Row row) {
+    private static Collection<Failure> validateRow(Row row) {
         List<Failure> failures = new ArrayList<>(row.fields().size());
         row.fields().forEach(o -> {
             if (EsqlDataTypes.isRepresentable(o.dataType()) == false && o instanceof Alias a) {
@@ -306,7 +312,7 @@ public class Verifier {
     /**
      * Negating an unsigned long is invalid.
      */
-    static Failure validateUnsignedLongNegation(Neg neg) {
+    private static Failure validateUnsignedLongNegation(Neg neg) {
         DataType childExpressionType = neg.field().dataType();
         if (childExpressionType.equals(DataTypes.UNSIGNED_LONG) ) {
             return fail(

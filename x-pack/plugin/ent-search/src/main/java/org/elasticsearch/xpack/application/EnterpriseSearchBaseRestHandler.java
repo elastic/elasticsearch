@@ -18,9 +18,9 @@ import java.io.IOException;
 
 public abstract class EnterpriseSearchBaseRestHandler extends BaseRestHandler {
     protected final XPackLicenseState licenseState;
-    protected final EnterpriseSearchFeature.Feature feature;
+    protected final String feature;
 
-    protected EnterpriseSearchBaseRestHandler(XPackLicenseState licenseState, EnterpriseSearchFeature.Feature feature) {
+    protected EnterpriseSearchBaseRestHandler(XPackLicenseState licenseState, String feature) {
         this.licenseState = licenseState;
         this.feature = feature;
     }

@@ -12,10 +12,14 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.application.EnterpriseSearchFeature;
 import org.elasticsearch.xpack.core.XPackField;
 
 public final class LicenseUtils {
+
+    public static final String SEARCH_APPLICATION_FEATURE = "search application";
+    public static final String BEHAVIORAL_ANALYTICS_FEATURE = "behavioral analytics";
+    public static final String QUERY_RULES_FEATURE = "query rules";
+
     public static final LicensedFeature.Momentary LICENSED_ENT_SEARCH_FEATURE = LicensedFeature.momentary(
         null,
         XPackField.ENTERPRISE_SEARCH,
@@ -26,18 +30,14 @@ public final class LicenseUtils {
         return LICENSED_ENT_SEARCH_FEATURE.check(licenseState);
     }
 
-    public static ElasticsearchSecurityException newComplianceException(
-        XPackLicenseState licenseState,
-        EnterpriseSearchFeature.Feature feature
-    ) {
+    public static ElasticsearchSecurityException newComplianceException(XPackLicenseState licenseState, String feature) {
         String licenseStatus = licenseState.statusDescription();
 
         ElasticsearchSecurityException e = new ElasticsearchSecurityException(
             "Current license is non-compliant for "
-                + feature.getName()
+                + feature
                 + ". Current license is {}. "
-                + feature.getName()
-                + " requires an active trial, platinum or enterprise license.",
+                + " This feature requires an active trial, platinum or enterprise license.",
             RestStatus.FORBIDDEN,
             licenseStatus
         );

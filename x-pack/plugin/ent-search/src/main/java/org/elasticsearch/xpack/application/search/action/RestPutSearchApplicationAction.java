@@ -16,7 +16,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
-import org.elasticsearch.xpack.application.EnterpriseSearchFeature;
+import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,7 +26,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutSearchApplicationAction extends EnterpriseSearchBaseRestHandler {
     public RestPutSearchApplicationAction(XPackLicenseState licenseState) {
-        super(licenseState, EnterpriseSearchFeature.Feature.SEARCH_APPLICATION);
+        super(licenseState, LicenseUtils.SEARCH_APPLICATION_FEATURE);
     }
 
     @Override

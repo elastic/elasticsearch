@@ -15,7 +15,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
-import org.elasticsearch.xpack.application.EnterpriseSearchFeature;
+import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,7 +25,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteAnalyticsCollectionAction extends EnterpriseSearchBaseRestHandler {
     public RestDeleteAnalyticsCollectionAction(XPackLicenseState licenseState) {
-        super(licenseState, EnterpriseSearchFeature.Feature.BEHAVIORAL_ANALYTICS);
+        super(licenseState, LicenseUtils.BEHAVIORAL_ANALYTICS_FEATURE);
     }
 
     @Override

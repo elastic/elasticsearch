@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.AbstractRestEnterpriseSearchActionTests;
 import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
-import org.elasticsearch.xpack.application.EnterpriseSearchFeature;
+import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 import java.util.Map;
 
@@ -50,7 +50,7 @@ public class RestPutQueryRulesetActionTests extends AbstractRestEnterpriseSearch
                     }
                     """), XContentType.JSON)
                 .build(),
-            EnterpriseSearchFeature.Feature.QUERY_RULES
+            LicenseUtils.QUERY_RULES_FEATURE
         );
     }
 
@@ -60,7 +60,7 @@ public class RestPutQueryRulesetActionTests extends AbstractRestEnterpriseSearch
                 .withParams(Map.of("invalid_param_name", "invalid_value"))
                 .withContent(new BytesArray("{}"), XContentType.JSON)
                 .build(),
-            EnterpriseSearchFeature.Feature.QUERY_RULES
+            LicenseUtils.QUERY_RULES_FEATURE
         );
     }
 

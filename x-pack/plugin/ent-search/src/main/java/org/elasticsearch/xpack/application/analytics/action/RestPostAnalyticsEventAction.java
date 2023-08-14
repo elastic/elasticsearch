@@ -19,7 +19,7 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
-import org.elasticsearch.xpack.application.EnterpriseSearchFeature;
+import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 import java.net.InetAddress;
 import java.util.List;
@@ -30,7 +30,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPostAnalyticsEventAction extends EnterpriseSearchBaseRestHandler {
     public RestPostAnalyticsEventAction(XPackLicenseState licenseState) {
-        super(licenseState, EnterpriseSearchFeature.Feature.BEHAVIORAL_ANALYTICS);
+        super(licenseState, LicenseUtils.BEHAVIORAL_ANALYTICS_FEATURE);
     }
 
     public static final String X_FORWARDED_FOR_HEADER = "X-Forwarded-For";

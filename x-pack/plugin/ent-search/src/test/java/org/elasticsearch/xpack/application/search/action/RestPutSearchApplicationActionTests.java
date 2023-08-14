@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.AbstractRestEnterpriseSearchActionTests;
 import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
-import org.elasticsearch.xpack.application.EnterpriseSearchFeature;
+import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 import java.util.Map;
 
@@ -26,7 +26,7 @@ public class RestPutSearchApplicationActionTests extends AbstractRestEnterpriseS
                 .withParams(Map.of("name", "my-app"))
                 .withContent(new BytesArray("{\"indices\": [\"my-index\"]}"), XContentType.JSON)
                 .build(),
-            EnterpriseSearchFeature.Feature.SEARCH_APPLICATION
+            LicenseUtils.SEARCH_APPLICATION_FEATURE
         );
     }
 
@@ -36,7 +36,7 @@ public class RestPutSearchApplicationActionTests extends AbstractRestEnterpriseS
                 .withParams(Map.of("invalid_param_name", "invalid_value"))
                 .withContent(new BytesArray("{}"), XContentType.JSON)
                 .build(),
-            EnterpriseSearchFeature.Feature.SEARCH_APPLICATION
+            LicenseUtils.SEARCH_APPLICATION_FEATURE
         );
     }
 

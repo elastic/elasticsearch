@@ -11,11 +11,11 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.application.AbstractRestEnterpriseSearchActionTests;
 import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
-import org.elasticsearch.xpack.application.EnterpriseSearchFeature;
+import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 public class RestGetAnalyticsCollectionActionTests extends AbstractRestEnterpriseSearchActionTests {
     public void testWithNonCompliantLicense() throws Exception {
-        checkLicenseForRequest(new FakeRestRequest(), EnterpriseSearchFeature.Feature.BEHAVIORAL_ANALYTICS);
+        checkLicenseForRequest(new FakeRestRequest(), LicenseUtils.BEHAVIORAL_ANALYTICS_FEATURE);
     }
 
     @Override

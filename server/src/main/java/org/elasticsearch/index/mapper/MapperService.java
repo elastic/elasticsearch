@@ -40,7 +40,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -379,12 +378,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return currentMapper;
         }
 
-        Map<String, Object> mergedRawMapping = new HashMap<>();
+        Map<String, Object> mergedRawMapping = null;
         for (CompressedXContent mappingSource : mappingSources) {
             Map<String, Object> rawMapping = MappingParser.convertToMap(mappingSource);
-            if (rawMapping.isEmpty()) {
-                continue;
-            }
 
             // normalize mappings, making sure that all have the provided type as a single root
             if (rawMapping.containsKey(type)) {
@@ -395,34 +391,40 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 rawMapping = Map.of(type, rawMapping);
             }
 
-            XContentHelper.merge(type, mergedRawMapping, rawMapping, ((parent, key, oldValue, newValue) -> {
-                switch (key) {
-                    case "type" -> {
-                        // todo: verify this check is valid
-                        if (oldValue.equals(newValue) == false
-                            && (OBJECT_FIELD_TYPES.contains(String.valueOf(oldValue))
+            if (mergedRawMapping == null) {
+                mergedRawMapping = rawMapping;
+            } else {
+                XContentHelper.merge(type, mergedRawMapping, rawMapping, ((parent, key, oldValue, newValue) -> {
+                    switch (key) {
+                        case "type" -> {
+                            // todo: verify this check is valid
+                            if (oldValue.equals(newValue) == false
+                                && (OBJECT_FIELD_TYPES.contains(String.valueOf(oldValue))
                                 || OBJECT_FIELD_TYPES.contains(String.valueOf(newValue)))) {
-                            throw new MapperParsingException("can't merge a non object mapping [" + parent + "] with an object mapping");
+                                throw new MapperParsingException(
+                                    "can't merge a non object mapping [" + parent + "] with an object mapping"
+                                );
+                            }
+                        }
+                        case "subobjects" -> {
+                            if (oldValue.equals(newValue) == false) {
+                                throw new MapperParsingException("contradicting subobjects settings provided for field: " + parent);
+                            }
+                        }
+                        case "required" -> {
+                            if ("_routing".equals(parent) && oldValue != newValue) {
+                                throw new MapperParsingException("contradicting `_routing.required` settings");
+                            }
                         }
                     }
-                    case "subobjects" -> {
-                        if (oldValue.equals(newValue) == false) {
-                            throw new MapperParsingException("contradicting subobjects settings provided for field: " + parent);
-                        }
-                    }
-                    case "required" -> {
-                        if ("_routing".equals(parent) && oldValue != newValue) {
-                            throw new MapperParsingException("contradicting `_routing.required` settings");
-                        }
-                    }
-                }
-                return newValue;
-            }));
+                    return newValue;
+                }));
+            }
         }
-        if (mergedRawMapping.size() > 1) {
+        if (mergedRawMapping != null && mergedRawMapping.size() > 1) {
             throw new MapperParsingException("cannot merge mapping sources with different roots");
         }
-        return doMerge(type, reason, mergedRawMapping);
+        return (mergedRawMapping != null) ? doMerge(type, reason, mergedRawMapping) : null;
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {

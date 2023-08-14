@@ -8,8 +8,54 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
-public class GreaterThanOrEqual {
+import java.time.ZoneId;
+
+public class GreaterThanOrEqual extends org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual {
+
+    public GreaterThanOrEqual(Source source, Expression left, Expression right, ZoneId zoneId) {
+        super(source, left, right, zoneId);
+    }
+
+    @Override
+    protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
+        if (e instanceof FieldAttribute fa && fa.dataType() == DataTypes.TEXT) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+        return super.resolveInputType(e, paramOrdinal);
+    }
+
+    @Override
+    protected NodeInfo<org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual> info() {
+        return NodeInfo.create(this, GreaterThanOrEqual::new, left(), right(), zoneId());
+    }
+
+    @Override
+    protected GreaterThanOrEqual replaceChildren(Expression newLeft, Expression newRight) {
+        return new GreaterThanOrEqual(source(), newLeft, newRight, zoneId());
+    }
+
+    @Override
+    public LessThanOrEqual swapLeftAndRight() {
+        return new LessThanOrEqual(source(), right(), left(), zoneId());
+    }
+
+    @Override
+    public LessThan negate() {
+        return new LessThan(source(), left(), right(), zoneId());
+    }
+
+    @Override
+    public BinaryComparison reverse() {
+        return new LessThanOrEqual(source(), left(), right(), zoneId());
+    }
 
     @Evaluator(extraName = "Ints")
     static boolean processInts(int lhs, int rhs) {

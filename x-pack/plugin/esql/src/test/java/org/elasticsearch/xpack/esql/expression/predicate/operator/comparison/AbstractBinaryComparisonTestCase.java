@@ -94,7 +94,9 @@ public abstract class AbstractBinaryComparisonTestCase extends AbstractBinaryOpe
             );
             return;
         }
-        if (lhsType == rhsType || lhsType.isNumeric() && rhsType.isNumeric()) {
+        if (lhsType == rhsType
+            || lhsType.isNumeric() && rhsType.isNumeric()
+            || DataTypes.isString(lhsType) && DataTypes.isString(rhsType)) {
             assertThat(op.toString(), f, nullValue());
             return;
         }

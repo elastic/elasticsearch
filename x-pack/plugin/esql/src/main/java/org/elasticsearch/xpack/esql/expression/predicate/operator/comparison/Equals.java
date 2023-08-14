@@ -8,8 +8,53 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
-public class Equals {
+import java.time.ZoneId;
+
+public class Equals extends org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals {
+    public Equals(Source source, Expression left, Expression right) {
+        super(source, left, right);
+    }
+
+    public Equals(Source source, Expression left, Expression right, ZoneId zoneId) {
+        super(source, left, right, zoneId);
+    }
+
+    @Override
+    protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
+        if (e instanceof FieldAttribute fa && fa.dataType() == DataTypes.TEXT) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+        return super.resolveInputType(e, paramOrdinal);
+    }
+
+    @Override
+    protected NodeInfo<org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals> info() {
+        return NodeInfo.create(this, Equals::new, left(), right(), zoneId());
+    }
+
+    @Override
+    protected Equals replaceChildren(Expression newLeft, Expression newRight) {
+        return new Equals(source(), newLeft, newRight, zoneId());
+    }
+
+    @Override
+    public Equals swapLeftAndRight() {
+        return new Equals(source(), right(), left(), zoneId());
+    }
+
+    @Override
+    public BinaryComparison negate() {
+        return new NotEquals(source(), left(), right(), zoneId());
+    }
+
     @Evaluator(extraName = "Ints")
     static boolean processInts(int lhs, int rhs) {
         return lhs == rhs;

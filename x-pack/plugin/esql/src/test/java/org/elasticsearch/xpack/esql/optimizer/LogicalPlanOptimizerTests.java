@@ -27,7 +27,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -52,10 +56,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -85,9 +85,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
-import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOf;
-import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOrEqualOf;
-import static org.elasticsearch.xpack.ql.TestUtils.lessThanOf;
 import static org.elasticsearch.xpack.ql.TestUtils.relation;
 import static org.elasticsearch.xpack.ql.TestUtils.rlike;
 import static org.elasticsearch.xpack.ql.TestUtils.wildcardLike;
@@ -283,6 +280,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             plan = new Limit(EMPTY, L(value), plan);
         }
         assertEquals(new Limit(EMPTY, L(minimum), relation), new LogicalPlanOptimizer().optimize(plan));
+    }
+
+    public static GreaterThan greaterThanOf(Expression left, Expression right) {
+        return new GreaterThan(EMPTY, left, right, randomZone());
+    }
+
+    public static LessThan lessThanOf(Expression left, Expression right) {
+        return new LessThan(EMPTY, left, right, randomZone());
+    }
+
+    public static GreaterThanOrEqual greaterThanOrEqualOf(Expression left, Expression right) {
+        return new GreaterThanOrEqual(EMPTY, left, right, randomZone());
     }
 
     public void testCombineFilters() {
@@ -908,19 +917,19 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(
             topN.order(),
             contains(
-                new Order(
+                new org.elasticsearch.xpack.esql.expression.Order(
                     EMPTY,
                     new ReferenceAttribute(EMPTY, "e", INTEGER, null, Nullability.TRUE, null, false),
                     Order.OrderDirection.ASC,
                     Order.NullsPosition.LAST
                 ),
-                new Order(
+                new org.elasticsearch.xpack.esql.expression.Order(
                     EMPTY,
                     new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
                     Order.OrderDirection.ASC,
                     Order.NullsPosition.LAST
                 ),
-                new Order(
+                new org.elasticsearch.xpack.esql.expression.Order(
                     EMPTY,
                     new FieldAttribute(EMPTY, "salary", mapping.get("salary")),
                     Order.OrderDirection.DESC,
@@ -944,7 +953,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(
             topN.order(),
             contains(
-                new Order(
+                new org.elasticsearch.xpack.esql.expression.Order(
                     EMPTY,
                     new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
                     Order.OrderDirection.ASC,

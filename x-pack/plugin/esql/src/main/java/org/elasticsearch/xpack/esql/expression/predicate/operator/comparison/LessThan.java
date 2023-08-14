@@ -8,8 +8,58 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
-public class LessThan {
+import java.time.ZoneId;
+
+public class LessThan extends org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan {
+
+    public LessThan(Source source, Expression left, Expression right, ZoneId zoneId) {
+        super(source, left, right, zoneId);
+    }
+
+    @Override
+    protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
+        if (e instanceof FieldAttribute fa && fa.dataType() == DataTypes.TEXT) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+        return super.resolveInputType(e, paramOrdinal);
+    }
+
+    @Override
+    protected NodeInfo<org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan> info() {
+        return NodeInfo.create(this, LessThan::new, left(), right(), zoneId());
+    }
+
+    @Override
+    protected org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan replaceChildren(
+        Expression newLeft,
+        Expression newRight
+    ) {
+        return new LessThan(source(), newLeft, newRight, zoneId());
+    }
+
+    @Override
+    public GreaterThan swapLeftAndRight() {
+        return new GreaterThan(source(), right(), left(), zoneId());
+    }
+
+    @Override
+    public GreaterThanOrEqual negate() {
+        return new GreaterThanOrEqual(source(), left(), right(), zoneId());
+    }
+
+    @Override
+    public BinaryComparison reverse() {
+        return new GreaterThan(source(), left(), right(), zoneId());
+    }
+
     @Evaluator(extraName = "Ints")
     static boolean processInts(int lhs, int rhs) {
         return lhs < rhs;

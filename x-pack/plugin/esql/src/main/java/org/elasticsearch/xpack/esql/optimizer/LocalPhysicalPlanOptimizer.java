@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -37,8 +39,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
@@ -232,7 +232,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         }
 
         private static boolean isAttributePushable(Expression expression, ScalarFunction operation) {
-            if (expression instanceof FieldAttribute) {
+            if (expression instanceof FieldAttribute f && f.getExactInfo().hasExact()) {
                 return true;
             }
             if (expression instanceof MetadataAttribute ma && ma.searchable()) {
@@ -283,13 +283,22 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         private boolean canPushDownOrders(List<Order> orders) {
             // allow only FieldAttributes (no expressions) for sorting
-            return false == Expressions.match(orders, s -> ((Order) s).child() instanceof FieldAttribute == false);
+            for (Order order : orders) {
+                if (order.child() instanceof FieldAttribute fa) {
+                    if (fa.getExactInfo().hasExact() == false) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            }
+            return true;
         }
 
         private List<EsQueryExec.FieldSort> buildFieldSorts(List<Order> orders) {
             List<EsQueryExec.FieldSort> sorts = new ArrayList<>(orders.size());
             for (Order o : orders) {
-                sorts.add(new EsQueryExec.FieldSort(((FieldAttribute) o.child()), o.direction(), o.nullsPosition()));
+                sorts.add(new EsQueryExec.FieldSort(((FieldAttribute) o.child()).exactAttribute(), o.direction(), o.nullsPosition()));
             }
             return sorts;
         }
@@ -299,7 +308,10 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         @Override
         public Query wrapFunctionQuery(ScalarFunction sf, Expression field, Supplier<Query> querySupplier) {
             if (field instanceof FieldAttribute fa) {
-                return ExpressionTranslator.wrapIfNested(new SingleValueQuery(querySupplier.get(), fa.name()), field);
+                return ExpressionTranslator.wrapIfNested(
+                    new SingleValueQuery(querySupplier.get(), fa.exactAttribute().name()),
+                    ((FieldAttribute) field).exactAttribute()
+                );
             }
             if (field instanceof MetadataAttribute) {
                 return querySupplier.get(); // MetadataAttributes are always single valued

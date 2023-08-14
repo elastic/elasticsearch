@@ -39,6 +39,8 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
+    private static final Set<String> EXPECTED_REQUEST_NAMES = Set.of("GetObject", "ListObjects", "InsertObject");
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), GoogleCloudStoragePlugin.class);
@@ -67,9 +69,29 @@ public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase
     }
 
     @Override
+    protected String repositoryType() {
+        return "gcs";
+    }
+
+    @Override
+    protected Settings repositorySettings() {
+        return Settings.builder()
+            .put(super.repositorySettings())
+            .put("bucket", "bucket")
+            .put("base_path", "backup")
+            .put("client", "test")
+            .build();
+    }
+
+    @Override
     protected void assertRepositoryStats(RepositoryStats repositoryStats) {
-        final Set<String> expectedRequestNames = Set.of("GetObject", "ListObjects", "InsertObject");
-        assertEquals(expectedRequestNames, repositoryStats.requestCounts.keySet());
+        assertEquals(EXPECTED_REQUEST_NAMES, repositoryStats.requestCounts.keySet());
+        repositoryStats.requestCounts.values().forEach(count -> assertThat(count, greaterThan(0L)));
+    }
+
+    @Override
+    protected void assertObsRepositoryStatsSnapshots(RepositoryStats repositoryStats) {
+        assertEquals(EXPECTED_REQUEST_NAMES, repositoryStats.requestCounts.keySet());
         repositoryStats.requestCounts.values().forEach(count -> assertThat(count, greaterThan(0L)));
     }
 }

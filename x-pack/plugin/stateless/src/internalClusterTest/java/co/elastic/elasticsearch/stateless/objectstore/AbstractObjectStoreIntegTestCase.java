@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodes
 
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
@@ -33,12 +34,19 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Integration tests for {@link ObjectStoreService} types.
  */
 public abstract class AbstractObjectStoreIntegTestCase extends AbstractStatelessIntegTestCase {
+
+    protected abstract String repositoryType();
+
+    protected Settings repositorySettings() {
+        return Settings.builder().put("compress", randomBoolean()).build();
+    }
 
     public void testBlobCreateVerifyDelete() throws Exception {
         startMasterAndIndexNode();
@@ -77,6 +85,12 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
             blobContainer.delete();
         }
 
+        // Create a repository and perform some snapshot actions
+        createRepository("backup", repositorySettings());
+        clusterAdmin().prepareCreateSnapshot("backup", "snapshot").setIncludeGlobalState(true).setWaitForCompletion(true).get();
+        clusterAdmin().prepareRestoreSnapshot("backup", "snapshot").setRestoreGlobalState(true).setWaitForCompletion(true).get();
+        assertThat(clusterAdmin().prepareDeleteSnapshot("backup", "snapshot").get().isAcknowledged(), is(true));
+
         GetBlobStoreStatsNodesResponse getBlobStoreStatsNodesResponse = client().execute(
             GetBlobStoreStatsAction.INSTANCE,
             new GetBlobStoreStatsNodesRequest()
@@ -86,16 +100,27 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
 
         assertEquals(1, nodeResponses.size());
         assertRepositoryStats(nodeResponses.get(0).getRepositoryStats());
+        assertObsRepositoryStatsSnapshots(nodeResponses.get(0).getObsRepositoryStats());
 
-        // Result is the same when the request asks for the specific node
-        assertThat(
-            client().execute(
-                GetBlobStoreStatsAction.INSTANCE,
-                new GetBlobStoreStatsNodesRequest(getBlobStoreStatsNodesResponse.getNodes().get(0).getNode().getId())
-            ).actionGet(),
-            equalTo(getBlobStoreStatsNodesResponse)
-        );
+        // Test result from talking to a specific node
+        final GetBlobStoreStatsNodeResponse nodeResponse = client().execute(
+            GetBlobStoreStatsAction.INSTANCE,
+            new GetBlobStoreStatsNodesRequest(getBlobStoreStatsNodesResponse.getNodes().get(0).getNode().getId())
+        ).actionGet().getNodes().get(0);
+        assertRepositoryStats(nodeResponse.getRepositoryStats());
+        assertObsRepositoryStatsSnapshots(nodeResponse.getObsRepositoryStats());
+
+        // Stop the node otherwise the test can fail because node tries to publish cluster state to a closed HTTP handler
+        internalCluster().stopCurrentMasterNode();
     }
 
     protected abstract void assertRepositoryStats(RepositoryStats repositoryStats);
+
+    protected abstract void assertObsRepositoryStatsSnapshots(RepositoryStats repositoryStats);
+
+    protected void createRepository(String repoName, Settings repoSettings) {
+        assertAcked(
+            clusterAdmin().preparePutRepository(repoName).setType(repositoryType()).setVerify(randomBoolean()).setSettings(repoSettings)
+        );
+    }
 }

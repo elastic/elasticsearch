@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.metering.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,21 +33,37 @@ import java.util.Objects;
 public class GetBlobStoreStatsNodeResponse extends BaseNodeResponse implements ToXContentFragment {
 
     private final RepositoryStats repositoryStats;
+    private final RepositoryStats obsRepositoryStats;
 
     public GetBlobStoreStatsNodeResponse(StreamInput in) throws IOException {
         super(in);
         this.repositoryStats = new RepositoryStats(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_056)) {
+            this.obsRepositoryStats = new RepositoryStats(in);
+        } else {
+            this.obsRepositoryStats = RepositoryStats.EMPTY_STATS;
+        }
     }
 
-    public GetBlobStoreStatsNodeResponse(DiscoveryNode node, RepositoryStats repositoryStats) {
+    public GetBlobStoreStatsNodeResponse(DiscoveryNode node, RepositoryStats repositoryStats, RepositoryStats obsRepositoryStats) {
         super(node);
         this.repositoryStats = repositoryStats;
+        this.obsRepositoryStats = obsRepositoryStats;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(getNode().getId());
-        builder.field("object_store_stats", repositoryStats.requestCounts);
+        {
+            builder.startObject("object_store_stats");
+            builder.field("request_counts", repositoryStats.requestCounts);
+            builder.endObject();
+        }
+        {
+            builder.startObject("operational_backup_service_stats");
+            builder.field("request_counts", obsRepositoryStats.requestCounts);
+            builder.endObject();
+        }
         builder.endObject();
         return builder;
     }
@@ -55,10 +72,17 @@ public class GetBlobStoreStatsNodeResponse extends BaseNodeResponse implements T
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         repositoryStats.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_056)) {
+            obsRepositoryStats.writeTo(out);
+        }
     }
 
     public RepositoryStats getRepositoryStats() {
         return repositoryStats;
+    }
+
+    public RepositoryStats getObsRepositoryStats() {
+        return obsRepositoryStats;
     }
 
     @Override
@@ -66,16 +90,18 @@ public class GetBlobStoreStatsNodeResponse extends BaseNodeResponse implements T
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetBlobStoreStatsNodeResponse that = (GetBlobStoreStatsNodeResponse) o;
-        return Objects.equals(getNode().getId(), that.getNode().getId()) && Objects.equals(repositoryStats, that.repositoryStats);
+        return Objects.equals(getNode().getId(), that.getNode().getId())
+            && Objects.equals(repositoryStats, that.repositoryStats)
+            && Objects.equals(obsRepositoryStats, that.obsRepositoryStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getNode().getId(), repositoryStats);
+        return Objects.hash(repositoryStats, obsRepositoryStats);
     }
 
     @Override
     public String toString() {
-        return "GetBlobStoreStatsNodeResponse{" + "nodeId=" + getNode().getId() + ", repositoryStats=" + repositoryStats + '}';
+        return "GetBlobStoreStatsNodeResponse{" + "repositoryStats=" + repositoryStats + ", obsRepositoryStats=" + obsRepositoryStats + '}';
     }
 }

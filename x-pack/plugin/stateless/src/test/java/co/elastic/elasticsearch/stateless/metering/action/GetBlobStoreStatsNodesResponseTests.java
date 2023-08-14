@@ -120,7 +120,14 @@ public class GetBlobStoreStatsNodesResponseTests extends AbstractWireSerializing
             assertThat(nodesMap, hasKey(nodeId));
             assertThat(
                 nodesMap.get(nodeId),
-                equalTo(Map.of("object_store_stats", Maps.transformValues(node.getRepositoryStats().requestCounts, Math::toIntExact)))
+                equalTo(
+                    Map.of(
+                        "object_store_stats",
+                        Map.of("request_counts", Maps.transformValues(node.getRepositoryStats().requestCounts, Math::toIntExact)),
+                        "operational_backup_service_stats",
+                        Map.of("request_counts", Maps.transformValues(node.getObsRepositoryStats().requestCounts, Math::toIntExact))
+                    )
+                )
             );
         });
 
@@ -130,6 +137,22 @@ public class GetBlobStoreStatsNodesResponseTests extends AbstractWireSerializing
                 (key, value) -> allCounts.compute(key, (k, v) -> v == null ? value : v + value)
             );
         }
-        assertThat(responseMap.get("_all"), equalTo(Map.of("object_store_stats", Maps.transformValues(allCounts, Math::toIntExact))));
+        final var obsAllCounts = new HashMap<String, Long>();
+        for (GetBlobStoreStatsNodeResponse nodeResponse : instance.getNodes()) {
+            nodeResponse.getObsRepositoryStats().requestCounts.forEach(
+                (key, value) -> obsAllCounts.compute(key, (k, v) -> v == null ? value : v + value)
+            );
+        }
+        assertThat(
+            responseMap.get("_all"),
+            equalTo(
+                Map.of(
+                    "object_store_stats",
+                    Map.of("request_counts", Maps.transformValues(allCounts, Math::toIntExact)),
+                    "operational_backup_service_stats",
+                    Map.of("request_counts", Maps.transformValues(obsAllCounts, Math::toIntExact))
+                )
+            )
+        );
     }
 }

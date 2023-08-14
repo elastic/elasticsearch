@@ -105,7 +105,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
     public static final TransportVersion VERSION_3RD_PARTY_CONFIG_ADDED = TransportVersion.V_8_0_0;
     // TODO: change to 8.10
-    public static final TransportVersion VERSION_ALLOCATION_MEMORY_ADDED = TransportVersion.V_8_500_052;
+    public static final TransportVersion VERSION_ALLOCATION_MEMORY_ADDED = TransportVersion.V_8_500_060;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);

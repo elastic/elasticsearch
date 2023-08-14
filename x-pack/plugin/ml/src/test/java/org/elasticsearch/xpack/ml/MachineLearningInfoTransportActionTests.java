@@ -901,7 +901,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                     List.of(
                         new GetTrainedModelsStatsAction.Response.TrainedModelStats(
                             trainedModel1.getModelId(),
-                            new TrainedModelSizeStats(trainedModel1.getModelSize(), 0L, 0L, 0L),
+                            new TrainedModelSizeStats(trainedModel1.getModelSize(), 0L),
                             new IngestStats(
                                 new IngestStats.Stats(0, 0, 0, 0),
                                 List.of(),
@@ -929,7 +929,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                         ),
                         new GetTrainedModelsStatsAction.Response.TrainedModelStats(
                             trainedModel2.getModelId(),
-                            new TrainedModelSizeStats(trainedModel2.getModelSize(), 0L, 0L, 0L),
+                            new TrainedModelSizeStats(trainedModel2.getModelSize(), 0L),
                             new IngestStats(
                                 new IngestStats.Stats(0, 0, 0, 0),
                                 List.of(),
@@ -950,7 +950,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                         ),
                         new GetTrainedModelsStatsAction.Response.TrainedModelStats(
                             trainedModel3.getModelId(),
-                            new TrainedModelSizeStats(trainedModel3.getModelSize(), 0L, 0L, 0L),
+                            new TrainedModelSizeStats(trainedModel3.getModelSize(), 0L),
                             new IngestStats(
                                 new IngestStats.Stats(0, 0, 0, 0),
                                 List.of(),
@@ -981,7 +981,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                         ),
                         new GetTrainedModelsStatsAction.Response.TrainedModelStats(
                             trainedModel4.getModelId(),
-                            new TrainedModelSizeStats(trainedModel4.getModelSize(), 0L, 0L, 0L),
+                            new TrainedModelSizeStats(trainedModel4.getModelSize(), 0L),
                             new IngestStats(
                                 new IngestStats.Stats(0, 0, 0, 0),
                                 List.of(),

@@ -41,11 +41,6 @@ public class TrainedModelSizeStatsTests extends AbstractWireSerializingTestCase<
     // }
 
     public static TrainedModelSizeStats createRandom() {
-        return new TrainedModelSizeStats(
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
-        );
+        return new TrainedModelSizeStats(randomNonNegativeLong(), randomNonNegativeLong());
     }
 }

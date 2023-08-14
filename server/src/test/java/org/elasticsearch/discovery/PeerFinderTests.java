@@ -385,6 +385,24 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers();
     }
 
+    public void testDeactivationDuringConnectionAttemptReleasesPeer() {
+        final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
+        providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.addReachableNode(otherNode);
+
+        deterministicTaskQueue.setExecutionDelayVariabilityMillis(10000);
+        peerFinder.activate(lastAcceptedNodes);
+        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 1, () -> peerFinder.deactivate(localNode));
+        do {
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks(); // mainly verifying that this doesn't trip an assertion
+        } while (deterministicTaskQueue.hasDeferredTasks());
+        assertFoundPeers();
+
+        peerFinder.closeInactivePeers();
+        assertThat(connectedNodes, empty());
+    }
+
     public void testAddsReachableNodesFromClusterState() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-in-cluster-state");
         updateLastAcceptedNodes(b -> b.add(otherNode));

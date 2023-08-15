@@ -58,8 +58,15 @@
           }
         },
         "components": {
-          "type": "object",
-          "enabled": false
+          "type": "nested",
+          "properties": {
+            "id": {
+              "type": "keyword"
+            },
+            "status": {
+              "type": "keyword"
+            }
+          }
         },
         "last_updated": {
           "type": "date"

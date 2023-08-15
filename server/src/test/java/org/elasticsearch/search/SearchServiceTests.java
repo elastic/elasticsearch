@@ -47,6 +47,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -117,15 +119,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -1966,14 +1960,15 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             null
         );
         int executorPoolSize = randomIntBetween(1, 100);
-        ExecutorService threadPoolExecutor = new ThreadPoolExecutor(
+        ExecutorService threadPoolExecutor = EsExecutors.newFixed(
+            "test",
             executorPoolSize,
-            executorPoolSize,
-            5L,
-            TimeUnit.SECONDS,
-            new ArrayBlockingQueue<>(5)
+            0,
+            Thread::new,
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
-        ExecutorService notThreadPoolExecutor = new ForkJoinPool();
+        ExecutorService notThreadPoolExecutor = Executors.newWorkStealingPool();
 
         SearchService service = getInstanceFromNode(SearchService.class);
         {

@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupeTests;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ListMatcher;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -27,7 +28,8 @@ import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
 
-import static java.util.Collections.singletonList;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -71,7 +73,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
     private final List<ElementType> allowedTypes;
 
     public BlockHashRandomizedTests(
-        @Name("forcePackdHash") boolean forcePackedHash,
+        @Name("forcePackedHash") boolean forcePackedHash,
         @Name("groups") int groups,
         @Name("maxValuesPerPosition") int maxValuesPerPosition,
         @Name("dups") int dups,
@@ -93,9 +95,14 @@ public class BlockHashRandomizedTests extends ESTestCase {
         int emitBatchSize = 100;
         try (BlockHash blockHash = newBlockHash(emitBatchSize, types)) {
             /*
-             * Only the native single valued hashes support nulls. So far!
+             * Only the long/long, long/bytes_ref, and bytes_ref/long implementations don't collect nulls.
              */
-            Oracle oracle = new Oracle(forcePackedHash == false && groups == 1);
+            Oracle oracle = new Oracle(
+                forcePackedHash
+                    || false == (types.equals(List.of(ElementType.LONG, ElementType.LONG))
+                        || types.equals(List.of(ElementType.LONG, ElementType.BYTES_REF))
+                        || types.equals(List.of(ElementType.BYTES_REF, ElementType.LONG)))
+            );
 
             for (int p = 0; p < pageCount; p++) {
                 for (int g = 0; g < blocks.length; g++) {
@@ -114,7 +121,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
                 int[] batchCount = new int[1];
                 // PackedValuesBlockHash always chunks but the normal single value ones don't
                 boolean usingSingle = forcePackedHash == false && types.size() == 1;
-                BlockHashTests.hash(blockHash, ordsAndKeys -> {
+                BlockHashTests.hash(false, blockHash, ordsAndKeys -> {
                     if (usingSingle == false) {
                         assertThat(ordsAndKeys.ords().getTotalValueCount(), lessThanOrEqualTo(emitBatchSize));
                     }
@@ -141,7 +148,15 @@ public class BlockHashRandomizedTests extends ESTestCase {
                 assertTrue(contained);
             }
 
-            assertThat(keys, equalTo(oracle.keys));
+            if (false == keys.equals(oracle.keys)) {
+                List<List<Object>> keyList = new ArrayList<>();
+                keyList.addAll(keys);
+                ListMatcher keyMatcher = matchesList();
+                for (List<Object> k : oracle.keys) {
+                    keyMatcher = keyMatcher.item(k);
+                }
+                assertMap(keyList, keyMatcher);
+            }
         }
     }
 
@@ -206,7 +221,9 @@ public class BlockHashRandomizedTests extends ESTestCase {
             List<Object> values = block.values().get(p);
             if (values == null) {
                 if (collectsNull) {
-                    keys.add(singletonList(null));
+                    List<Object> newKey = new ArrayList<>(key);
+                    newKey.add(null);
+                    add(randomBlocks, p, newKey);
                 }
                 return;
             }

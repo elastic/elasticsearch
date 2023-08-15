@@ -144,11 +144,9 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     private final String origin;
 
     /** The minimum cluster node version required for this descriptor */
-    // TODO[wrb]: we can remove this once the mapping version is used for it
     private final Version minimumNodeVersion;
 
     /** Legacy mapping version from the descriptor */
-    // TODO[wrb] remove
     private final Version mappingsNodeVersion;
 
     /** Mapping version from the descriptor */
@@ -278,7 +276,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             if (settings.getAsInt(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 0) != indexFormat) {
                 throw new IllegalArgumentException("Descriptor index format does not match index format in managed settings");
             }
-            // TODO[wrb]: extract version int and non-metadata hash something different
             this.mappingsNodeVersion = extractNodeVersionFromMappings(mappings, mappingsNodeVersionMetaKey);
             this.mappingsVersion = extractVersionFromMappings(mappings);
             assert mappingsVersion.version >= 0 : "The mappings version must not be negative";
@@ -311,7 +308,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             Set<Version> versions = Sets.newHashSetWithExpectedSize(priorSystemIndexDescriptors.size() + 1);
             versions.add(minimumNodeVersion);
             for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {
-                // TODO[wrb]: use mapping version instead of minimum node version
                 if (versions.add(prior.minimumNodeVersion) == false) {
                     throw new IllegalArgumentException(prior + " has the same minimum node version as another descriptor");
                 }
@@ -549,7 +545,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * @param cause the action being attempted that triggered the check. Used in the error message.
      * @return the standardized error message
      */
-    // TODO[wrb]: update for new "mapping version" world
     public String getMinimumNodeVersionMessage(String cause) {
         Objects.requireNonNull(cause);
         final Version actualMinimumVersion = priorSystemIndexDescriptors.isEmpty()
@@ -885,7 +880,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return new MappingsVersion(value, Objects.hash(properties));
     }
 
-    // TODO[wrb]: remove method
     @SuppressWarnings("unchecked")
     private static Version extractNodeVersionFromMappings(String mappings, String versionMetaKey) {
         final Map<String, Object> mappingsMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), mappings, false);
@@ -901,7 +895,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         }
         final String value = (String) meta.get(versionMetaKey);
         if (value == null) {
-            // TODO[wrb]: Tolerate null
             throw new IllegalArgumentException("mappings do not have a version in _meta." + versionMetaKey);
         }
         return Version.fromString(value);

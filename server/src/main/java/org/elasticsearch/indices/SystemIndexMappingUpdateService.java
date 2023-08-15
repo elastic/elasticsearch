@@ -93,7 +93,6 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
         }
 
         // if we're in a mixed-version cluster, exit
-        // TODO[wrb]: compare cluster minimum mapping version for system index descriptors
         if (state.nodes().getMaxNodeVersion().after(state.nodes().getSmallestNonClientNodeVersion())) {
             logger.debug("Skipping system indices up-to-date check as cluster has mixed versions");
             return;
@@ -268,14 +267,12 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
             return false;
         }
 
-        // TODO[wrb]: compare _descriptor_ mapping version with mapping in cluster
         return Version.CURRENT.onOrBefore(readMappingVersion(descriptor, mappingMetadata));
     }
 
     /**
      * Fetches the mapping version from an index's mapping's `_meta` info.
      */
-    // TODO[wrb]: read the new kind of mapping version
     private static Version readMappingVersion(SystemIndexDescriptor descriptor, MappingMetadata mappingMetadata) {
         final String indexName = descriptor.getPrimaryIndex();
         try {

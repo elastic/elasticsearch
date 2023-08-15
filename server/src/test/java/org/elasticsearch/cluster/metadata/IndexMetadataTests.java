@@ -501,7 +501,7 @@ public class IndexMetadataTests extends ESTestCase {
             final IndexMetadata indexMetadata = IndexMetadata.builder("index")
                 .settings(
                     Settings.builder()
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(INDEX_STORE_TYPE_SETTING.getKey(), "snapshot")
                         .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true)
                 )
@@ -517,7 +517,7 @@ public class IndexMetadataTests extends ESTestCase {
             final IndexMetadata indexMetadata = IndexMetadata.builder("index")
                 .settings(
                     Settings.builder()
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(DataTier.TIER_PREFERENCE, DataTier.DATA_CONTENT)
                         .put(INDEX_STORE_TYPE_SETTING.getKey(), "snapshot")
                         .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true)
@@ -533,7 +533,7 @@ public class IndexMetadataTests extends ESTestCase {
             // regular indices do not receive a tier preference when building the index metadata
             // (we have other ways to make sure they have a tier preference)
             final IndexMetadata indexMetadata = IndexMetadata.builder("index")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build(false);

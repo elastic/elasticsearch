@@ -788,7 +788,7 @@ public class AuthorizationService {
 
             final ActionListener<Collection<Tuple<String, IndexAuthorizationResult>>> bulkAuthzListener = ActionListener.wrap(
                 collection -> {
-                    final Map<String, IndicesAccessControl> actionToIndicesAccessControl = new HashMap<>();
+                    final Map<String, IndicesAccessControl> actionToIndicesAccessControl = new HashMap<>(4);
                     collection.forEach(tuple -> {
                         final IndicesAccessControl existing = actionToIndicesAccessControl.putIfAbsent(
                             tuple.v1(),
@@ -804,8 +804,7 @@ public class AuthorizationService {
                     for (BulkItemRequest item : request.items()) {
                         final String resolvedIndex = resolvedIndexNames.get(item.index());
                         final String itemAction = getAction(item);
-                        final IndicesAccessControl indicesAccessControl = actionToIndicesAccessControl.get(itemAction);
-                        if (indicesAccessControl.hasIndexPermissions(resolvedIndex)) {
+                        if (actionToIndicesAccessControl.get(itemAction).hasIndexPermissions(resolvedIndex)) {
                             actionToGrantedIndicesMap.compute(
                                 itemAction,
                                 (ignore, resolvedIndicesSet) -> addToOrCreateSet(resolvedIndicesSet, resolvedIndex)

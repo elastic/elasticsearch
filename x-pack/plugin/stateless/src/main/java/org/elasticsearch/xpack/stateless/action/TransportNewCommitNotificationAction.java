@@ -23,7 +23,6 @@ import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.unpromotable.TransportBroadcastUnpromotableAction;
@@ -31,6 +30,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -40,10 +40,15 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportNewCommitNotificationAction extends TransportBroadcastUnpromotableAction<NewCommitNotificationRequest> {
+import java.io.IOException;
+import java.util.List;
+
+public class TransportNewCommitNotificationAction extends TransportBroadcastUnpromotableAction<
+    NewCommitNotificationRequest,
+    NewCommitNotificationResponse> {
 
     public static final String NAME = "internal:admin/" + Stateless.NAME + "/search/new/commit";
-    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>(NAME, ignored -> ActionResponse.Empty.INSTANCE);
+    public static final ActionType<NewCommitNotificationResponse> TYPE = new ActionType<>(NAME, NewCommitNotificationResponse::new);
 
     private final IndicesService indicesService;
     private final ShardSizesCollector shardSizesCollector;
@@ -74,7 +79,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
     protected void unpromotableShardOperation(
         Task task,
         NewCommitNotificationRequest request,
-        ActionListener<ActionResponse.Empty> responseListener
+        ActionListener<NewCommitNotificationResponse> responseListener
     ) {
         ActionListener.run(responseListener, (listener) -> {
             if (logger.isTraceEnabled()) {
@@ -103,8 +108,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
                     listener.delegateFailure((l, v) -> ActionListener.completeWith(l, () -> {
                         shard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "new commit notification");
                         shardSizesCollector.detectShardSize(shard.shardId());
-
-                        return ActionResponse.Empty.INSTANCE;
+                        return new NewCommitNotificationResponse(searchEngine.getAcquiredPrimaryTermAndGenerations());
                     }))
                 );
             } else {
@@ -114,4 +118,20 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
         });
     }
 
+    @Override
+    protected NewCommitNotificationResponse combineUnpromotableShardResponses(
+        List<NewCommitNotificationResponse> newCommitNotificationResponses
+    ) {
+        return NewCommitNotificationResponse.combine(newCommitNotificationResponses);
+    }
+
+    @Override
+    protected NewCommitNotificationResponse readResponse(StreamInput in) throws IOException {
+        return new NewCommitNotificationResponse(in);
+    }
+
+    @Override
+    protected NewCommitNotificationResponse emptyResponse() {
+        return NewCommitNotificationResponse.EMPTY;
+    }
 }

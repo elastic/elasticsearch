@@ -17,7 +17,23 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-public record PrimaryTermAndGeneration(long primaryTerm, long generation) {
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
+
+public record PrimaryTermAndGeneration(long primaryTerm, long generation) implements Writeable {
+    public PrimaryTermAndGeneration(StreamInput in) throws IOException {
+        this(in.readVLong(), in.readVLong());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(primaryTerm);
+        out.writeVLong(generation);
+    }
+
     @Override
     public String toString() {
         return "[primary term=" + primaryTerm + ", generation=" + generation + ']';

@@ -258,6 +258,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     // executor to run reading from the blobstore on
     private final Executor ioExecutor;
 
+    // executor to run bulk reading from the blobstore on
+    private final Executor bulkIOExecutor;
+
     private final SharedBytes sharedBytes;
     private final long cacheSize;
     private final long regionSize;
@@ -282,10 +285,21 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     private final LongAdder evictCount = new LongAdder();
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
     public SharedBlobCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool, String ioExecutor) {
+        this(environment, settings, threadPool, ioExecutor, threadPool.executor(ioExecutor));
+    }
+
+    @SuppressWarnings({ "unchecked" })
+    public SharedBlobCacheService(
+        NodeEnvironment environment,
+        Settings settings,
+        ThreadPool threadPool,
+        String ioExecutor,
+        Executor bulkIOExecutor
+    ) {
         this.threadPool = threadPool;
         this.ioExecutor = threadPool.executor(ioExecutor);
+        this.bulkIOExecutor = bulkIOExecutor;
         long totalFsSize;
         try {
             totalFsSize = FsProbe.getTotal(Environment.getFileStore(environment.nodeDataPaths()[0]));
@@ -433,7 +447,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             if (rangeToWrite.length() == 0) {
                 return;
             }
-            entry.chunk.populateAndRead(rangeToWrite, ByteRange.EMPTY, (channel, pos, relativePos, len) -> 0, writer, listener);
+            entry.chunk.populateAndRead(
+                rangeToWrite,
+                ByteRange.EMPTY,
+                (channel, pos, relativePos, len) -> 0,
+                writer,
+                bulkIOExecutor,
+                listener
+            );
         }
     }
 
@@ -853,6 +874,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final ByteRange rangeToRead,
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer,
+            final Executor executor,
             final ActionListener<Integer> listener
         ) {
             // assert rangeToRead.length() > 0;
@@ -888,16 +910,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 );
 
                 if (gaps.isEmpty() == false) {
-                    fillGaps(writer, gaps);
+                    fillGaps(executor, writer, gaps);
                 }
             } catch (Exception e) {
                 releaseAndFail(listener, resource, e);
             }
         }
 
-        private void fillGaps(RangeMissingHandler writer, List<SparseFileTracker.Gap> gaps) {
+        private void fillGaps(Executor executor, RangeMissingHandler writer, List<SparseFileTracker.Gap> gaps) {
             for (SparseFileTracker.Gap gap : gaps) {
-                ioExecutor.execute(new AbstractRunnable() {
+                executor.execute(new AbstractRunnable() {
 
                     @Override
                     protected void doRun() throws Exception {
@@ -1024,6 +1046,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 mapSubRangeToRegion(rangeToRead, region),
                 readerWithOffset(reader, fileRegion, rangeToRead.start() - regionStart),
                 writerWithOffset(writer, fileRegion, rangeToWrite.start() - regionStart),
+                ioExecutor,
                 readFuture
             );
             return readFuture.get();
@@ -1053,6 +1076,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         subRangeToRead,
                         readerWithOffset(reader, fileRegion, rangeToRead.start() - regionStart),
                         writerWithOffset(writer, fileRegion, rangeToWrite.start() - regionStart),
+                        ioExecutor,
                         listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j)))
                     );
                 }

@@ -36,7 +36,9 @@ import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -90,6 +92,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 ByteRange.of(0L, 1L),
                 (channel, channelPos, relativePos, length) -> 1,
                 (channel, channelPos, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
+                taskQueue.getThreadPool().generic(),
                 bytesReadFuture
             );
             synchronized (cacheService) {
@@ -339,9 +342,20 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        AtomicInteger bulkTaskCount = new AtomicInteger(0);
+        Executor bulkExecutor = command -> {
+            taskQueue.getThreadPool().generic().execute(command);
+            bulkTaskCount.incrementAndGet();
+        };
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool(), ThreadPool.Names.GENERIC)
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ThreadPool.Names.GENERIC,
+                bulkExecutor
+            )
         ) {
             final var cacheKey = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
@@ -362,6 +376,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             assertTrue(latch.await(10, TimeUnit.SECONDS));
             assertEquals(2, cacheService.freeRegionCount());
+            assertEquals(3, bulkTaskCount.get());
         }
     }
 

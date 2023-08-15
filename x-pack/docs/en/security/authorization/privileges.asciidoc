@@ -20,7 +20,6 @@ See <<delete-async-search,delete async search>> API for more informations.
 Privileges to create snapshots for existing repositories. Can also list and view
 details on existing repositories and snapshots.
 
-// TODO: fix the link to new page of API key based remote clusters
 `cross_cluster_replication`::
 beta:[] Privileges to connect to remote clusters configured with the API key based model
 for cross-cluster replication.
@@ -301,7 +300,6 @@ aliases to be added to the index once created. In that case the request
 requires the `manage` privilege as well, on both the index and the aliases
 names.
 
-// TODO: fix the link to new page of API key based remote clusters
 `cross_cluster_replication`::
 beta:[] Privileges to perform cross-cluster replication for indices located on remote clusters
 configured with the API key based model. This privilege should only be used for

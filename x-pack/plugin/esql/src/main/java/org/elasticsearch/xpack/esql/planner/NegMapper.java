@@ -58,6 +58,6 @@ abstract class NegMapper extends EvalMapper.ExpressionMapper<Neg> {
                 return () -> doubles.apply(childEvaluator);
             }
         }
-        throw new AssertionError(String.format("arithmetic negation operator with unsupported data type [%s]", type.typeName()));
+        throw new AssertionError("arithmetic negation operator with unsupported data type [" + type.typeName() + "]");
     }
 }

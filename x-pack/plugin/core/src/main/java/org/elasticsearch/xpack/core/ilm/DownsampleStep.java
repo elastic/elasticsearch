@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
+
 /**
  * ILM step that invokes the downsample action for an index using a {@link DateHistogramInterval}. The downsample
  * index name is retrieved from the lifecycle state {@link LifecycleExecutionState#downsampleIndexName()}
@@ -65,7 +67,8 @@ public class DownsampleStep extends AsyncActionStep {
 
         final String policyName = indexMetadata.getLifecyclePolicyName();
         final String indexName = indexMetadata.getIndex().getName();
-        final String downsampleIndexName = lifecycleState.downsampleIndexName();
+        final String downsampleIndexName = generateDownsampleIndexName(indexName, fixedInterval);
+
         IndexMetadata downsampleIndexMetadata = currentState.metadata().index(downsampleIndexName);
         if (downsampleIndexMetadata != null) {
             IndexMetadata.DownsampleTaskStatus downsampleIndexStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(
@@ -124,4 +127,7 @@ public class DownsampleStep extends AsyncActionStep {
         return super.equals(obj) && Objects.equals(fixedInterval, other.fixedInterval) && Objects.equals(waitTimeout, other.waitTimeout);
     }
 
+    static String generateDownsampleIndexName(String sourceIndexName, DateHistogramInterval fixedInterval) {
+        return DOWNSAMPLED_INDEX_PREFIX + sourceIndexName + "-" + fixedInterval;
+    }
 }

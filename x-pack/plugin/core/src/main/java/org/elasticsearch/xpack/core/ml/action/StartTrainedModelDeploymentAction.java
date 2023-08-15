@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -51,7 +49,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/start";
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
-    public static Logger logger = LogManager.getLogger(StartTrainedModelDeploymentAction.class);
 
     /**
      * This has been found to be approximately 300MB on linux by manual testing.
@@ -143,8 +140,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private int queueCapacity = 1024;
         private Priority priority = Priority.NORMAL;
 
-        private long perDeploymentMemoryBytes = 0;
-        private long perAllocationMemoryBytes = 0;
+        private long perDeploymentMemoryBytes = 0L;
+        private long perAllocationMemoryBytes = 0L;
 
         private Request() {}
 
@@ -764,27 +761,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         // The model size is still added in option 3 to account for the temporary requirement to hold the zip file in memory
         // in `pytorch_inference`.
         if (isElserV1Model(modelId)) {
-            logger.info("***estimateMemoryUsageBytes: Using static memory estimate for ELSER v1 model [{}]", modelId);
             return ELSER_1_MEMORY_USAGE.getBytes();
         } else if (perDeploymentMemoryBytes == 0 && perAllocationMemoryBytes == 0) {
-            logger.info(
-                "***estimateMemoryUsageBytes: Using static memory estimate for model [{}],"
-                    + " memory overhead [{}], totalDefinitionLength [{}]",
-                modelId,
-                MEMORY_OVERHEAD.getBytes(),
-                totalDefinitionLength
-            );
             return MEMORY_OVERHEAD.getBytes() + 2 * totalDefinitionLength;
         } else {
-            logger.info(
-                "***estimateMemoryUsageBytes: Using static memory estimate for model [{}],totalDefinitionLength [{}],"
-                    + " perDeploymentMemoryBytes [{}], perAllocationMemoryBytes [{}], numberOfAllocations [{}]",
-                modelId,
-                totalDefinitionLength,
-                perDeploymentMemoryBytes,
-                perAllocationMemoryBytes,
-                numberOfAllocations
-            );
             return perDeploymentMemoryBytes + perAllocationMemoryBytes * numberOfAllocations + totalDefinitionLength;
         }
     }

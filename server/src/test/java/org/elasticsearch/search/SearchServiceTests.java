@@ -1958,19 +1958,16 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             System.currentTimeMillis(),
             null
         );
-
-        ThreadPoolExecutor mockThreadPoolExecutor = mock();
         int executorPoolSize = randomIntBetween(1, 100);
-        when(mockThreadPoolExecutor.getMaximumPoolSize()).thenReturn(executorPoolSize);
-
-        ExecutorService mockNotTPExecutor = mock();
+        ExecutorService threadPoolExecutor = new ThreadPoolExecutor(executorPoolSize, executorPoolSize, 5L, TimeUnit.SECONDS,new ArrayBlockingQueue<>(5));
+        ExecutorService notThreadPoolExecutor = new ForkJoinPool();
 
         SearchService service = getInstanceFromNode(SearchService.class);
         {
-            assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.DFS));
+            assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(threadPoolExecutor, request, ResultsType.DFS));
             assertEquals(1, service.determineMaximumNumberOfSlices(null, request, ResultsType.DFS));
-            assertEquals(1, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.QUERY));
-            assertEquals(1, service.determineMaximumNumberOfSlices(mockNotTPExecutor, request, ResultsType.DFS));
+            assertEquals(1, service.determineMaximumNumberOfSlices(threadPoolExecutor, request, ResultsType.QUERY));
+            assertEquals(1, service.determineMaximumNumberOfSlices(notThreadPoolExecutor, request, ResultsType.DFS));
         }
         try {
             ClusterUpdateSettingsResponse response = client().admin()
@@ -1980,11 +1977,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 .get();
             assertTrue(response.isAcknowledged());
             {
-                assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.DFS));
+                assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(threadPoolExecutor, request, ResultsType.DFS));
                 assertEquals(1, service.determineMaximumNumberOfSlices(null, request, ResultsType.DFS));
-                assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.QUERY));
+                assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(threadPoolExecutor, request, ResultsType.QUERY));
                 assertEquals(1, service.determineMaximumNumberOfSlices(null, request, ResultsType.QUERY));
-                assertEquals(1, service.determineMaximumNumberOfSlices(mockNotTPExecutor, request, ResultsType.DFS));
+                assertEquals(1, service.determineMaximumNumberOfSlices(notThreadPoolExecutor, request, ResultsType.DFS));
             }
         } finally {
             // reset original default setting
@@ -1994,8 +1991,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 .setPersistentSettings(Settings.builder().putNull(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey()).build())
                 .get();
             {
-                assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.DFS));
-                assertEquals(1, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.QUERY));
+                assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(threadPoolExecutor, request, ResultsType.DFS));
+                assertEquals(1, service.determineMaximumNumberOfSlices(threadPoolExecutor, request, ResultsType.QUERY));
             }
         }
     }

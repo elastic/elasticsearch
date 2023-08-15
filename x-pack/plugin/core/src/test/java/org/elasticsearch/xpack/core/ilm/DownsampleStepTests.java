@@ -32,7 +32,6 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstanc
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.common.IndexNameGenerator.generateValidIndexName;
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
-import static org.elasticsearch.xpack.core.ilm.DownsampleStep.generateDownsampleIndexName;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -181,18 +180,24 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         String lifecycleName = randomAlphaOfLength(5);
         DownsampleStep step = createRandomInstance();
 
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        String downsampleIndex = DownsamplePrepareLifeCycleStateStep.generateDownsampleIndexName(
+            sourceIndexMetadata,
+            step.getFixedInterval()
+        );
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase(step.getKey().phase());
         lifecycleState.setAction(step.getKey().action());
         lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
+        lifecycleState.setDownsampleIndexName(downsampleIndex);
 
-        String downsampleIndex = generateDownsampleIndexName(sourceIndexName, step.getFixedInterval());
-        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
-            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+        sourceIndexMetadata = IndexMetadata.builder(sourceIndexMetadata)
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
-            .numberOfShards(randomIntBetween(1, 5))
-            .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         // Create an in-progress downsample index (index.downsample.status: started)

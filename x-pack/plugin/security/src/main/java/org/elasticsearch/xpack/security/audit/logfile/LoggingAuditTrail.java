@@ -811,13 +811,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         AuditLevel eventType,
         Authentication authentication,
         String action,
-        String index,
+        String[] indices,
         String requestName,
         InetSocketAddress remoteAddress,
         AuthorizationInfo authorizationInfo
     ) {
         assert eventType == ACCESS_DENIED || eventType == AuditLevel.ACCESS_GRANTED || eventType == SYSTEM_ACCESS_GRANTED;
-        final String[] indices = index == null ? null : new String[] { index };
         final User user = authentication.getEffectiveSubject().getUser();
         if (user instanceof InternalUser && eventType == ACCESS_GRANTED) {
             eventType = SYSTEM_ACCESS_GRANTED;

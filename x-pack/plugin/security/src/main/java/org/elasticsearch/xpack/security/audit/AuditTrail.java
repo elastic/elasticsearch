@@ -104,7 +104,7 @@ public interface AuditTrail {
         AuditLevel eventType,
         Authentication authentication,
         String action,
-        String indices,
+        String[] indices,
         String requestName,
         InetSocketAddress remoteAddress,
         AuthorizationInfo authorizationInfo

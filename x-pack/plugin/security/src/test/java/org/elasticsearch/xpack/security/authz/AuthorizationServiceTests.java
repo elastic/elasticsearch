@@ -2437,7 +2437,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(AuditLevel.ACCESS_GRANTED),
             eq(authentication),
             eq(DeleteAction.NAME),
-            eq("concrete-index"),
+            eq(new String[] { "concrete-index" }),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
             authzInfoRoles(new String[] { role.getName() })
@@ -2447,7 +2447,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(AuditLevel.ACCESS_GRANTED),
             eq(authentication),
             eq(DeleteAction.NAME),
-            eq("alias-2"),
+            eq(new String[] { "alias-2" }),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
             authzInfoRoles(new String[] { role.getName() })
@@ -2457,7 +2457,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(AuditLevel.ACCESS_GRANTED),
             eq(authentication),
             eq(IndexAction.NAME + ":op_type/index"),
-            eq("concrete-index"),
+            eq(new String[] { "concrete-index" }),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
             authzInfoRoles(new String[] { role.getName() })
@@ -2467,7 +2467,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(AuditLevel.ACCESS_GRANTED),
             eq(authentication),
             eq(IndexAction.NAME + ":op_type/index"),
-            eq("alias-1"),
+            eq(new String[] { "alias-1" }),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
             authzInfoRoles(new String[] { role.getName() })
@@ -2477,7 +2477,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(AuditLevel.ACCESS_DENIED),
             eq(authentication),
             eq(DeleteAction.NAME),
-            eq("alias-1"),
+            eq(new String[] { "alias-1" }),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
             authzInfoRoles(new String[] { role.getName() })
@@ -2487,7 +2487,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(AuditLevel.ACCESS_DENIED),
             eq(authentication),
             eq(IndexAction.NAME + ":op_type/index"),
-            eq("alias-2"),
+            eq(new String[] { "alias-2" }),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
             authzInfoRoles(new String[] { role.getName() })
@@ -2532,7 +2532,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(AuditLevel.ACCESS_DENIED),
             eq(authentication),
             eq(DeleteAction.NAME),
-            ArgumentMatchers.startsWith("datemath-"),
+            ArgumentMatchers.argThat(indices -> indices.length == 1 && indices[0].startsWith("datemath-")),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
             authzInfoRoles(new String[] { role.getName() })
@@ -2542,7 +2542,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(AuditLevel.ACCESS_GRANTED),
             eq(authentication),
             eq(IndexAction.NAME + ":op_type/index"),
-            ArgumentMatchers.startsWith("datemath-"),
+            ArgumentMatchers.argThat(indices -> indices.length == 1 && indices[0].startsWith("datemath-")),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
             authzInfoRoles(new String[] { role.getName() })

@@ -817,7 +817,7 @@ public class AuthorizationService {
                                 AuditLevel.ACCESS_DENIED,
                                 authentication,
                                 itemAction,
-                                resolvedIndex,
+                                new String[] { resolvedIndex },
                                 item.getClass().getSimpleName(),
                                 request.remoteAddress(),
                                 authzInfo
@@ -839,7 +839,7 @@ public class AuthorizationService {
                                 AuditLevel.ACCESS_GRANTED,
                                 authentication,
                                 itemAction,
-                                resolvedIndex,
+                                new String[] { resolvedIndex },
                                 item.getClass().getSimpleName(),
                                 request.remoteAddress(),
                                 authzInfo

@@ -2,4 +2,4 @@ pr: 98489
 summary: optimize ContentPath#pathAsText
 area: Search
 type: enhancement
-issues: [94971]
+issues: [ 94971 ]

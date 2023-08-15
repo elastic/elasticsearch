@@ -1,4 +1,4 @@
-[[http-settings]]
+[[remote-cluster-network-settings]]
 ==== Advanced Remote Cluster (API key based model) settings
 
 beta::[]

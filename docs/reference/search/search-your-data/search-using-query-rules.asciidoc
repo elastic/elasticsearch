@@ -127,7 +127,7 @@ PUT /_query_rules/my-ruleset
       "criteria": [
         {
           "type": "fuzzy",
-          "metadata": "user.query",
+          "metadata": "query_string",
           "values": [ "puggles", "pugs" ]
         },
         {
@@ -149,7 +149,7 @@ PUT /_query_rules/my-ruleset
       "criteria": [
         {
           "type": "fuzzy",
-          "metadata": "user.query",
+          "metadata": "query_string",
           "values": [ "beagles" ]
         }
       ],

@@ -81,13 +81,19 @@ public class NegTests extends AbstractScalarFunctionTestCase {
         DataType testCaseType = testCase.getData().get(0).type();
         if (testCaseType.equals(DataTypes.INTEGER)) {
             assertEquals(null, process(Integer.MIN_VALUE));
-            assertCriticalWarnings("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.", "java.lang.ArithmeticException: integer overflow");
+            assertCriticalWarnings(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "java.lang.ArithmeticException: integer overflow"
+            );
 
             return;
         }
         if (testCaseType.equals(DataTypes.LONG)) {
             assertEquals(null, process(Long.MIN_VALUE));
-            assertCriticalWarnings("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.", "java.lang.ArithmeticException: long overflow");
+            assertCriticalWarnings(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "java.lang.ArithmeticException: long overflow"
+            );
 
             return;
         }
@@ -111,11 +117,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
     }
 
     private Object process(Number val) {
-        return toJavaObject(
-            evaluator(new Neg(Source.EMPTY, field("val", typeOf(val)))).get()
-                .eval(row(List.of(val))),
-            0
-        );
+        return toJavaObject(evaluator(new Neg(Source.EMPTY, field("val", typeOf(val)))).get().eval(row(List.of(val))), 0);
     }
 
     private DataType typeOf(Number val) {

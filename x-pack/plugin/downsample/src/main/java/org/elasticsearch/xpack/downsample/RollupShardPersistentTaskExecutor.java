@@ -30,7 +30,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
-import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -73,7 +72,7 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<D
     }
 
     private void fork(final AllocatedPersistentTask task, final DownsampleShardTaskParams params, final SearchHit[] lastRollupTsidHits) {
-        client.threadPool().executor(Rollup.DOWSAMPLE_TASK_THREAD_POOL_NAME).execute(new AbstractRunnable() {
+        client.threadPool().executor(Downsample.DOWSAMPLE_TASK_THREAD_POOL_NAME).execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
                 task.markAsFailed(e);
@@ -182,6 +181,6 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<D
 
     @Override
     public String getExecutor() {
-        return Rollup.DOWSAMPLE_TASK_THREAD_POOL_NAME;
+        return Downsample.DOWSAMPLE_TASK_THREAD_POOL_NAME;
     }
 }

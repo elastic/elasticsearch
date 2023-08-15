@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
-import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -70,7 +69,7 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
             indexNameExpressionResolver,
             DownsampleIndexerAction.Request::new,
             DownsampleIndexerAction.ShardDownsampleRequest::new,
-            Rollup.DOWSAMPLE_TASK_THREAD_POOL_NAME
+            Downsample.DOWSAMPLE_TASK_THREAD_POOL_NAME
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
         this.clusterService = clusterService;

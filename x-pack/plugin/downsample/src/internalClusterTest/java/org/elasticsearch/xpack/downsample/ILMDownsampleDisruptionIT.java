@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -80,7 +79,7 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
             LocalStateCompositeXPackPlugin.class,
-            Rollup.class,
+            Downsample.class,
             AggregateMetricMapperPlugin.class,
             LocalStateCompositeXPackPlugin.class,
             IndexLifecycle.class,

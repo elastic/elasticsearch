@@ -189,6 +189,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -2405,7 +2406,121 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(() -> authorize(createAuthentication(userDenied), action, request), action, "userDenied");
     }
 
-    public void testAuthorizationOfIndividualBulkItems() {
+    public void testAuthorizationOfSameActionSameIndexBulkItems() {
+        final String action = BulkAction.NAME + "[s]";
+        final String indexName = randomAlphaOfLengthBetween(1, 8);
+        final BulkItemRequest[] items;
+        final DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
+        final RoleDescriptor role;
+        final AtomicInteger idCounter = new AtomicInteger();
+        switch (opType) {
+            case INDEX -> {
+                items = randomArray(
+                    1,
+                    8,
+                    BulkItemRequest[]::new,
+                    () -> new BulkItemRequest(
+                        idCounter.get(),
+                        new IndexRequest(indexName).id("id" + idCounter.incrementAndGet()).opType(DocWriteRequest.OpType.INDEX)
+                    )
+                );
+                role = new RoleDescriptor(
+                    "my-role",
+                    null,
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder().indices(indexName).privileges(randomFrom("all", "create", "index", "write")).build() },
+                    null
+                );
+            }
+            case CREATE -> {
+                items = randomArray(
+                    1,
+                    8,
+                    BulkItemRequest[]::new,
+                    () -> new BulkItemRequest(
+                        idCounter.get(),
+                        new IndexRequest(indexName).id("id" + idCounter.incrementAndGet()).opType(DocWriteRequest.OpType.CREATE)
+                    )
+                );
+                role = new RoleDescriptor(
+                    "my-role",
+                    null,
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexName)
+                            .privileges(randomFrom("all", "create_doc", "create", "index", "write"))
+                            .build() },
+                    null
+                );
+            }
+            case DELETE -> {
+                items = randomArray(
+                    1,
+                    8,
+                    BulkItemRequest[]::new,
+                    () -> new BulkItemRequest(idCounter.get(), new DeleteRequest(indexName, "id" + idCounter.incrementAndGet()))
+                );
+                role = new RoleDescriptor(
+                    "my-role",
+                    null,
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder().indices(indexName).privileges(randomFrom("all", "delete", "write")).build() },
+                    null
+                );
+            }
+            case UPDATE -> {
+                items = randomArray(
+                    1,
+                    8,
+                    BulkItemRequest[]::new,
+                    () -> new BulkItemRequest(idCounter.get(), new UpdateRequest(indexName, "id" + idCounter.incrementAndGet()))
+                );
+                role = new RoleDescriptor(
+                    "my-role",
+                    null,
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder().indices(indexName).privileges(randomFrom("all", "index", "write")).build() },
+                    null
+                );
+            }
+            default -> throw new IllegalStateException("Unexpected value: " + opType);
+        }
+        roleMap.put("my-role", role);
+        final Authentication authentication = createAuthentication(new User("user", "my-role"));
+
+        final ShardId shardId = new ShardId(indexName, UUID.randomUUID().toString(), 1);
+        final BulkShardRequest request = new BulkShardRequest(shardId, randomFrom(WriteRequest.RefreshPolicy.values()), items);
+
+        mockEmptyMetadata();
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        authorize(authentication, action, request);
+
+        // there's only one "access granted" record for all the bulk items
+        verify(auditTrail).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication), eq(switch (opType) {
+            case INDEX -> IndexAction.NAME + ":op_type/index";
+            case CREATE -> IndexAction.NAME + ":op_type/create";
+            case UPDATE -> UpdateAction.NAME;
+            case DELETE -> DeleteAction.NAME;
+        }),
+            eq(new String[] { indexName }),
+            eq(BulkItemRequest.class.getSimpleName()),
+            eq(request.remoteAddress()),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(action),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        ); // bulk request is allowed
+        verifyNoMoreInteractions(auditTrail);
+        for (BulkItemRequest bulkItemRequest : request.items()) {
+            assertThat(bulkItemRequest.getPrimaryResponse(), nullValue());
+        }
+    }
+
+    public void testAuthorizationOfIndividualIndexAndDeleteBulkItems() {
         final String action = BulkAction.NAME + "[s]";
         final BulkItemRequest[] items = {
             new BulkItemRequest(1, new DeleteRequest("concrete-index", "c1")),

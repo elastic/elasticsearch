@@ -829,7 +829,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         // can be null for API keys created before version 7.7
                         Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.of(authorizationInfo),
-                        Optional.ofNullable(indices),
+                        Optional.of(indices),
                         Optional.of(action)
                     )
                 ) == false) {

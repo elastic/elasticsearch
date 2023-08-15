@@ -18,6 +18,8 @@ public final class ContentPath {
 
     private String[] path = new String[10];
 
+    private StringBuilder[] textPath = new StringBuilder[10];
+
     private boolean withinLeafObject = false;
 
     public ContentPath() {
@@ -25,6 +27,13 @@ public final class ContentPath {
     }
 
     public void add(String name) {
+        if(index == 0) {
+            textPath[index] = new StringBuilder();
+            textPath[index].append(name);
+        } else {
+            textPath[index] = new StringBuilder();
+            textPath[index].append(textPath[index-1]).append(DELIMITER).append(name);
+        }
         path[index++] = name;
         if (index == path.length) { // expand if needed
             expand();
@@ -33,11 +42,15 @@ public final class ContentPath {
 
     private void expand() {
         String[] newPath = new String[path.length + 10];
+        StringBuilder[] newTextPath = new StringBuilder[path.length + 10];
         System.arraycopy(path, 0, newPath, 0, path.length);
+        System.arraycopy(textPath, 0, newTextPath, 0, path.length);
         path = newPath;
+        textPath = newTextPath;
     }
 
     public void remove() {
+        textPath[index] = new StringBuilder();
         path[index--] = null;
     }
 
@@ -51,8 +64,11 @@ public final class ContentPath {
 
     public String pathAsText(String name) {
         sb.setLength(0);
-        for (int i = 0; i < index; i++) {
-            sb.append(path[i]).append(DELIMITER);
+        if(index != 0){
+            sb.append(textPath[index-1]);
+        }
+        if(sb.length() > 1) {
+            sb.append(DELIMITER);
         }
         sb.append(name);
         return sb.toString();

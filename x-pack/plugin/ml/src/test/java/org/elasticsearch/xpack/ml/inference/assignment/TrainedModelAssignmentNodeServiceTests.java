@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -49,6 +50,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterServiceTests.shutdownMetadata;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -353,6 +355,40 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
 
         trainedModelAssignmentNodeService.clusterChanged(event);
         trainedModelAssignmentNodeService.loadQueuedModels();
+        verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
+    }
+
+    public void testClusterChanged_WhenAssigmentIsRoutedToShuttingDownNode() {
+        final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
+        final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId(NODE_ID).add(DiscoveryNodeUtils.create(NODE_ID, NODE_ID)).build();
+        String modelOne = "model-1";
+        String deploymentOne = "deployment-1";
+
+        ClusterChangedEvent event = new ClusterChangedEvent(
+            "testClusterChanged",
+            ClusterState.builder(new ClusterName("testClusterChanged"))
+                .nodes(nodes)
+                .metadata(
+                    Metadata.builder()
+                        .putCustom(
+                            TrainedModelAssignmentMetadata.NAME,
+                            TrainedModelAssignmentMetadata.Builder.empty()
+                                .addNewAssignment(
+                                    modelOne,
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne))
+                                        .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STOPPING, ""))
+                                )
+                                .build()
+                        )
+                        .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(NODE_ID))
+                        .build()
+                )
+                .build(),
+            ClusterState.EMPTY_STATE
+        );
+
+        trainedModelAssignmentNodeService.clusterChanged(event);
+        fail("finish this test");
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 

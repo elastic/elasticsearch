@@ -57,6 +57,8 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -151,7 +153,7 @@ public class DeploymentManager {
         ActionListener<TrainedModelDeploymentTask> failedDeploymentListener = ActionListener.wrap(finalListener::onResponse, failure -> {
             ProcessContext failedContext = processContextByAllocation.remove(task.getId());
             if (failedContext != null) {
-                failedContext.stopProcess();
+                failedContext.forciblyStopProcess();
             }
             finalListener.onFailure(failure);
         });
@@ -244,9 +246,23 @@ public class DeploymentManager {
         ProcessContext processContext = processContextByAllocation.remove(task.getId());
         if (processContext != null) {
             logger.info("[{}] Stopping deployment, reason [{}]", task.getDeploymentId(), task.stoppedReason().orElse("unknown"));
-            processContext.stopProcess();
+            processContext.forciblyStopProcess();
         } else {
             logger.warn("[{}] No process context to stop", task.getDeploymentId());
+        }
+    }
+
+    public void stopAfterCompletingPendingWork(TrainedModelDeploymentTask task) {
+        ProcessContext processContext = processContextByAllocation.remove(task.getId());
+        if (processContext != null) {
+            logger.info(
+                "[{}] Stopping deployment after completing pending tasks, reason [{}]",
+                task.getDeploymentId(),
+                task.stoppedReason().orElse("unknown")
+            );
+            processContext.stopProcessAfterCompletingPendingWork();
+        } else {
+            logger.warn("[{}] No process context to stop gracefully", task.getDeploymentId());
         }
     }
 
@@ -383,6 +399,8 @@ public class DeploymentManager {
         private final AtomicInteger timeoutCount = new AtomicInteger();
         private volatile boolean isStopped;
 
+        private static final TimeValue COMPLETION_TIMEOUT = TimeValue.timeValueMinutes(3);
+
         ProcessContext(TrainedModelDeploymentTask task) {
             this.task = Objects.requireNonNull(task);
             resultProcessor = new PyTorchResultProcessor(task.getDeploymentId(), threadSettings -> {
@@ -442,22 +460,32 @@ public class DeploymentManager {
             executorServiceForProcess.submit(priorityProcessWorker::start);
         }
 
-        synchronized void stopProcess() {
-            isStopped = true;
-            resultProcessor.stop();
-            stateStreamer.cancel();
+        synchronized void forciblyStopProcess() {
+            logger.debug(() -> format("[%s] Forcibly stopping process", task.getDeploymentId()));
+            prepareInternalStateForShutdown();
 
             if (priorityProcessWorker.isShutdown()) {
                 // most likely there was a crash or exception that caused the
                 // thread to stop. Notify any waiting requests in the work queue
-                priorityProcessWorker.notifyQueueRunnables();
+                handleAlreadyShuttingDownWorker();
             } else {
                 priorityProcessWorker.shutdown();
             }
+
             killProcessIfPresent();
-            if (nlpTaskProcessor.get() != null) {
-                nlpTaskProcessor.get().close();
-            }
+            closeNlpTaskProcessor();
+        }
+
+        private void prepareInternalStateForShutdown() {
+            isStopped = true;
+            resultProcessor.stop();
+            stateStreamer.cancel();
+        }
+
+        private void handleAlreadyShuttingDownWorker() {
+            logger.debug(() -> format("[%s] Process worker was already marked for shutdown", task.getDeploymentId()));
+
+            priorityProcessWorker.notifyQueueRunnables();
         }
 
         private void killProcessIfPresent() {
@@ -468,6 +496,61 @@ public class DeploymentManager {
                 process.get().kill(true);
             } catch (IOException e) {
                 logger.error(() -> "[" + task.getDeploymentId() + "] Failed to kill process", e);
+            }
+        }
+
+        private void closeNlpTaskProcessor() {
+            if (nlpTaskProcessor.get() != null) {
+                nlpTaskProcessor.get().close();
+            }
+        }
+
+        synchronized void stopProcessAfterCompletingPendingWork() {
+            logger.debug(() -> format("[%s] Stopping process after completing its pending work", task.getDeploymentId()));
+            prepareInternalStateForShutdown();
+
+            if (priorityProcessWorker.isShutdown()) {
+                // most likely there was a crash or exception that caused the
+                // thread to stop. Notify any waiting requests in the work queue
+                handleAlreadyShuttingDownWorker();
+            } else {
+                signalAndWaitForWorkerTermination();
+            }
+
+            stopProcessGracefully();
+            closeNlpTaskProcessor();
+        }
+
+        private void signalAndWaitForWorkerTermination() {
+            try {
+                priorityProcessWorker.awaitTerminationAfterCompletingWork(COMPLETION_TIMEOUT.getMinutes(), TimeUnit.MINUTES);
+            } catch (TimeoutException e) {
+                logger.warn(format("[%s] Timed out waiting for process worker to complete, forcing a shutdown", task.getDeploymentId()), e);
+                // The process failed to stop in the time period allotted, so we'll mark it for shut down
+                priorityProcessWorker.shutdown();
+                priorityProcessWorker.notifyQueueRunnables();
+            }
+        }
+
+        private void stopProcessGracefully() {
+            try {
+                closeProcessIfPresent();
+                resultProcessor.awaitCompletion(COMPLETION_TIMEOUT.getMinutes(), TimeUnit.MINUTES);
+            } catch (TimeoutException e) {
+                logger.warn(format("[%s] Timed out waiting for results processor to stop", task.getDeploymentId()), e);
+            }
+        }
+
+        private void closeProcessIfPresent() {
+            try {
+                if (process.get() == null) {
+                    return;
+                }
+
+                process.get().close();
+            } catch (IOException e) {
+                logger.error(() -> "[" + task.getDeploymentId() + "] Failed to stop process gracefully attempting to kill it", e);
+                killProcessIfPresent();
             }
         }
 

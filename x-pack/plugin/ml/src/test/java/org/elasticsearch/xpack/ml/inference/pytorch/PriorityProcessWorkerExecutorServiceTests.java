@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.pytorch;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -15,6 +16,9 @@ import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.ml.inference.pytorch.PriorityProcessWorkerExecutorService.RequestPriority;
@@ -95,6 +99,50 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         assertTrue(r1.hasBeenRun);
         assertTrue(r2.hasBeenRun);
         assertTrue(r3.hasBeenRun);
+    }
+
+    public void testExecutorShutsDownAfterCompletingWork() {
+        var executor = createProcessWorkerExecutorService(100);
+
+        var counter = new AtomicInteger();
+
+        var r1 = new RunOrderValidator(1, counter);
+        executor.executeWithPriority(r1, RequestPriority.NORMAL, 100L);
+        var r2 = new RunOrderValidator(2, counter);
+        executor.executeWithPriority(r2, RequestPriority.NORMAL, 101L);
+        var r3 = new RunOrderValidator(3, counter);
+        executor.executeWithPriority(r3, RequestPriority.NORMAL, 102L);
+
+        runExecutorAndAssertTermination(executor);
+
+        assertTrue(r1.initialized);
+        assertTrue(r2.initialized);
+        assertTrue(r3.initialized);
+
+        assertTrue(r1.hasBeenRun);
+        assertTrue(r2.hasBeenRun);
+        assertTrue(r3.hasBeenRun);
+    }
+
+    private void runExecutorAndAssertTermination(PriorityProcessWorkerExecutorService executor) {
+        Future<?> executorTermination = threadPool.generic().submit(() -> {
+            try {
+                executor.awaitTerminationAfterCompletingWork(1, TimeUnit.MINUTES);
+            } catch (TimeoutException e) {
+                fail(Strings.format("Failed to gracefully shutdown executor: %s", e.getMessage()));
+            }
+        });
+
+        executor.start();
+
+        try {
+            executorTermination.get(1, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            fail(Strings.format("Executor finished before it was signaled to shutdown gracefully"));
+        }
+
+        assertTrue(executor.isShutdown());
+        assertTrue(executor.isTerminated());
     }
 
     public void testOrderedRunnables_MixedPriorities() {
@@ -189,6 +237,35 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         @Override
         protected void doRun() {
             executor.shutdown();
+        }
+
+        @Override
+        public void init() {
+            // do nothing
+        }
+    }
+
+    private static class ShutdownExecutorAfterWorkRunnable extends AbstractInitializableRunnable {
+
+        PriorityProcessWorkerExecutorService executor;
+
+        ShutdownExecutorAfterWorkRunnable(PriorityProcessWorkerExecutorService executor) {
+            this.executor = executor;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            executor.shutdown();
+            fail(e.getMessage());
+        }
+
+        @Override
+        protected void doRun() {
+            try {
+                executor.awaitTerminationAfterCompletingWork(1, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                fail("Worker executor service did not shutdown");
+            }
         }
 
         @Override

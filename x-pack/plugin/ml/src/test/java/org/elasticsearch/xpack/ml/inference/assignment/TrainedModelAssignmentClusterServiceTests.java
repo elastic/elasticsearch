@@ -1659,6 +1659,20 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         );
     }
 
+    static NodesShutdownMetadata shutdownMetadata(String nodeId) {
+        return new NodesShutdownMetadata(
+            Collections.singletonMap(
+                nodeId,
+                SingleNodeShutdownMetadata.builder()
+                    .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                    .setStartedAtMillis(randomNonNegativeLong())
+                    .setReason("tests")
+                    .setNodeId(nodeId)
+                    .build()
+            )
+        );
+    }
+
     private void assertThatStoppingAssignmentPreventsMutation(
         Function<ClusterState, ClusterState> mutationFunction,
         ClusterState original
@@ -1758,17 +1772,4 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         );
     }
 
-    private static NodesShutdownMetadata shutdownMetadata(String nodeId) {
-        return new NodesShutdownMetadata(
-            Collections.singletonMap(
-                nodeId,
-                SingleNodeShutdownMetadata.builder()
-                    .setType(SingleNodeShutdownMetadata.Type.REMOVE)
-                    .setStartedAtMillis(randomNonNegativeLong())
-                    .setReason("tests")
-                    .setNodeId(nodeId)
-                    .build()
-            )
-        );
-    }
 }

@@ -19,6 +19,8 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -79,6 +81,24 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         assertTrue(threadSettingsListener.hasResponse);
         assertTrue(ackListener.hasResponse);
         assertTrue(errorListener.hasResponse);
+    }
+
+    public void testAwaitCompletion() {
+        var inferenceResult = new PyTorchInferenceResult(null);
+        var inferenceListener = new AssertingResultListener(r -> assertEquals(inferenceResult, r.inferenceResult()));
+
+        var processor = new PyTorchResultProcessor("foo", s -> {});
+        processor.registerRequest("a", inferenceListener);
+
+        processor.process(mockNativeProcess(List.of(new PyTorchResult("a", true, 1000L, inferenceResult, null, null, null)).iterator()));
+
+        try {
+            processor.awaitCompletion(5, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            fail("Timed out waiting for the processor to complete");
+        }
+
+        assertTrue(inferenceListener.hasResponse);
     }
 
     public void testPendingRequest() {

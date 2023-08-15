@@ -51,12 +51,15 @@ import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_ACTION;
@@ -66,6 +69,7 @@ import static org.elasticsearch.xpack.ml.MachineLearning.ML_PYTORCH_MODEL_INFERE
 public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
     private static final String NODE_NO_LONGER_REFERENCED = "node no longer referenced in model routing table";
+    private static final String NODE_IS_SHUTTING_DOWN = "node is shutting down";
     private static final String ASSIGNMENT_NO_LONGER_EXISTS = "deployment assignment no longer exists";
     private static final TimeValue MODEL_LOADING_CHECK_INTERVAL = TimeValue.timeValueSeconds(1);
     private static final TimeValue CONTROL_MESSAGE_TIMEOUT = TimeValue.timeValueSeconds(60);
@@ -144,24 +148,6 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             }
         });
         this.expressionResolver = expressionResolver;
-    }
-
-    void stopDeploymentAsync(TrainedModelDeploymentTask task, String reason, ActionListener<Void> listener) {
-        if (stopped) {
-            return;
-        }
-        task.markAsStopped(reason);
-
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            try {
-                deploymentManager.stopDeployment(task);
-                taskManager.unregister(task);
-                deploymentIdToTask.remove(task.getDeploymentId());
-                listener.onResponse(null);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
     }
 
     public void start() {
@@ -330,82 +316,193 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         latestState = event.state();
-        if (event.metadataChanged()) {
-            final boolean isResetMode = MlMetadata.getMlMetadata(event.state()).isResetMode();
-            TrainedModelAssignmentMetadata modelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(event.state());
-            final String currentNode = event.state().nodes().getLocalNodeId();
-            final boolean isNewAllocationSupported = event.state()
-                .getMinTransportVersion()
-                .onOrAfter(TrainedModelAssignmentClusterService.DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION);
+        if (event.metadataChanged() == false) {
+            return;
+        }
 
-            if (isResetMode == false && isNewAllocationSupported) {
-                updateNumberOfAllocations(modelAssignmentMetadata);
-            }
+        final boolean isResetMode = MlMetadata.getMlMetadata(event.state()).isResetMode();
+        TrainedModelAssignmentMetadata modelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(event.state());
+        final String currentNode = event.state().nodes().getLocalNodeId();
+        final boolean isNewAllocationSupported = event.state()
+            .getMinTransportVersion()
+            .onOrAfter(TrainedModelAssignmentClusterService.DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION);
+        final Set<String> shuttingDownNodes = Collections.unmodifiableSet(event.state().metadata().nodeShutdowns().getAllNodeIds());
 
-            for (TrainedModelAssignment trainedModelAssignment : modelAssignmentMetadata.allAssignments().values()) {
-                RoutingInfo routingInfo = trainedModelAssignment.getNodeRoutingTable().get(currentNode);
+        if (isResetMode == false && isNewAllocationSupported) {
+            updateNumberOfAllocations(modelAssignmentMetadata);
+        }
+
+        for (TrainedModelAssignment trainedModelAssignment : modelAssignmentMetadata.allAssignments().values()) {
+            RoutingInfo routingInfo = trainedModelAssignment.getNodeRoutingTable().get(currentNode);
+            if (routingInfo != null) {
                 // Add new models to start loading
-                if (routingInfo != null && isNewAllocationSupported) {
-                    if (routingInfo.getState() == RoutingState.STARTING
-                        && deploymentIdToTask.containsKey(trainedModelAssignment.getDeploymentId())
-                        && deploymentIdToTask.get(trainedModelAssignment.getDeploymentId()).isFailed()) {
-                        // This is a failed assignment and we are restarting it. For this we need to remove the task first.
-                        taskManager.unregister(deploymentIdToTask.get(trainedModelAssignment.getDeploymentId()));
-                        deploymentIdToTask.remove(trainedModelAssignment.getDeploymentId());
+                if (isNewAllocationSupported) {
+                    if (shouldAssignmentBeRestarted(routingInfo, trainedModelAssignment.getDeploymentId())) {
+                        prepareAssignmentForRestart(trainedModelAssignment);
                     }
-                    if (routingInfo.getState().isAnyOf(RoutingState.STARTING, RoutingState.STARTED) // periodic retries of `failed` should
-                                                                                                    // be handled in a separate process
-                        // This means we don't already have a task and should attempt creating one and starting the model loading
-                        // If we don't have a task but are STARTED, this means the cluster state had a started assignment,
-                        // the node crashed and then started again
-                        && deploymentIdToTask.containsKey(trainedModelAssignment.getDeploymentId()) == false
-                        // If we are in reset mode, don't start loading a new model on this node.
-                        && isResetMode == false) {
-                        prepareModelToLoad(
-                            new StartTrainedModelDeploymentAction.TaskParams(
-                                trainedModelAssignment.getTaskParams().getModelId(),
-                                trainedModelAssignment.getDeploymentId(),
-                                trainedModelAssignment.getTaskParams().getModelBytes(),
-                                routingInfo.getCurrentAllocations(),
-                                trainedModelAssignment.getTaskParams().getThreadsPerAllocation(),
-                                trainedModelAssignment.getTaskParams().getQueueCapacity(),
-                                trainedModelAssignment.getTaskParams().getCacheSize().orElse(null),
-                                trainedModelAssignment.getTaskParams().getPriority()
-                            )
-                        );
+
+                    if (shouldLoadModel(routingInfo, trainedModelAssignment.getDeploymentId(), isResetMode)) {
+                        prepareModelToLoad(createStartTrainedModelDeploymentTaskParams(trainedModelAssignment, currentNode));
                     }
                 }
-                // This model is not routed to the current node at all
-                if (routingInfo == null) {
-                    TrainedModelDeploymentTask task = deploymentIdToTask.remove(trainedModelAssignment.getDeploymentId());
-                    if (task != null) {
-                        stopDeploymentAsync(
-                            task,
-                            NODE_NO_LONGER_REFERENCED,
-                            ActionListener.wrap(
-                                r -> logger.trace(() -> "[" + task.getDeploymentId() + "] stopped deployment"),
-                                e -> logger.warn(() -> "[" + task.getDeploymentId() + "] failed to fully stop deployment", e)
-                            )
-                        );
-                    }
+
+                if (isAssignmentOnShuttingDownNode(routingInfo, shuttingDownNodes, currentNode)) {
+                    gracefullyStopDeployment(trainedModelAssignment.getDeploymentId(), currentNode);
                 }
-            }
-            List<TrainedModelDeploymentTask> toCancel = new ArrayList<>();
-            for (String deploymentIds : Sets.difference(deploymentIdToTask.keySet(), modelAssignmentMetadata.allAssignments().keySet())) {
-                toCancel.add(deploymentIdToTask.remove(deploymentIds));
-            }
-            // should all be stopped in the same executor thread?
-            for (TrainedModelDeploymentTask t : toCancel) {
-                stopDeploymentAsync(
-                    t,
-                    ASSIGNMENT_NO_LONGER_EXISTS,
-                    ActionListener.wrap(
-                        r -> logger.trace(() -> "[" + t.getDeploymentId() + "] stopped deployment"),
-                        e -> logger.warn(() -> "[" + t.getDeploymentId() + "] failed to fully stop deployment", e)
-                    )
-                );
+            } else {
+                stopUnroutedDeployment(trainedModelAssignment.getDeploymentId(), currentNode);
             }
         }
+
+        List<TrainedModelDeploymentTask> toCancel = new ArrayList<>();
+        for (String deploymentIds : Sets.difference(deploymentIdToTask.keySet(), modelAssignmentMetadata.allAssignments().keySet())) {
+            toCancel.add(deploymentIdToTask.remove(deploymentIds));
+        }
+        // should all be stopped in the same executor thread?
+        for (TrainedModelDeploymentTask t : toCancel) {
+            stopDeploymentAsync(
+                t,
+                ASSIGNMENT_NO_LONGER_EXISTS,
+                ActionListener.wrap(
+                    r -> logger.trace(() -> "[" + t.getDeploymentId() + "] stopped deployment"),
+                    e -> logger.warn(() -> "[" + t.getDeploymentId() + "] failed to fully stop deployment", e)
+                )
+            );
+        }
+    }
+
+    private boolean shouldAssignmentBeRestarted(RoutingInfo routingInfo, String deploymentId) {
+        return routingInfo.getState() == RoutingState.STARTING
+            && deploymentIdToTask.containsKey(deploymentId)
+            && deploymentIdToTask.get(deploymentId).isFailed();
+    }
+
+    private void prepareAssignmentForRestart(TrainedModelAssignment trainedModelAssignment) {
+        // This is a failed assignment and we are restarting it. For this we need to remove the task first.
+        taskManager.unregister(deploymentIdToTask.get(trainedModelAssignment.getDeploymentId()));
+        deploymentIdToTask.remove(trainedModelAssignment.getDeploymentId());
+    }
+
+    private boolean shouldLoadModel(RoutingInfo routingInfo, String deploymentId, boolean isResetMode) {
+        return routingInfo.getState().isAnyOf(RoutingState.STARTING, RoutingState.STARTED) // periodic retries of `failed`
+            // should
+            // be handled in a separate process
+            // This means we don't already have a task and should attempt creating one and starting the model loading
+            // If we don't have a task but are STARTED, this means the cluster state had a started assignment,
+            // the node crashed and then started again
+            && deploymentIdToTask.containsKey(deploymentId) == false
+            // If we are in reset mode, don't start loading a new model on this node.
+            && isResetMode == false;
+    }
+
+    private static StartTrainedModelDeploymentAction.TaskParams createStartTrainedModelDeploymentTaskParams(
+        TrainedModelAssignment trainedModelAssignment,
+        String currentNode
+    ) {
+        RoutingInfo routingInfo = trainedModelAssignment.getNodeRoutingTable().get(currentNode);
+
+        return new StartTrainedModelDeploymentAction.TaskParams(
+            trainedModelAssignment.getTaskParams().getModelId(),
+            trainedModelAssignment.getDeploymentId(),
+            trainedModelAssignment.getTaskParams().getModelBytes(),
+            routingInfo.getCurrentAllocations(),
+            trainedModelAssignment.getTaskParams().getThreadsPerAllocation(),
+            trainedModelAssignment.getTaskParams().getQueueCapacity(),
+            trainedModelAssignment.getTaskParams().getCacheSize().orElse(null),
+            trainedModelAssignment.getTaskParams().getPriority()
+        );
+    }
+
+    private boolean isAssignmentOnShuttingDownNode(RoutingInfo routingInfo, Set<String> shuttingDownNodes, String currentNode) {
+        return deploymentIdToTask.containsKey(currentNode)
+            && routingInfo.getState() == RoutingState.STOPPING
+            && shuttingDownNodes.contains(currentNode);
+    }
+
+    private void gracefullyStopDeployment(String deploymentId, String currentNode) {
+        TrainedModelDeploymentTask task = deploymentIdToTask.remove(deploymentId);
+        if (task == null) {
+            return;
+        }
+
+        ActionListener<AcknowledgedResponse> routingStateListener = ActionListener.wrap(
+            r -> logger.debug(() -> format("[%s] Gracefully stopped deployment for node %s", task.getDeploymentId(), currentNode)),
+            e -> logger.error(
+                () -> format("[%s] Failed to update routing state to stopped for node %s", task.getDeploymentId(), currentNode),
+                e
+            )
+        );
+
+        logger.debug(() -> format("[%s] Gracefully stopping deployment for node %s", task.getDeploymentId(), currentNode));
+        stopDeploymentAfterCompletingPendingWorkAsync(task, updateRoutingStateToStoppedListener(task, currentNode, routingStateListener));
+    }
+
+    private ActionListener<Void> updateRoutingStateToStoppedListener(
+        TrainedModelDeploymentTask task,
+        String currentNode,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        final RoutingInfoUpdate updateToStopped = RoutingInfoUpdate.updateStateAndReason(
+            new RoutingStateAndReason(RoutingState.STOPPED, NODE_IS_SHUTTING_DOWN)
+        );
+
+        return ActionListener.wrap(_void -> {
+            logger.debug(() -> format("[%s] Updating routing state to stopped for node %s", task.getDeploymentId(), currentNode));
+            updateStoredState(task.getDeploymentId(), updateToStopped, listener);
+        }, e -> {
+            // if we failed to stop the process, something strange is going on, but we should set the routing state to stopped
+            logger.warn(() -> format("[%s] Failed to stop gracefully due to error", task.getDeploymentId()), e);
+            updateStoredState(task.getDeploymentId(), updateToStopped, listener);
+        });
+    }
+
+    private void stopUnroutedDeployment(String deploymentId, String currentNode) {
+        // This model is not routed to the current node at all
+        TrainedModelDeploymentTask task = deploymentIdToTask.remove(deploymentId);
+        if (task == null) {
+            return;
+        }
+
+        logger.debug(() -> format("[%s] Stopping unrouted deployment for node %s", currentNode));
+        stopDeploymentAsync(
+            task,
+            NODE_NO_LONGER_REFERENCED,
+            ActionListener.wrap(
+                r -> logger.trace(() -> "[" + task.getDeploymentId() + "] stopped deployment"),
+                e -> logger.warn(() -> "[" + task.getDeploymentId() + "] failed to fully stop deployment", e)
+            )
+        );
+    }
+
+    private void stopDeploymentAsync(TrainedModelDeploymentTask task, String reason, ActionListener<Void> listener) {
+        stopDeploymentHelper(task, reason, listener, deploymentManager::stopDeployment);
+    }
+
+    private void stopDeploymentAfterCompletingPendingWorkAsync(TrainedModelDeploymentTask task, ActionListener<Void> listener) {
+        stopDeploymentHelper(task, NODE_IS_SHUTTING_DOWN, listener, deploymentManager::stopAfterCompletingPendingWork);
+    }
+
+    private void stopDeploymentHelper(
+        TrainedModelDeploymentTask task,
+        String reason,
+        ActionListener<Void> listener,
+        Consumer<TrainedModelDeploymentTask> stopFunction
+    ) {
+        if (stopped) {
+            return;
+        }
+        task.markAsStopped(reason);
+
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+            try {
+                stopFunction.accept(task);
+                taskManager.unregister(task);
+                deploymentIdToTask.remove(task.getDeploymentId());
+                listener.onResponse(null);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     private void updateNumberOfAllocations(TrainedModelAssignmentMetadata assignments) {

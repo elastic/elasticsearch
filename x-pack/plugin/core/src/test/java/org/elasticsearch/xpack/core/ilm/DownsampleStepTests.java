@@ -84,18 +84,19 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
     }
 
     private IndexMetadata getIndexMetadata(String index, String lifecycleName, DownsampleStep step) {
+        IndexMetadata im = IndexMetadata.builder(index)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase(step.getKey().phase());
         lifecycleState.setAction(step.getKey().action());
         lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
-
-        return IndexMetadata.builder(index)
-            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
-            .numberOfShards(randomIntBetween(1, 5))
-            .numberOfReplicas(randomIntBetween(0, 5))
-            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
-            .build();
+        lifecycleState.setDownsampleIndexName(DownsamplePrepareLifeCycleStateStep.generateDownsampleIndexName(im, step.getFixedInterval()));
+        return IndexMetadata.builder(im).putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap()).build();
     }
 
     private static void assertDownsampleActionRequest(DownsampleAction.Request request, String sourceIndex) {

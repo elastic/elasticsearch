@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -33,8 +34,14 @@ public class RestDownsampleAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String sourceIndex = restRequest.param("index");
         String targetIndex = restRequest.param("target_index");
+        String timeout = restRequest.param("timeout");
         DownsampleConfig config = DownsampleConfig.fromXContent(restRequest.contentParser());
-        DownsampleAction.Request request = new DownsampleAction.Request(sourceIndex, targetIndex, config);
+        DownsampleAction.Request request = new DownsampleAction.Request(
+            sourceIndex,
+            targetIndex,
+            TimeValue.parseTimeValue(timeout, null, "wait_timeout"),
+            config
+        );
         return channel -> client.execute(DownsampleAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

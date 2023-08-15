@@ -22,14 +22,12 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -151,7 +149,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareCreate(sourceIndex).setSettings(settings.build()).setMapping(mapping).get());
     }
 
-    public void testDownsampleIndexWithDataNodeRestart() throws IOException, InterruptedException {
+    public void testDownsampleIndexWithDataNodeRestart() throws Exception {
         try (InternalTestCluster cluster = internalCluster()) {
             final List<String> masterNodes = cluster.startMasterOnlyNodes(1);
             cluster.startDataOnlyNodes(3);
@@ -205,17 +203,14 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
                     throw new RuntimeException(e);
                 }
             })).start();
-
-            if (maybeStartDownsampleTaskDuringDisruption(sourceIndex, targetIndex, config, disruptionStart, disruptionEnd) == false) {
-                return;
-            }
+            startDownsampleTaskDuringDisruption(sourceIndex, targetIndex, config, disruptionStart, disruptionEnd);
             waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
             ensureStableCluster(cluster.numDataAndMasterNodes());
             assertTargetIndex(cluster, sourceIndex, targetIndex, indexedDocs);
         }
     }
 
-    public void testDownsampleIndexWithRollingRestart() throws IOException, InterruptedException {
+    public void testDownsampleIndexWithRollingRestart() throws Exception {
         try (InternalTestCluster cluster = internalCluster()) {
             final List<String> masterNodes = cluster.startMasterOnlyNodes(1);
             cluster.startDataOnlyNodes(3);
@@ -270,9 +265,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
                 }
             })).start();
 
-            if (maybeStartDownsampleTaskDuringDisruption(sourceIndex, targetIndex, config, disruptionStart, disruptionEnd) == false) {
-                return;
-            }
+            startDownsampleTaskDuringDisruption(sourceIndex, targetIndex, config, disruptionStart, disruptionEnd);
             waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
             ensureStableCluster(cluster.numDataAndMasterNodes());
             assertTargetIndex(cluster, sourceIndex, targetIndex, indexedDocs);
@@ -287,29 +280,27 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
      * @param config the downsample configuration including the downsample granularity
      * @param disruptionStart a latch to synchronize on the disruption starting
      * @param disruptionEnd a latch to synchronize on the disruption ending
-     * @return true if the downsample task was actually started, false if an error happened before being able to start it
      * @throws InterruptedException if the thread is interrupted while waiting
      */
-    private boolean maybeStartDownsampleTaskDuringDisruption(
+    private void startDownsampleTaskDuringDisruption(
         final String sourceIndex,
         final String targetIndex,
         final DownsampleConfig config,
         final CountDownLatch disruptionStart,
         final CountDownLatch disruptionEnd
-    ) throws InterruptedException {
+    ) throws Exception {
         disruptionStart.await();
-        try {
-            downsample(sourceIndex, targetIndex, config);
-            disruptionEnd.await();
-        } catch (EsRejectedExecutionException | NodeClosedException e) {
-            // NOTE: cluster failure happens before the downsampling task is created. An error in this situation is acceptable.
-            // The client (or ILM) will retry calling the downsampling API.
-            return false;
-        }
-        return true;
+        assertBusy(() -> {
+            try {
+                downsample(sourceIndex, targetIndex, config);
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        }, 60, TimeUnit.SECONDS);
+        disruptionEnd.await();
     }
 
-    public void testDownsampleIndexWithFullClusterRestart() throws IOException, InterruptedException {
+    public void testDownsampleIndexWithFullClusterRestart() throws Exception {
         try (InternalTestCluster cluster = internalCluster()) {
             final List<String> masterNodes = cluster.startMasterOnlyNodes(1);
             cluster.startDataOnlyNodes(3);
@@ -364,9 +355,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
                 }
             })).start();
 
-            if (maybeStartDownsampleTaskDuringDisruption(sourceIndex, downsampleIndex, config, disruptionStart, disruptionEnd) == false) {
-                return;
-            }
+            startDownsampleTaskDuringDisruption(sourceIndex, downsampleIndex, config, disruptionStart, disruptionEnd);
             waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
             ensureStableCluster(cluster.numDataAndMasterNodes());
             assertTargetIndex(cluster, sourceIndex, downsampleIndex, indexedDocs);

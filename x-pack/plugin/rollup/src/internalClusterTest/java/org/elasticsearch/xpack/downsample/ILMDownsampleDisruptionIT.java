@@ -193,21 +193,15 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
             })).start();
 
             final String targetIndex = "downsample-" + sourceIndex + "-1h";
-            if (startRollupTaskViaIlm(sourceIndex, targetIndex, disruptionStart, disruptionEnd) == false) {
-                return;
-            }
+            startRollupTaskViaIlm(sourceIndex, targetIndex, disruptionStart, disruptionEnd);
             waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
             ensureStableCluster(cluster.numDataAndMasterNodes());
             assertTargetIndex(cluster, targetIndex, indexedDocs);
         }
     }
 
-    private boolean startRollupTaskViaIlm(
-        String sourceIndex,
-        String targetIndex,
-        CountDownLatch disruptionStart,
-        CountDownLatch disruptionEnd
-    ) throws Exception {
+    private void startRollupTaskViaIlm(String sourceIndex, String targetIndex, CountDownLatch disruptionStart, CountDownLatch disruptionEnd)
+        throws Exception {
         disruptionStart.await();
         var request = new UpdateSettingsRequest(sourceIndex).settings(
             Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, POLICY_NAME)
@@ -225,7 +219,6 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
             assertThat(getSettingsResponse.getSetting(targetIndex, IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()), equalTo("success"));
         }, 60, TimeUnit.SECONDS);
         disruptionEnd.await();
-        return true;
     }
 
     private void assertTargetIndex(final InternalTestCluster cluster, final String targetIndex, int indexedDocs) {

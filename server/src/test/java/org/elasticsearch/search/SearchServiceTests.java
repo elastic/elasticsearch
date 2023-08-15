@@ -143,7 +143,6 @@ import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SearchServiceTests extends ESSingleNodeTestCase {
 
@@ -1959,7 +1958,13 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             null
         );
         int executorPoolSize = randomIntBetween(1, 100);
-        ExecutorService threadPoolExecutor = new ThreadPoolExecutor(executorPoolSize, executorPoolSize, 5L, TimeUnit.SECONDS,new ArrayBlockingQueue<>(5));
+        ExecutorService threadPoolExecutor = new ThreadPoolExecutor(
+            executorPoolSize,
+            executorPoolSize,
+            5L,
+            TimeUnit.SECONDS,
+            new ArrayBlockingQueue<>(5)
+        );
         ExecutorService notThreadPoolExecutor = new ForkJoinPool();
 
         SearchService service = getInstanceFromNode(SearchService.class);

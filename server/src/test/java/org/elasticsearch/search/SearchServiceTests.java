@@ -2092,7 +2092,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 false
             )
         );
-        assertFalse(
+        assertFalse( 
             SearchService.supportsParallelCollection(
                 randomFrom(randomFrom(ResultsType.QUERY, ResultsType.NONE, ResultsType.FETCH)),
                 searchSourceBuilder,

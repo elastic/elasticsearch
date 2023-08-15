@@ -900,6 +900,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));
         assertFalse(searchSourceBuilder.supportsParallelCollection());
 
+        searchSourceBuilder.collapse(CollapseBuilderTests.randomCollapseBuilder());
+        assertFalse(searchSourceBuilder.supportsParallelCollection());
+
         SearchSourceBuilder collapse = new SearchSourceBuilder().collapse(CollapseBuilderTests.randomCollapseBuilder());
         assertFalse(collapse.supportsParallelCollection());
     }

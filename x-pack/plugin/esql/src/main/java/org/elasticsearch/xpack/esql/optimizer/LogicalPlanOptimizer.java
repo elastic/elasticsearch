@@ -614,12 +614,11 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
             var used = new Holder<>(new AttributeSet());
-            // don't Evals without any Project/Aggregate (which might not occur as the last node in the plan)
+            // don't remove Evals without any Project/Aggregate (which might not occur as the last node in the plan)
             var seenProjection = new Holder<>(Boolean.FALSE);
 
             // start top-to-bottom
-            // check the differences between output and references on one side and the input on the other
-            // the extra stuff is unused and is kept
+            // and track used references
             var pl = plan.transformDown(p -> {
                 // skip nodes that simply pass the input through
                 if (p instanceof Limit) {

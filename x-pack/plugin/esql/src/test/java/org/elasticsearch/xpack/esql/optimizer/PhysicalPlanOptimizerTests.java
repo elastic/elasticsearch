@@ -331,7 +331,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         FieldSort order = source.sorts().get(0);
         assertThat(order.direction(), is(ASC));
         assertThat(name(order.field()), is("last_name"));
-        // first and last name are keywords, salary, emp_no, doc id, segment, forwards and backwards doc id maps are all ints
+        // last name is keyword, salary, emp_no, doc id, segment, forwards and backwards doc id maps are all ints
         int estimatedSize = KEYWORD_EST + Integer.BYTES * 6;
         assertThat(source.estimatedRowSize(), equalTo(estimatedSize));
     }

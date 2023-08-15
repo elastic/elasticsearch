@@ -1433,6 +1433,24 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var source = as(limit.child(), EsRelation.class);
     }
 
+    public void testPruningDuplicateEvals() {
+        var plan = plan("""
+              from test
+            | eval x = emp_no, x = salary
+            | eval y = salary
+            | eval y = emp_no
+            | keep x, y
+            """);
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("y"));
+        eval = as(eval.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("x"));
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
     private LogicalPlan optimizedPlan(String query) {
         return plan(query);
     }

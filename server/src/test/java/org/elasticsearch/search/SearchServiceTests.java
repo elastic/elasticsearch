@@ -2079,7 +2079,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testSupportsParallelCollection() {
+    public void testIsParallelCollectionSupportedForResults() {
         SearchSourceBuilder searchSourceBuilder = randomBoolean() ? null : new SearchSourceBuilder();
         if (searchSourceBuilder != null && randomBoolean()) {
             searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));

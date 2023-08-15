@@ -348,7 +348,8 @@ public class EnrichPolicyRunner implements Runnable {
                 mappingForMatchField.remove("doc_values"); // enable doc_values
             } else {
                 var typeAndFormat = validateAndGetMappingTypeAndFormat(enrichField, policy, false, sourceMappings);
-                if (typeAndFormat != null && (EnrichPolicyMappings.isMappableByEnrich(typeAndFormat.type) == false)) {
+                if (typeAndFormat != null && EnrichPolicyMappings.isMappableByEnrich(typeAndFormat.type)) {
+                    logger.trace("Found mappable field [{}] of type [{}/{}]", enrichField, typeAndFormat.type, typeAndFormat.format);
                     Map<String, Object> mapping = Maps.newMapWithExpectedSize(3);
                     mapping.put("type", typeAndFormat.type);
                     if (typeAndFormat.format != null) {

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
@@ -29,6 +31,9 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.ToParentBlockJoinByteKnnVectorQuery;
+import org.apache.lucene.search.join.ToParentBlockJoinFloatKnnVectorQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -74,6 +79,8 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
 public class DenseVectorFieldMapper extends FieldMapper {
+    private static final Logger LOGGER = LogManager.getLogger(DenseVectorFieldMapper.class);
+
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersion.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersion.V_8_11_0;
     public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersion.V_8_9_0;
@@ -814,6 +821,44 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
+        public Query createKnnQuery(byte[] queryVector, int numCands, Query filter, Float similarityThreshold, BitSetProducer parentFilter) {
+            if (isIndexed() == false) {
+                throw new IllegalArgumentException(
+                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
+                );
+            }
+
+            if (queryVector.length != dims) {
+                throw new IllegalArgumentException(
+                    "the query vector has a different dimension [" + queryVector.length + "] than the index vectors [" + dims + "]"
+                );
+            }
+
+            if (elementType != ElementType.BYTE) {
+                throw new IllegalArgumentException(
+                    "only [" + ElementType.BYTE + "] elements are supported when querying field [" + name() + "]"
+                );
+            }
+
+            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
+                float squaredMagnitude = 0.0f;
+                for (byte b : queryVector) {
+                    squaredMagnitude += b * b;
+                }
+                elementType.checkVectorMagnitude(similarity, elementType.errorByteElementsAppender(queryVector), squaredMagnitude);
+            }
+            Query knnQuery = new KnnByteVectorQuery(name(), queryVector, numCands, filter);
+            if (similarityThreshold != null) {
+                knnQuery = new VectorSimilarityQuery(
+                    knnQuery,
+                    similarityThreshold,
+                    similarity.score(similarityThreshold, elementType, dims)
+                );
+            }
+            return knnQuery;
+        }
+
+
         public Query createKnnQuery(byte[] queryVector, int numCands, Query filter, Float similarityThreshold) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
@@ -838,6 +883,61 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 elementType.checkVectorMagnitude(similarity, elementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
             Query knnQuery = new KnnByteVectorQuery(name(), queryVector, numCands, filter);
+            if (similarityThreshold != null) {
+                knnQuery = new VectorSimilarityQuery(
+                    knnQuery,
+                    similarityThreshold,
+                    similarity.score(similarityThreshold, elementType, dims)
+                );
+            }
+            return knnQuery;
+        }
+
+        public Query createKnnQuery(float[] queryVector, int numCands, Query filter, Float similarityThreshold, BitSetProducer parentFilter) {
+            if (isIndexed() == false) {
+                throw new IllegalArgumentException(
+                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
+                );
+            }
+
+            if (queryVector.length != dims) {
+                throw new IllegalArgumentException(
+                    "the query vector has a different dimension [" + queryVector.length + "] than the index vectors [" + dims + "]"
+                );
+            }
+            elementType.checkVectorBounds(queryVector);
+
+            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
+                float squaredMagnitude = 0.0f;
+                for (float e : queryVector) {
+                    squaredMagnitude += e * e;
+                }
+                elementType.checkVectorMagnitude(similarity, elementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
+            }
+            //LOGGER.info(Strings.format("[%s] filter [%s]", name(), parentFilter == null ? "__null__" : parentFilter));
+            if (parentFilter != null) {
+                return switch (elementType) {
+                    case BYTE -> {
+                        byte[] bytes = new byte[queryVector.length];
+                        for (int i = 0; i < queryVector.length; i++) {
+                            bytes[i] = (byte) queryVector[i];
+                        }
+                        yield new ToParentBlockJoinByteKnnVectorQuery(name(), bytes, filter, numCands, parentFilter);
+                    }
+                    case FLOAT -> new ToParentBlockJoinFloatKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter);
+                };
+            }
+            Query knnQuery = switch (elementType) {
+                case BYTE -> {
+                    byte[] bytes = new byte[queryVector.length];
+                    for (int i = 0; i < queryVector.length; i++) {
+                        bytes[i] = (byte) queryVector[i];
+                    }
+                    yield new KnnByteVectorQuery(name(), bytes, numCands, filter);
+                }
+                case FLOAT -> new KnnFloatVectorQuery(name(), queryVector, numCands, filter);
+            };
+
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -979,6 +1079,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return;
         }
         Field field = fieldType().indexed ? parseKnnVector(context) : parseBinaryDocValuesVector(context);
+        //LOGGER.info(Strings.format("indexing [%s] [%s]", fieldType().name(), field));
         context.doc().addWithKey(fieldType().name(), field);
     }
 

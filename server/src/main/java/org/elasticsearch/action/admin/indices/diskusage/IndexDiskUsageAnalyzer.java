@@ -545,7 +545,8 @@ final class IndexDiskUsageAnalyzer {
                                 break;
                             }
                             cancellationChecker.checkForCancellation();
-                            vectorReader.search(field.name, vectorValues.vectorValue(), collector, null);
+                            TopKnnCollector knnCollector = new TopKnnCollector(100, Integer.MAX_VALUE);
+                            vectorReader.search(field.name, vectorValues.vectorValue(), knnCollector, null);
                         }
                         stats.addKnnVectors(field.name, directory.getBytesRead());
                     }
@@ -564,7 +565,8 @@ final class IndexDiskUsageAnalyzer {
                                 break;
                             }
                             cancellationChecker.checkForCancellation();
-                            vectorReader.search(field.name, vectorValues.vectorValue(), collector, null);
+                            TopKnnCollector knnCollector = new TopKnnCollector(100, Integer.MAX_VALUE);
+                            vectorReader.search(field.name, vectorValues.vectorValue(), knnCollector, null);
                         }
                         stats.addKnnVectors(field.name, directory.getBytesRead());
                     }

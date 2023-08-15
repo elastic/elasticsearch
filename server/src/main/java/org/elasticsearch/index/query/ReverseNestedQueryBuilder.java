@@ -212,6 +212,6 @@ public class ReverseNestedQueryBuilder extends AbstractQueryBuilder<ReverseNeste
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_500_006;
+        return TransportVersion.current();
     }
 }

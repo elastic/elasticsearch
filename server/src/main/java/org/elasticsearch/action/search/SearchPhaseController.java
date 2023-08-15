@@ -21,6 +21,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
@@ -139,30 +140,30 @@ public final class SearchPhaseController {
         }
 
         List<List<TopDocs>> topDocsLists = new ArrayList<>(request.source().knnSearch().size());
-        List<String> nestedPath = new ArrayList<>();
+        List<SetOnce<String>> nestedPath = new ArrayList<>(request.source().knnSearch().size());
         for (int i = 0; i < request.source().knnSearch().size(); i++) {
             topDocsLists.add(new ArrayList<>());
-            nestedPath.add(null);
+            nestedPath.add(new SetOnce<>());
         }
 
-        for (int i = 0; i < dfsSearchResults.size(); i++) {
-            DfsSearchResult dfsSearchResult = dfsSearchResults.get(i);
+        for (DfsSearchResult dfsSearchResult : dfsSearchResults) {
             if (dfsSearchResult.knnResults() != null) {
-                nestedPath.set(i, dfsSearchResult.knnResults().get(0).getNestedPath());
-                for (int j = 0; j < dfsSearchResult.knnResults().size(); j++) {
-                    DfsKnnResults knnResults = dfsSearchResult.knnResults().get(j);
+                for (int i = 0; i < dfsSearchResult.knnResults().size(); i++) {
+                    DfsKnnResults knnResults = dfsSearchResult.knnResults().get(i);
                     ScoreDoc[] scoreDocs = knnResults.scoreDocs();
                     TotalHits totalHits = new TotalHits(scoreDocs.length, Relation.EQUAL_TO);
                     TopDocs shardTopDocs = new TopDocs(totalHits, scoreDocs);
                     setShardIndex(shardTopDocs, dfsSearchResult.getShardIndex());
                     topDocsLists.get(i).add(shardTopDocs);
+                    nestedPath.get(i).trySet(knnResults.getNestedPath());
                 }
             }
         }
+
         List<DfsKnnResults> mergedResults = new ArrayList<>(request.source().knnSearch().size());
         for (int i = 0; i < request.source().knnSearch().size(); i++) {
             TopDocs mergedTopDocs = TopDocs.merge(request.source().knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
-            mergedResults.add(new DfsKnnResults(nestedPath.get(i), mergedTopDocs.scoreDocs));
+            mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
         }
         return mergedResults;
     }

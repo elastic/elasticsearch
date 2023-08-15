@@ -810,8 +810,18 @@ public class AuthorizationService {
                         final String resolvedIndex = resolvedIndexNames.get(item.index());
                         final String itemAction = getAction(item);
                         final IndicesAccessControl indicesAccessControl = actionToIndicesAccessControl.get(itemAction);
-                        final boolean hasIndexAccessControl = indicesAccessControl.hasIndexPermissions(resolvedIndex);
-                        if (hasIndexAccessControl == false) {
+                        if (indicesAccessControl.hasIndexPermissions(resolvedIndex)) {
+                            actionToGrantedIndicesMap.compute(itemAction, (key, resolvedIndicesSet) -> {
+                                final Set<String> localSet = resolvedIndicesSet != null ? resolvedIndicesSet : new HashSet<>();
+                                localSet.add(resolvedIndex);
+                                return localSet;
+                            });
+                        } else {
+                            actionToDeniedIndicesMap.compute(itemAction, (key, resolvedIndicesSet) -> {
+                                final Set<String> localSet = resolvedIndicesSet != null ? resolvedIndicesSet : new HashSet<>();
+                                localSet.add(resolvedIndex);
+                                return localSet;
+                            });
                             item.abort(
                                 resolvedIndex,
                                 actionDenied(
@@ -823,17 +833,6 @@ public class AuthorizationService {
                                     null
                                 )
                             );
-                            actionToDeniedIndicesMap.compute(itemAction, (key, resolvedIndicesSet) -> {
-                                final Set<String> localSet = resolvedIndicesSet != null ? resolvedIndicesSet : new HashSet<>();
-                                localSet.add(resolvedIndex);
-                                return localSet;
-                            });
-                        } else {
-                            actionToGrantedIndicesMap.compute(itemAction, (key, resolvedIndicesSet) -> {
-                                final Set<String> localSet = resolvedIndicesSet != null ? resolvedIndicesSet : new HashSet<>();
-                                localSet.add(resolvedIndex);
-                                return localSet;
-                            });
                         }
                     }
                     actionToDeniedIndicesMap.forEach((action, resolvedIndicesSet) -> {
@@ -860,7 +859,6 @@ public class AuthorizationService {
                             authzInfo
                         );
                     });
-
                     listener.onResponse(null);
                 },
                 listener::onFailure

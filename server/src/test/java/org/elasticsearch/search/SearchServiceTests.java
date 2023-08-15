@@ -2093,7 +2093,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             )
         );
         assertFalse(
-            // TODO: until https://github.com/elastic/elasticsearch/pull/98425 is merged, this should always return false.
             SearchService.supportsParallelCollection(
                 randomFrom(randomFrom(ResultsType.QUERY, ResultsType.NONE, ResultsType.FETCH)),
                 searchSourceBuilder,

@@ -633,27 +633,27 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 do {
                     recheck = false;
                     if (p instanceof Aggregate aggregate) {
-                        var pruned = seenProjection.get() ? removeUnused(aggregate.aggregates(), usedSet) : null;
+                        var remaining = seenProjection.get() ? removeUnused(aggregate.aggregates(), usedSet) : null;
                         // no aggregates, no need
-                        if (pruned != null) {
-                            if (pruned.isEmpty()) {
+                        if (remaining != null) {
+                            if (remaining.isEmpty()) {
                                 recheck = true;
                                 p = aggregate.child();
                             } else {
-                                p = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), pruned);
+                                p = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), remaining);
                             }
                         }
 
                         seenProjection.set(Boolean.TRUE);
                     } else if (p instanceof Eval eval) {
-                        var pruned = seenProjection.get() ? removeUnused(eval.fields(), usedSet) : null;
+                        var remaining = seenProjection.get() ? removeUnused(eval.fields(), usedSet) : null;
                         // no fields, no eval
-                        if (pruned != null) {
-                            if (pruned.isEmpty()) {
+                        if (remaining != null) {
+                            if (remaining.isEmpty()) {
                                 p = eval.child();
                                 recheck = true;
                             } else {
-                                p = new Eval(eval.source(), eval.child(), pruned);
+                                p = new Eval(eval.source(), eval.child(), remaining);
                             }
                         }
                     } else if (p instanceof Project) {
@@ -679,19 +679,16 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             var clone = new ArrayList<>(named);
             var it = clone.listIterator(clone.size());
 
-            boolean changed = false;
             // due to Eval, go in reverse
             while (it.hasPrevious()) {
                 N prev = it.previous();
-                boolean remove = used.contains(prev.toAttribute()) == false;
-                if (remove) {
-                    changed = true;
+                if (used.contains(prev.toAttribute()) == false) {
                     it.remove();
                 } else {
                     used = used.combine(prev.references());
                 }
             }
-            return changed ? clone : null;
+            return clone.size() != named.size() ? clone : null;
         }
 
         private static List<Expression> expressions(LogicalPlan plan) {

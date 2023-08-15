@@ -101,6 +101,6 @@ public class EnrichPolicyMappings {
      * the values off.
      */
     public static boolean isMappableByEnrich(String fieldType) {
-        return !REQUIRED_PARAMETER_FIELDS.contains(fieldType);
+        return REQUIRED_PARAMETER_FIELDS.contains(fieldType) == false;
     }
 }

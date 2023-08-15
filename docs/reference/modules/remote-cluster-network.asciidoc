@@ -7,6 +7,12 @@ Use the following advanced settings to configure the Remote Cluster interface (A
 independently of the <<transport-settings,transport interface>>. You can also
 configure both interfaces together using the <<common-network-settings,network settings>>.
 
+`remote_cluster_server.enabled`::
+(<<static-cluster-setting,Static>>, boolean)
+Determines whether the remote cluster server should be enabled. This setting must
+be `true` for `remote_cluster.port` and all following remote cluster settings to
+take effect. Defaults to `false`.
+
 `remote_cluster.host`::
 (<<static-cluster-setting,Static>>, string)
 Sets the address of this node for remote cluster server traffic. The node will bind to this

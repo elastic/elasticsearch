@@ -26,7 +26,7 @@ public class ProfilingAggregator extends Aggregator {
     private final AggregationProfiler profiler;
     private AggregationProfileBreakdown profileBreakdown;
 
-    public ProfilingAggregator(Aggregator delegate, AggregationProfiler profiler) throws IOException {
+    public ProfilingAggregator(Aggregator delegate, AggregationProfiler profiler) {
         this.profiler = profiler;
         this.delegate = delegate;
     }

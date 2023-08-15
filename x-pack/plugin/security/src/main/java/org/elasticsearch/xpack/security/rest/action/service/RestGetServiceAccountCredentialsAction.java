@@ -11,8 +11,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.Scope;
-import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
@@ -23,7 +21,6 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-@ServerlessScope(Scope.INTERNAL)
 public class RestGetServiceAccountCredentialsAction extends SecurityBaseRestHandler {
 
     public RestGetServiceAccountCredentialsAction(Settings settings, XPackLicenseState licenseState) {

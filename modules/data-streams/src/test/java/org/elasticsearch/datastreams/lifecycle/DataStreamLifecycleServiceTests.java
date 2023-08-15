@@ -215,7 +215,9 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy").put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
+            Settings.builder()
+                .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()),
             DataStreamLifecycle.newBuilder().dataRetention(0).build(),
             now
         );
@@ -234,7 +236,9 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy").put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
+            Settings.builder()
+                .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()),
             null,
             now
         );
@@ -253,7 +257,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()),
             new DataStreamLifecycle(),
             now
         );

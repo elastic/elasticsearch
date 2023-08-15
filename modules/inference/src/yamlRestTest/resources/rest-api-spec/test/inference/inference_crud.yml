@@ -1,0 +1,11 @@
+---
+"Create Inference Model":
+  - do:
+      inference.put_model:
+        task_type: sparse_embedding
+        model_id: test
+        body: >
+          {
+          }
+
+  - is_true: acknowledged

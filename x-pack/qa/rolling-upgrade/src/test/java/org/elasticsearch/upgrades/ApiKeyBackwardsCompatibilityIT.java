@@ -9,6 +9,7 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -45,7 +46,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
-    public static final Version API_KEY_SUPPORT_REMOTE_INDICES_VERSION = Version.V_8_8_0;
+    public static final Version API_KEY_SUPPORT_REMOTE_INDICES_VERSION = Build.current().isSnapshot() ? Version.V_8_8_0 : Version.V_8_9_1;
 
     private RestClient oldVersionClient = null;
     private RestClient newVersionClient = null;

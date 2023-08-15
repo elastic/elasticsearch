@@ -7,13 +7,28 @@
 
 package org.elasticsearch.xpack.core.rollup.action;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
+
 /**
  * Status of the rollup indexer task
  */
-public enum RollupShardIndexerStatus {
+public enum RollupShardIndexerStatus implements Writeable {
     INITIALIZED,
     STARTED,
     FAILED,
     COMPLETED,
-    CANCELLED
+    CANCELLED;
+
+    public static RollupShardIndexerStatus readFromStream(final StreamInput in) throws IOException {
+        return in.readEnum(RollupShardIndexerStatus.class);
+    }
+
+    @Override
+    public void writeTo(final StreamOutput out) throws IOException {
+        out.writeEnum(this);
+    }
 }

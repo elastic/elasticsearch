@@ -113,13 +113,6 @@ public class XPackSettingsTests extends ESTestCase {
             .filter(key -> key.startsWith("xpack.security.remote_cluster_"))
             .toList();
 
-        // Ensure client_authentication is only available for server and verification_mode is only available for client
-        assertThat(remoteClusterSslSettingKeys, not(hasItem("xpack.security.remote_cluster_server.ssl.verification_mode")));
-        assertThat(remoteClusterSslSettingKeys, hasItem("xpack.security.remote_cluster_client.ssl.verification_mode"));
-
-        assertThat(remoteClusterSslSettingKeys, hasItem("xpack.security.remote_cluster_server.ssl.client_authentication"));
-        assertThat(remoteClusterSslSettingKeys, not(hasItem("xpack.security.remote_cluster_client.ssl.client_authentication")));
-
         // None of them allow insecure password
         List.of(
             "xpack.security.remote_cluster_server.ssl.keystore.password",

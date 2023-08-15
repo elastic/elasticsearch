@@ -265,7 +265,7 @@ public class TestRestrictedIndices {
             XContentBuilder builder = jsonBuilder().startObject()
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
-                .field("version", Version.CURRENT) // TODO[wrb]: remove
+                .field("version", Version.CURRENT)
                 .field(SystemIndexDescriptor.VERSION_META_KEY, 0)
                 .endObject()
                 .field("dynamic", "strict")

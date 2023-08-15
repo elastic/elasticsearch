@@ -46,34 +46,33 @@ public class EnrichPolicyMappings {
         "icu_collation_keyword" // Analysis ICU Plugin
     );
 
-    private static final Set<String> REQUIRED_PARAMETER_FIELDS = Set.of(
-        "dense_vector",
-        "scaled_float",
-        "token_count"
-    );
+    private static final Set<String> REQUIRED_PARAMETER_FIELDS = Set.of("dense_vector", "scaled_float", "token_count");
 
     // This is just the same set of indexable fields for now
-    private static final Set<String> SUPPORTED_FIELD_TYPES = Sets.union(INDEXABLE_MAPPING_FIELDS, Set.of(
-        "alias",
-        "binary",
-        "completion",
-        "nested",
-        "object",
-        "sparse_vector",
-        "histogram", // Analytics Plugin
-        "aggregate_metric_double", // Aggregate Metric Plugin
-        "annotated_text", // Annotated Text Plugin
-        "constant_keyword", // Constant Keyword Mapping Plugin
-        "murmur3", // Murmur3 Field Plugin
-        "_size", // Mapper Size Plugin
-        "rank_feature", // Mapper Extras Module
-        "rank_features", // Mapper Extras Module
-        "match_only_text", // Mapper Extras Module
-        "join", // Parent Join Module
-        "percolator", // Percolator Module
-        "version", // Version Field Plugin
-        "wildcard" // Wildcard Plugin
-    ));
+    private static final Set<String> SUPPORTED_FIELD_TYPES = Sets.union(
+        INDEXABLE_MAPPING_FIELDS,
+        Set.of(
+            "alias",
+            "binary",
+            "completion",
+            "nested",
+            "object",
+            "sparse_vector",
+            "histogram", // Analytics Plugin
+            "aggregate_metric_double", // Aggregate Metric Plugin
+            "annotated_text", // Annotated Text Plugin
+            "constant_keyword", // Constant Keyword Mapping Plugin
+            "murmur3", // Murmur3 Field Plugin
+            "_size", // Mapper Size Plugin
+            "rank_feature", // Mapper Extras Module
+            "rank_features", // Mapper Extras Module
+            "match_only_text", // Mapper Extras Module
+            "join", // Parent Join Module
+            "percolator", // Percolator Module
+            "version", // Version Field Plugin
+            "wildcard" // Wildcard Plugin
+        )
+    );
     private static final Set<String> UNSUPPORTED_FIELD_TYPES = Set.of();
 
     /**

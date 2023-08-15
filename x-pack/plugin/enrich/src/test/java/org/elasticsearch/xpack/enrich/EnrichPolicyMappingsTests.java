@@ -65,8 +65,7 @@ public class EnrichPolicyMappingsTests extends ESTestCase {
                 """, fieldType, fieldType, EnrichPolicyMappings.class.getName());
             assertTrue(
                 message,
-                EnrichPolicyMappings.isSupportedByEnrich(fieldType)
-                    || EnrichPolicyMappings.isUnsupportedByEnrich(fieldType)
+                EnrichPolicyMappings.isSupportedByEnrich(fieldType) || EnrichPolicyMappings.isUnsupportedByEnrich(fieldType)
             );
         }
     }

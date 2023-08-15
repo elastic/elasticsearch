@@ -122,10 +122,10 @@ emp_no:integer | s:double
 ;
 
 negate
-row x=1 | eval a = -x, b = --x * -+-+-1 * -3;
+row x=1 | eval a = -x, b = --x * -+-+-1 * -3, c = -(-(-(-x)));
 
-x:integer | a:integer | b:integer
-1         | -1        | 3
+x:integer | a:integer | b:integer | c:integer
+1         | -1        | 3         | 1
 ;
 
 negateIntLongDouble

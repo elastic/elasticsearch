@@ -1968,10 +1968,10 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         SearchService service = getInstanceFromNode(SearchService.class);
         {
             assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.DFS));
+            assertEquals(1, service.determineMaximumNumberOfSlices(null, request, ResultsType.DFS));
             assertEquals(1, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.QUERY));
             assertEquals(1, service.determineMaximumNumberOfSlices(mockNotTPExecutor, request, ResultsType.DFS));
         }
-
         try {
             ClusterUpdateSettingsResponse response = client().admin()
                 .cluster()
@@ -1981,9 +1981,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             assertTrue(response.isAcknowledged());
             {
                 assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.DFS));
-                // TODO update the following line to expected=executorPoolSize when https://github.com/elastic/elasticsearch/pull/98425is
-                // merged.
-                assertEquals(1, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.QUERY));
+                assertEquals(1, service.determineMaximumNumberOfSlices(null, request, ResultsType.DFS));
+                assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.QUERY));
+                assertEquals(1, service.determineMaximumNumberOfSlices(null, request, ResultsType.QUERY));
                 assertEquals(1, service.determineMaximumNumberOfSlices(mockNotTPExecutor, request, ResultsType.DFS));
             }
         } finally {
@@ -1996,7 +1996,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             {
                 assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.DFS));
                 assertEquals(1, service.determineMaximumNumberOfSlices(mockThreadPoolExecutor, request, ResultsType.QUERY));
-                assertEquals(1, service.determineMaximumNumberOfSlices(mockNotTPExecutor, request, ResultsType.DFS));
             }
         }
     }

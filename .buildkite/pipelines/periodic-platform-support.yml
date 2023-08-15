@@ -64,7 +64,7 @@ steps:
           setup:
             image:
               - almalinux-8-aarch64
-              - ubuntu-1804-aarch64
+              - ubuntu-2004-aarch64
             GRADLE_TASK:
               - checkPart1
               - checkPart2

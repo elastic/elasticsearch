@@ -44,9 +44,36 @@ import static org.elasticsearch.compute.gen.Types.blockType;
 
 public class MvEvaluatorImplementer {
     private final TypeElement declarationType;
+
+    /**
+     * Function specifying how each value in a multivalued field is processed.
+     */
     private final ExecutableElement processFunction;
+
+    /**
+     * Optional function "finishing" the processing of a multivalued field. It
+     * converts {@link #workType} into {@link #resultType}. If {@code null} then
+     * {@link #workType} <strong>is</strong> {@link #resultType} and the work
+     * is returned unchanged.
+     */
     private final FinishFunction finishFunction;
+
+    /**
+     * Optional function to process single valued fields. This is often used
+     * when the {@link #fieldType} isn't the same as the {@link #resultType}
+     * and will implement the conversion. If this is unspecified then single
+     * value fields are returned as is.
+     */
     private final SingleValueFunction singleValueFunction;
+
+    /**
+     * Optional function to process {@code Block}s where all multivalued fields
+     * are ascending, which is how Lucene loads them so it's quite common. If
+     * specified then the implementation will use this method to process the
+     * multivalued field instead of {@link #processFunction}.
+     */
+    private final AscendingFunction ascendingFunction;
+
     private final List<TypeMirror> warnExceptions;
     private final ClassName implementation;
     private final TypeName workType;
@@ -58,7 +85,8 @@ public class MvEvaluatorImplementer {
         ExecutableElement processFunction,
         String extraName,
         String finishMethodName,
-        String singleValueFunction,
+        String singleValueMethodName,
+        String ascendingMethodName,
         List<TypeMirror> warnExceptions
     ) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
@@ -68,44 +96,11 @@ public class MvEvaluatorImplementer {
         }
         this.workType = TypeName.get(processFunction.getParameters().get(0).asType());
         this.fieldType = TypeName.get(processFunction.getParameters().get(1).asType());
-
-        if (finishMethodName.equals("")) {
-            this.resultType = workType;
-            this.finishFunction = null;
-            if (false == workType.equals(fieldType)) {
-                throw new IllegalArgumentException(
-                    "the [finish] enum value is required because the first and second arguments differ in type"
-                );
-            }
-        } else {
-            ExecutableElement fn = findMethod(
-                declarationType,
-                new String[] { finishMethodName },
-                m -> TypeName.get(m.getParameters().get(0).asType()).equals(workType)
-            );
-            if (fn == null) {
-                throw new IllegalArgumentException("Couldn't find " + declarationType + "#" + finishMethodName + "(" + workType + "...)");
-            }
-            this.resultType = TypeName.get(fn.getReturnType());
-            this.finishFunction = new FinishFunction(fn);
-        }
-
-        if (singleValueFunction.equals("")) {
-            this.singleValueFunction = null;
-        } else {
-            ExecutableElement fn = findMethod(
-                declarationType,
-                new String[] { singleValueFunction },
-                m -> m.getParameters().size() == 1 && TypeName.get(m.getParameters().get(0).asType()).equals(fieldType)
-            );
-            if (fn == null) {
-                throw new IllegalArgumentException("Couldn't find " + declarationType + "#" + singleValueFunction + "(" + fieldType + ")");
-            }
-            this.singleValueFunction = new SingleValueFunction(fn);
-        }
-
+        this.finishFunction = FinishFunction.from(declarationType, finishMethodName, workType, fieldType);
+        this.resultType = this.finishFunction == null ? this.workType : this.finishFunction.resultType;
+        this.singleValueFunction = SingleValueFunction.from(declarationType, singleValueMethodName, resultType, fieldType);
+        this.ascendingFunction = AscendingFunction.from(this, declarationType, ascendingMethodName);
         this.warnExceptions = warnExceptions;
-
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
             declarationType.getSimpleName() + extraName + "Evaluator"
@@ -147,6 +142,10 @@ public class MvEvaluatorImplementer {
                 builder.addMethod(evalSingleValued("evalSingleValuedNotNullable", false));
             }
         }
+        if (ascendingFunction != null) {
+            builder.addMethod(evalAscending("evalAscendingNullable", true));
+            builder.addMethod(evalAscending("evalAscendingNotNullable", false));
+        }
         return builder.build();
     }
 
@@ -170,10 +169,25 @@ public class MvEvaluatorImplementer {
         return builder.build();
     }
 
-    private MethodSpec evalShell(String name, boolean nullable, Consumer<MethodSpec.Builder> body) {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder(name).addModifiers(Modifier.PUBLIC);
-        builder.addAnnotation(Override.class).returns(nullable ? BLOCK : VECTOR).addParameter(BLOCK, "fieldVal");
+    private MethodSpec evalShell(
+        String name,
+        boolean override,
+        boolean nullable,
+        String javadoc,
+        Consumer<MethodSpec.Builder> preflight,
+        Consumer<MethodSpec.Builder> body
+    ) {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder(name);
+        builder.returns(nullable ? BLOCK : VECTOR).addParameter(BLOCK, "fieldVal");
+        if (override) {
+            builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        } else {
+            builder.addModifiers(Modifier.PRIVATE);
+        }
+        builder.addJavadoc(javadoc);
         TypeName blockType = blockType(fieldType);
+
+        preflight.accept(builder);
 
         builder.addStatement("$T v = ($T) fieldVal", blockType, blockType);
         builder.addStatement("int positionCount = v.getPositionCount()");
@@ -235,7 +249,15 @@ public class MvEvaluatorImplementer {
     }
 
     private MethodSpec eval(String name, boolean nullable) {
-        return evalShell(name, nullable, builder -> {
+        String javadoc = "Evaluate blocks containing at least one multivalued field.";
+        return evalShell(name, true, nullable, javadoc, builder -> {
+            if (ascendingFunction == null) {
+                return;
+            }
+            builder.beginControlFlow("if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING)");
+            builder.addStatement("return $L(fieldVal)", name.replace("eval", "evalAscending"));
+            builder.endControlFlow();
+        }, builder -> {
             builder.addStatement("int first = v.getFirstValueIndex(p)");
 
             if (singleValueFunction != null) {
@@ -281,7 +303,8 @@ public class MvEvaluatorImplementer {
     }
 
     private MethodSpec evalSingleValued(String name, boolean nullable) {
-        return evalShell(name, nullable, builder -> {
+        String javadoc = "Evaluate blocks containing only single valued fields.";
+        return evalShell(name, true, nullable, javadoc, builder -> {}, builder -> {
             builder.addStatement("assert valueCount == 1");
             builder.addStatement("int first = v.getFirstValueIndex(p)");
             fetch(builder, "value", fieldType, "first", workType.equals(fieldType) ? "firstScratch" : "valueScratch");
@@ -300,6 +323,15 @@ public class MvEvaluatorImplementer {
         }
     }
 
+    private MethodSpec evalAscending(String name, boolean nullable) {
+        String javadoc = "Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.";
+        return evalShell(name, false, nullable, javadoc, builder -> {}, builder -> {
+            builder.addStatement("int first = v.getFirstValueIndex(p)");
+            ascendingFunction.call(builder);
+            writeResult(builder, nullable);
+        });
+    }
+
     private void writeResult(MethodSpec.Builder builder, boolean nullable) {
         if (nullable) {
             builder.addStatement("builder.$L(result)", appendMethod(resultType));
@@ -310,11 +342,37 @@ public class MvEvaluatorImplementer {
         }
     }
 
-    private class FinishFunction {
+    /**
+     * Function "finishing" the computation on a multivalued field. It converts {@link #workType} into {@link #resultType}.
+     */
+    private static class FinishFunction {
+        static FinishFunction from(TypeElement declarationType, String name, TypeName workType, TypeName fieldType) {
+            if (name.equals("")) {
+                if (false == workType.equals(fieldType)) {
+                    throw new IllegalArgumentException(
+                        "the [finish] enum value is required because the first and second arguments differ in type"
+                    );
+                }
+                return null;
+            }
+            ExecutableElement fn = findMethod(
+                declarationType,
+                new String[] { name },
+                m -> TypeName.get(m.getParameters().get(0).asType()).equals(workType)
+            );
+            if (fn == null) {
+                throw new IllegalArgumentException("Couldn't find " + declarationType + "#" + name + "(" + workType + "...)");
+            }
+            TypeName resultType = TypeName.get(fn.getReturnType());
+            return new FinishFunction(declarationType, fn, resultType, workType);
+        }
+
+        private final TypeName resultType;
         private final String invocationPattern;
         private final List<Object> invocationArgs = new ArrayList<>();
 
-        private FinishFunction(ExecutableElement fn) {
+        private FinishFunction(TypeElement declarationType, ExecutableElement fn, TypeName resultType, TypeName workType) {
+            this.resultType = resultType;
             StringBuilder pattern = new StringBuilder().append("$T result = $T.$L($work$");
             invocationArgs.add(resultType);
             invocationArgs.add(declarationType);
@@ -347,19 +405,88 @@ public class MvEvaluatorImplementer {
         }
     }
 
-    private class SingleValueFunction {
-        private final String invocationPattern;
+    /**
+     * Function handling single valued fields.
+     */
+    private static class SingleValueFunction {
+        static SingleValueFunction from(TypeElement declarationType, String name, TypeName resultType, TypeName fieldType) {
+            if (name.equals("")) {
+                return null;
+            }
+            ExecutableElement fn = findMethod(
+                declarationType,
+                new String[] { name },
+                m -> m.getParameters().size() == 1 && TypeName.get(m.getParameters().get(0).asType()).equals(fieldType)
+            );
+            if (fn == null) {
+                throw new IllegalArgumentException("Couldn't find " + declarationType + "#" + name + "(" + fieldType + ")");
+            }
+            return new SingleValueFunction(declarationType, resultType, fn);
+        }
+
         private final List<Object> invocationArgs = new ArrayList<>();
 
-        private SingleValueFunction(ExecutableElement fn) {
-            invocationPattern = "$T result = $T.$L(value)";
+        private SingleValueFunction(TypeElement declarationType, TypeName resultType, ExecutableElement fn) {
             invocationArgs.add(resultType);
             invocationArgs.add(declarationType);
             invocationArgs.add(fn.getSimpleName());
         }
 
         private void call(MethodSpec.Builder builder) {
-            builder.addStatement(invocationPattern, invocationArgs.toArray());
+            builder.addStatement("$T result = $T.$L(value)", invocationArgs.toArray());
+        }
+    }
+
+    /**
+     * Function handling blocks of ascending values.
+     */
+    private class AscendingFunction {
+        static AscendingFunction from(MvEvaluatorImplementer impl, TypeElement declarationType, String name) {
+            if (name.equals("")) {
+                return null;
+            }
+
+            // check for index lookup
+            ExecutableElement fn = findMethod(
+                declarationType,
+                new String[] { name },
+                m -> m.getParameters().size() == 1 && m.getParameters().get(0).asType().getKind() == TypeKind.INT
+            );
+            if (fn != null) {
+                return impl.new AscendingFunction(fn, false);
+            }
+            fn = findMethod(
+                declarationType,
+                new String[] { name },
+                m -> m.getParameters().size() == 3
+                    && m.getParameters().get(1).asType().getKind() == TypeKind.INT
+                    && m.getParameters().get(2).asType().getKind() == TypeKind.INT
+            );
+            if (fn == null) {
+                throw new IllegalArgumentException("Couldn't find " + declarationType + "#" + name + "(block, int, int)");
+            }
+            return impl.new AscendingFunction(fn, true);
+        }
+
+        private final List<Object> invocationArgs = new ArrayList<>();
+        private final boolean blockMode;
+
+        private AscendingFunction(ExecutableElement fn, boolean blockMode) {
+            this.blockMode = blockMode;
+            if (blockMode) {
+                invocationArgs.add(resultType);
+            }
+            invocationArgs.add(declarationType);
+            invocationArgs.add(fn.getSimpleName());
+        }
+
+        private void call(MethodSpec.Builder builder) {
+            if (blockMode) {
+                builder.addStatement("$T result = $T.$L(v, first, valueCount)", invocationArgs.toArray());
+            } else {
+                builder.addStatement("int idx = $T.$L(valueCount)", invocationArgs.toArray());
+                fetch(builder, "result", resultType, "first + idx", workType.equals(fieldType) ? "firstScratch" : "valueScratch");
+            }
         }
     }
 }

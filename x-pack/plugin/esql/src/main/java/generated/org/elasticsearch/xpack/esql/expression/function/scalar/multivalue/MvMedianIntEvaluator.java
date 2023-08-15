@@ -26,8 +26,14 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
     return "MvMedian";
   }
 
+  /**
+   * Evaluate blocks containing at least one multivalued field.
+   */
   @Override
   public Block evalNullable(Block fieldVal) {
+    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+      return evalAscendingNullable(fieldVal);
+    }
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
     IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount);
@@ -50,8 +56,14 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
     return builder.build();
   }
 
+  /**
+   * Evaluate blocks containing at least one multivalued field.
+   */
   @Override
   public Vector evalNotNullable(Block fieldVal) {
+    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+      return evalAscendingNotNullable(fieldVal);
+    }
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
     int[] values = new int[positionCount];
@@ -65,6 +77,44 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
         MvMedian.process(work, value);
       }
       int result = MvMedian.finish(work);
+      values[p] = result;
+    }
+    return new IntArrayVector(values, positionCount);
+  }
+
+  /**
+   * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
+   */
+  private Block evalAscendingNullable(Block fieldVal) {
+    IntBlock v = (IntBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount);
+    MvMedian.Ints work = new MvMedian.Ints();
+    for (int p = 0; p < positionCount; p++) {
+      int valueCount = v.getValueCount(p);
+      if (valueCount == 0) {
+        builder.appendNull();
+        continue;
+      }
+      int first = v.getFirstValueIndex(p);
+      int result = MvMedian.ascending(v, first, valueCount);
+      builder.appendInt(result);
+    }
+    return builder.build();
+  }
+
+  /**
+   * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
+   */
+  private Vector evalAscendingNotNullable(Block fieldVal) {
+    IntBlock v = (IntBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    int[] values = new int[positionCount];
+    MvMedian.Ints work = new MvMedian.Ints();
+    for (int p = 0; p < positionCount; p++) {
+      int valueCount = v.getValueCount(p);
+      int first = v.getFirstValueIndex(p);
+      int result = MvMedian.ascending(v, first, valueCount);
       values[p] = result;
     }
     return new IntArrayVector(values, positionCount);

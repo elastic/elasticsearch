@@ -13,14 +13,15 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -33,15 +34,15 @@ public class MvDedupeTests extends AbstractMultivalueFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("mv_dedupe(<double>)", () -> {
-            List<Double> mvData = randomList(1, 100, () -> randomDouble());
-            return new TestCase(
-                List.of(new TypedData(mvData, DataTypes.DOUBLE, "field")),
-                "MvDedupe[field=Attribute[channel=0]]",
-                DataTypes.DOUBLE,
-                getMatcher(mvData)
-            );
-        })));
+        List<TestCaseSupplier> cases = new ArrayList<>();
+        booleans(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
+        bytesRefs(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
+        doubles(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Double::valueOf)));
+        ints(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Integer::valueOf)));
+        longs(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Long::valueOf)));
+        // TODO switch extraction to BigInteger so this just works.
+        // unsignedLongs(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
+        return parameterSuppliersFromTypedData(cases);
     }
 
     @Override
@@ -55,21 +56,12 @@ public class MvDedupeTests extends AbstractMultivalueFunctionTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static Matcher<Object> getMatcher(List<?> input) {
-        if (input == null) {
-            return nullValue();
-        }
-        Set<Object> values = new HashSet<>(input);
+    private static Matcher<Object> getMatcher(Stream<?> v) {
+        Set<Object> values = v.collect(Collectors.toSet());
         return switch (values.size()) {
             case 0 -> nullValue();
             case 1 -> equalTo(values.iterator().next());
             default -> (Matcher<Object>) (Matcher<?>) containsInAnyOrder(values.stream().map(Matchers::equalTo).toArray(Matcher[]::new));
         };
     }
-
-    @Override
-    protected Matcher<Object> resultMatcherForInput(List<?> input, DataType dataType) {
-        return getMatcher(input);
-    }
-
 }

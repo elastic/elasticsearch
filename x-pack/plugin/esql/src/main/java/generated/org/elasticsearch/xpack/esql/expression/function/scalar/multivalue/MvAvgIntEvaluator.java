@@ -28,6 +28,9 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
     return "MvAvg";
   }
 
+  /**
+   * Evaluate blocks containing at least one multivalued field.
+   */
   @Override
   public Block evalNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;
@@ -58,6 +61,9 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
     return builder.build();
   }
 
+  /**
+   * Evaluate blocks containing at least one multivalued field.
+   */
   @Override
   public Vector evalNotNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;
@@ -84,6 +90,9 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
     return new DoubleArrayVector(values, positionCount);
   }
 
+  /**
+   * Evaluate blocks containing only single valued fields.
+   */
   @Override
   public Block evalSingleValuedNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;
@@ -105,6 +114,9 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
     return builder.build();
   }
 
+  /**
+   * Evaluate blocks containing only single valued fields.
+   */
   @Override
   public Vector evalSingleValuedNotNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;

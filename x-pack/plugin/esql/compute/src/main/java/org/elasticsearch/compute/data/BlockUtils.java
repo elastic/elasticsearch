@@ -75,6 +75,9 @@ public final class BlockUtils {
             } else if (object instanceof List<?> listVal) {
                 BuilderWrapper wrapper = wrapperFor(listVal.get(0).getClass(), 1);
                 wrapper.append.accept(listVal);
+                if (isAscending(listVal)) {
+                    wrapper.builder.mvOrdering(Block.MvOrdering.ASCENDING);
+                }
                 blocks[i] = wrapper.builder.build();
             } else if (object == null) {
                 blocks[i] = constantNullBlock(blockSize);
@@ -83,6 +86,27 @@ public final class BlockUtils {
             }
         }
         return blocks;
+    }
+
+    /**
+     * Detect blocks with ascending fields. This is *mostly* useful for
+     * exercising the specialized ascending implementations.
+     */
+    private static boolean isAscending(List<?> values) {
+        Comparable<Object> prev = null;
+        for (Object o : values) {
+            @SuppressWarnings("unchecked")
+            Comparable<Object> val = (Comparable<Object>) o;
+            if (prev == null) {
+                prev = val;
+                continue;
+            }
+            if (prev.compareTo(val) > 0) {
+                return false;
+            }
+            prev = val;
+        }
+        return true;
     }
 
     public static Block[] fromList(List<List<Object>> list) {

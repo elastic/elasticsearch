@@ -35,20 +35,22 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
     }
 
     /**
-     * Calls the {@link #innerPrepareRequest(RestRequest, NodeClient)} method and then checks the
-     * license state. If the license state allows auth, the result from
+     * Calls the {@link #checkFeatureAvailable()} method to check the license state.
+     * If the license state allows auth, the result from
      * {@link #innerPrepareRequest(RestRequest, NodeClient)} is returned, otherwise a default error
      * response will be returned indicating that security is not licensed.
      *
-     * Note: the implementing rest handler is called before the license is checked so that we do not
+     * Note: If the license check fails we consume the request content and parameters so that we do not
      * trip the unused parameters check
      */
     protected final RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        RestChannelConsumer consumer = innerPrepareRequest(request, client);
         final Exception failedFeature = checkFeatureAvailable();
         if (failedFeature == null) {
+            RestChannelConsumer consumer = innerPrepareRequest(request, client);
             return consumer;
         } else {
+            request.params().keySet().forEach(key -> request.param(key, ""));
+            request.content();
             return channel -> channel.sendResponse(new RestResponse(channel, failedFeature));
         }
     }
@@ -73,8 +75,8 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
     /**
      * Implementers should implement this method as they normally would for
      * {@link BaseRestHandler#prepareRequest(RestRequest, NodeClient)} and ensure that all request
-     * parameters are consumed prior to returning a value. The returned value is not guaranteed to
-     * be executed unless security is licensed and all request parameters are known
+     * parameters are consumed prior to returning a value. This method is executed only if the license
+     * check from {@link #checkFeatureAvailable()} passes.
      */
     protected abstract RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException;
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardPath;
@@ -270,6 +271,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         Set<DiscoveryNode> nodesWithIndexData = Sets.difference(dataNodes, Collections.singleton(excludedDataNode));
         assertBusy(() -> {
             for (DiscoveryNode dataNode : nodesWithIndexData) {
+
                 CacheService cacheService = internalCluster().getInstance(CacheService.class, dataNode.getName());
                 cacheService.synchronizeCache();
                 assertThat(cacheService.getPersistentCache().getNumDocs(), greaterThan(0L));
@@ -286,6 +288,9 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
                 logger.warn("--> CacheFilesEventsQueueSize: {}", cacheService.getCacheFilesEventsQueueSize());
                 logger.warn("--> NumberOfCacheFilesEvents: {}", cacheService.getNumberOfCacheFilesEvents());
                 logger.warn("--> Pending shard evictions: {}", cacheService.pendingShardsEvictions().keySet());
+
+                NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, excludedDataNode.getName());
+                logger.warn("--> Node's index folders: {}", nodeEnvironment.availableIndexFolders());
             }
             assertThat(numberOfDocs, equalTo(0L));
         });

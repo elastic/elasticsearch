@@ -281,14 +281,12 @@ public class XPackSettings {
 
     private static final SSLConfigurationSettings REMOTE_CLUSTER_SERVER_SSL = SSLConfigurationSettings.withPrefix(
         REMOTE_CLUSTER_SERVER_SSL_PREFIX,
-        false,
-        SSLConfigurationSettings.IntendedUse.SERVER
+        false
     );
 
     private static final SSLConfigurationSettings REMOTE_CLUSTER_CLIENT_SSL = SSLConfigurationSettings.withPrefix(
         REMOTE_CLUSTER_CLIENT_SSL_PREFIX,
-        false,
-        SSLConfigurationSettings.IntendedUse.CLIENT
+        false
     );
 
     /** Setting for enabling or disabling remote cluster server TLS. Defaults to true. */

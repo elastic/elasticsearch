@@ -224,6 +224,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -2437,27 +2438,10 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(AuditLevel.ACCESS_GRANTED),
             eq(authentication),
             eq(DeleteAction.NAME),
-            eq(new String[] { "concrete-index" }),
-            eq(BulkItemRequest.class.getSimpleName()),
-            eq(request.remoteAddress()),
-            authzInfoRoles(new String[] { role.getName() })
-        );
-        verify(auditTrail).explicitIndexAccessEvent(
-            eq(requestId),
-            eq(AuditLevel.ACCESS_GRANTED),
-            eq(authentication),
-            eq(DeleteAction.NAME),
-            eq(new String[] { "alias-2" }),
-            eq(BulkItemRequest.class.getSimpleName()),
-            eq(request.remoteAddress()),
-            authzInfoRoles(new String[] { role.getName() })
-        );
-        verify(auditTrail).explicitIndexAccessEvent(
-            eq(requestId),
-            eq(AuditLevel.ACCESS_GRANTED),
-            eq(authentication),
-            eq(IndexAction.NAME + ":op_type/index"),
-            eq(new String[] { "concrete-index" }),
+            argThat(indicesArrays -> {
+                Arrays.sort(indicesArrays);
+                return Arrays.equals(indicesArrays, new String[] { "alias-2", "concrete-index" });
+            }),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
             authzInfoRoles(new String[] { role.getName() })
@@ -2467,7 +2451,10 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(AuditLevel.ACCESS_GRANTED),
             eq(authentication),
             eq(IndexAction.NAME + ":op_type/index"),
-            eq(new String[] { "alias-1" }),
+            argThat(indicesArrays -> {
+                Arrays.sort(indicesArrays);
+                return Arrays.equals(indicesArrays, new String[] { "alias-1", "concrete-index" });
+            }),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
             authzInfoRoles(new String[] { role.getName() })
@@ -2527,22 +2514,23 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorize(authentication, action, request);
 
         // both deletes should fail
-        verify(auditTrail, times(2)).explicitIndexAccessEvent(
+        verify(auditTrail).explicitIndexAccessEvent(
             eq(requestId),
             eq(AuditLevel.ACCESS_DENIED),
             eq(authentication),
             eq(DeleteAction.NAME),
-            ArgumentMatchers.argThat(indices -> indices.length == 1 && indices[0].startsWith("datemath-")),
+            argThat(indices -> indices.length == 2 && indices[0].startsWith("datemath-") && indices[1].startsWith("datemath-")),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
             authzInfoRoles(new String[] { role.getName() })
         );
-        verify(auditTrail, times(2)).explicitIndexAccessEvent(
+        // both indexing should go through
+        verify(auditTrail).explicitIndexAccessEvent(
             eq(requestId),
             eq(AuditLevel.ACCESS_GRANTED),
             eq(authentication),
             eq(IndexAction.NAME + ":op_type/index"),
-            ArgumentMatchers.argThat(indices -> indices.length == 1 && indices[0].startsWith("datemath-")),
+            argThat(indices -> indices.length == 2 && indices[0].startsWith("datemath-") && indices[1].startsWith("datemath-")),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
             authzInfoRoles(new String[] { role.getName() })

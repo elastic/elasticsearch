@@ -14,13 +14,12 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class MvCountTests extends AbstractMultivalueFunctionTestCase {
     public MvCountTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
@@ -29,15 +28,14 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("mv_count(<double>)", () -> {
-            List<Double> mvData = randomList(1, 100, () -> randomDouble());
-            return new TestCase(
-                List.of(new TypedData(mvData, DataTypes.DOUBLE, "field")),
-                "MvCount[field=Attribute[channel=0]]",
-                DataTypes.INTEGER,
-                equalTo(mvData.size())
-            );
-        })));
+        List<TestCaseSupplier> cases = new ArrayList<>();
+        booleans(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        bytesRefs(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        doubles(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        ints(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        longs(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        unsignedLongs(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        return parameterSuppliersFromTypedData(cases);
     }
 
     @Override
@@ -54,10 +52,4 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
     protected DataType expectedType(List<DataType> argTypes) {
         return DataTypes.INTEGER;
     }
-
-    @Override
-    protected Matcher<Object> resultMatcherForInput(List<?> input, DataType dataType) {
-        return input == null ? nullValue() : equalTo(input.size());
-    }
-
 }

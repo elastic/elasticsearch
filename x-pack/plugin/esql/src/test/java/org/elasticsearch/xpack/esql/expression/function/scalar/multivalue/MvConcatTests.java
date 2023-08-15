@@ -16,12 +16,10 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,17 +48,6 @@ public class MvConcatTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new MvConcat(source, args.get(0), args.get(1));
-    }
-
-    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
-        List<?> field = (List<?>) typedData.get(0).data();
-        BytesRef delim = (BytesRef) typedData.get(1).data();
-        if (field == null || delim == null) {
-            return nullValue();
-        }
-        return equalTo(
-            new BytesRef(field.stream().map(v -> ((BytesRef) v).utf8ToString()).collect(Collectors.joining(delim.utf8ToString())))
-        );
     }
 
     @Override

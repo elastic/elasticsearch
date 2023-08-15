@@ -26,11 +26,13 @@ import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.common.IndexNameGenerator.generateValidIndexName;
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
+import static org.elasticsearch.xpack.core.ilm.DownsampleStep.generateDownsampleIndexName;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -184,9 +186,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
 
-        String downsampleIndex = generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
-        lifecycleState.setDownsampleIndexName(downsampleIndex);
-
+        String downsampleIndex = generateDownsampleIndexName(sourceIndexName, step.getFixedInterval());
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
@@ -207,19 +207,23 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             .build();
         Map<String, IndexMetadata> indices = Map.of(downsampleIndex, indexMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices)).build();
+        mockClientDownsampleCall(sourceIndexName);
 
+        final AtomicBoolean listenerIsCalled = new AtomicBoolean(false);
         step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
-                fail("onResponse should not be called in this test, because there's an in-progress downsample index");
+                listenerIsCalled.set(true);
             }
 
             @Override
             public void onFailure(Exception e) {
+                listenerIsCalled.set(true);
                 assertTrue(e instanceof IllegalStateException);
                 assertTrue(e.getMessage().contains("already exists with downsample status [started]"));
             }
         });
+        assertThat(listenerIsCalled.get(), is(true));
     }
 
     public void testNextStepKey() {

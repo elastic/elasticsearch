@@ -219,8 +219,8 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             @Override
             public void onFailure(Exception e) {
                 listenerIsCalled.set(true);
-                assertTrue(e instanceof IllegalStateException);
-                assertTrue(e.getMessage().contains("already exists with downsample status [started]"));
+                logger.error("-> " + e.getMessage(), e);
+                fail("repeatedly calling the downsampling API is expected, but got exception [" + e.getMessage() + "]");
             }
         });
         assertThat(listenerIsCalled.get(), is(true));

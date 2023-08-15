@@ -22,6 +22,7 @@ public class Neg {
 
     @Evaluator(extraName = "Doubles")
     static double processDoubles(double v) {
+        // This can never fail (including when `v` is +/- infinity or NaN) since negating a double is just a bit flip.
         return -v;
     }
 }

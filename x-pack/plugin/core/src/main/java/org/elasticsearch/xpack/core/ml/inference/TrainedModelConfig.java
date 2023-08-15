@@ -418,7 +418,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public long getPerAllocationMemoryBytes() {
         return metadata != null && metadata.containsKey(PER_ALLOCATION_MEMORY_BYTES.getPreferredName())
             ? ((Number) metadata.get(PER_ALLOCATION_MEMORY_BYTES.getPreferredName())).longValue()
-            : 42L;
+            : 0L;
     }
 
     @Override

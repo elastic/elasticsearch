@@ -29,8 +29,14 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
     return "MvMin";
   }
 
+  /**
+   * Evaluate blocks containing at least one multivalued field.
+   */
   @Override
   public Block evalNullable(Block fieldVal) {
+    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+      return evalAscendingNullable(fieldVal);
+    }
     BytesRefBlock v = (BytesRefBlock) fieldVal;
     int positionCount = v.getPositionCount();
     BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount);
@@ -55,8 +61,14 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
     return builder.build();
   }
 
+  /**
+   * Evaluate blocks containing at least one multivalued field.
+   */
   @Override
   public Vector evalNotNullable(Block fieldVal) {
+    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+      return evalAscendingNotNullable(fieldVal);
+    }
     BytesRefBlock v = (BytesRefBlock) fieldVal;
     int positionCount = v.getPositionCount();
     BytesRefArray values = new BytesRefArray(positionCount, BigArrays.NON_RECYCLING_INSTANCE);
@@ -72,6 +84,48 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
         MvMin.process(value, next);
       }
       BytesRef result = value;
+      values.append(result);
+    }
+    return new BytesRefArrayVector(values, positionCount);
+  }
+
+  /**
+   * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
+   */
+  private Block evalAscendingNullable(Block fieldVal) {
+    BytesRefBlock v = (BytesRefBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount);
+    BytesRef firstScratch = new BytesRef();
+    BytesRef nextScratch = new BytesRef();
+    for (int p = 0; p < positionCount; p++) {
+      int valueCount = v.getValueCount(p);
+      if (valueCount == 0) {
+        builder.appendNull();
+        continue;
+      }
+      int first = v.getFirstValueIndex(p);
+      int idx = MvMin.ascendingIndex(valueCount);
+      BytesRef result = v.getBytesRef(first + idx, firstScratch);
+      builder.appendBytesRef(result);
+    }
+    return builder.build();
+  }
+
+  /**
+   * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
+   */
+  private Vector evalAscendingNotNullable(Block fieldVal) {
+    BytesRefBlock v = (BytesRefBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    BytesRefArray values = new BytesRefArray(positionCount, BigArrays.NON_RECYCLING_INSTANCE);
+    BytesRef firstScratch = new BytesRef();
+    BytesRef nextScratch = new BytesRef();
+    for (int p = 0; p < positionCount; p++) {
+      int valueCount = v.getValueCount(p);
+      int first = v.getFirstValueIndex(p);
+      int idx = MvMin.ascendingIndex(valueCount);
+      BytesRef result = v.getBytesRef(first + idx, firstScratch);
       values.append(result);
     }
     return new BytesRefArrayVector(values, positionCount);

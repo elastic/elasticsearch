@@ -10,21 +10,18 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
+import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class MvMinTests extends AbstractMultivalueFunctionTestCase {
     public MvMinTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
@@ -33,15 +30,19 @@ public class MvMinTests extends AbstractMultivalueFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("mv_min(<double>)", () -> {
-            List<Double> mvData = randomList(1, 100, () -> randomDouble());
-            return new TestCase(
-                List.of(new TypedData(mvData, DataTypes.DOUBLE, "field")),
-                "MvMin[field=Attribute[channel=0]]",
-                DataTypes.DOUBLE,
-                equalTo(mvData.stream().mapToDouble(Double::doubleValue).summaryStatistics().getMin())
-            );
-        })));
+        List<TestCaseSupplier> cases = new ArrayList<>();
+        booleans(cases, "mv_min", "MvMin", (size, values) -> equalTo(values.min(Comparator.naturalOrder()).get()));
+        bytesRefs(cases, "mv_min", "MvMin", (size, values) -> equalTo(values.min(Comparator.naturalOrder()).get()));
+        doubles(cases, "mv_min", "MvMin", (size, values) -> equalTo(values.min().getAsDouble()));
+        ints(cases, "mv_min", "MvMin", (size, values) -> equalTo(values.min().getAsInt()));
+        longs(cases, "mv_min", "MvMin", (size, values) -> equalTo(values.min().getAsLong()));
+        unsignedLongs(
+            cases,
+            "mv_min",
+            "MvMin",
+            (size, values) -> equalTo(NumericUtils.asLongUnsigned(values.reduce(BigInteger::min).get()))
+        );
+        return parameterSuppliersFromTypedData(cases);
     }
 
     @Override
@@ -53,20 +54,4 @@ public class MvMinTests extends AbstractMultivalueFunctionTestCase {
     protected DataType[] supportedTypes() {
         return representable();
     }
-
-    @Override
-    protected Matcher<Object> resultMatcherForInput(List<?> input, DataType dataType) {
-        if (input == null) {
-            return nullValue();
-        }
-        return switch (LocalExecutionPlanner.toElementType(EsqlDataTypes.fromJava(input.get(0)))) {
-            case BOOLEAN -> equalTo(input.stream().mapToInt(o -> (Boolean) o ? 1 : 0).min().getAsInt() == 1);
-            case BYTES_REF -> equalTo(input.stream().map(o -> (BytesRef) o).min(Comparator.naturalOrder()).get());
-            case DOUBLE -> equalTo(input.stream().mapToDouble(o -> (Double) o).min().getAsDouble());
-            case INT -> equalTo(input.stream().mapToInt(o -> (Integer) o).min().getAsInt());
-            case LONG -> equalTo(input.stream().mapToLong(o -> (Long) o).min().getAsLong());
-            default -> throw new UnsupportedOperationException("unsupported type " + input);
-        };
-    }
-
 }

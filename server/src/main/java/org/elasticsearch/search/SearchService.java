@@ -1119,7 +1119,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 : 1;
     }
 
-    static boolean isParallelCollectionSupportedForResults(ResultsType resultsType, SearchSourceBuilder source, boolean isQueryPhaseParallelismEnabled) {
+    static boolean isParallelCollectionSupportedForResults(
+        ResultsType resultsType,
+        SearchSourceBuilder source,
+        boolean isQueryPhaseParallelismEnabled
+    ) {
         if (resultsType == ResultsType.DFS) {
             return true;
         }

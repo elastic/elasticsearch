@@ -767,9 +767,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (perDeploymentMemoryBytes == 0 && perAllocationMemoryBytes == 0) {
                 return baseSize;
             } else {
-                return Math.max(baseSize,  perDeploymentMemoryBytes + perAllocationMemoryBytes * numberOfAllocations + totalDefinitionLength;
-            }    
-        }
+                return Math.max(
+                    baseSize,
+                    perDeploymentMemoryBytes + perAllocationMemoryBytes * numberOfAllocations + totalDefinitionLength
+                );
+            }
         }
     }
 

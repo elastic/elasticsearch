@@ -74,14 +74,13 @@ that begin with `_` are reserved for system usage.
 For more information, see
 <<run-as-privilege>>.
 
-`remote_indices`::
-beta:[]
-(list) A list of remote indices permissions entries.
-
+`remote_indices`:: beta:[] (list) A list of remote indices permissions entries.
++
+--
 // TODO: fix the link to new page of API key based remote clusters
 NOTE: Remote indices are effective for remote clusters configured with the API key based model.
 They have no effect for remote clusters configured with the certificate based model.
-
+--
 `clusters` (required)::: (list) A list of cluster aliases to which the permissions
 in this entry apply.
 `field_security`::: (object) The document fields that the owners of the role have

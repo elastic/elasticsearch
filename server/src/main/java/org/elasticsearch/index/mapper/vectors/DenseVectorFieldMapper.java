@@ -78,6 +78,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; // maximum allowed number of dimensions
+
+    public static short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to vector
     public static final int MAGNITUDE_BYTES = 4;
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
@@ -166,6 +168,88 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
             });
+        }
+
+        @Override
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { elementType, dims, indexed, similarity, indexOptions, meta };
+        }
+
+        @Override
+        public DenseVectorFieldMapper build(MapperBuilderContext context) {
+            return new DenseVectorFieldMapper(
+                name,
+                new DenseVectorFieldType(
+                    context.buildFullName(name),
+                    indexVersionCreated,
+                    elementType.getValue(),
+                    dims.getValue(),
+                    indexed.getValue(),
+                    similarity.getValue(),
+                    meta.getValue()
+                ),
+                elementType.getValue(),
+                dims.getValue(),
+                indexed.getValue(),
+                similarity.getValue(),
+                indexOptions.getValue(),
+                indexVersionCreated,
+                multiFieldsBuilder.build(this, context),
+                copyTo.build()
+            );
+        }
+    }
+
+    public static class DynamicBuilder extends FieldMapper.Builder {
+
+        private final Parameter<ElementType> elementType = new Parameter<>("element_type", false, () -> ElementType.FLOAT, (n, c, o) -> {
+            ElementType elementType = namesToElementType.get((String) o);
+            if (elementType == null) {
+                throw new MapperParsingException("invalid element_type [" + o + "]; available types are " + namesToElementType.keySet());
+            }
+            return elementType;
+        }, m -> toType(m).elementType, XContentBuilder::field, Objects::toString);
+        private final Parameter<Integer> dims;
+        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, false);
+        private final Parameter<VectorSimilarity> similarity = Parameter.enumParam(
+            "similarity",
+            false,
+            m -> toType(m).similarity,
+            null,
+            VectorSimilarity.class
+        );
+        private final Parameter<IndexOptions> indexOptions = new Parameter<>(
+            "index_options",
+            false,
+            () -> null,
+            (n, c, o) -> o == null ? null : parseIndexOptions(n, o),
+            m -> toType(m).indexOptions,
+            XContentBuilder::field,
+            Objects::toString
+        );
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        final IndexVersion indexVersionCreated;
+
+        public DynamicBuilder(String name, IndexVersion indexVersionCreated, int dims) {
+            super(name);
+            this.indexVersionCreated = indexVersionCreated;
+
+            this.dims = new Parameter<>(
+                "dims",
+                false,
+                () -> dims,
+                (n, c, o) -> dims,
+                m -> toType(m).dims,
+                XContentBuilder::field,
+                Objects::toString
+            );
+
+            this.indexed.requiresParameter(similarity);
+            this.similarity.setSerializerCheck((id, ic, v) -> v != null);
+            this.similarity.requiresParameter(indexed);
+            this.indexOptions.requiresParameter(indexed);
+            this.indexOptions.setSerializerCheck((id, ic, v) -> v != null);
         }
 
         @Override

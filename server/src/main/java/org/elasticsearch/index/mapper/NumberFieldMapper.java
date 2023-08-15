@@ -1695,6 +1695,8 @@ public class NumberFieldMapper extends FieldMapper {
 
     private final IndexMode indexMode;
 
+    private Number parsedValue = null;
+
     private NumberFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
@@ -1745,9 +1747,8 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        Number value;
         try {
-            value = value(context.parser());
+            this.parsedValue = value(context.parser());
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
                 context.addIgnoredField(mappedFieldType.name());
@@ -1760,8 +1761,8 @@ public class NumberFieldMapper extends FieldMapper {
                 throw e;
             }
         }
-        if (value != null) {
-            indexValue(context, value);
+        if (this.parsedValue != null) {
+            indexValue(context, this.parsedValue);
         }
     }
 
@@ -1784,6 +1785,10 @@ public class NumberFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Cannot parse object as number");
         }
         return type.parse(parser, coerce());
+    }
+
+    public Number parsedValue() {
+        return parsedValue;
     }
 
     /**

@@ -14,6 +14,9 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.FlatteningXContentParser;
 import org.elasticsearch.xcontent.XContentParser;
@@ -27,12 +30,19 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
 
 /**
  * Context used when parsing incoming documents. Holds everything that is needed to parse a document as well as
  * the lucene data structures and mappings to be dynamically created as the outcome of parsing a document.
  */
 public abstract class DocumentParserContext {
+
+    private static final Logger logger = LogManager.getLogger(DocumentParserContext.class);
+
     /**
      * Wraps a given context while allowing to override some of its behaviour by re-implementing some of the non final methods
      */
@@ -84,7 +94,7 @@ public abstract class DocumentParserContext {
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
     private final Set<String> ignoredFields;
-    private final List<Mapper> dynamicMappers;
+    private List<Mapper> dynamicMappers;
     private final Set<String> newFieldsSeen;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
     private final List<RuntimeField> dynamicRuntimeFields;
@@ -529,6 +539,50 @@ public abstract class DocumentParserContext {
             );
         }
         return null;
+    }
+
+    public void postProcessDynamicMappers() {
+        List<Mapper> postProcessedMappers = new ArrayList<>();
+
+        Map<String, List<Number>> denseVectorFields = dynamicMappers.stream()
+            .filter(subClassObj -> subClassObj instanceof NumberFieldMapper)
+            .map(NumberFieldMapper.class::cast)
+            .filter(m -> "float".equals(m.typeName()))
+            .collect(Collectors.groupingBy(FieldMapper::name, Collectors.mapping(NumberFieldMapper::parsedValue, Collectors.toList())))
+            .entrySet()
+            .stream()
+            .filter(e -> e.getValue().size() >= MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING && e.getValue().size() <= MAX_DIMS_COUNT)
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        if (denseVectorFields.isEmpty()) {
+            return;
+        }
+
+        for (Mapper mapper : dynamicMappers) {
+            if (denseVectorFields.containsKey(mapper.name())) {
+                List<Number> fieldValues = denseVectorFields.get(mapper.name());
+                DenseVectorFieldMapper.DynamicBuilder builder = new DenseVectorFieldMapper.DynamicBuilder(
+                    mapper.name(),
+                    indexSettings().getIndexVersionCreated(),
+                    fieldValues.size()
+                );
+
+                DenseVectorFieldMapper denseVectorFieldMapper = builder.build(createDynamicMapperBuilderContext());
+                postProcessedMappers.add(denseVectorFieldMapper);
+            } else {
+                postProcessedMappers.add(mapper);
+            }
+        }
+        dynamicMappers = postProcessedMappers;
+    }
+
+    private Number parseFloat(NumberFieldMapper mapper) {
+        try {
+            XContentParser parser = parser();
+            return parser.floatValue(true);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     // XContentParser that wraps an existing parser positioned on a value,

@@ -139,6 +139,8 @@ public final class DocumentParser {
 
             executeIndexTimeScripts(context);
 
+            context.postProcessDynamicMappers();
+
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
             }

@@ -60,7 +60,6 @@ import org.elasticsearch.xpack.rollup.rest.RestStopRollupJobAction;
 
 import java.time.Clock;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -144,7 +143,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         IndexNameExpressionResolver expressionResolver
     ) {
         schedulerEngine.set(new SchedulerEngine(settings, getClock()));
-        return Collections.singletonList(new RollupJobTask.RollupJobPersistentTasksExecutor(client, schedulerEngine.get(), threadPool));
+        return List.of(new RollupJobTask.RollupJobPersistentTasksExecutor(client, schedulerEngine.get(), threadPool));
     }
 
     // overridable by tests

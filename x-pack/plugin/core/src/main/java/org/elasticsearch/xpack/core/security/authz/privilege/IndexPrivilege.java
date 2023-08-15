@@ -33,7 +33,6 @@ import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
@@ -215,10 +214,8 @@ public final class IndexPrivilege extends Privilege {
             DataStreamLifecycle.isFeatureEnabled() ? entry("manage_data_stream_lifecycle", MANAGE_DATA_STREAM_LIFECYCLE) : null,
             entry("maintenance", MAINTENANCE),
             entry("auto_configure", AUTO_CONFIGURE),
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION) : null,
-            TcpTransport.isUntrustedRemoteClusterEnabled()
-                ? entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL)
-                : null
+            entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION),
+            entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL)
         ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
     );
 

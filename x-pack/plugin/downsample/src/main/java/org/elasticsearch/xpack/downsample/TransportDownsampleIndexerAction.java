@@ -29,6 +29,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.IOException;
@@ -141,7 +143,8 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
             request.getRollupIndex(),
             request.getRollupConfig(),
             request.getMetricFields(),
-            request.getLabelFields()
+            request.getLabelFields(),
+            new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
         );
         return indexer.execute();
     }

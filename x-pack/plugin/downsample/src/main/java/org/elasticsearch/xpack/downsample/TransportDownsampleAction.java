@@ -192,7 +192,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 if (hasDocumentLevelPermissions || hasFieldLevelSecurity) {
                     listener.onFailure(
                         new ElasticsearchException(
-                            "Downsample forbidden for index [" + sourceIndexName + "] with document level or field level security settings."
+                            "Rollup forbidden for index [" + sourceIndexName + "] with document level or field level security settings."
                         )
                     );
                     return;
@@ -210,7 +210,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         if (IndexSettings.MODE.get(sourceIndexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
             listener.onFailure(
                 new ElasticsearchException(
-                    "Downsample requires setting ["
+                    "Rollup requires setting ["
                         + IndexSettings.MODE.getKey()
                         + "="
                         + IndexMode.TIME_SERIES

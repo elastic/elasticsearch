@@ -375,9 +375,11 @@ public class Archives {
                     + "$process.StandardInput.WriteLine('"
                     + keystorePassword
                     + "'); "
-                    + "Wait-Process -Timeout "
+                    + "Start-Sleep -s "
                     + ES_STARTUP_SLEEP_TIME_SECONDS
-                    + " -Id $process.Id; "
+                    // + "Wait-Process -Timeout "
+                    // + ES_STARTUP_SLEEP_TIME_SECONDS
+                    // + " -Id $process.Id; "
                     + "$process.Id;"
             );
         } else {

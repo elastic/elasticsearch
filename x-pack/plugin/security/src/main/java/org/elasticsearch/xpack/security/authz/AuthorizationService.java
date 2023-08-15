@@ -783,12 +783,7 @@ public class AuthorizationService {
                     }
                     return resolved;
                 });
-
-                actionToIndicesMap.compute(itemAction, (key, resolvedIndicesSet) -> {
-                    final Set<String> localSet = resolvedIndicesSet != null ? resolvedIndicesSet : new HashSet<>();
-                    localSet.add(resolvedIndex);
-                    return localSet;
-                });
+                actionToIndicesMap.compute(itemAction, (ignore, resolvedIndicesSet) -> addToOrCreateSet(resolvedIndicesSet, resolvedIndex));
             }
 
             final ActionListener<Collection<Tuple<String, IndexAuthorizationResult>>> bulkAuthzListener = ActionListener.wrap(
@@ -811,17 +806,15 @@ public class AuthorizationService {
                         final String itemAction = getAction(item);
                         final IndicesAccessControl indicesAccessControl = actionToIndicesAccessControl.get(itemAction);
                         if (indicesAccessControl.hasIndexPermissions(resolvedIndex)) {
-                            actionToGrantedIndicesMap.compute(itemAction, (key, resolvedIndicesSet) -> {
-                                final Set<String> localSet = resolvedIndicesSet != null ? resolvedIndicesSet : new HashSet<>();
-                                localSet.add(resolvedIndex);
-                                return localSet;
-                            });
+                            actionToGrantedIndicesMap.compute(
+                                itemAction,
+                                (ignore, resolvedIndicesSet) -> addToOrCreateSet(resolvedIndicesSet, resolvedIndex)
+                            );
                         } else {
-                            actionToDeniedIndicesMap.compute(itemAction, (key, resolvedIndicesSet) -> {
-                                final Set<String> localSet = resolvedIndicesSet != null ? resolvedIndicesSet : new HashSet<>();
-                                localSet.add(resolvedIndex);
-                                return localSet;
-                            });
+                            actionToDeniedIndicesMap.compute(
+                                itemAction,
+                                (ignore, resolvedIndicesSet) -> addToOrCreateSet(resolvedIndicesSet, resolvedIndex)
+                            );
                             item.abort(
                                 resolvedIndex,
                                 actionDenied(
@@ -887,6 +880,12 @@ public class AuthorizationService {
                 );
             });
         }, listener::onFailure));
+    }
+
+    private static Set<String> addToOrCreateSet(Set<String> set, String item) {
+        final Set<String> localSet = set != null ? set : new HashSet<>(4);
+        localSet.add(item);
+        return localSet;
     }
 
     private static IllegalArgumentException illegalArgument(String message) {

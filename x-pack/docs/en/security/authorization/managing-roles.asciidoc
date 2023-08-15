@@ -178,7 +178,7 @@ NOTE: Remote indices are effective for remote clusters configured with the API k
 They have no effect for remote clusters configured with the certificate based model.
 
 The remote indices privileges entry has an extra mandatory `clusters` field compared to
-an <<roles-indices-priv,indices privileges entry>>. But otherwise the two have identical structure.
+an <<roles-indices-priv,indices privileges entry>>. Otherwise the two have identical structure.
 The following describes the structure of a remote indices permissions entry:
 
 [source,js]
@@ -195,7 +195,7 @@ The following describes the structure of a remote indices permissions entry:
 // NOTCONSOLE
 <1> A list of remote cluster aliases. It supports literal strings as well as
     <<api-multi-index,wildcards>> and <<regexp-syntax,regular expressions>>.
-    This field must present.
+    This field is required.
 <2> A list of data streams, indices, and aliases to which the permissions
     in this entry apply. Supports wildcards (`*`).
 <3> The index level privileges the owners of the role have on the associated

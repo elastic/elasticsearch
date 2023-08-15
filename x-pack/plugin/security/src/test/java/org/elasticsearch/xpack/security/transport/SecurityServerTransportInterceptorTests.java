@@ -501,7 +501,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                     }
 
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public void handleResponse() {
                         assertEquals("bar", threadContext.getTransient("foo"));
                         assertEquals("value", threadContext.getHeader("key"));
                     }
@@ -536,7 +536,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                     }
 
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public void handleResponse() {
                         assertEquals("different_bar", threadContext.getTransient("foo"));
                         assertEquals("value2", threadContext.getHeader("key"));
                     }

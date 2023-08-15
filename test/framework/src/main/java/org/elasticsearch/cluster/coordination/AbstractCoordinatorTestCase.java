@@ -143,6 +143,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.elasticsearch.transport.TransportSettings.CONNECT_TIMEOUT;
 import static org.hamcrest.Matchers.empty;
@@ -698,6 +699,19 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     }
                 }
 
+                assertTrue(
+                    nodeId + " is not scheduling elections",
+                    // In the stable state all election schedulers should be inactive, rather than retrying in vain and backing off.
+                    clusterNode.coordinator.electionSchedulerActive() == false
+                        // However today we do the health service checks within the election, so we keep trying if the node health state is
+                        // UNHEALTHY too. See https://github.com/elastic/elasticsearch/issues/98419.
+                        || clusterNode.nodeHealthService.getHealth().getStatus() == UNHEALTHY
+                        // Moreover this property does not hold (yet) when using an atomic-register-based coordinator.
+                        // See https://github.com/elastic/elasticsearch/issues/98423
+                        || coordinatorStrategy.verifyElectionSchedulerState() == false
+
+                );
+
                 if (expectIdleJoinValidationService) {
                     // Tests run stabilise(long stabilisationDurationMillis) to assert timely recovery from a disruption. There's no need
                     // to wait for the JoinValidationService cache to be cleared in these cases, we have enough checks that this eventually
@@ -942,6 +956,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             );
         }
 
+        protected long transportDelayMillis(String actionName) {
+            return 0;
+        }
+
         public class ClusterNode {
             private final Logger logger = LogManager.getLogger(ClusterNode.class);
 
@@ -1049,7 +1067,32 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             default -> assertThat(action, chanType, equalTo(TransportRequestOptions.Type.REG));
                         }
 
-                        super.onSendRequest(requestId, action, request, options, destinationTransport);
+                        final long transportDelayMillis = transportDelayMillis(action);
+                        final Runnable delivery = () -> super.onSendRequest(requestId, action, request, options, destinationTransport);
+                        if (transportDelayMillis > 0) {
+                            deterministicTaskQueue.scheduleAt(
+                                deterministicTaskQueue.getCurrentTimeMillis() + transportDelayMillis,
+                                onNode(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        delivery.run();
+                                    }
+
+                                    @Override
+                                    public String toString() {
+                                        return Strings.format(
+                                            "delayed onSendRequest for [%d][%s] from [%s] to [%s]",
+                                            requestId,
+                                            action,
+                                            localNode,
+                                            destinationTransport.getLocalNode()
+                                        );
+                                    }
+                                })
+                            );
+                        } else {
+                            delivery.run();
+                        }
                     }
 
                     @Override
@@ -1590,7 +1633,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             ThreadPool threadPool
         );
 
-        default void close() {};
+        default void close() {}
+
+        default boolean verifyElectionSchedulerState() {
+            // TODO remove once https://github.com/elastic/elasticsearch/issues/98423 fixed
+            return true;
+        }
     }
 
     protected interface CoordinationServices {

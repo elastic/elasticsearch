@@ -178,5 +178,5 @@ POST /_security/role/role_with_remote_indices
 --------------------------------------------------
 
 <1> The remote indices privileges apply to remote cluster with the alias `my_remote`.
-<2> Privileges are granted for indices matching pattern `logs*` on the remote cluster, i.e. `my_remote`.
+<2> Privileges are granted for indices matching pattern `logs*` on the remote cluster ( `my_remote`).
 <3> The actual <<privileges-list-indices,index privileges>> granted for `logs*` on `my_remote`.

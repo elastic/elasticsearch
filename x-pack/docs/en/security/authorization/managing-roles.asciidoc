@@ -45,7 +45,7 @@ NOTE: Role names must be at least 1 and no more than 507 characters. They can
       Leading or trailing whitespace is not allowed.
 
 [[roles-indices-priv]]
-==== Indices Privileges
+==== Indices privileges
 
 The following describes the structure of an indices permissions entry:
 
@@ -106,7 +106,7 @@ multiple data streams, indices, and aliases.
 ==============================================================================
 
 [[roles-global-priv]]
-==== Global Privileges
+==== Global privileges
 The following describes the structure of the global privileges entry:
 
 [source,js]
@@ -135,7 +135,7 @@ The following describes the structure of the global privileges entry:
 privilege is restricted to
 
 [[roles-application-priv]]
-==== Application Privileges
+==== Application privileges
 The following describes the structure of an application privileges entry:
 
 [source,js]
@@ -164,7 +164,7 @@ no effect, and will not grant any actions in the
 <<security-api-has-privileges,has privileges API>>.
 
 [[roles-remote-indices-priv]]
-==== Remote Indices Privileges
+==== Remote indices privileges
 
 beta::[]
 

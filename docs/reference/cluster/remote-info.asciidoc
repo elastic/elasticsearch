@@ -72,4 +72,4 @@ Refer to <<skip-unavailable-clusters>>.
 // TODO: fix the link to new page of API key based remote clusters
 beta:[]
 This field presents and has value of `::es_redacted::` only when the remote cluster
-is configured with the API key based model. Otherwise, the field will not present.
+is configured with the API key based model. Otherwise, the field is not present.

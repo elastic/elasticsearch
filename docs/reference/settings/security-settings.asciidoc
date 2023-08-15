@@ -2573,7 +2573,7 @@ include::ssl-settings.asciidoc[]
 beta::[]
 
 :ssl-prefix:             xpack.security.remote_cluster_server
-:component:              Remote Cluster Server (API key based model)
+:component:              Remote cluster server (API key based model)
 :client-auth-default:    none
 :verifies!:
 :server:
@@ -2587,7 +2587,7 @@ include::ssl-settings.asciidoc[]
 beta::[]
 
 :ssl-prefix:             xpack.security.remote_cluster_client
-:component:              Remote Cluster Client (API key based model)
+:component:              Remote cluster client (API key based model)
 :client-auth-default:    none
 :verifies:
 :server!:

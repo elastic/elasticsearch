@@ -569,14 +569,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 this.deploymentId = modelId;
             }
 
-            // Update to v8.10.0
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (in.getTransportVersion().onOrAfter(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
                 // We store additional model usage per allocation in the task params.
                 this.perDeploymentMemoryBytes = in.readLong();
                 this.perAllocationMemoryBytes = in.readLong();
             } else {
-                this.perDeploymentMemoryBytes = 0;
-                this.perAllocationMemoryBytes = 0;
+                this.perDeploymentMemoryBytes = 0L;
+                this.perAllocationMemoryBytes = 0L;
             }
         }
 

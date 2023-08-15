@@ -762,10 +762,14 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         // in `pytorch_inference`.
         if (isElserV1Model(modelId)) {
             return ELSER_1_MEMORY_USAGE.getBytes();
-        } else if (perDeploymentMemoryBytes == 0 && perAllocationMemoryBytes == 0) {
-            return MEMORY_OVERHEAD.getBytes() + 2 * totalDefinitionLength;
         } else {
-            return perDeploymentMemoryBytes + perAllocationMemoryBytes * numberOfAllocations + totalDefinitionLength;
+            long baseSize = MEMORY_OVERHEAD.getBytes() + 2 * totalDefinitionLength;
+            if (perDeploymentMemoryBytes == 0 && perAllocationMemoryBytes == 0) {
+                return baseSize;
+            } else {
+                return Math.max(baseSize,  perDeploymentMemoryBytes + perAllocationMemoryBytes * numberOfAllocations + totalDefinitionLength;
+            }    
+        }
         }
     }
 

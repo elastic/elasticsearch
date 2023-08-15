@@ -264,10 +264,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
 
     public enum APIBlock implements Writeable {
-        READ_ONLY("read_only", INDEX_READ_ONLY_BLOCK),
-        READ("read", INDEX_READ_BLOCK),
-        WRITE("write", INDEX_WRITE_BLOCK),
-        METADATA("metadata", INDEX_METADATA_BLOCK),
+        READ_ONLY("read_only", INDEX_READ_ONLY_BLOCK, Property.ServerlessPublic),
+        READ("read", INDEX_READ_BLOCK, Property.ServerlessPublic),
+        WRITE("write", INDEX_WRITE_BLOCK, Property.ServerlessPublic),
+        METADATA("metadata", INDEX_METADATA_BLOCK, Property.ServerlessPublic),
         READ_ONLY_ALLOW_DELETE("read_only_allow_delete", INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
 
         final String name;
@@ -279,6 +279,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.name = name;
             this.settingName = "index.blocks." + name;
             this.setting = Setting.boolSetting(settingName, false, Property.Dynamic, Property.IndexScope);
+            this.block = block;
+        }
+
+        APIBlock(String name, ClusterBlock block, Property serverlessProperty) {
+            this.name = name;
+            this.settingName = "index.blocks." + name;
+            this.setting = Setting.boolSetting(settingName, false, Property.Dynamic, Property.IndexScope, serverlessProperty);
             this.block = block;
         }
 
@@ -512,6 +519,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     public static final String KEY_IN_SYNC_ALLOCATIONS = "in_sync_allocations";
+
+    public static final List<String> PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE = List.of(DataTier.DATA_FROZEN);
+
     static final String KEY_VERSION = "version";
     static final String KEY_MAPPING_VERSION = "mapping_version";
     static final String KEY_SETTINGS_VERSION = "settings_version";
@@ -705,7 +715,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.priority = priority;
         this.creationDate = creationDate;
         this.ignoreDiskWatermarks = ignoreDiskWatermarks;
-        this.tierPreference = tierPreference;
+        // always configure the correct (one and only) value for the partially mounted indices tier preference
+        this.tierPreference = isPartialSearchableSnapshot ? PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE : tierPreference;
         this.shardsPerNodeLimit = shardsPerNodeLimit;
         this.lifecyclePolicyName = lifecyclePolicyName;
         this.lifecycleExecutionState = lifecycleExecutionState;

@@ -250,7 +250,14 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
     public void testExplainDataStreamLifecycleForUnmanagedIndices() throws Exception {
         String dataStreamName = "metrics-foo";
-        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, null);
+        putComposableIndexTemplate(
+            "id1",
+            null,
+            List.of("metrics-foo*"),
+            null,
+            null,
+            DataStreamLifecycle.newBuilder().enabled(false).build()
+        );
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 

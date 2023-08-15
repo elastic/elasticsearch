@@ -414,7 +414,7 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public Aggregator profileIfEnabled(Aggregator agg) throws IOException {
+        public Aggregator profileIfEnabled(Aggregator agg) {
             if (profiler == null) {
                 return agg;
             }

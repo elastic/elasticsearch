@@ -1,0 +1,5 @@
+pr: 98176
+summary: Enhance regex performance with duplicate wildcards
+area: Infra/Core
+type: enhancement
+issues: []

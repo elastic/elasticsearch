@@ -750,21 +750,38 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         TransportResponseHandler<T> handler
     ) {
-        final Transport.Connection connection;
+        final Transport.Connection connection = getConnectionOrFail(node, action, handler);
+        if (connection != null) {
+            sendRequest(connection, action, request, options, handler);
+        }
+    }
+
+    /**
+     * Get connection to the given {@code node} if possible and fail {@code handler} otherwise.
+     *
+     * @return connection if one could be found to {@code node} or null otherwise
+     */
+    @Nullable
+    private Transport.Connection getConnectionOrFail(DiscoveryNode node, String action, TransportResponseHandler<?> handler) {
         try {
-            connection = getConnection(node);
+            var connection = getConnection(node);
+            if (connection == null) {
+                final var ex = new NodeNotConnectedException(node, "Node not connected");
+                assert false : ex;
+                throw ex;
+            }
+            return connection;
         } catch (TransportException transportException) {
             // should only be a NodeNotConnectedException in practice, but handle all cases anyway to be sure
             assert transportException instanceof NodeNotConnectedException : transportException;
             handleSendRequestException(handler, transportException);
-            return;
+            return null;
         } catch (Exception exception) {
             // shouldn't happen in practice, but handle it anyway to be sure
             assert false : exception;
             handleSendRequestException(handler, new SendRequestTransportException(node, action, exception));
-            return;
+            return null;
         }
-        sendRequest(connection, action, request, options, handler);
     }
 
     /**
@@ -833,10 +850,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
     }
 
-    private static <T extends TransportResponse> void handleSendRequestException(
-        TransportResponseHandler<T> handler,
-        TransportException transportException
-    ) {
+    private static void handleSendRequestException(TransportResponseHandler<?> handler, TransportException transportException) {
         try {
             handler.handleException(transportException);
         } catch (Exception innerException) {
@@ -867,21 +881,10 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         final TransportResponseHandler<T> handler
     ) {
-        final Transport.Connection connection;
-        try {
-            connection = getConnection(node);
-        } catch (TransportException transportException) {
-            // should only be a NodeNotConnectedException in practice, but handle all cases anyway to be sure
-            assert transportException instanceof NodeNotConnectedException : transportException;
-            handleSendRequestException(handler, transportException);
-            return;
-        } catch (Exception exception) {
-            // shouldn't happen in practice, but handle it anyway to be sure
-            assert false : exception;
-            handleSendRequestException(handler, new SendRequestTransportException(node, action, exception));
-            return;
+        final Transport.Connection connection = getConnectionOrFail(node, action, handler);
+        if (connection != null) {
+            sendChildRequest(connection, action, request, parentTask, options, handler);
         }
-        sendChildRequest(connection, action, request, parentTask, options, handler);
     }
 
     public <T extends TransportResponse> void sendChildRequest(

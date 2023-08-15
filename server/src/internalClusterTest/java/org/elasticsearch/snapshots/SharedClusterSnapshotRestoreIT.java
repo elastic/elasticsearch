@@ -348,6 +348,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setSettings(
                     Settings.builder()
                         .put("location", randomRepoPath())
+                        // io exception writing index.latest won't fail anything which makes assertions below complicated, so we disable
+                        // index.latest
+                        .put(BlobStoreRepository.SUPPORT_URL_REPO.getKey(), false)
                         .put("random", randomAlphaOfLength(10))
                         .put("random_control_io_exception_rate", 0.2)
                 )
@@ -915,7 +918,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     private int numberOfFiles(Path dir) throws Exception {
-        awaitMasterFinishRepoOperations(); // wait for potential background blob deletes to complete on master
         final AtomicInteger count = new AtomicInteger();
         forEachFileRecursively(dir, ((path, basicFileAttributes) -> count.incrementAndGet()));
         return count.get();

@@ -39,7 +39,6 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
         final ThreadPool threadPool = transport.getThreadPool();
         final Transport.RequestHandlers requestHandlers = transport.getRequestHandlers();
         this.pipeline = new InboundPipeline(
-            transport.getVersion(),
             transport.getStatsTracker(),
             recycler,
             threadPool::relativeTimeInMillis,

@@ -455,6 +455,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                         } else {
                             if (e.getCause() instanceof RuntimeException runtimeException) {
                                 exception = runtimeException;
+                            } else if (e.getCause() instanceof IOException ioException) {
+                                throw ioException;
                             } else {
                                 exception = new RuntimeException(e.getCause());
                             }

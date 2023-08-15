@@ -8,7 +8,6 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -21,6 +20,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -40,7 +40,7 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
     public void testSimpleCondition() throws Exception {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.analysis.filter.cond.type", "condition")
             .put("index.analysis.filter.cond.script.source", "token.getPosition() > 1")
             .putList("index.analysis.filter.cond.filter", "uppercase")

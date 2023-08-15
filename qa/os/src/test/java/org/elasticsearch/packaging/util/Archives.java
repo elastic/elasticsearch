@@ -377,6 +377,7 @@ public class Archives {
                     + "'); "
                     + "Start-Sleep -s "
                     + ES_STARTUP_SLEEP_TIME_SECONDS
+                    + "; "
                     // + "Wait-Process -Timeout "
                     // + ES_STARTUP_SLEEP_TIME_SECONDS
                     // + " -Id $process.Id; "

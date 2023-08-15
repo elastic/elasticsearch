@@ -72,7 +72,7 @@ public class Verifier {
      * @param plan The logical plan to be verified
      * @return a collection of verification failures; empty if and only if the plan is valid
      */
-    public Collection<Failure> verify(LogicalPlan plan) {
+    Collection<Failure> verify(LogicalPlan plan) {
         Set<Failure> failures = new LinkedHashSet<>();
 
         // quick verification for unresolved attributes

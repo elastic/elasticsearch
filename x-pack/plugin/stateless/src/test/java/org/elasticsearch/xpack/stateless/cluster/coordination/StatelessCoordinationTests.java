@@ -234,8 +234,10 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
         }
 
         @Override
-        public boolean verifyElectionSchedulerState() {
-            return false;
+        public boolean verifyElectionSchedulerState(Cluster.ClusterNode clusterNode) {
+            // If the register is disrupted then today we remain HEALTHY and retry via the election mechanism. We should use a different
+            // retry mechanism instead. See https://github.com/elastic/elasticsearch/issues/98488.
+            return (clusterNode.isRegisterDisconnected() || clusterNode.isRegisterBlackholed()) == false;
         }
     }
 

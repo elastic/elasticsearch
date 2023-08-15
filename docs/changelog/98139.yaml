@@ -1,6 +1,0 @@
-pr: 98139
-summary: Add per allocation and per deployment memory metadata fields to the trained models config
-area: Machine Learning
-type: enhancement
-issues: []
-

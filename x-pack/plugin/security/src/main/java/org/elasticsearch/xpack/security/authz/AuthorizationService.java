@@ -750,8 +750,8 @@ public class AuthorizationService {
         final BulkShardRequest request = (BulkShardRequest) requestInfo.getRequest();
         // Maps original-index -> expanded-index-name (expands date-math, but not aliases)
         final Map<String, String> resolvedIndexNames = new HashMap<>();
-        // Maps action -> resolved indices set
-        final Map<String, Set<String>> actionToIndicesMap = new HashMap<>();
+        // Maps action -> resolved indices set (there are 4 action types total)
+        final Map<String, Set<String>> actionToIndicesMap = new HashMap<>(4);
         final AuditTrail auditTrail = auditTrailService.get();
 
         resolvedIndicesAsyncSupplier.getAsync(ActionListener.wrap(overallResolvedIndices -> {
@@ -804,24 +804,14 @@ public class AuthorizationService {
                         }
                     });
 
+                    final Map<String, Set<String>> actionToGrantedIndicesMap = new HashMap<>(4);
+                    final Map<String, Set<String>> actionToDeniedIndicesMap = new HashMap<>(4);
                     for (BulkItemRequest item : request.items()) {
                         final String resolvedIndex = resolvedIndexNames.get(item.index());
                         final String itemAction = getAction(item);
                         final IndicesAccessControl indicesAccessControl = actionToIndicesAccessControl.get(itemAction);
-                        final IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(
-                            resolvedIndex
-                        );
-                        if (indexAccessControl == null) {
-                            auditTrail.explicitIndexAccessEvent(
-                                requestId,
-                                AuditLevel.ACCESS_DENIED,
-                                authentication,
-                                itemAction,
-                                new String[] { resolvedIndex },
-                                item.getClass().getSimpleName(),
-                                request.remoteAddress(),
-                                authzInfo
-                            );
+                        final boolean hasIndexAccessControl = indicesAccessControl.hasIndexPermissions(resolvedIndex);
+                        if (hasIndexAccessControl == false) {
                             item.abort(
                                 resolvedIndex,
                                 actionDenied(
@@ -833,19 +823,44 @@ public class AuthorizationService {
                                     null
                                 )
                             );
+                            actionToDeniedIndicesMap.compute(itemAction, (key, resolvedIndicesSet) -> {
+                                final Set<String> localSet = resolvedIndicesSet != null ? resolvedIndicesSet : new HashSet<>();
+                                localSet.add(resolvedIndex);
+                                return localSet;
+                            });
                         } else {
-                            auditTrail.explicitIndexAccessEvent(
-                                requestId,
-                                AuditLevel.ACCESS_GRANTED,
-                                authentication,
-                                itemAction,
-                                new String[] { resolvedIndex },
-                                item.getClass().getSimpleName(),
-                                request.remoteAddress(),
-                                authzInfo
-                            );
+                            actionToGrantedIndicesMap.compute(itemAction, (key, resolvedIndicesSet) -> {
+                                final Set<String> localSet = resolvedIndicesSet != null ? resolvedIndicesSet : new HashSet<>();
+                                localSet.add(resolvedIndex);
+                                return localSet;
+                            });
                         }
                     }
+                    actionToDeniedIndicesMap.forEach((action, resolvedIndicesSet) -> {
+                        auditTrail.explicitIndexAccessEvent(
+                            requestId,
+                            AuditLevel.ACCESS_DENIED,
+                            authentication,
+                            action,
+                            resolvedIndicesSet.toArray(new String[0]),
+                            BulkItemRequest.class.getSimpleName(),
+                            request.remoteAddress(),
+                            authzInfo
+                        );
+                    });
+                    actionToGrantedIndicesMap.forEach((action, resolvedIndicesSet) -> {
+                        auditTrail.explicitIndexAccessEvent(
+                            requestId,
+                            AuditLevel.ACCESS_GRANTED,
+                            authentication,
+                            action,
+                            resolvedIndicesSet.toArray(new String[0]),
+                            BulkItemRequest.class.getSimpleName(),
+                            request.remoteAddress(),
+                            authzInfo
+                        );
+                    });
+
                     listener.onResponse(null);
                 },
                 listener::onFailure

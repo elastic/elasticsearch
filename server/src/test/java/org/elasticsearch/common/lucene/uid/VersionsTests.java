@@ -18,7 +18,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -274,7 +273,7 @@ public class VersionsTests extends ESTestCase {
 
     private static String createTSDBId(long timestamp) {
         Settings.Builder b = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
         IndexMetadata indexMetadata = IndexMetadata.builder("idx").settings(b).numberOfShards(1).numberOfReplicas(0).build();
         IndexRouting.ExtractFromSource.Builder routingBuilder = ((IndexRouting.ExtractFromSource) IndexRouting.fromIndexMetadata(

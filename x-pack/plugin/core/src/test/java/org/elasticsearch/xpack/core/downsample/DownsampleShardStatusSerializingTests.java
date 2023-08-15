@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.rollup.action;
+package org.elasticsearch.xpack.core.downsample;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.index.shard.ShardId;
@@ -15,20 +15,20 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class RollupShardStatusSerializingTests extends AbstractXContentSerializingTestCase<RollupShardStatus> {
+public class DownsampleShardStatusSerializingTests extends AbstractXContentSerializingTestCase<DownsampleShardStatus> {
 
     @Override
-    protected RollupShardStatus doParseInstance(XContentParser parser) throws IOException {
-        return RollupShardStatus.fromXContent(parser);
+    protected DownsampleShardStatus doParseInstance(XContentParser parser) throws IOException {
+        return DownsampleShardStatus.fromXContent(parser);
     }
 
     @Override
-    protected Reader<RollupShardStatus> instanceReader() {
-        return RollupShardStatus::new;
+    protected Reader<DownsampleShardStatus> instanceReader() {
+        return DownsampleShardStatus::new;
     }
 
     @Override
-    protected RollupShardStatus createTestInstance() {
+    protected DownsampleShardStatus createTestInstance() {
         long docsProcessed = randomLongBetween(500_000, 800_000);
         long indexEndTimeMillis = System.currentTimeMillis() + randomLongBetween(400_000, 500_000);
         long indexStartTimeMillis = System.currentTimeMillis() - randomLongBetween(400_000, 500_000);
@@ -42,8 +42,8 @@ public class RollupShardStatusSerializingTests extends AbstractXContentSerializi
         long numReceived = randomNonNegativeLong();
         long rollupStart = randomMillisUpToYear9999();
         final ShardId shardId = new ShardId(randomAlphaOfLength(5), randomAlphaOfLength(5), randomInt(5));
-        final RollupShardIndexerStatus rollupShardIndexerStatus = randomFrom(RollupShardIndexerStatus.values());
-        return new RollupShardStatus(
+        final DownsampleShardIndexerStatus downsampleShardIndexerStatus = randomFrom(DownsampleShardIndexerStatus.values());
+        return new DownsampleShardStatus(
             shardId,
             rollupStart,
             numReceived,
@@ -61,12 +61,12 @@ public class RollupShardStatusSerializingTests extends AbstractXContentSerializi
             createTestRollupBulkInfo(),
             createTestBeforeBulkInfoInstance(),
             createTestAfterBulkInfoInstance(),
-            rollupShardIndexerStatus
+            downsampleShardIndexerStatus
         );
     }
 
-    private RollupBulkInfo createTestRollupBulkInfo() {
-        return new RollupBulkInfo(
+    private DownsampleBulkInfo createTestRollupBulkInfo() {
+        return new DownsampleBulkInfo(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -77,8 +77,8 @@ public class RollupShardStatusSerializingTests extends AbstractXContentSerializi
         );
     }
 
-    private RollupBeforeBulkInfo createTestBeforeBulkInfoInstance() {
-        return new RollupBeforeBulkInfo(
+    private DownsampleBeforeBulkInfo createTestBeforeBulkInfoInstance() {
+        return new DownsampleBeforeBulkInfo(
             System.currentTimeMillis(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -86,11 +86,11 @@ public class RollupShardStatusSerializingTests extends AbstractXContentSerializi
         );
     }
 
-    private RollupAfterBulkInfo createTestAfterBulkInfoInstance() {
+    private DownsampleAfterBulkInfo createTestAfterBulkInfoInstance() {
         int randomRestStatusCode = randomBoolean() ? RestStatus.OK.getStatus()
             : randomBoolean() ? RestStatus.INTERNAL_SERVER_ERROR.getStatus()
             : RestStatus.BAD_REQUEST.getStatus();
-        return new RollupAfterBulkInfo(
+        return new DownsampleAfterBulkInfo(
             System.currentTimeMillis(),
             randomLongBetween(1_000, 5_000),
             randomLongBetween(1_000, 5_000),
@@ -101,7 +101,7 @@ public class RollupShardStatusSerializingTests extends AbstractXContentSerializi
     }
 
     @Override
-    protected RollupShardStatus mutateInstance(RollupShardStatus instance) {
+    protected DownsampleShardStatus mutateInstance(DownsampleShardStatus instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

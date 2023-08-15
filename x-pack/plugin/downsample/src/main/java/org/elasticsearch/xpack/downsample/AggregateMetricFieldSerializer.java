@@ -34,16 +34,16 @@ public class AggregateMetricFieldSerializer implements DownsampleFieldSerializer
         }
 
         builder.startObject(name);
-        for (AbstractDownsampleFieldProducer rollupFieldProducer : producers) {
-            assert name.equals(rollupFieldProducer.name()) : "producer has a different name";
-            if (rollupFieldProducer.isEmpty() == false) {
-                if (rollupFieldProducer instanceof MetricFieldProducer metricFieldProducer) {
+        for (AbstractDownsampleFieldProducer fieldProducer : producers) {
+            assert name.equals(fieldProducer.name()) : "producer has a different name";
+            if (fieldProducer.isEmpty() == false) {
+                if (fieldProducer instanceof MetricFieldProducer metricFieldProducer) {
                     for (MetricFieldProducer.Metric metric : metricFieldProducer.metrics()) {
                         if (metric.get() != null) {
                             builder.field(metric.name(), metric.get());
                         }
                     }
-                } else if (rollupFieldProducer instanceof LabelFieldProducer labelFieldProducer) {
+                } else if (fieldProducer instanceof LabelFieldProducer labelFieldProducer) {
                     LabelFieldProducer.Label label = labelFieldProducer.label();
                     if (label.get() != null) {
                         builder.field(label.name(), label.get());

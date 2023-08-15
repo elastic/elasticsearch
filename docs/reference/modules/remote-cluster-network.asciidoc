@@ -11,7 +11,8 @@ configure both interfaces together using the <<common-network-settings,network s
 (<<static-cluster-setting,Static>>, boolean)
 Determines whether the remote cluster server should be enabled. This setting must
 be `true` for `remote_cluster.port` and all following remote cluster settings to
-take effect. Defaults to `false`.
+take effect. Enabling it allows the cluster to serve cross-cluster requests using
+the API key based model. Defaults to `false`.
 
 `remote_cluster.host`::
 (<<static-cluster-setting,Static>>, string)

@@ -277,18 +277,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(aggregate.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("salary"));
 
-        var eval = as(extract.child(), EvalExec.class);
-
-        extract = as(eval.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("first_name"));
-
         var filter = as(extract.child(), FilterExec.class);
         extract = as(filter.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("emp_no"));
 
         var query = source(extract.child());
-        // for doc ids, emp_no, salary, c, and first_name
-        int estimatedSize = Integer.BYTES * 3 + KEYWORD_EST * 2;
+        // for doc ids, emp_no, salary
+        int estimatedSize = Integer.BYTES * 3;
         assertThat(query.estimatedRowSize(), equalTo(estimatedSize));
     }
 
@@ -297,13 +292,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * LimitExec[10000[INTEGER]]
      * \_AggregateExec[[],[AVG(salary{f}#14) AS x],FINAL]
      *   \_AggregateExec[[],[AVG(salary{f}#14) AS x],PARTIAL]
-     *     \_EvalExec[[first_name{f}#10 AS c]]
-     *       \_FilterExec[ROUND(emp_no{f}#9) > 10[INTEGER]]
-     *         \_TopNExec[[Order[last_name{f}#13,ASC,LAST]],10[INTEGER]]
-     *           \_ExchangeExec[]
-     *             \_ProjectExec[[salary{f}#14, first_name{f}#10, emp_no{f}#9, last_name{f}#13]]     -- project away _doc
-     *               \_FieldExtractExec[salary{f}#14, first_name{f}#10, emp_no{f}#9, last_n..]       -- local field extraction
-     *                 \_EsQueryExec[test], query[][_doc{f}#16], limit[10], sort[[last_name]]
+     *     \_FilterExec[ROUND(emp_no{f}#9) > 10[INTEGER]]
+     *       \_TopNExec[[Order[last_name{f}#13,ASC,LAST]],10[INTEGER]]
+     *         \_ExchangeExec[]
+     *           \_ProjectExec[[salary{f}#14, first_name{f}#10, emp_no{f}#9, last_name{f}#13]]     -- project away _doc
+     *             \_FieldExtractExec[salary{f}#14, first_name{f}#10, emp_no{f}#9, last_n..]       -- local field extraction
+     *               \_EsQueryExec[test], query[][_doc{f}#16], limit[10], sort[[last_name]]
      */
     public void testExtractorForField() {
         var plan = physicalPlan("""
@@ -321,14 +315,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(aggregateFinal.estimatedRowSize(), equalTo(Long.BYTES));
 
         var aggregatePartial = as(aggregateFinal.child(), AggregateExec.class);
-        var eval = as(aggregatePartial.child(), EvalExec.class);
-        var filter = as(eval.child(), FilterExec.class);
+        var filter = as(aggregatePartial.child(), FilterExec.class);
         var topN = as(filter.child(), TopNExec.class);
 
         var exchange = asRemoteExchange(topN.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("salary", "first_name", "emp_no", "last_name"));
+        assertThat(names(extract.attributesToExtract()), contains("salary", "emp_no", "last_name"));
         var source = source(extract.child());
         assertThat(source.limit(), is(topN.limit()));
         assertThat(source.sorts(), is(sorts(topN.order())));
@@ -339,7 +332,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(order.direction(), is(ASC));
         assertThat(name(order.field()), is("last_name"));
         // first and last name are keywords, salary, emp_no, doc id, segment, forwards and backwards doc id maps are all ints
-        int estimatedSize = KEYWORD_EST * 2 + Integer.BYTES * 6;
+        int estimatedSize = KEYWORD_EST + Integer.BYTES * 6;
         assertThat(source.estimatedRowSize(), equalTo(estimatedSize));
     }
 
@@ -488,13 +481,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(aggregate.groupings(), hasSize(1));
         assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES + KEYWORD_EST));
 
-        var eval = as(aggregate.child(), EvalExec.class);
-        assertThat(names(eval.fields()), equalTo(List.of("g")));
-        var extract = as(eval.child(), FieldExtractExec.class);
+        var extract = as(aggregate.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), equalTo(List.of("first_name")));
 
         var source = source(extract.child());
-        assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES + KEYWORD_EST * 2));
+        assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES + KEYWORD_EST));
     }
 
     public void testQueryWithAggregation() {

@@ -50,8 +50,10 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
+import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -105,6 +107,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new SimplifyComparisonsArithmetics(EsqlDataTypes::areCompatible),
             // prune/elimination
             new PruneFilters(),
+            new PruneColumns(),
             new PruneLiteralsInOrderBy(),
             new PushDownAndCombineLimits(),
             new PushDownAndCombineFilters(),
@@ -600,6 +603,106 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             }
 
             return orderBy;
+        }
+    }
+
+    /**
+     * Remove unused columns created in the plan, in fields inside eval or aggregations inside stats.
+     */
+    static class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            var used = new Holder<>(new AttributeSet());
+            // don't Evals without any Project/Aggregate (which might not occur as the last node in the plan)
+            var seenProjection = new Holder<>(Boolean.FALSE);
+
+            // start top-to-bottom
+            // check the differences between output and references on one side and the input on the other
+            // the extra stuff is unused and is kept
+            var pl = plan.transformDown(p -> {
+                // skip nodes that simply pass the input through
+                if (p instanceof Limit) {
+                    return p;
+                }
+
+                // remember used
+                var usedSet = used.get();
+                boolean recheck;
+                // analyze the unused items against dedicated 'producer' nodes such as Eval and Aggregate
+                // perform a loop to retry checking if the current node is completely eliminated
+                do {
+                    recheck = false;
+                    if (p instanceof Aggregate aggregate) {
+                        var pruned = seenProjection.get() ? removeUnused(aggregate.aggregates(), usedSet) : null;
+                        // no aggregates, no need
+                        if (pruned != null) {
+                            if (pruned.isEmpty()) {
+                                recheck = true;
+                                p = aggregate.child();
+                            } else {
+                                p = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), pruned);
+                            }
+                        }
+
+                        seenProjection.set(Boolean.TRUE);
+                    } else if (p instanceof Eval eval) {
+                        var pruned = seenProjection.get() ? removeUnused(eval.fields(), usedSet) : null;
+                        // no fields, no eval
+                        if (pruned != null) {
+                            if (pruned.isEmpty()) {
+                                p = eval.child();
+                                recheck = true;
+                            } else {
+                                p = new Eval(eval.source(), eval.child(), pruned);
+                            }
+                        }
+                    } else if (p instanceof Project) {
+                        seenProjection.set(Boolean.TRUE);
+                    }
+                } while (recheck);
+
+                var inUse = usedSet.combine(references(p));
+                used.set(inUse);
+
+                // preserve the state before going to the next node
+                return p;
+            });
+
+            return pl;
+        }
+
+        /**
+         * Prunes attributes from the list not found in the given set.
+         * Returns null if no changed occurred.
+         */
+        private static <N extends NamedExpression> List<N> removeUnused(List<N> named, AttributeSet used) {
+            var clone = new ArrayList<>(named);
+            var it = clone.listIterator(clone.size());
+
+            boolean changed = false;
+            // due to Eval, go in reverse
+            while (it.hasPrevious()) {
+                N prev = it.previous();
+                boolean remove = used.contains(prev.toAttribute()) == false;
+                if (remove) {
+                    changed = true;
+                    it.remove();
+                } else {
+                    used = used.combine(prev.references());
+                }
+            }
+            return changed ? clone : null;
+        }
+
+        private static List<Expression> expressions(LogicalPlan plan) {
+            List<Expression> exp = new ArrayList<>();
+            plan.forEachExpression(exp::add);
+            return exp;
+        }
+
+        private static AttributeSet references(LogicalPlan plan) {
+            return Expressions.references(expressions(plan));
         }
     }
 

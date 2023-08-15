@@ -174,8 +174,8 @@ can be used to specify desired indices privileges for matching remote clusters. 
 effective index privileges will be an intersection of the remote indices privileges
 and the <<security-api-create-cross-cluster-api-key,cross-cluster API key>>'s indices privileges.
 
-NOTE: Remote indices privileges have no effect for remote clusters that are configured
-with the certificate based model.
+NOTE: Remote indices are effective for remote clusters configured with the API key based model.
+They have no effect for remote clusters configured with the certificate based model.
 
 The remote indices privileges entry has an extra mandatory `clusters` field compared to
 an <<roles-indices-priv,indices privileges entry>>. But otherwise the two have identical structure.

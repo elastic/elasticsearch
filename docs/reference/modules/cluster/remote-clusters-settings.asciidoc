@@ -67,11 +67,9 @@ mode are described separately.
 
 // TODO: fix the link to new page of API key based remote clusters
 
-`cluster.remote.<cluster_alias>.credentials`::
-(<<secure-settings,Secure>>)
+`cluster.remote.<cluster_alias>.credentials` (<<secure-settings,Secure>>)::
 
-beta::[]
-
+beta:[]
   Per cluster setting for configuring remote clusters with the API Key based model.
   This setting takes the encoded value of a
   <<security-api-create-cross-cluster-api-key,cross-cluster API key>> and must be set

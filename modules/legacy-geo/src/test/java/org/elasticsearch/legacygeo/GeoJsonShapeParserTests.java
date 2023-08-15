@@ -383,7 +383,6 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         shellCoordinates.add(new Coordinate(100, 0, 10));
         Coordinate[] coordinates = shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]);
 
-        Version randomVersion = VersionUtils.randomIndexCompatibleVersion(random());
         LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
         final IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);

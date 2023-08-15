@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
@@ -476,7 +475,7 @@ public class IndexMetadataTests extends ESTestCase {
             final IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
                 () -> IndexMetadata.builder("index")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_8_5_0))
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.V_8_5_0))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder("index").build())
@@ -488,7 +487,7 @@ public class IndexMetadataTests extends ESTestCase {
 
     public void testRepairIndexAndAliasWithSameName() {
         final IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_8_5_0))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.V_8_5_0))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder("index").build())

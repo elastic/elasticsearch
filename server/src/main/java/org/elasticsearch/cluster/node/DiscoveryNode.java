@@ -470,6 +470,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
+     * Returns whether this node has a 'data_hot' role.
+     *
+     * @return true if the node has a hot data role.
+     */
+    public boolean isHotDataNode() {
+        return roles.contains(DiscoveryNodeRole.DATA_HOT_NODE_ROLE);
+    }
+
+    /**
      * Returns whether or not the node is a frozen only node, i.e., has data frozen role and no other data roles.
      * @return
      */

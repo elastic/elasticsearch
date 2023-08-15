@@ -39,6 +39,7 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -1150,6 +1151,49 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
     }
 
+    public void testExplainRolesOutput() throws Exception {
+        logger.info("--> starting 1 node");
+        List<String> nodes = internalCluster().startNodes(1);
+
+        logger.info("--> shutting down node in order to restart with specific 'roles' setting");
+        Settings settings = internalCluster().dataPathSettings(nodes.get(0));
+        internalCluster().stopNode(nodes.get(0));
+
+        logger.info("--> restarting the stopped node with 'roles' setting added");
+        Settings roleSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data_hot", "ingest")).build();
+        internalCluster().startNode(Settings.builder().put(settings).put(roleSettings).build());
+        ensureStableCluster(1);
+        prepareIndex(1, 0);
+
+        boolean includeYesDecisions = randomBoolean();
+        boolean includeDiskInfo = randomBoolean();
+        ClusterAllocationExplanation explanation = runExplain(true, includeYesDecisions, includeDiskInfo);
+
+        DiscoveryNode currentNode = explanation.getCurrentNode();
+        assertTrue(currentNode.isMasterNode());
+        assertTrue(currentNode.isIngestNode());
+        assertTrue(currentNode.isHotDataNode());
+
+        try (XContentParser parser = getParser(explanation)) {
+            // Fast-forward to the "current_node" object, which contains "roles".
+            do {
+                parser.nextToken();
+                assertNotEquals(Token.END_OBJECT, parser.currentToken());
+            } while (parser.currentName() != "current_node");
+            assertEquals(Token.START_OBJECT, parser.nextToken());
+
+            // Fast-forward to "roles" field in the "current_node" object.
+            do {
+                parser.nextToken();
+                assertNotEquals(Token.END_OBJECT, parser.currentToken());
+            } while (parser.currentName() != "roles");
+
+            // Check that the "roles" reported are those set via the node Settings.
+            // Note: list() implicitly consumes the parser START_ARRAY and END_ARRAY tokens.
+            assertEquals(Arrays.asList("data_hot", "ingest", "master"), parser.list());
+        }
+    }
+
     private void verifyClusterInfo(ClusterInfo clusterInfo, boolean includeDiskInfo, int numNodes) {
         if (includeDiskInfo) {
             assertThat(clusterInfo.getNodeMostAvailableDiskUsages().size(), greaterThanOrEqualTo(0));
@@ -1309,8 +1353,11 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                         parser.currentName().equals("id")
                             || parser.currentName().equals("name")
                             || parser.currentName().equals("transport_address")
+                            || parser.currentName().equals("roles")
                             || parser.currentName().equals("weight_ranking")
                     );
+                } else if (token == Token.START_ARRAY || token == Token.END_ARRAY) {
+                    assertEquals("roles", parser.currentName());
                 } else {
                     assertTrue(token.isValue());
                     assertNotNull(parser.text());
@@ -1435,6 +1482,10 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals("transport_address", parser.currentName());
         parser.nextToken();
         assertNotNull(parser.text());
+        parser.nextToken();
+        assertEquals("roles", parser.currentName());
+        parser.nextToken();
+        assertNotEquals(0, parser.list().size());
         parser.nextToken();
         assertEquals("node_decision", parser.currentName());
         parser.nextToken();

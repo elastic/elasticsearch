@@ -624,18 +624,13 @@ public class ContextIndexSearcherTests extends ESTestCase {
                             return null;
                         }
                     };
-                    RuntimeException executionException = expectThrows(
-                        RuntimeException.class,
-                        () -> contextIndexSearcher.search(query, collectorManager)
-                    );
+                    expectThrows(IOException.class, () -> contextIndexSearcher.search(query, collectorManager));
                     assertBusy(() -> {
                         // active count is approximate, wait until it converges to the expected number
                         if (executor.getActiveCount() > numBusyThreads) {
                             throw new AssertionError("no search tasks should be left running");
                         }
                     });
-
-                    assertThat(executionException.getCause(), instanceOf(IOException.class));
                 }
                 // as many tasks as slices have been created
                 assertEquals(leafSlices.length, newCollectorsCalls[0]);

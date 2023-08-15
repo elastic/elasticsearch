@@ -9,11 +9,11 @@
 package org.elasticsearch.plugin.analysis.icu;
 
 import org.apache.lucene.analysis.icu.segmentation.ICUTokenizer;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.test.ESTestCase;
 
@@ -98,7 +98,7 @@ public class IcuTokenizerFactoryTests extends ESTestCase {
 
         Settings settings = Settings.builder()
             .loadFromStream(json, IcuTokenizerFactoryTests.class.getResourceAsStream(json), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
 

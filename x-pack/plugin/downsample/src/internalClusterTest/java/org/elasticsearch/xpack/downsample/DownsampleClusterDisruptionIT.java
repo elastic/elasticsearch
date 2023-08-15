@@ -209,6 +209,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98485")
     public void testDownsampleIndexWithRollingRestart() throws Exception {
         try (InternalTestCluster cluster = internalCluster()) {
             final List<String> masterNodes = cluster.startMasterOnlyNodes(1);
@@ -299,6 +300,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         disruptionEnd.await();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98485")
     public void testDownsampleIndexWithFullClusterRestart() throws Exception {
         try (InternalTestCluster cluster = internalCluster()) {
             final List<String> masterNodes = cluster.startMasterOnlyNodes(1);

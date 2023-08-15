@@ -289,7 +289,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         this(environment, settings, threadPool, ioExecutor, threadPool.executor(ioExecutor));
     }
 
-    @SuppressWarnings({ "unchecked" })
+    // gradlew requires 'rawtypes' even if IntelliJ doesn't
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public SharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,

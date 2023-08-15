@@ -19,8 +19,6 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-
-import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Collections;
@@ -183,8 +181,10 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW INDEX VERSIONS
      * Detached index versions added below here.
      */
+    public static final IndexVersion V_8_500_000 = registerIndexVersion(8_500_000, Version.LUCENE_9_7_0, "bf656f5e-5808-4eee-bf8a-e2bf6736ff55");
+
     private static class CurrentHolder {
-        private static final IndexVersion CURRENT = findCurrent(V_8_10_0);
+        private static final IndexVersion CURRENT = findCurrent(V_8_500_000);
 
         // finds the pluggable current version, or uses the given fallback
         private static IndexVersion findCurrent(IndexVersion fallback) {

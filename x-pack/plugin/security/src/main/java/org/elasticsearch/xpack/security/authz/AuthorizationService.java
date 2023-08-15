@@ -758,7 +758,7 @@ public class AuthorizationService {
             final Set<String> localIndices = new HashSet<>(overallResolvedIndices.getLocal());
             for (BulkItemRequest item : request.items()) {
                 final String itemAction = getAction(item);
-                String resolvedIndex = resolvedIndexNames.computeIfAbsent(item.index(), key -> {
+                final String resolvedIndex = resolvedIndexNames.computeIfAbsent(item.index(), key -> {
                     final String resolved = resolveIndexNameDateMath(item);
                     if (localIndices.contains(resolved) == false) {
                         throw illegalArgument(

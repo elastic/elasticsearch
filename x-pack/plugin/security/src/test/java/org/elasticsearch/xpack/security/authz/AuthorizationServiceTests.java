@@ -2415,7 +2415,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new BulkItemRequest(5, new DeleteRequest("alias-2", "a2a")),
             new BulkItemRequest(6, new IndexRequest("alias-2").id("a2b")) };
         final ShardId shardId = new ShardId("concrete-index", UUID.randomUUID().toString(), 1);
-        final TransportRequest request = new BulkShardRequest(shardId, WriteRequest.RefreshPolicy.IMMEDIATE, items);
+        final BulkShardRequest request = new BulkShardRequest(shardId, WriteRequest.RefreshPolicy.IMMEDIATE, items);
 
         final Authentication authentication = createAuthentication(new User("user", "my-role"));
         RoleDescriptor role = new RoleDescriptor(
@@ -2487,6 +2487,12 @@ public class AuthorizationServiceTests extends ESTestCase {
             authzInfoRoles(new String[] { role.getName() })
         ); // bulk request is allowed
         verifyNoMoreInteractions(auditTrail);
+        assertThat(request.items()[0].getPrimaryResponse(), nullValue());
+        assertThat(request.items()[1].getPrimaryResponse(), nullValue());
+        assertThat(request.items()[2].getPrimaryResponse().isFailed(), is(true));
+        assertThat(request.items()[3].getPrimaryResponse(), nullValue());
+        assertThat(request.items()[4].getPrimaryResponse(), nullValue());
+        assertThat(request.items()[5].getPrimaryResponse().isFailed(), is(true));
     }
 
     public void testAuthorizationOfIndividualBulkItemsWithDateMath() {
@@ -2498,7 +2504,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new BulkItemRequest(4, new DeleteRequest("<datemath-{now/d{YYYY.MM}}>", "dm2")), // resolves to same as above
         };
         final ShardId shardId = new ShardId("concrete-index", UUID.randomUUID().toString(), 1);
-        final TransportRequest request = new BulkShardRequest(shardId, WriteRequest.RefreshPolicy.IMMEDIATE, items);
+        final BulkShardRequest request = new BulkShardRequest(shardId, WriteRequest.RefreshPolicy.IMMEDIATE, items);
 
         final Authentication authentication = createAuthentication(new User("user", "my-role"));
         final RoleDescriptor role = new RoleDescriptor(
@@ -2544,6 +2550,10 @@ public class AuthorizationServiceTests extends ESTestCase {
             authzInfoRoles(new String[] { role.getName() })
         );
         verifyNoMoreInteractions(auditTrail);
+        assertThat(request.items()[0].getPrimaryResponse(), nullValue());
+        assertThat(request.items()[1].getPrimaryResponse().isFailed(), is(true));
+        assertThat(request.items()[2].getPrimaryResponse(), nullValue());
+        assertThat(request.items()[3].getPrimaryResponse().isFailed(), is(true));
     }
 
     private BulkShardRequest createBulkShardRequest(String indexName, BiFunction<String, String, DocWriteRequest<?>> req) {

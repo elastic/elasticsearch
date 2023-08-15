@@ -2084,16 +2084,16 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         if (searchSourceBuilder != null && randomBoolean()) {
             searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));
         }
-        assertTrue(SearchService.supportsParallelCollection(ResultsType.DFS, searchSourceBuilder, true));
+        assertTrue(SearchService.isParallelCollectionSupportedForResults(ResultsType.DFS, searchSourceBuilder, true));
         assertFalse(
-            SearchService.supportsParallelCollection(
+            SearchService.isParallelCollectionSupportedForResults(
                 randomFrom(randomFrom(ResultsType.QUERY, ResultsType.NONE, ResultsType.FETCH)),
                 searchSourceBuilder,
                 false
             )
         );
         assertFalse(
-            SearchService.supportsParallelCollection(
+            SearchService.isParallelCollectionSupportedForResults(
                 randomFrom(randomFrom(ResultsType.QUERY, ResultsType.NONE, ResultsType.FETCH)),
                 searchSourceBuilder,
                 true

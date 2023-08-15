@@ -82,7 +82,7 @@ them.
 To view more information about a data stream, such as its generation or its
 current index lifecycle policy, click the stream's name.
 
-To view and explore the data within a data stream, click the compass symbol image:compassicon.png[width=3%] next to the data stream name to open {kibana-ref}/discover.html[Discover].
+To view and explore the data within a data stream, click the compass icon image:compassicon.png[width=3%] next to the data stream name to open {kibana-ref}/discover.html[Discover].
 
 [role="screenshot"]
 image::images/index-mgmt/management_index_data_stream_stats.png[Data stream details]

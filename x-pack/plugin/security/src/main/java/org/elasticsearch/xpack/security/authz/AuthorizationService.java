@@ -759,23 +759,7 @@ public class AuthorizationService {
             for (BulkItemRequest item : request.items()) {
                 final String itemAction = getAction(item);
                 String resolvedIndex = resolvedIndexNames.computeIfAbsent(item.index(), key -> {
-                    final ResolvedIndices resolvedIndices = IndicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(
-                        itemAction,
-                        item.request()
-                    );
-                    if (resolvedIndices.getRemote().size() != 0) {
-                        throw illegalArgument(
-                            "Bulk item should not write to remote indices, but request writes to "
-                                + String.join(",", resolvedIndices.getRemote())
-                        );
-                    }
-                    if (resolvedIndices.getLocal().size() != 1) {
-                        throw illegalArgument(
-                            "Bulk item should write to exactly 1 index, but request writes to "
-                                + String.join(",", resolvedIndices.getLocal())
-                        );
-                    }
-                    final String resolved = resolvedIndices.getLocal().get(0);
+                    final String resolved = resolveIndexNameDateMath(item);
                     if (localIndices.contains(resolved) == false) {
                         throw illegalArgument(
                             "Found bulk item that writes to index " + resolved + " but the request writes to " + localIndices
@@ -885,6 +869,24 @@ public class AuthorizationService {
         final Set<String> localSet = set != null ? set : new HashSet<>(4);
         localSet.add(item);
         return localSet;
+    }
+
+    private static String resolveIndexNameDateMath(BulkItemRequest bulkItemRequest) {
+        final ResolvedIndices resolvedIndices = IndicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(
+            getAction(bulkItemRequest),
+            bulkItemRequest.request()
+        );
+        if (resolvedIndices.getRemote().size() != 0) {
+            throw illegalArgument(
+                "Bulk item should not write to remote indices, but request writes to " + String.join(",", resolvedIndices.getRemote())
+            );
+        }
+        if (resolvedIndices.getLocal().size() != 1) {
+            throw illegalArgument(
+                "Bulk item should write to exactly 1 index, but request writes to " + String.join(",", resolvedIndices.getLocal())
+            );
+        }
+        return resolvedIndices.getLocal().get(0);
     }
 
     private static IllegalArgumentException illegalArgument(String message) {

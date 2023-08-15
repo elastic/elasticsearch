@@ -15,8 +15,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.FlatteningXContentParser;
 import org.elasticsearch.xcontent.XContentParser;
@@ -40,8 +38,6 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_
  * the lucene data structures and mappings to be dynamically created as the outcome of parsing a document.
  */
 public abstract class DocumentParserContext {
-
-    private static final Logger logger = LogManager.getLogger(DocumentParserContext.class);
 
     /**
      * Wraps a given context while allowing to override some of its behaviour by re-implementing some of the non final methods

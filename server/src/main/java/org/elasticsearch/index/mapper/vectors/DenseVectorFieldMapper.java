@@ -200,6 +200,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
+    // TODO clean up duplicated code between this and Builder
     public static class DynamicBuilder extends FieldMapper.Builder {
 
         private final Parameter<ElementType> elementType = new Parameter<>("element_type", false, () -> ElementType.FLOAT, (n, c, o) -> {

@@ -59,6 +59,7 @@ public final class EvalMapper {
         ComparisonMapper.LESS_THAN,
         ComparisonMapper.LESS_THAN_OR_EQUAL,
         InMapper.IN_MAPPER,
+        NegMapper.NEG_MAPPER,
         RegexMapper.REGEX_MATCH,
         new BooleanLogic(),
         new Nots(),

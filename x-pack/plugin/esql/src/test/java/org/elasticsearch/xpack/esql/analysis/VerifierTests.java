@@ -218,6 +218,13 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testUnsignedLongNegation() {
+        assertEquals(
+            "1:29: negation unsupported for arguments of type [unsigned_long] in expression [-x]",
+            error("row x = to_ul(1) | eval y = -x")
+        );
+    }
+
     public void testSumOnDate() {
         assertEquals(
             "1:19: argument of [sum(hire_date)] must be [numeric], found value [hire_date] type [datetime]",

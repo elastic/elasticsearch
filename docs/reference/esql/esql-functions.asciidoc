@@ -16,6 +16,7 @@ these functions:
 * <<esql-auto_bucket>>
 * <<esql-case>>
 * <<esql-cidr_match>>
+* <<esql-coalesce>>
 * <<esql-concat>>
 * <<esql-cos>>
 * <<esql-cosh>>
@@ -72,6 +73,7 @@ include::functions/atan2.asciidoc[]
 include::functions/auto_bucket.asciidoc[]
 include::functions/case.asciidoc[]
 include::functions/cidr_match.asciidoc[]
+include::functions/coalesce.asciidoc[]
 include::functions/concat.asciidoc[]
 include::functions/cos.asciidoc[]
 include::functions/cosh.asciidoc[]

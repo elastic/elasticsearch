@@ -14,10 +14,11 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReaso
 
 public class TrainedModelAssignmentUtils {
     public static final String NODES_CHANGED_REASON = "nodes changed";
+    public static final String NODE_IS_SHUTTING_DOWN = "node is shutting down";
 
     public static RoutingInfo createShuttingDownRoute(RoutingInfo existingRoute) {
         RoutingInfoUpdate routeUpdate = RoutingInfoUpdate.updateStateAndReason(
-            new RoutingStateAndReason(RoutingState.STOPPING, "node is shutting down")
+            new RoutingStateAndReason(RoutingState.STOPPING, NODE_IS_SHUTTING_DOWN)
         );
 
         return routeUpdate.apply(existingRoute);

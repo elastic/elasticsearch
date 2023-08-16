@@ -533,11 +533,10 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         List<DiscoveryNode> nodes = getAssignableNodes(currentState);
         logger.debug(() -> format("assignable nodes are %s", nodes.stream().map(DiscoveryNode::getId).toList()));
         Map<DiscoveryNode, NodeLoad> nodeLoads = detectNodeLoads(nodes, currentState);
-        TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(currentState);
         Set<String> shuttingDownNodeIds = currentState.metadata().nodeShutdowns().getAllNodeIds();
 
         TrainedModelAssignmentRebalancer rebalancer = new TrainedModelAssignmentRebalancer(
-            metadata,
+            TrainedModelAssignmentMetadata.fromState(currentState),
             nodeLoads,
             nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(currentState),
             modelToAdd,

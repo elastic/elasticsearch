@@ -59,17 +59,16 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_ACTION;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_TYPE;
 import static org.elasticsearch.xpack.ml.MachineLearning.ML_PYTORCH_MODEL_INFERENCE_FEATURE;
+import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils.NODE_IS_SHUTTING_DOWN;
 
 public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
     private static final String NODE_NO_LONGER_REFERENCED = "node no longer referenced in model routing table";
-    private static final String NODE_IS_SHUTTING_DOWN = "node is shutting down";
     private static final String ASSIGNMENT_NO_LONGER_EXISTS = "deployment assignment no longer exists";
     private static final TimeValue MODEL_LOADING_CHECK_INTERVAL = TimeValue.timeValueSeconds(1);
     private static final TimeValue CONTROL_MESSAGE_TIMEOUT = TimeValue.timeValueSeconds(60);
@@ -346,7 +345,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     }
                 }
 
-                if (isAssignmentOnShuttingDownNode(routingInfo, shuttingDownNodes, currentNode)) {
+                if (isAssignmentOnShuttingDownNode(routingInfo, trainedModelAssignment.getDeploymentId(), shuttingDownNodes, currentNode)) {
                     gracefullyStopDeployment(trainedModelAssignment.getDeploymentId(), currentNode);
                 }
             } else {
@@ -413,8 +412,13 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         );
     }
 
-    private boolean isAssignmentOnShuttingDownNode(RoutingInfo routingInfo, Set<String> shuttingDownNodes, String currentNode) {
-        return deploymentIdToTask.containsKey(currentNode)
+    private boolean isAssignmentOnShuttingDownNode(
+        RoutingInfo routingInfo,
+        String deploymentId,
+        Set<String> shuttingDownNodes,
+        String currentNode
+    ) {
+        return deploymentIdToTask.containsKey(deploymentId)
             && routingInfo.getState() == RoutingState.STOPPING
             && shuttingDownNodes.contains(currentNode);
     }
@@ -475,19 +479,6 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     }
 
     private void stopDeploymentAsync(TrainedModelDeploymentTask task, String reason, ActionListener<Void> listener) {
-        stopDeploymentHelper(task, reason, listener, deploymentManager::stopDeployment);
-    }
-
-    private void stopDeploymentAfterCompletingPendingWorkAsync(TrainedModelDeploymentTask task, ActionListener<Void> listener) {
-        stopDeploymentHelper(task, NODE_IS_SHUTTING_DOWN, listener, deploymentManager::stopAfterCompletingPendingWork);
-    }
-
-    private void stopDeploymentHelper(
-        TrainedModelDeploymentTask task,
-        String reason,
-        ActionListener<Void> listener,
-        Consumer<TrainedModelDeploymentTask> stopFunction
-    ) {
         if (stopped) {
             return;
         }
@@ -495,10 +486,31 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
-                stopFunction.accept(task);
+                deploymentManager.stopDeployment(task);
                 taskManager.unregister(task);
                 deploymentIdToTask.remove(task.getDeploymentId());
                 listener.onResponse(null);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    private void stopDeploymentAfterCompletingPendingWorkAsync(TrainedModelDeploymentTask task, ActionListener<Void> listener) {
+        if (stopped) {
+            return;
+        }
+        task.markAsStopped(NODE_IS_SHUTTING_DOWN);
+
+        ActionListener<Void> stoppedProcessListener = ActionListener.wrap(_void -> {
+            taskManager.unregister(task);
+            deploymentIdToTask.remove(task.getDeploymentId());
+            listener.onResponse(null);
+        }, listener::onFailure);
+
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+            try {
+                deploymentManager.stopAfterCompletingPendingWork(task, stoppedProcessListener);
             } catch (Exception e) {
                 listener.onFailure(e);
             }

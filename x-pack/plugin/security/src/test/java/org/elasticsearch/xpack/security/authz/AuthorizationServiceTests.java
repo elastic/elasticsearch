@@ -193,6 +193,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -2406,13 +2407,18 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(() -> authorize(createAuthentication(userDenied), action, request), action, "userDenied");
     }
 
-    public void testAuthorizationOfSameActionSameIndexBulkItems() {
+    public void testAuthorizationOfSingleActionMultipleIndicesBulkItems() {
         final String action = BulkAction.NAME + "[s]";
-        final String indexName = randomAlphaOfLengthBetween(1, 8);
         final BulkItemRequest[] items;
         final DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
-        final RoleDescriptor role;
+        final RoleDescriptor goodRole;
         final AtomicInteger idCounter = new AtomicInteger();
+        final Set<String> allIndexNames = new HashSet<>();
+        final Supplier<String> indexNameSupplier = () -> {
+            String indexName = randomAlphaOfLengthBetween(1, 4);
+            allIndexNames.add(indexName);
+            return indexName;
+        };
         switch (opType) {
             case INDEX -> {
                 items = randomArray(
@@ -2421,14 +2427,21 @@ public class AuthorizationServiceTests extends ESTestCase {
                     BulkItemRequest[]::new,
                     () -> new BulkItemRequest(
                         idCounter.get(),
-                        new IndexRequest(indexName).id("id" + idCounter.incrementAndGet()).opType(DocWriteRequest.OpType.INDEX)
+                        new IndexRequest(indexNameSupplier.get()).id("id" + idCounter.incrementAndGet())
+                            .opType(DocWriteRequest.OpType.INDEX)
                     )
                 );
-                role = new RoleDescriptor(
-                    "my-role",
+                goodRole = new RoleDescriptor(
+                    "good-role",
                     null,
-                    new IndicesPrivileges[] {
-                        IndicesPrivileges.builder().indices(indexName).privileges(randomFrom("all", "create", "index", "write")).build() },
+                    allIndexNames.stream()
+                        .map(
+                            indexName -> IndicesPrivileges.builder()
+                                .indices(indexName)
+                                .privileges(randomFrom("all", "create", "index", "write"))
+                                .build()
+                        )
+                        .toArray(IndicesPrivileges[]::new),
                     null
                 );
             }
@@ -2439,17 +2452,21 @@ public class AuthorizationServiceTests extends ESTestCase {
                     BulkItemRequest[]::new,
                     () -> new BulkItemRequest(
                         idCounter.get(),
-                        new IndexRequest(indexName).id("id" + idCounter.incrementAndGet()).opType(DocWriteRequest.OpType.CREATE)
+                        new IndexRequest(indexNameSupplier.get()).id("id" + idCounter.incrementAndGet())
+                            .opType(DocWriteRequest.OpType.CREATE)
                     )
                 );
-                role = new RoleDescriptor(
-                    "my-role",
+                goodRole = new RoleDescriptor(
+                    "good-role",
                     null,
-                    new IndicesPrivileges[] {
-                        IndicesPrivileges.builder()
-                            .indices(indexName)
-                            .privileges(randomFrom("all", "create_doc", "create", "index", "write"))
-                            .build() },
+                    allIndexNames.stream()
+                        .map(
+                            indexName -> IndicesPrivileges.builder()
+                                .indices(indexName)
+                                .privileges(randomFrom("all", "create_doc", "create", "index", "write"))
+                                .build()
+                        )
+                        .toArray(IndicesPrivileges[]::new),
                     null
                 );
             }
@@ -2458,13 +2475,22 @@ public class AuthorizationServiceTests extends ESTestCase {
                     1,
                     8,
                     BulkItemRequest[]::new,
-                    () -> new BulkItemRequest(idCounter.get(), new DeleteRequest(indexName, "id" + idCounter.incrementAndGet()))
+                    () -> new BulkItemRequest(
+                        idCounter.get(),
+                        new DeleteRequest(indexNameSupplier.get(), "id" + idCounter.incrementAndGet())
+                    )
                 );
-                role = new RoleDescriptor(
-                    "my-role",
+                goodRole = new RoleDescriptor(
+                    "good-role",
                     null,
-                    new IndicesPrivileges[] {
-                        IndicesPrivileges.builder().indices(indexName).privileges(randomFrom("all", "delete", "write")).build() },
+                    allIndexNames.stream()
+                        .map(
+                            indexName -> IndicesPrivileges.builder()
+                                .indices(indexName)
+                                .privileges(randomFrom("all", "delete", "write"))
+                                .build()
+                        )
+                        .toArray(IndicesPrivileges[]::new),
                     null
                 );
             }
@@ -2473,22 +2499,31 @@ public class AuthorizationServiceTests extends ESTestCase {
                     1,
                     8,
                     BulkItemRequest[]::new,
-                    () -> new BulkItemRequest(idCounter.get(), new UpdateRequest(indexName, "id" + idCounter.incrementAndGet()))
+                    () -> new BulkItemRequest(
+                        idCounter.get(),
+                        new UpdateRequest(indexNameSupplier.get(), "id" + idCounter.incrementAndGet())
+                    )
                 );
-                role = new RoleDescriptor(
-                    "my-role",
+                goodRole = new RoleDescriptor(
+                    "good-role",
                     null,
-                    new IndicesPrivileges[] {
-                        IndicesPrivileges.builder().indices(indexName).privileges(randomFrom("all", "index", "write")).build() },
+                    allIndexNames.stream()
+                        .map(
+                            indexName -> IndicesPrivileges.builder()
+                                .indices(indexName)
+                                .privileges(randomFrom("all", "index", "write"))
+                                .build()
+                        )
+                        .toArray(IndicesPrivileges[]::new),
                     null
                 );
             }
             default -> throw new IllegalStateException("Unexpected value: " + opType);
         }
-        roleMap.put("my-role", role);
-        final Authentication authentication = createAuthentication(new User("user", "my-role"));
+        roleMap.put("good-role", goodRole);
+        final Authentication authentication = createAuthentication(new User("user", "good-role"));
 
-        final ShardId shardId = new ShardId(indexName, UUID.randomUUID().toString(), 1);
+        final ShardId shardId = new ShardId("some-concrete-shard-index-name", UUID.randomUUID().toString(), 1);
         final BulkShardRequest request = new BulkShardRequest(shardId, randomFrom(WriteRequest.RefreshPolicy.values()), items);
 
         mockEmptyMetadata();
@@ -2502,19 +2537,22 @@ public class AuthorizationServiceTests extends ESTestCase {
             case UPDATE -> UpdateAction.NAME;
             case DELETE -> DeleteAction.NAME;
         }),
-            eq(new String[] { indexName }),
+            argThat(
+                indicesArrays -> indicesArrays.length == allIndexNames.size() && allIndexNames.containsAll(Arrays.asList(indicesArrays))
+            ),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
-            authzInfoRoles(new String[] { role.getName() })
+            authzInfoRoles(new String[] { goodRole.getName() })
         );
         verify(auditTrail).accessGranted(
             eq(requestId),
             eq(authentication),
             eq(action),
             eq(request),
-            authzInfoRoles(new String[] { role.getName() })
+            authzInfoRoles(new String[] { goodRole.getName() })
         ); // bulk request is allowed
         verifyNoMoreInteractions(auditTrail);
+        // all bulk items go through as authorized
         for (BulkItemRequest bulkItemRequest : request.items()) {
             assertThat(bulkItemRequest.getPrimaryResponse(), nullValue());
         }

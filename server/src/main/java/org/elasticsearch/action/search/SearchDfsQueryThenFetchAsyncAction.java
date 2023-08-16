@@ -65,7 +65,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         );
         this.queryPhaseResultConsumer = queryPhaseResultConsumer;
         this.progressListener = task.getProgressListener();
-        if (progressListener != SearchProgressListener.NOOP) {    /// MP TODO: remove this if check?
+        if (progressListener != SearchProgressListener.NOOP) {
             notifyListShards(progressListener, clusters, request.source());
         }
     }

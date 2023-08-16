@@ -416,6 +416,11 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             // in which case the final response already includes results as well as shard fetch failures)
         }
 
+        /**
+         * onListShards is guaranteed to be the first SearchProgressListener method called and
+         * the search will not progress until this returns, so this is a safe place to initialize state
+         * that is needed for handling subsequent callbacks.
+         */
         @Override
         protected void onListShards(
             List<SearchShard> shards,

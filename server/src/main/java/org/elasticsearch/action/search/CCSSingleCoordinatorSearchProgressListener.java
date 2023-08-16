@@ -60,6 +60,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
             String clusterAlias = shard.clusterAlias();
             return clusterAlias != null ? clusterAlias : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
         }, Collectors.reducing(0, e -> 1, Integer::sum)));
+
         Map<String, Integer> skippedByClusterAlias = skipped.stream().collect(Collectors.groupingBy(shard -> {
             String clusterAlias = shard.clusterAlias();
             return clusterAlias != null ? clusterAlias : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -82,10 +83,13 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                 SearchResponse.Cluster curr = clusterRef.get();
                 SearchResponse.Cluster.Status status = curr.getStatus();
                 assert status == SearchResponse.Cluster.Status.RUNNING : "should have RUNNING status during onListShards but has " + status;
+
+                // if all shards are marked as skipped, the search is done - mark as SUCCESSFUL
                 if (skippedCount != null && skippedCount == totalCount) {
                     took = new TimeValue(timeProvider.buildTookInMillis());
                     status = SearchResponse.Cluster.Status.SUCCESSFUL;
                 }
+
                 SearchResponse.Cluster updated = new SearchResponse.Cluster(
                     curr.getClusterAlias(),
                     curr.getIndexExpression(),
@@ -108,11 +112,15 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
     /**
      * Executed when a shard returns a query result.
      *
-     * @param shardIndex  The index of the shard in the list provided by {@link SearchProgressListener#onListShards} )}.
+     * @param shardIndex  The index of the shard in the list provided by {@link SearchProgressListener#onListShards}.
      * @param queryResult QuerySearchResult holding the result for a SearchShardTarget
      */
     @Override
     public void onQueryResult(int shardIndex, QuerySearchResult queryResult) {
+        // we only need to update Cluster state here if the search has timed out, since:
+        // 1) this is the only callback that gets search timedOut info and
+        // 2) the onFinalReduce will get all these shards again so the final accounting can be done there
+        // for queries that did not time out
         if (queryResult.searchTimedOut() && clusters.hasClusterObjects()) {
             SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
             String clusterAlias = shardTarget.getClusterAlias();
@@ -124,7 +132,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
             do {
                 SearchResponse.Cluster curr = clusterRef.get();
                 if (curr.isTimedOut()) {
-                    break; // already marked as timed out on some other shard
+                    break; // cluster has already been marked as timed out on some other shard
                 }
                 if (curr.getStatus() == SearchResponse.Cluster.Status.FAILED || curr.getStatus() == SearchResponse.Cluster.Status.SKIPPED) {
                     break; // safety check to make sure it hasn't hit a terminal FAILED/SKIPPED state where timeouts don't matter
@@ -140,7 +148,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                     curr.getFailedShards(),
                     curr.getFailures(),
                     curr.getTook(),
-                    true
+                    true  // set timedOut flag to true
                 );
                 swapped = clusterRef.compareAndSet(curr, updated);
             } while (swapped == false);
@@ -208,6 +216,11 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
      * Executed when a partial reduce is created. The number of partial reduce can be controlled via
      * {@link SearchRequest#setBatchedReduceSize(int)}.
      *
+     * Note that onPartialReduce and onFinalReduce are called with cumulative data so far.
+     * For example if the first call to onPartialReduce has 5 shards, the second call will
+     * have those same 5 shards plus the new batch. onFinalReduce will see all those
+     * shards one final time.
+     *
      * @param shards The list of shards that are part of this reduce.
      * @param totalHits The total number of hits in this reduce.
      * @param aggs The partial result for aggregations.
@@ -262,6 +275,9 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
 
     /**
      * Executed once when the final reduce is created.
+     *
+     * Note that his will see all the shards, even if they have been passed to the onPartialReduce
+     * method already.
      *
      * @param shards The list of shards that are part of this reduce.
      * @param totalHits The total number of hits in this reduce.

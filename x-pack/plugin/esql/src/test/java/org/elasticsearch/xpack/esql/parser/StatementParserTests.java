@@ -548,6 +548,17 @@ public class StatementParserTests extends ESTestCase {
         }
     }
 
+    public void testDeprecatedIsNullFunction() {
+        expectError(
+            "from test | eval x = is_null(f)",
+            "line 1:23: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
+        );
+        expectError(
+            "row x = is_null(f)",
+            "line 1:10: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
+        );
+    }
+
     public void testMetadataFieldOnOtherSources() {
         expectError(
             "row a = 1 [metadata _index]",

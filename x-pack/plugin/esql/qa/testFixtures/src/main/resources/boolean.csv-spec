@@ -34,14 +34,14 @@ avg(salary):double | still_hired:boolean
 ;
 
 statsByAlwaysTrue
-from employees | where not(is_null(first_name)) | eval always_true = starts_with(first_name, "") | stats avg(salary) by always_true;
+from employees | where first_name is not null | eval always_true = starts_with(first_name, "") | stats avg(salary) by always_true;
 
 avg(salary):double | always_true:boolean
  48353.72222222222 | true
 ;
 
 statsByAlwaysFalse
-from employees | where not(is_null(first_name)) | eval always_false = starts_with(first_name, "nonestartwiththis") | stats avg(salary) by always_false;
+from employees | where first_name is not null | eval always_false = starts_with(first_name, "nonestartwiththis") | stats avg(salary) by always_false;
 
 avg(salary):double | always_false:boolean
  48353.72222222222 | false

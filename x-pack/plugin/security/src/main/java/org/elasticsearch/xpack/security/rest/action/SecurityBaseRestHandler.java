@@ -35,8 +35,8 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
     }
 
     /**
-     * Calls the {@link #checkFeatureAvailable()} method to check the license state.
-     * If the license state allows auth, the result from
+     * Calls the {@link #checkFeatureAvailable()} method to check whether the feature is available based
+     * on settings and license state. If allowed, the result from
      * {@link #innerPrepareRequest(RestRequest, NodeClient)} is returned, otherwise a default error
      * response will be returned indicating that security is not licensed.
      *
@@ -75,7 +75,7 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
     /**
      * Implementers should implement this method as they normally would for
      * {@link BaseRestHandler#prepareRequest(RestRequest, NodeClient)} and ensure that all request
-     * parameters are consumed prior to returning a value. This method is executed only if the license
+     * parameters are consumed prior to returning a value. This method is executed only if the
      * check from {@link #checkFeatureAvailable()} passes.
      */
     protected abstract RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException;

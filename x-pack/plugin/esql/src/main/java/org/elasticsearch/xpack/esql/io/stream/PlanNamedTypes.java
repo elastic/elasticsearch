@@ -89,6 +89,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect.Parser;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -143,10 +145,8 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -971,7 +971,7 @@ public final class PlanNamedTypes {
     // -- RegexMatch
 
     static WildcardLike readWildcardLike(PlanStreamInput in, String name) throws IOException {
-        return new WildcardLike(Source.EMPTY, in.readExpression(), new WildcardPattern(in.readString()));
+        return new WildcardLike(Source.EMPTY, in.readExpression(), new WildcardPattern(in.readString()), false);
     }
 
     static void writeWildcardLike(PlanStreamOutput out, WildcardLike like) throws IOException {

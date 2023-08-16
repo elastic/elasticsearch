@@ -543,7 +543,7 @@ public abstract class DocumentParserContext {
             .filter(subClassObj -> subClassObj instanceof NumberFieldMapper)
             .map(NumberFieldMapper.class::cast)
             .filter(m -> "float".equals(m.typeName()))
-            .collect(Collectors.groupingBy(FieldMapper::name,Collectors.counting()))
+            .collect(Collectors.groupingBy(FieldMapper::name, Collectors.counting()))
             .entrySet()
             .stream()
             .filter(e -> e.getValue() >= MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING && e.getValue() <= MAX_DIMS_COUNT)

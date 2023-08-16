@@ -375,7 +375,6 @@ public class Archives {
                     + "$process.StandardInput.WriteLine('"
                     + keystorePassword
                     + "'); "
-                    + "$ErrorActionPreference = 'Continue'; "
                     + "Wait-Process -Timeout "
                     + ES_STARTUP_SLEEP_TIME_SECONDS
                     + " -Id $process.Id; "

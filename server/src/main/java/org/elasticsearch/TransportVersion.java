@@ -184,9 +184,10 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     public static final TransportVersion V_8_500_058 = registerTransportVersion(8_500_058, "41d9c98a-1de2-4dc1-86f1-abd4cc1bef57");
     public static final TransportVersion V_8_500_059 = registerTransportVersion(8_500_059, "2f2090c0-7cd0-4a10-8f02-63d26073604f");
     public static final TransportVersion V_8_500_060 = registerTransportVersion(8_500_060, "ec065a44-b468-4f8a-aded-7b90ca8d792b");
+    public static final TransportVersion V_8_500_061 = registerTransportVersion(8_500_061, "4e07f830-8be4-448c-851e-62b3d2f0bf0a");
 
     private static class CurrentHolder {
-        private static final TransportVersion CURRENT = findCurrent(V_8_500_060);
+        private static final TransportVersion CURRENT = findCurrent(V_8_500_061);
 
         // finds the pluggable current version, or uses the given fallback
         private static TransportVersion findCurrent(TransportVersion fallback) {

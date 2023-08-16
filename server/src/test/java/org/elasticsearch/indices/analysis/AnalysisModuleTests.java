@@ -100,7 +100,7 @@ public class AnalysisModuleTests extends ESTestCase {
     private Settings loadFromClasspath(String path) throws IOException {
         return Settings.builder()
             .loadFromStream(path, getClass().getResourceAsStream(path), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
 
@@ -448,7 +448,7 @@ public class AnalysisModuleTests extends ESTestCase {
     public void testRegisterHunspellDictionary() throws Exception {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         Environment environment = TestEnvironment.newEnvironment(settings);
         InputStream aff = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.aff");

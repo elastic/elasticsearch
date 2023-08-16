@@ -168,6 +168,11 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testZeroDeviation() throws IOException {
+        double[] bucketValues = DoubleStream.generate(() -> 4243.1621621621625).limit(30).toArray();
+        testChangeType(bucketValues, changeType -> { assertThat(changeType, instanceOf(ChangeType.Stationary.class)); });
+    }
+
     public void testStepChangeEdgeCaseScenarios() throws IOException {
         double[] bucketValues = new double[] {
             214505.0,

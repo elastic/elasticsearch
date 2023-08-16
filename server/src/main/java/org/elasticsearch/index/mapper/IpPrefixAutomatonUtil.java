@@ -75,8 +75,8 @@ public class IpPrefixAutomatonUtil {
         } else {
             result = Automata.makeAnyBinary();
         }
-        result = MinimizationOperations.minimize(result, Integer.MAX_VALUE);
-        return new CompiledAutomaton(result, null, false, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, true);
+        result = MinimizationOperations.minimize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        return new CompiledAutomaton(result, null, false, 0, true);
     }
 
     private static Automaton getIpv6Automaton(String ipPrefix) {

@@ -305,7 +305,7 @@ import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
-import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
+import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.rest.RestController;
@@ -456,7 +456,6 @@ import org.elasticsearch.rest.action.synonyms.RestGetSynonymsAction;
 import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
-import org.elasticsearch.synonyms.SynonymsAPI;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
@@ -470,6 +469,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -546,28 +546,11 @@ public class ActionModule extends AbstractModule {
                 new RestHeaderDefinition(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, false)
             )
         ).collect(Collectors.toSet());
-        UnaryOperator<RestHandler> restInterceptor = null;
-        for (ActionPlugin plugin : actionPlugins) {
-            if (plugin instanceof RestInterceptorActionPlugin riplugin) {
-                UnaryOperator<RestHandler> newRestInterceptor = riplugin.getRestHandlerInterceptor(threadPool.getThreadContext());
-                if (newRestInterceptor != null) {
-                    logger.debug("Using REST interceptor from plugin " + plugin.getClass().getName());
-                    if (plugin.getClass().getCanonicalName() == null
-                        || plugin.getClass().getCanonicalName().startsWith("org.elasticsearch.xpack") == false) {
-                        throw new IllegalArgumentException(
-                            "The "
-                                + plugin.getClass().getName()
-                                + " plugin tried to install a custom REST "
-                                + "interceptor. This functionality is not available anymore."
-                        );
-                    }
-                    if (restInterceptor != null) {
-                        throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST interceptor");
-                    }
-                    restInterceptor = newRestInterceptor;
-                }
-            }
-        }
+        UnaryOperator<RestHandler> restInterceptor = getRestServerComponent(
+            "REST interceptor",
+            actionPlugins,
+            restPlugin -> restPlugin.getRestHandlerInterceptor(threadPool.getThreadContext())
+        );
         mappingRequestValidators = new RequestValidators<>(
             actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).toList()
         );
@@ -575,8 +558,56 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).toList()
         );
         headersToCopy = headers;
-        restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
+
+        var customController = getRestServerComponent(
+            "REST controller",
+            actionPlugins,
+            restPlugin -> restPlugin.getRestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer)
+        );
+        if (customController != null) {
+            restController = customController;
+        } else {
+            restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
+        }
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
+    }
+
+    private static <T> T getRestServerComponent(
+        String type,
+        List<ActionPlugin> actionPlugins,
+        Function<RestServerActionPlugin, T> function
+    ) {
+        T result = null;
+        for (ActionPlugin plugin : actionPlugins) {
+            if (plugin instanceof RestServerActionPlugin restPlugin) {
+                var newInstance = function.apply(restPlugin);
+                if (newInstance != null) {
+                    logger.debug("Using custom {} from plugin {}", type, plugin.getClass().getName());
+                    if (isInternalPlugin(plugin) == false) {
+                        throw new IllegalArgumentException(
+                            "The "
+                                + plugin.getClass().getName()
+                                + " plugin tried to install a custom "
+                                + type
+                                + ". This functionality is not available to external plugins."
+                        );
+                    }
+                    if (result != null) {
+                        throw new IllegalArgumentException("Cannot have more than one plugin implementing a " + type);
+                    }
+                    result = newInstance;
+                }
+            }
+        }
+        return result;
+    }
+
+    private static boolean isInternalPlugin(ActionPlugin plugin) {
+        final String canonicalName = plugin.getClass().getCanonicalName();
+        if (canonicalName == null) {
+            return false;
+        }
+        return canonicalName.startsWith("org.elasticsearch.xpack.") || canonicalName.startsWith("co.elastic.elasticsearch.");
     }
 
     /**
@@ -587,7 +618,7 @@ public class ActionModule extends AbstractModule {
     public void copyRequestHeadersToThreadContext(HttpPreRequest request, ThreadContext threadContext) {
         // the request's thread-context must always be populated (by calling this method) before undergoing any request related processing
         // we use this opportunity to first record the request processing start time
-        threadContext.putTransient(Task.TRACE_START_TIME, Instant.ofEpochMilli(threadPool.absoluteTimeInMillis()));
+        threadContext.putTransient(Task.TRACE_START_TIME, Instant.ofEpochMilli(System.currentTimeMillis()));
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getHeaders().get(name);
@@ -799,15 +830,13 @@ public class ActionModule extends AbstractModule {
         actions.register(FetchHealthInfoCacheAction.INSTANCE, FetchHealthInfoCacheAction.TransportAction.class);
 
         // Synonyms
-        if (SynonymsAPI.isEnabled()) {
-            actions.register(PutSynonymsAction.INSTANCE, TransportPutSynonymsAction.class);
-            actions.register(GetSynonymsAction.INSTANCE, TransportGetSynonymsAction.class);
-            actions.register(DeleteSynonymsAction.INSTANCE, TransportDeleteSynonymsAction.class);
-            actions.register(GetSynonymsSetsAction.INSTANCE, TransportGetSynonymsSetsAction.class);
-            actions.register(PutSynonymRuleAction.INSTANCE, TransportPutSynonymRuleAction.class);
-            actions.register(GetSynonymRuleAction.INSTANCE, TransportGetSynonymRuleAction.class);
-            actions.register(DeleteSynonymRuleAction.INSTANCE, TransportDeleteSynonymRuleAction.class);
-        }
+        actions.register(PutSynonymsAction.INSTANCE, TransportPutSynonymsAction.class);
+        actions.register(GetSynonymsAction.INSTANCE, TransportGetSynonymsAction.class);
+        actions.register(DeleteSynonymsAction.INSTANCE, TransportDeleteSynonymsAction.class);
+        actions.register(GetSynonymsSetsAction.INSTANCE, TransportGetSynonymsSetsAction.class);
+        actions.register(PutSynonymRuleAction.INSTANCE, TransportPutSynonymRuleAction.class);
+        actions.register(GetSynonymRuleAction.INSTANCE, TransportGetSynonymRuleAction.class);
+        actions.register(DeleteSynonymRuleAction.INSTANCE, TransportDeleteSynonymRuleAction.class);
 
         return unmodifiableMap(actions.getRegistry());
     }
@@ -1019,15 +1048,13 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCatAction(catActions));
 
         // Synonyms
-        if (SynonymsAPI.isEnabled()) {
-            registerHandler.accept(new RestPutSynonymsAction());
-            registerHandler.accept(new RestGetSynonymsAction());
-            registerHandler.accept(new RestDeleteSynonymsAction());
-            registerHandler.accept(new RestGetSynonymsSetsAction());
-            registerHandler.accept(new RestPutSynonymRuleAction());
-            registerHandler.accept(new RestGetSynonymRuleAction());
-            registerHandler.accept(new RestDeleteSynonymRuleAction());
-        }
+        registerHandler.accept(new RestPutSynonymsAction());
+        registerHandler.accept(new RestGetSynonymsAction());
+        registerHandler.accept(new RestDeleteSynonymsAction());
+        registerHandler.accept(new RestGetSynonymsSetsAction());
+        registerHandler.accept(new RestPutSynonymRuleAction());
+        registerHandler.accept(new RestGetSynonymRuleAction());
+        registerHandler.accept(new RestDeleteSynonymRuleAction());
     }
 
     /**

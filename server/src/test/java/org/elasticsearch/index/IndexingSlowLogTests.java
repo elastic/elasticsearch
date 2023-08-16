@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.Term;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -126,7 +125,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             createIndexMetadata(
                 "index1",
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                     .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING.getKey(), "40nanos")
                     .build()
@@ -139,7 +138,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             createIndexMetadata(
                 "index2",
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                     .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING.getKey(), "10nanos")
                     .build()
@@ -188,7 +187,7 @@ public class IndexingSlowLogTests extends ESTestCase {
 
     private Settings settings(String uuid) {
         return Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, uuid)
             .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING.getKey(), "10nanos")
             .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING.getKey(), "20nanos")
@@ -307,7 +306,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         IndexMetadata metadata = newIndexMeta(
             "index",
             Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING.getKey(), false)
                 .build()
         );
@@ -327,7 +326,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY));
         assertTrue(log.isReformat());
 
-        metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
         settings = new IndexSettings(metadata, Settings.EMPTY);
         log = new IndexingSlowLog(settings);
         assertTrue(log.isReformat());
@@ -354,7 +353,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         IndexMetadata metadata = newIndexMeta(
             "index",
             Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING.getKey(), "100ms")
                 .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING.getKey(), "200ms")
                 .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING.getKey(), "300ms")
@@ -385,7 +384,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         assertEquals(TimeValue.timeValueMillis(320).nanos(), log.getIndexInfoThreshold());
         assertEquals(TimeValue.timeValueMillis(420).nanos(), log.getIndexWarnThreshold());
 
-        metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
         settings.updateIndexMetadata(metadata);
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexTraceThreshold());
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getIndexDebugThreshold());
@@ -469,6 +468,6 @@ public class IndexingSlowLogTests extends ESTestCase {
     }
 
     private IndexMetadata newIndexMeta(String name, Settings indexSettings) {
-        return IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, 1, 1).put(indexSettings)).build();
+        return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 1).put(indexSettings)).build();
     }
 }

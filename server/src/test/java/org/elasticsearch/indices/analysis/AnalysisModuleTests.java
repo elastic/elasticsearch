@@ -100,7 +100,7 @@ public class AnalysisModuleTests extends ESTestCase {
     private Settings loadFromClasspath(String path) throws IOException {
         return Settings.builder()
             .loadFromStream(path, getClass().getResourceAsStream(path), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
 
@@ -273,7 +273,7 @@ public class AnalysisModuleTests extends ESTestCase {
                 .put("index.analysis.analyzer.lucene_version.char_filter", "lucene_version")
                 .put("index.analysis.analyzer.index_version.tokenizer", "keyword")
                 .put("index.analysis.analyzer.index_version.char_filter", "index_version")
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build()
         );
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] { "testno_version" });
@@ -342,7 +342,7 @@ public class AnalysisModuleTests extends ESTestCase {
                 .put("index.analysis.analyzer.lucene_version.filter", "lucene_version")
                 .put("index.analysis.analyzer.index_version.tokenizer", "standard")
                 .put("index.analysis.analyzer.index_version.filter", "index_version")
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build()
         );
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] { "testno_version" });
@@ -426,7 +426,7 @@ public class AnalysisModuleTests extends ESTestCase {
                 .put("index.analysis.analyzer.no_version.tokenizer", "no_version")
                 .put("index.analysis.analyzer.lucene_version.tokenizer", "lucene_version")
                 .put("index.analysis.analyzer.index_version.tokenizer", "index_version")
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build()
         );
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] { "no_version" });
@@ -448,7 +448,7 @@ public class AnalysisModuleTests extends ESTestCase {
     public void testRegisterHunspellDictionary() throws Exception {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         Environment environment = TestEnvironment.newEnvironment(settings);
         InputStream aff = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.aff");

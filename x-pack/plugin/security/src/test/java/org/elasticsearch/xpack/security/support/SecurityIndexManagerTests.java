@@ -40,6 +40,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
@@ -102,7 +103,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
         };
 
         final ClusterService clusterService = mock(ClusterService.class);
-        final SystemIndexDescriptor descriptor = new SecuritySystemIndices().getSystemIndexDescriptors()
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        final SystemIndexDescriptor descriptor = new SecuritySystemIndices(clusterService.getSettings()).getSystemIndexDescriptors()
             .stream()
             .filter(d -> d.getAliasName().equals(SecuritySystemIndices.SECURITY_MAIN_ALIAS))
             .findFirst()
@@ -506,7 +508,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         String mappings
     ) {
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
-        indexMetadata.settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), format));
+        indexMetadata.settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), format));
         indexMetadata.putAlias(AliasMetadata.builder(aliasName).build());
         indexMetadata.state(state);
         if (mappings != null) {

@@ -2478,7 +2478,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    protected SegmentInfos getLastCommittedSegmentInfos() {
+    public SegmentInfos getLastCommittedSegmentInfos() {
         return lastCommittedSegmentInfos;
     }
 

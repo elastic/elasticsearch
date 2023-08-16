@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -35,14 +35,14 @@ public class EnrichCacheTests extends ESTestCase {
         var metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(EnrichPolicy.getBaseName("policy1") + "-1")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName("policy1")).build())
             )
             .put(
                 IndexMetadata.builder(EnrichPolicy.getBaseName("policy2") + "-1")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName("policy2")).build())
@@ -98,14 +98,14 @@ public class EnrichCacheTests extends ESTestCase {
         metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(EnrichPolicy.getBaseName("policy1") + "-2")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName("policy1")).build())
             )
             .put(
                 IndexMetadata.builder(EnrichPolicy.getBaseName("policy2") + "-2")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName("policy2")).build())

@@ -123,7 +123,7 @@ public class WatcherService {
                 1000,
                 daemonThreadFactory(settings, LIFECYCLE_THREADPOOL_NAME),
                 client.threadPool().getThreadContext(),
-                false
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             )
         );
     }

@@ -44,6 +44,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -141,8 +142,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(Version.CURRENT),
-            new DataStreamLifecycle(TimeValue.timeValueMillis(0)),
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.newBuilder().dataRetention(0).build(),
             now
         );
         builder.put(dataStream);
@@ -174,8 +175,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(Version.CURRENT),
-            new DataStreamLifecycle((TimeValue) null),
+            settings(IndexVersion.current()),
+            new DataStreamLifecycle(),
             now
         );
         builder.put(dataStream);
@@ -194,8 +195,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(Version.CURRENT),
-            new DataStreamLifecycle(TimeValue.timeValueDays(700)),
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(700)).build(),
             now
         );
         builder.put(dataStream);
@@ -214,8 +215,10 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy").put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
-            new DataStreamLifecycle(TimeValue.timeValueMillis(0)),
+            Settings.builder()
+                .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()),
+            DataStreamLifecycle.newBuilder().dataRetention(0).build(),
             now
         );
         builder.put(dataStream);
@@ -233,7 +236,9 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy").put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
+            Settings.builder()
+                .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()),
             null,
             now
         );
@@ -252,7 +257,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()),
             new DataStreamLifecycle(),
             now
         );
@@ -301,8 +306,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(Version.CURRENT),
-            new DataStreamLifecycle(TimeValue.timeValueDays(700)),
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(700)).build(),
             now
         );
         // all backing indices are in the error store
@@ -346,9 +351,9 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(Version.CURRENT).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+            settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE),
-            new DataStreamLifecycle(TimeValue.MAX_VALUE),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         builder.put(dataStream);
@@ -407,7 +412,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices + 1)
         )
             .settings(
-                settings(Version.CURRENT).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+                settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE)
             )
             .numberOfShards(1)
@@ -457,9 +462,9 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(Version.CURRENT).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+            settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE),
-            new DataStreamLifecycle(TimeValue.MAX_VALUE),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         builder.put(dataStream);
@@ -630,8 +635,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(Version.CURRENT),
-            new DataStreamLifecycle(TimeValue.MAX_VALUE),
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         builder.put(dataStream);
@@ -639,7 +644,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices + 1)
         )
             .settings(
-                settings(Version.CURRENT).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+                settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE)
             )
             .numberOfShards(1)
@@ -818,8 +823,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(Version.CURRENT),
-            new DataStreamLifecycle(TimeValue.MAX_VALUE),
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         builder.put(dataStream);
@@ -864,7 +869,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices + 1)
         )
             .settings(
-                settings(Version.CURRENT).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+                settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE)
             )
             .numberOfShards(1)

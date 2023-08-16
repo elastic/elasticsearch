@@ -97,7 +97,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     }
 
     @Override
-    public boolean supportsConcurrentExecution() {
+    public boolean supportsParallelCollection() {
         return false;
     }
 

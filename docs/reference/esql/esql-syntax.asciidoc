@@ -122,11 +122,13 @@ For NULL comparison use the `IS NULL` and `IS NOT NULL` predicates:
 
 [source,esql]
 ----
-FROM employees
-| WHERE birth_date IS NULL
-| KEEP first_name, last_name
+include::{esql-specs}/conditional.csv-spec[tag=is-null]
 ----
---
+
+[source,esql]
+----
+include::{esql-specs}/conditional.csv-spec[tag=is-not-null]
+----
 
 [discrete]
 [[esql-timespan-literals]]

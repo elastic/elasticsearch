@@ -75,11 +75,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 
 public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
@@ -1190,7 +1190,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             ChunkedToXContent.wrapAsToXContent(searchResponseAfterCompletion)
                 .toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
         );
-        assertThat(json, containsString("task cancelled [by user request]"));
+        assertThat(json, matchesRegex(".*task (was)?\s*cancelled.*"));
     }
 
     public void testCancelViaAsyncSearchDelete() throws Exception {

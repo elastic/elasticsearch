@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
@@ -119,6 +120,7 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Round.class, Round::new, "round"),
                 def(Sin.class, Sin::new, "sin"),
                 def(Sinh.class, Sinh::new, "sinh"),
+                def(Sqrt.class, Sqrt::new, "sqrt"),
                 def(Tan.class, Tan::new, "tan"),
                 def(Tanh.class, Tanh::new, "tanh"),
                 def(Tau.class, Tau::new, "tau") },

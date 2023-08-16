@@ -77,7 +77,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         /**
          * The expected output type for the case being tested
          */
-        DataType exptectedType;
+        DataType expectedType;
         /**
          * A matcher to validate the output of the function run on the given input data
          */
@@ -87,7 +87,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             this.source = Source.EMPTY;
             this.data = data;
             this.evaluatorToString = evaluatorToString;
-            this.exptectedType = expectedType;
+            this.expectedType = expectedType;
             this.matcher = matcher;
         }
 
@@ -228,7 +228,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public final void testSimple() {
         Expression expression = buildFieldExpression(testCase);
-        assertThat(expression.dataType(), equalTo(testCase.exptectedType));
+        assertThat(expression.dataType(), equalTo(testCase.expectedType));
+        // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
         Object result = toJavaObject(evaluator(expression).get().eval(row(testCase.getDataValues())), 0);
         assertThat(result, testCase.getMatcher());
     }
@@ -289,7 +290,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public final void testSimpleConstantFolding() {
         Expression e = buildLiteralExpression(testCase);
-        assertThat(e.dataType(), equalTo(testCase.exptectedType));
+        assertThat(e.dataType(), equalTo(testCase.expectedType));
         assertTrue(e.foldable());
         assertThat(e.fold(), testCase.getMatcher());
     }

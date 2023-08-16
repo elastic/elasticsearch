@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
@@ -72,6 +73,7 @@ public class EvalMapperTests extends ESTestCase {
             new Sub(Source.EMPTY, DOUBLE1, DOUBLE2),
             new Mul(Source.EMPTY, DOUBLE1, DOUBLE2),
             new Div(Source.EMPTY, DOUBLE1, DOUBLE2),
+            new Neg(Source.EMPTY, DOUBLE1),
             new Abs(Source.EMPTY, DOUBLE1),
             new Equals(Source.EMPTY, DOUBLE1, DOUBLE2),
             new GreaterThan(Source.EMPTY, DOUBLE1, DOUBLE2, null),

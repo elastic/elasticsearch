@@ -30,6 +30,9 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
     return "MvSum";
   }
 
+  /**
+   * Evaluate blocks containing at least one multivalued field.
+   */
   @Override
   public Block evalNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;

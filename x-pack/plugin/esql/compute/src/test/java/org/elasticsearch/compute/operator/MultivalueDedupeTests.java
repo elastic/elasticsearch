@@ -367,7 +367,7 @@ public class MultivalueDedupeTests extends ESTestCase {
                 }
             }
         }
-        BatchEncoder.decoder(elementType).decode(builder, toDecode, toDecode.length);
+        BatchEncoder.decoder(elementType).decode(builder, i -> toDecode[i].length == 0, toDecode, toDecode.length);
         for (int i = 0; i < toDecode.length; i++) {
             assertThat(toDecode[i].length, equalTo(0));
         }

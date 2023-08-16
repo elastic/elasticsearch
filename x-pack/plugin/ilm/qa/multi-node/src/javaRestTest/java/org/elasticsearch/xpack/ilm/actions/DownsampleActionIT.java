@@ -22,7 +22,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
@@ -152,12 +154,13 @@ public class DownsampleActionIT extends ESRestTestCase {
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         String phaseName = randomFrom("warm", "cold");
-        createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(ConfigTestHelpers.randomInterval()));
+        DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
+        createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
         updatePolicy(client(), index, policy);
 
-        String rollupIndex = waitAndGetRollupIndexName(client(), index);
+        String rollupIndex = waitAndGetRollupIndexName(client(), index, fixedInterval);
         assertNotNull("Cannot retrieve rollup index name", rollupIndex);
-        assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertTrue("Rollup index does exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(index)), 30, TimeUnit.SECONDS);
         assertBusy(
             () -> assertThat(getStepKeyForIndex(client(), rollupIndex), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())),
@@ -181,7 +184,12 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> createNewSingletonPolicy(client(), policy, "hot", new DownsampleAction(ConfigTestHelpers.randomInterval()))
+            () -> createNewSingletonPolicy(
+                client(),
+                policy,
+                "hot",
+                new DownsampleAction(ConfigTestHelpers.randomInterval(), DownsampleAction.DEFAULT_WAIT_TIMEOUT)
+            )
         );
         assertTrue(
             e.getMessage()
@@ -193,11 +201,12 @@ public class DownsampleActionIT extends ESRestTestCase {
         String originalIndex = index + "-000001";
 
         // add a policy
+        DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
         Map<String, LifecycleAction> hotActions = Map.of(
             RolloverAction.NAME,
             new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
             DownsampleAction.NAME,
-            new DownsampleAction(ConfigTestHelpers.randomInterval())
+            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT)
         );
         Map<String, Phase> phases = Map.of("hot", new Phase("hot", TimeValue.ZERO, hotActions));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
@@ -235,7 +244,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             randomAlphaOfLength(5)
         );
 
-        String rollupIndex = waitAndGetRollupIndexName(client(), originalIndex);
+        String rollupIndex = waitAndGetRollupIndexName(client(), originalIndex, fixedInterval);
         assertNotNull("Cannot retrieve rollup index name", rollupIndex);
         assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(originalIndex)), 30, TimeUnit.SECONDS);
@@ -254,7 +263,8 @@ public class DownsampleActionIT extends ESRestTestCase {
 
     public void testTsdbDataStreams() throws Exception {
         // Create the ILM policy
-        createNewSingletonPolicy(client(), policy, "warm", new DownsampleAction(ConfigTestHelpers.randomInterval()));
+        DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
+        createNewSingletonPolicy(client(), policy, "warm", new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
 
         // Create a template
         Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
@@ -278,7 +288,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String rollupIndex = waitAndGetRollupIndexName(client(), backingIndexName);
+        String rollupIndex = waitAndGetRollupIndexName(client(), backingIndexName, fixedInterval);
         assertNotNull("Cannot retrieve rollup index name", rollupIndex);
         assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(backingIndexName)), 30, TimeUnit.SECONDS);
@@ -295,13 +305,90 @@ public class DownsampleActionIT extends ESRestTestCase {
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         String phaseName = randomFrom("warm", "cold");
-        createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(ConfigTestHelpers.randomInterval()));
+        DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
+        createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
         updatePolicy(client(), index, policy);
 
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())));
-        String rollupIndex = getRollupIndexName(client(), index);
+        String rollupIndex = getRollupIndexName(client(), index, fixedInterval);
         assertNull("Rollup index should not have been created", rollupIndex);
         assertTrue("Source index should not have been deleted", indexExists(index));
+    }
+
+    public void testDownsampleTwice() throws Exception {
+        // Create the ILM policy
+        Request request = new Request("PUT", "_ilm/policy/" + policy);
+        request.setJsonEntity("""
+            {
+                "policy": {
+                    "phases": {
+                        "warm": {
+                            "actions": {
+                                "downsample": {
+                                    "fixed_interval" : "1m"
+                                }
+                            }
+                        },
+                        "cold": {
+                            "actions": {
+                                "downsample": {
+                                    "fixed_interval" : "1h"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """);
+        client().performRequest(request);
+
+        // Create a template
+        Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
+        createIndexTemplateRequest.setJsonEntity(Strings.format(TEMPLATE, dataStream, policy));
+        assertOK(client().performRequest(createIndexTemplateRequest));
+
+        String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
+        index(client(), dataStream, true, null, "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
+
+        var getDataStreamResponse = client().performRequest(new Request("GET", "/_data_stream/" + dataStream));
+        String firstBackingIndex = ObjectPath.eval("data_streams.0.indices.0.index_name", responseAsMap(getDataStreamResponse));
+        logger.info("firstBackingIndex: {}", firstBackingIndex);
+        assertBusy(
+            () -> assertThat(
+                "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
+                explainIndex(client(), firstBackingIndex).get("step"),
+                is(CheckNotDataStreamWriteIndexStep.NAME)
+            ),
+            30,
+            TimeUnit.SECONDS
+        );
+
+        // Manual rollover the original index such that it's not the write index in the data stream anymore
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        String downsampleIndexName = "downsample-" + firstBackingIndex + "-1m";
+        String downsampleOfDownsampleIndexName = "downsample-" + firstBackingIndex + "-1h";
+        try {
+            assertBusy(() -> {
+                assertThat(indexExists(downsampleOfDownsampleIndexName), is(true));
+                assertThat(indexExists(firstBackingIndex), is(false));
+                assertThat(indexExists(downsampleIndexName), is(false));
+
+                Map<String, Object> settings = getOnlyIndexSettings(client(), downsampleOfDownsampleIndexName);
+                assertEquals(firstBackingIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
+                assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
+                assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
+            }, 60, TimeUnit.SECONDS);
+        } catch (AssertionError ae) {
+            if (indexExists(firstBackingIndex)) {
+                logger.error("Index [{}] ilm explain {}", firstBackingIndex, explainIndex(client(), firstBackingIndex));
+            } else if (indexExists(downsampleIndexName)) {
+                logger.error("Index [{}] ilm explain {}", firstBackingIndex, explainIndex(client(), downsampleIndexName));
+            } else if (indexExists(downsampleOfDownsampleIndexName)) {
+                logger.error("Index [{}] ilm explain {}", firstBackingIndex, explainIndex(client(), downsampleOfDownsampleIndexName));
+            }
+            throw ae;
+        }
     }
 
     /**
@@ -310,11 +397,12 @@ public class DownsampleActionIT extends ESRestTestCase {
      * @param originalIndexName the name of the source index used to generate the rollup index name
      * @return the name of the rollup index for a given index, null if none exist
      */
-    public String waitAndGetRollupIndexName(RestClient client, String originalIndexName) throws InterruptedException {
+    public String waitAndGetRollupIndexName(RestClient client, String originalIndexName, DateHistogramInterval fixedInterval)
+        throws InterruptedException {
         final String[] rollupIndexName = new String[1];
         waitUntil(() -> {
             try {
-                rollupIndexName[0] = getRollupIndexName(client, originalIndexName);
+                rollupIndexName[0] = getRollupIndexName(client, originalIndexName, fixedInterval);
                 return rollupIndexName[0] != null;
             } catch (IOException e) {
                 return false;
@@ -324,10 +412,15 @@ public class DownsampleActionIT extends ESRestTestCase {
         return rollupIndexName[0];
     }
 
-    public static String getRollupIndexName(RestClient client, String originalIndexName) throws IOException {
-        Response response = client.performRequest(
-            new Request("GET", "/" + DownsampleAction.DOWNSAMPLED_INDEX_PREFIX + "*-" + originalIndexName + "/?expand_wildcards=all")
-        );
+    public static String getRollupIndexName(RestClient client, String originalIndexName, DateHistogramInterval fixedInterval)
+        throws IOException {
+        String endpoint = "/"
+            + DownsampleAction.DOWNSAMPLED_INDEX_PREFIX
+            + originalIndexName
+            + "-"
+            + fixedInterval
+            + "*/?expand_wildcards=all";
+        Response response = client.performRequest(new Request("GET", endpoint));
         Map<String, Object> asMap = responseAsMap(response);
         if (asMap.size() == 1) {
             return (String) asMap.keySet().toArray()[0];

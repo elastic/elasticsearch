@@ -65,6 +65,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.RunnableFuture;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -141,7 +142,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         int minimumDocsPerSlice
     ) throws IOException {
         // we need to pass the executor up so it can potentially be used as a sliceExecutor by knn search
-        super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
+        super(
+            wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader,
+            wrapExecutor(executor)
+        );
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
@@ -151,10 +155,21 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             this.leafSlices = null;
         } else {
             // we offload to the executor unconditionally, including requests that don't support concurrency
-            // the few cases that don't support offloading entirely won't get an executor
             this.leafSlices = computeSlices(getLeafContexts(), maximumNumberOfSlices, minimumDocsPerSlice);
             assert this.leafSlices.length <= maximumNumberOfSlices : "more slices created than the maximum allowed";
         }
+    }
+
+    /*
+     * This is a hack to work around QueueSizeBasedExecutor conditionally executing on the caller thread based on queue size.
+     * We'd rather simply offload all the tasks to the executor when provided. See https://github.com/apache/lucene/issues/12498 .
+     * We override all of that already for the collection part, but we can't do that for the query rewrite part that affects knn.
+     */
+    private static Executor wrapExecutor(Executor executor) {
+        if (executor instanceof ThreadPoolExecutor) {
+            return executor::execute;
+        }
+        return executor;
     }
 
     // package private for testing
@@ -264,6 +279,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     public static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int maxSliceNum, int minDocsPerSlice) {
         if (maxSliceNum < 1) {
             throw new IllegalArgumentException("maxSliceNum must be >= 1 (got " + maxSliceNum + ")");
+        }
+        if (maxSliceNum == 1) {
+            return new LeafSlice[] { new LeafSlice(new ArrayList<>(leaves)) };
         }
         // total number of documents to be searched
         final int numDocs = leaves.stream().mapToInt(l -> l.reader().maxDoc()).sum();
@@ -437,6 +455,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                         } else {
                             if (e.getCause() instanceof RuntimeException runtimeException) {
                                 exception = runtimeException;
+                            } else if (e.getCause() instanceof IOException ioException) {
+                                throw ioException;
                             } else {
                                 exception = new RuntimeException(e.getCause());
                             }

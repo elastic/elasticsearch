@@ -218,6 +218,13 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testUnsignedLongNegation() {
+        assertEquals(
+            "1:29: negation unsupported for arguments of type [unsigned_long] in expression [-x]",
+            error("row x = to_ul(1) | eval y = -x")
+        );
+    }
+
     public void testSumOnDate() {
         assertEquals(
             "1:19: argument of [sum(hire_date)] must be [numeric], found value [hire_date] type [datetime]",
@@ -235,6 +242,12 @@ public class VerifierTests extends ESTestCase {
             "1:19: first argument of [emp_no == ?] is [numeric] so second argument must also be [numeric] but was [null]",
             error("from test | where emp_no == ?", new Object[] { null })
         );
+    }
+
+    public void testPeriodAndDurationInRowAssignment() {
+        for (var unit : List.of("millisecond", "second", "minute", "hour", "day", "week", "month", "year")) {
+            assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+        }
     }
 
     private String error(String query) {

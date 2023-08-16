@@ -92,7 +92,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.topNSize = getTopDocsSize(request);
         this.performFinalReduce = request.isFinalReduce();
         this.onPartialMergeFailure = onPartialMergeFailure;
-        this.label = request.getDescription();
+        this.label = request.buildDescription();
 
         SearchSourceBuilder source = request.source();
         int size = source == null || source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();

@@ -49,12 +49,12 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.downsample.DownsampleAfterBulkInfo;
+import org.elasticsearch.xpack.core.downsample.DownsampleBeforeBulkInfo;
 import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupAfterBulkInfo;
-import org.elasticsearch.xpack.core.rollup.action.RollupBeforeBulkInfo;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardIndexerStatus;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -71,50 +71,47 @@ import static org.elasticsearch.core.Strings.format;
 
 /**
  * An indexer for downsampling that iterates documents collected by {@link TimeSeriesIndexSearcher},
- * computes the rollup buckets and stores the buckets in the downsampled index.
+ * computes the downsample buckets and stores the buckets in the downsampled index.
  * <p>
  * The documents collected by the {@link TimeSeriesIndexSearcher} are expected to be sorted
  * by _tsid in ascending order and @timestamp in descending order.
  */
-class RollupShardIndexer {
+class DownsampleShardIndexer {
 
-    public static final String NAME = "rollup-shard-indexer";
-    private static final Logger logger = LogManager.getLogger(RollupShardIndexer.class);
-    public static final int ROLLUP_BULK_ACTIONS = 10000;
-    public static final ByteSizeValue ROLLUP_BULK_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
-    public static final ByteSizeValue ROLLUP_MAX_BYTES_IN_FLIGHT = new ByteSizeValue(50, ByteSizeUnit.MB);
-    private final IndexService indexService;
+    private static final Logger logger = LogManager.getLogger(DownsampleShardIndexer.class);
+    public static final int DOWNSAMPLE_BULK_ACTIONS = 10000;
+    public static final ByteSizeValue DOWNSAMPLE_BULK_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
+    public static final ByteSizeValue DOWNSAMPLE_MAX_BYTES_IN_FLIGHT = new ByteSizeValue(50, ByteSizeUnit.MB);
     private final IndexShard indexShard;
     private final Client client;
-    private final String rollupIndex;
+    private final String downsampleIndex;
     private final Engine.Searcher searcher;
     private final SearchExecutionContext searchExecutionContext;
     private final DateFieldMapper.DateFieldType timestampField;
     private final DocValueFormat timestampFormat;
     private final Rounding.Prepared rounding;
     private final List<FieldValueFetcher> fieldValueFetchers;
-    private final RollupShardTask task;
-    private final RollupShardPersistentTaskState state;
+    private final DownsampleShardTask task;
+    private final DownsampleShardPersistentTaskState state;
     private volatile boolean abort = false;
-    ByteSizeValue rollupBulkSize = ROLLUP_BULK_SIZE;
-    ByteSizeValue rollupMaxBytesInFlight = ROLLUP_MAX_BYTES_IN_FLIGHT;
+    ByteSizeValue downsampleBulkSize = DOWNSAMPLE_BULK_SIZE;
+    ByteSizeValue downsampleMaxBytesInFlight = DOWNSAMPLE_MAX_BYTES_IN_FLIGHT;
 
-    RollupShardIndexer(
-        final RollupShardTask task,
+    DownsampleShardIndexer(
+        final DownsampleShardTask task,
         final Client client,
         final IndexService indexService,
         final ShardId shardId,
-        final String rollupIndex,
+        final String downsampleIndex,
         final DownsampleConfig config,
         final String[] metrics,
         final String[] labels,
-        final RollupShardPersistentTaskState state
+        final DownsampleShardPersistentTaskState state
     ) {
         this.task = task;
         this.client = client;
-        this.indexService = indexService;
         this.indexShard = indexService.getShard(shardId.id());
-        this.rollupIndex = rollupIndex;
+        this.downsampleIndex = downsampleIndex;
         this.searcher = indexShard.acquireSearcher("downsampling");
         this.state = state;
         Closeable toClose = searcher;
@@ -148,8 +145,11 @@ class RollupShardIndexer {
         }
         long startTime = client.threadPool().relativeTimeInMillis();
         task.setTotalShardDocCount(searcher.getDirectoryReader().numDocs());
-        task.setRollupShardIndexerStatus(RollupShardIndexerStatus.STARTED);
-        task.updatePersistentTaskState(new RollupShardPersistentTaskState(RollupShardIndexerStatus.STARTED, null), ActionListener.noop());
+        task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.STARTED);
+        task.updatePersistentTaskState(
+            new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.STARTED, null),
+            ActionListener.noop()
+        );
         logger.info("Downsampling task [" + task.getPersistentTaskId() + " on shard " + indexShard.shardId() + " started");
         BulkProcessor2 bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
@@ -161,7 +161,7 @@ class RollupShardIndexer {
         }
 
         logger.info(
-            "Shard [{}] successfully sent [{}], received source doc [{}], indexed rollup doc [{}], failed [{}], took [{}]",
+            "Shard [{}] successfully sent [{}], received source doc [{}], indexed downsampled doc [{}], failed [{}], took [{}]",
             indexShard.shardId(),
             task.getNumReceived(),
             task.getNumSent(),
@@ -171,9 +171,9 @@ class RollupShardIndexer {
         );
 
         if (task.getNumIndexed() != task.getNumSent()) {
-            task.setRollupShardIndexerStatus(RollupShardIndexerStatus.FAILED);
+            task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.FAILED);
             task.updatePersistentTaskState(
-                new RollupShardPersistentTaskState(RollupShardIndexerStatus.FAILED, null),
+                new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.FAILED, null),
                 ActionListener.noop()
             );
             final String error = "Downsampling task ["
@@ -187,7 +187,7 @@ class RollupShardIndexer {
                 + task.getNumSent()
                 + "]";
             logger.info(error);
-            throw new RollupShardIndexerException(error, false);
+            throw new DownsampleShardIndexerException(error, false);
         }
 
         if (task.getNumFailed() > 0) {
@@ -200,14 +200,17 @@ class RollupShardIndexer {
                 + "]";
             logger.info(error);
             task.updatePersistentTaskState(
-                new RollupShardPersistentTaskState(RollupShardIndexerStatus.FAILED, null),
+                new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.FAILED, null),
                 ActionListener.noop()
             );
-            throw new RollupShardIndexerException(error, false);
+            throw new DownsampleShardIndexerException(error, false);
         }
 
-        task.setRollupShardIndexerStatus(RollupShardIndexerStatus.COMPLETED);
-        task.updatePersistentTaskState(new RollupShardPersistentTaskState(RollupShardIndexerStatus.COMPLETED, null), ActionListener.noop());
+        task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.COMPLETED);
+        task.updatePersistentTaskState(
+            new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.COMPLETED, null),
+            ActionListener.noop()
+        );
         logger.info("Downsampling task [" + task.getPersistentTaskId() + " on shard " + indexShard.shardId() + " completed");
         return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
     }
@@ -222,39 +225,39 @@ class RollupShardIndexer {
     private void checkCancelled() {
         if (task.isCancelled()) {
             logger.warn(
-                "Shard [{}] rollup abort, sent [{}], indexed [{}], failed[{}]",
+                "Shard [{}] downsampled abort, sent [{}], indexed [{}], failed[{}]",
                 indexShard.shardId(),
                 task.getNumSent(),
                 task.getNumIndexed(),
                 task.getNumFailed()
             );
-            task.setRollupShardIndexerStatus(RollupShardIndexerStatus.CANCELLED);
+            task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.CANCELLED);
             task.updatePersistentTaskState(
-                new RollupShardPersistentTaskState(RollupShardIndexerStatus.CANCELLED, null),
+                new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.CANCELLED, null),
                 ActionListener.noop()
             );
             logger.info("Downsampling task [" + task.getPersistentTaskId() + "] on shard " + indexShard.shardId() + " cancelled");
-            throw new RollupShardIndexerException(
-                new TaskCancelledException(format("Shard %s rollup cancelled", indexShard.shardId())),
-                format("Shard %s rollup cancelled", indexShard.shardId()),
+            throw new DownsampleShardIndexerException(
+                new TaskCancelledException(format("Shard %s downsample cancelled", indexShard.shardId())),
+                format("Shard %s downsample cancelled", indexShard.shardId()),
                 false
             );
 
         }
         if (abort) {
             logger.warn(
-                "Shard [{}] rollup abort, sent [{}], indexed [{}], failed[{}]",
+                "Shard [{}] downsample abort, sent [{}], indexed [{}], failed[{}]",
                 indexShard.shardId(),
                 task.getNumSent(),
                 task.getNumIndexed(),
                 task.getNumFailed()
             );
-            task.setRollupShardIndexerStatus(RollupShardIndexerStatus.FAILED);
+            task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.FAILED);
             task.updatePersistentTaskState(
-                new RollupShardPersistentTaskState(RollupShardIndexerStatus.FAILED, null),
+                new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.FAILED, null),
                 ActionListener.noop()
             );
-            throw new RollupShardIndexerException("Bulk indexing failure", true);
+            throw new DownsampleShardIndexerException("Bulk indexing failure", true);
         }
     }
 
@@ -265,7 +268,7 @@ class RollupShardIndexer {
             public void beforeBulk(long executionId, BulkRequest request) {
                 task.addNumSent(request.numberOfActions());
                 task.setBeforeBulkInfo(
-                    new RollupBeforeBulkInfo(
+                    new DownsampleBeforeBulkInfo(
                         client.threadPool().absoluteTimeInMillis(),
                         executionId,
                         request.estimatedSizeInBytes(),
@@ -280,7 +283,7 @@ class RollupShardIndexer {
                 long bulkTookMillis = response.getTook().getMillis();
                 task.addNumIndexed(request.numberOfActions());
                 task.setAfterBulkInfo(
-                    new RollupAfterBulkInfo(
+                    new DownsampleAfterBulkInfo(
                         client.threadPool().absoluteTimeInMillis(),
                         executionId,
                         bulkIngestTookMillis,
@@ -289,7 +292,7 @@ class RollupShardIndexer {
                         response.status().getStatus()
                     )
                 );
-                task.updateRollupBulkInfo(bulkIngestTookMillis, bulkTookMillis);
+                task.updateBulkInfo(bulkIngestTookMillis, bulkTookMillis);
 
                 if (response.hasFailures()) {
                     List<BulkItemResponse> failedItems = Arrays.stream(response.getItems()).filter(BulkItemResponse::isFailed).toList();
@@ -303,7 +306,7 @@ class RollupShardIndexer {
                                 (msg1, msg2) -> Objects.equals(msg1, msg2) ? msg1 : msg1 + "," + msg2
                             )
                         );
-                    logger.error("Shard [{}] failed to populate rollup index. Failures: [{}]", indexShard.shardId(), failures);
+                    logger.error("Shard [{}] failed to populate downsample index. Failures: [{}]", indexShard.shardId(), failures);
 
                     abort = true;
                 }
@@ -314,7 +317,7 @@ class RollupShardIndexer {
                 if (failure != null) {
                     long items = request.numberOfActions();
                     task.addNumFailed(items);
-                    logger.error(() -> format("Shard [%s] failed to populate rollup index.", indexShard.shardId()), failure);
+                    logger.error(() -> format("Shard [%s] failed to populate downsample index.", indexShard.shardId()), failure);
 
                     abort = true;
                 }
@@ -322,16 +325,16 @@ class RollupShardIndexer {
         };
 
         return BulkProcessor2.builder(client::bulk, listener, client.threadPool())
-            .setBulkActions(ROLLUP_BULK_ACTIONS)
-            .setBulkSize(ROLLUP_BULK_SIZE)
-            .setMaxBytesInFlight(rollupMaxBytesInFlight)
+            .setBulkActions(DOWNSAMPLE_BULK_ACTIONS)
+            .setBulkSize(DOWNSAMPLE_BULK_SIZE)
+            .setMaxBytesInFlight(downsampleMaxBytesInFlight)
             .setMaxNumberOfRetries(3)
             .build();
     }
 
     private class TimeSeriesBucketCollector extends BucketCollector {
         private final BulkProcessor2 bulkProcessor;
-        private final RollupBucketBuilder rollupBucketBuilder;
+        private final DownsampleBucketBuilder downsampleBucketBuilder;
         private long docsProcessed;
         private long bucketsCreated;
         long lastTimestamp = Long.MAX_VALUE;
@@ -339,10 +342,10 @@ class RollupShardIndexer {
 
         TimeSeriesBucketCollector(BulkProcessor2 bulkProcessor) {
             this.bulkProcessor = bulkProcessor;
-            AbstractDownsampleFieldProducer[] rollupFieldProducers = fieldValueFetchers.stream()
-                .map(FieldValueFetcher::rollupFieldProducer)
+            AbstractDownsampleFieldProducer[] fieldProducers = fieldValueFetchers.stream()
+                .map(FieldValueFetcher::fieldProducer)
                 .toArray(AbstractDownsampleFieldProducer[]::new);
-            this.rollupBucketBuilder = new RollupBucketBuilder(rollupFieldProducers);
+            this.downsampleBucketBuilder = new DownsampleBucketBuilder(fieldProducers);
         }
 
         @Override
@@ -351,11 +354,11 @@ class RollupShardIndexer {
             final DocCountProvider docCountProvider = new DocCountProvider();
             docCountProvider.setLeafReaderContext(ctx);
 
-            // For each field, return a tuple with the rollup field producer and the field value leaf
+            // For each field, return a tuple with the downsample field producer and the field value leaf
             final AbstractDownsampleFieldProducer[] fieldProducers = new AbstractDownsampleFieldProducer[fieldValueFetchers.size()];
             final FormattedDocValues[] formattedDocValues = new FormattedDocValues[fieldValueFetchers.size()];
             for (int i = 0; i < fieldProducers.length; i++) {
-                fieldProducers[i] = fieldValueFetchers.get(i).rollupFieldProducer();
+                fieldProducers[i] = fieldValueFetchers.get(i).fieldProducer();
                 formattedDocValues[i] = fieldValueFetchers.get(i).getLeaf(ctx);
             }
 
@@ -368,7 +371,7 @@ class RollupShardIndexer {
                     final int tsidOrd = aggCtx.getTsidOrd();
                     final long timestamp = timestampField.resolution().roundDownToMillis(aggCtx.getTimestamp());
 
-                    boolean tsidChanged = tsidOrd != rollupBucketBuilder.tsidOrd();
+                    boolean tsidChanged = tsidOrd != downsampleBucketBuilder.tsidOrd();
                     if (tsidChanged || timestamp < lastHistoTimestamp) {
                         lastHistoTimestamp = Math.max(
                             rounding.round(timestamp),
@@ -380,7 +383,7 @@ class RollupShardIndexer {
 
                     if (logger.isTraceEnabled()) {
                         logger.trace(
-                            "Doc: [{}] - _tsid: [{}], @timestamp: [{}}] -> rollup bucket ts: [{}]",
+                            "Doc: [{}] - _tsid: [{}], @timestamp: [{}}] -> downsample bucket ts: [{}]",
                             docId,
                             DocValueFormat.TIME_SERIES_ID.format(tsid),
                             timestampFormat.format(timestamp),
@@ -393,7 +396,7 @@ class RollupShardIndexer {
                      * - _tsid must be sorted in ascending order
                      * - @timestamp must be sorted in descending order within the same _tsid
                      */
-                    BytesRef lastTsid = rollupBucketBuilder.tsid();
+                    BytesRef lastTsid = downsampleBucketBuilder.tsid();
                     assert lastTsid == null || lastTsid.compareTo(tsid) <= 0
                         : "_tsid is not sorted in ascending order: ["
                             + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
@@ -408,29 +411,29 @@ class RollupShardIndexer {
                             + "]";
                     lastTimestamp = timestamp;
 
-                    if (tsidChanged || rollupBucketBuilder.timestamp() != lastHistoTimestamp) {
-                        // Flush rollup doc if not empty
-                        if (rollupBucketBuilder.isEmpty() == false) {
-                            XContentBuilder doc = rollupBucketBuilder.buildRollupDocument();
+                    if (tsidChanged || downsampleBucketBuilder.timestamp() != lastHistoTimestamp) {
+                        // Flush downsample doc if not empty
+                        if (downsampleBucketBuilder.isEmpty() == false) {
+                            XContentBuilder doc = downsampleBucketBuilder.buildDownsampleDocument();
                             indexBucket(doc);
                         }
 
-                        // Create new rollup bucket
+                        // Create new downsample bucket
                         if (tsidChanged) {
-                            rollupBucketBuilder.resetTsid(tsid, tsidOrd, lastHistoTimestamp);
+                            downsampleBucketBuilder.resetTsid(tsid, tsidOrd, lastHistoTimestamp);
                         } else {
-                            rollupBucketBuilder.resetTimestamp(lastHistoTimestamp);
+                            downsampleBucketBuilder.resetTimestamp(lastHistoTimestamp);
                         }
                         bucketsCreated++;
                     }
 
                     final int docCount = docCountProvider.getDocCount(docId);
-                    rollupBucketBuilder.collectDocCount(docCount);
+                    downsampleBucketBuilder.collectDocCount(docCount);
                     // Iterate over all field values and collect the doc_values for this docId
                     for (int i = 0; i < fieldProducers.length; i++) {
-                        AbstractDownsampleFieldProducer rollupFieldProducer = fieldProducers[i];
+                        AbstractDownsampleFieldProducer fieldProducer = fieldProducers[i];
                         FormattedDocValues docValues = formattedDocValues[i];
-                        rollupFieldProducer.collect(docValues, docId);
+                        fieldProducer.collect(docValues, docId);
                     }
                     docsProcessed++;
                     task.setDocsProcessed(docsProcessed);
@@ -439,10 +442,10 @@ class RollupShardIndexer {
         }
 
         private void indexBucket(XContentBuilder doc) {
-            IndexRequestBuilder request = client.prepareIndex(rollupIndex);
+            IndexRequestBuilder request = client.prepareIndex(downsampleIndex);
             request.setSource(doc);
             if (logger.isTraceEnabled()) {
-                logger.trace("Indexing rollup doc: [{}]", Strings.toString(doc));
+                logger.trace("Indexing downsample doc: [{}]", Strings.toString(doc));
             }
             IndexRequest indexRequest = request.request();
             task.setLastIndexingTimestamp(System.currentTimeMillis());
@@ -457,16 +460,21 @@ class RollupShardIndexer {
 
         @Override
         public void postCollection() throws IOException {
-            // Flush rollup doc if not empty
-            if (rollupBucketBuilder.isEmpty() == false) {
-                XContentBuilder doc = rollupBucketBuilder.buildRollupDocument();
+            // Flush downsample doc if not empty
+            if (downsampleBucketBuilder.isEmpty() == false) {
+                XContentBuilder doc = downsampleBucketBuilder.buildDownsampleDocument();
                 indexBucket(doc);
             }
 
             // check cancel after the flush all data
             checkCancelled();
 
-            logger.info("Shard {} processed [{}] docs, created [{}] rollup buckets", indexShard.shardId(), docsProcessed, bucketsCreated);
+            logger.info(
+                "Shard {} processed [{}] docs, created [{}] downsample buckets",
+                indexShard.shardId(),
+                docsProcessed,
+                bucketsCreated
+            );
         }
 
         @Override
@@ -475,23 +483,23 @@ class RollupShardIndexer {
         }
     }
 
-    private class RollupBucketBuilder {
+    private class DownsampleBucketBuilder {
         private BytesRef tsid;
         private int tsidOrd = -1;
         private long timestamp;
         private int docCount;
-        private final AbstractDownsampleFieldProducer[] rollupFieldProducers;
+        private final AbstractDownsampleFieldProducer[] fieldProducers;
         private final DownsampleFieldSerializer[] groupedProducers;
 
-        RollupBucketBuilder(AbstractDownsampleFieldProducer[] rollupFieldProducers) {
-            this.rollupFieldProducers = rollupFieldProducers;
+        DownsampleBucketBuilder(AbstractDownsampleFieldProducer[] fieldProducers) {
+            this.fieldProducers = fieldProducers;
             /*
-             * The rollup field producers for aggregate_metric_double all share the same name (this is
+             * The downsample field producers for aggregate_metric_double all share the same name (this is
              * the name they will be serialized in the target index). We group all field producers by
-             * name. If grouping yields multiple rollup field producers, we delegate serialization to
+             * name. If grouping yields multiple downsample field producers, we delegate serialization to
              * the AggregateMetricFieldSerializer class.
              */
-            groupedProducers = Arrays.stream(rollupFieldProducers)
+            groupedProducers = Arrays.stream(fieldProducers)
                 .collect(groupingBy(AbstractDownsampleFieldProducer::name))
                 .entrySet()
                 .stream()
@@ -520,7 +528,7 @@ class RollupShardIndexer {
         public void resetTimestamp(long timestamp) {
             this.timestamp = timestamp;
             this.docCount = 0;
-            for (AbstractDownsampleFieldProducer producer : rollupFieldProducers) {
+            for (AbstractDownsampleFieldProducer producer : fieldProducers) {
                 producer.reset();
             }
             if (logger.isTraceEnabled()) {
@@ -536,7 +544,7 @@ class RollupShardIndexer {
             this.docCount += docCount;
         }
 
-        public XContentBuilder buildRollupDocument() throws IOException {
+        public XContentBuilder buildDownsampleDocument() throws IOException {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE);
             builder.startObject();
             if (isEmpty()) {

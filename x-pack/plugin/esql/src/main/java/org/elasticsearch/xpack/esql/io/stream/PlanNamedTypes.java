@@ -15,7 +15,6 @@ import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
-import org.elasticsearch.xpack.esql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -116,6 +115,7 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -828,7 +828,7 @@ public final class PlanNamedTypes {
         out.writeEnum(metadataAttribute.nullable());
         out.writeLong(Long.parseLong(metadataAttribute.id().toString()));
         out.writeBoolean(metadataAttribute.synthetic());
-        out.writeBoolean(metadataAttribute.docValues());
+        out.writeBoolean(metadataAttribute.searchable());
     }
 
     static UnsupportedAttribute readUnsupportedAttr(PlanStreamInput in) throws IOException {

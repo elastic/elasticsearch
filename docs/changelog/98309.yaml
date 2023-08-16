@@ -1,0 +1,5 @@
+pr: 98309
+summary: "Integrate Elasticsearch Query Language, ES|QL"
+area: ES|QL
+type: feature
+issues: []

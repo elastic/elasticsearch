@@ -27,8 +27,17 @@ public class EsqlFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     public EsqlFeatureSetUsage(Map<String, Object> stats) {
-        super(XPackField.ESQL, true, true);
+        this(true, true, stats);
+    }
+
+    private EsqlFeatureSetUsage(boolean available, boolean enabled, Map<String, Object> stats) {
+        super(XPackField.ESQL, available, enabled);
         this.stats = stats;
+    }
+
+    /** Returns a feature set usage where the feature is not available or enabled, and has an empty stats. */
+    public static EsqlFeatureSetUsage unavailable() {
+        return new EsqlFeatureSetUsage(false, false, Map.of());
     }
 
     public Map<String, Object> stats() {

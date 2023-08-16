@@ -54,7 +54,9 @@ include::settings/health-diagnostic-settings.asciidoc[]
 
 include::settings/ilm-settings.asciidoc[]
 
+ifeval::["{release-state}"=="unreleased"]
 include::settings/data-stream-lifecycle-settings.asciidoc[]
+endif::[]
 
 include::modules/indices/index_management.asciidoc[]
 

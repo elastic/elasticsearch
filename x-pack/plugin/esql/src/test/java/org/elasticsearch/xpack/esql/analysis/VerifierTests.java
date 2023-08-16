@@ -237,6 +237,12 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testPeriodAndDurationInRowAssignment() {
+        for (var unit : List.of("millisecond", "second", "minute", "hour", "day", "week", "month", "year")) {
+            assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+        }
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
 

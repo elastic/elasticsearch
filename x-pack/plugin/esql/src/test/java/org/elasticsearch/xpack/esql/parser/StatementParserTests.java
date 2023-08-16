@@ -103,13 +103,13 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testRowCommandMultivalueInt() {
-        assertEquals(new Row(EMPTY, List.of(new Alias(EMPTY, "c", integers(1, 2)))), statement("row c = [1, 2]"));
+        assertEquals(new Row(EMPTY, List.of(new Alias(EMPTY, "c", integers(1, 2, -5)))), statement("row c = [1, 2, -5]"));
     }
 
     public void testRowCommandMultivalueLong() {
         assertEquals(
-            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalLongs(2147483648L, 2147483649L)))),
-            statement("row c = [2147483648, 2147483649]")
+            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalLongs(2147483648L, 2147483649L, -434366649L)))),
+            statement("row c = [2147483648, 2147483649, -434366649]")
         );
     }
 
@@ -140,7 +140,7 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testRowCommandMultivalueDouble() {
-        assertEquals(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(1.0, 2.0)))), statement("row c = [1.0, 2.0]"));
+        assertEquals(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(1.0, 2.0, -3.4)))), statement("row c = [1.0, 2.0, -3.4]"));
     }
 
     public void testRowCommandBoolean() {

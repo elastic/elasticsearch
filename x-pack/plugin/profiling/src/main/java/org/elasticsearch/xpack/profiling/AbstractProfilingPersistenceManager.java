@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -94,7 +95,7 @@ public abstract class AbstractProfilingPersistenceManager<T extends AbstractProf
             return;
         }
 
-        if (isAllResourcesCreated(event) == false) {
+        if (isAllResourcesCreated(event, clusterService.getSettings()) == false) {
             logger.trace("Skipping index creation; not all required resources are present yet");
             return;
         }
@@ -116,8 +117,8 @@ public abstract class AbstractProfilingPersistenceManager<T extends AbstractProf
         }
     }
 
-    protected boolean isAllResourcesCreated(ClusterChangedEvent event) {
-        return ProfilingIndexTemplateRegistry.isAllResourcesCreated(event.state());
+    protected boolean isAllResourcesCreated(ClusterChangedEvent event, Settings settings) {
+        return ProfilingIndexTemplateRegistry.isAllResourcesCreated(event.state(), settings);
     }
 
     /**

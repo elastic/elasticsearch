@@ -57,12 +57,12 @@ public class MvMin extends AbstractMultivalueFunction {
         return NodeInfo.create(this, MvMin::new, field());
     }
 
-    @MvEvaluator(extraName = "Boolean")
+    @MvEvaluator(extraName = "Boolean", ascending = "ascendingIndex")
     static boolean process(boolean current, boolean v) {
         return current && v;
     }
 
-    @MvEvaluator(extraName = "BytesRef")
+    @MvEvaluator(extraName = "BytesRef", ascending = "ascendingIndex")
     static void process(BytesRef current, BytesRef v) {
         if (v.compareTo(current) < 0) {
             current.bytes = v.bytes;
@@ -71,18 +71,25 @@ public class MvMin extends AbstractMultivalueFunction {
         }
     }
 
-    @MvEvaluator(extraName = "Double")
+    @MvEvaluator(extraName = "Double", ascending = "ascendingIndex")
     static double process(double current, double v) {
         return Math.min(current, v);
     }
 
-    @MvEvaluator(extraName = "Int")
+    @MvEvaluator(extraName = "Int", ascending = "ascendingIndex")
     static int process(int current, int v) {
         return Math.min(current, v);
     }
 
-    @MvEvaluator(extraName = "Long")
+    @MvEvaluator(extraName = "Long", ascending = "ascendingIndex")
     static long process(long current, long v) {
         return Math.min(current, v);
+    }
+
+    /**
+     * If the values are ascending pick the first value.
+     */
+    static int ascendingIndex(int count) {
+        return 0;
     }
 }

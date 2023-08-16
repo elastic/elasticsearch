@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
+import static org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest.API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -38,13 +40,17 @@ public class GetApiKeyRequestTests extends ESTestCase {
         request = GetApiKeyRequest.builder().apiKeyName(randomAlphaOfLength(5)).ownedByAuthenticatedUser(randomBoolean()).build();
         ve = request.validate();
         assertNull(ve);
-        request = GetApiKeyRequest.builder().realmName(randomAlphaOfLength(5)).build();
+        request = GetApiKeyRequest.builder().realmName(randomAlphaOfLength(5)).activeOnly(randomBoolean()).build();
         ve = request.validate();
         assertNull(ve);
-        request = GetApiKeyRequest.builder().userName(randomAlphaOfLength(5)).build();
+        request = GetApiKeyRequest.builder().userName(randomAlphaOfLength(5)).activeOnly(randomBoolean()).build();
         ve = request.validate();
         assertNull(ve);
-        request = GetApiKeyRequest.builder().realmName(randomAlphaOfLength(5)).userName(randomAlphaOfLength(7)).build();
+        request = GetApiKeyRequest.builder()
+            .realmName(randomAlphaOfLength(5))
+            .userName(randomAlphaOfLength(7))
+            .activeOnly(randomBoolean())
+            .build();
         ve = request.validate();
         assertNull(ve);
     }
@@ -78,6 +84,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 out.writeOptionalString(apiKeyId);
                 out.writeOptionalString(apiKeyName);
                 out.writeOptionalBoolean(ownedByAuthenticatedUser);
+                out.writeBoolean(randomBoolean());
                 out.writeBoolean(randomBoolean());
             }
         }
@@ -143,6 +150,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 .apiKeyId(apiKeyId)
                 .ownedByAuthenticatedUser(true)
                 .withLimitedBy(randomBoolean())
+                .activeOnly(randomBoolean())
                 .build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
@@ -157,17 +165,48 @@ public class GetApiKeyRequestTests extends ESTestCase {
             assertThat(requestFromInputStream.ownedByAuthenticatedUser(), is(true));
             // old version so the default for `withLimitedBy` is false
             assertThat(requestFromInputStream.withLimitedBy(), is(false));
+            // old version so the default for `activeOnly` is false
+            assertThat(requestFromInputStream.activeOnly(), is(false));
         }
         {
-            final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(randomBoolean()).build();
+            final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder()
+                .apiKeyId(apiKeyId)
+                .ownedByAuthenticatedUser(randomBoolean())
+                .withLimitedBy(randomBoolean())
+                .activeOnly(randomBoolean())
+                .build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_8_5_0, TransportVersion.current()));
+            TransportVersion beforeActiveOnly = TransportVersionUtils.getPreviousVersion(API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION);
+            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_8_5_0, beforeActiveOnly));
+            getApiKeyRequest.writeTo(out);
+
+            InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
+            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_8_5_0, beforeActiveOnly));
+            GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
+
+            assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest.getApiKeyId()));
+            assertThat(requestFromInputStream.ownedByAuthenticatedUser(), is(getApiKeyRequest.ownedByAuthenticatedUser()));
+            assertThat(requestFromInputStream.withLimitedBy(), is(getApiKeyRequest.withLimitedBy()));
+            // old version so the default for `activeOnly` is false
+            assertThat(requestFromInputStream.activeOnly(), is(false));
+        }
+        {
+            final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder()
+                .apiKeyId(apiKeyId)
+                .withLimitedBy(randomBoolean())
+                .activeOnly(randomBoolean())
+                .build();
+            ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+            OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+            out.setTransportVersion(
+                randomVersionBetween(random(), API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION, TransportVersion.current())
+            );
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
             inputStreamStreamInput.setTransportVersion(
-                randomVersionBetween(random(), TransportVersion.V_8_5_0, TransportVersion.current())
+                randomVersionBetween(random(), API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION, TransportVersion.current())
             );
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 

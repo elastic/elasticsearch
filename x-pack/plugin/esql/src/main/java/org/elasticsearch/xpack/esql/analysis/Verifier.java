@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.xpack.esql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
@@ -148,8 +149,7 @@ public class Verifier {
                         );
                     }
                 });
-            }
-            if (p instanceof RegexExtract re) {
+            } else if (p instanceof RegexExtract re) {
                 Expression expr = re.input();
                 DataType type = expr.dataType();
                 if (EsqlDataTypes.isString(type) == false) {
@@ -163,7 +163,10 @@ public class Verifier {
                         )
                     );
                 }
+            } else if (p instanceof Row row) {
+                failures.addAll(validateRow(row));
             }
+
             p.forEachExpression(BinaryOperator.class, bo -> {
                 Failure f = validateUnsignedLongOperator(bo);
                 if (f != null) {
@@ -208,6 +211,16 @@ public class Verifier {
         for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
             metrics.inc(FeatureMetric.values()[i]);
         }
+    }
+
+    public static Collection<Failure> validateRow(Row row) {
+        List<Failure> failures = new ArrayList<>(row.fields().size());
+        row.fields().forEach(o -> {
+            if (EsqlDataTypes.isRepresentable(o.dataType()) == false && o instanceof Alias a) {
+                failures.add(fail(o, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
+            }
+        });
+        return failures;
     }
 
     /**

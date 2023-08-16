@@ -324,3 +324,10 @@ row integers = [+   1, -2, -300, -2147483648], longs = [1, -          2, -214748
 integers:integer            | longs:long            | longs2:long                   | doubles:double 
 [1, -2, -300, -2147483648]  | [1, -2, -2147483649]  | [1, -2, -9223372036854775808] | [1, -0.455, -2.43, 3.4, -0.12, 8]
 ;
+
+isNullIsNotNull
+row true_bool = null is null, false_bool = null is not null, negated_true = not(null is null), negated_false = not(null is not null);
+
+true_bool:boolean | false_bool:boolean | negated_true:boolean | negated_false:boolean
+true              | false              | false                | true
+;

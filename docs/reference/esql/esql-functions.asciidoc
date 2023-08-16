@@ -28,7 +28,6 @@ these functions:
 * <<esql-is_finite>>
 * <<esql-is_infinite>>
 * <<esql-is_nan>>
-* <<esql-is_null>>
 * <<esql-length>>
 * <<esql-log10>>
 * <<esql-ltrim>>
@@ -86,7 +85,6 @@ include::functions/floor.asciidoc[]
 include::functions/is_finite.asciidoc[]
 include::functions/is_infinite.asciidoc[]
 include::functions/is_nan.asciidoc[]
-include::functions/is_null.asciidoc[]
 include::functions/length.asciidoc[]
 include::functions/log10.asciidoc[]
 include::functions/ltrim.asciidoc[]

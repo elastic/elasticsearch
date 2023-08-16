@@ -42,7 +42,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.core.action.XPackUsageFeatureAction.DATA_LIFECYCLE;
+import static org.elasticsearch.xpack.core.action.XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
@@ -90,19 +90,28 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
             Map<String, DataStream> dataStreamMap = new HashMap<>();
             for (int dataStreamCount = 0; dataStreamCount < randomInt(200); dataStreamCount++) {
                 boolean hasLifecycle = randomBoolean();
-                long retentionMillis;
+                DataStreamLifecycle lifecycle;
                 if (hasLifecycle) {
-                    retentionMillis = randomLongBetween(1000, 100000);
-                    count.incrementAndGet();
-                    totalRetentionTimes.addAndGet(retentionMillis);
-                    if (retentionMillis < minRetention.get()) {
-                        minRetention.set(retentionMillis);
-                    }
-                    if (retentionMillis > maxRetention.get()) {
-                        maxRetention.set(retentionMillis);
+                    if (randomBoolean()) {
+                        lifecycle = new DataStreamLifecycle(null, null, null);
+                    } else {
+                        long retentionMillis = randomLongBetween(1000, 100000);
+                        boolean isEnabled = randomBoolean();
+                        if (isEnabled) {
+                            count.incrementAndGet();
+                            totalRetentionTimes.addAndGet(retentionMillis);
+
+                            if (retentionMillis < minRetention.get()) {
+                                minRetention.set(retentionMillis);
+                            }
+                            if (retentionMillis > maxRetention.get()) {
+                                maxRetention.set(retentionMillis);
+                            }
+                        }
+                        lifecycle = DataStreamLifecycle.newBuilder().dataRetention(retentionMillis).enabled(isEnabled).build();
                     }
                 } else {
-                    retentionMillis = 0;
+                    lifecycle = null;
                 }
                 List<Index> indices = new ArrayList<>();
                 for (int indicesCount = 0; indicesCount < randomIntBetween(1, 10); indicesCount++) {
@@ -120,7 +129,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                     systemDataStream,
                     randomBoolean(),
                     IndexMode.STANDARD,
-                    hasLifecycle ? new DataStreamLifecycle(retentionMillis) : null
+                    lifecycle
                 );
                 dataStreamMap.put(dataStream.getName(), dataStream);
             }
@@ -150,7 +159,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
         double averageRetention,
         boolean defaultRolloverUsed
     ) throws Exception {
-        XPackUsageFeatureResponse response = client().execute(DATA_LIFECYCLE, new XPackUsageRequest()).get();
+        XPackUsageFeatureResponse response = client().execute(DATA_STREAM_LIFECYCLE, new XPackUsageRequest()).get();
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder = response.getUsage().toXContent(builder, ToXContent.EMPTY_PARAMS);
         Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
@@ -203,7 +212,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
         @Override
         public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
             List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
-            actions.add(new ActionPlugin.ActionHandler<>(DATA_LIFECYCLE, DataLifecycleUsageTransportAction.class));
+            actions.add(new ActionPlugin.ActionHandler<>(DATA_STREAM_LIFECYCLE, DataStreamLifecycleUsageTransportAction.class));
             return actions;
         }
     }

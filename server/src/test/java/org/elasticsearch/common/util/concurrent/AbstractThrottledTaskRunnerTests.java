@@ -10,6 +10,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 
@@ -145,7 +146,7 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
     public void testFailsTasksOnRejectionOrShutdown() throws Exception {
         final var executor = randomBoolean()
             ? EsExecutors.newScaling("test", maxThreads, maxThreads, 0, TimeUnit.MILLISECONDS, true, threadFactory, threadContext)
-            : EsExecutors.newFixed("test", maxThreads, between(1, 5), threadFactory, threadContext, false);
+            : EsExecutors.newFixed("test", maxThreads, between(1, 5), threadFactory, threadContext, TaskTrackingConfig.DO_NOT_TRACK);
 
         final var totalPermits = between(1, maxThreads * 2);
         final var permits = new Semaphore(totalPermits);

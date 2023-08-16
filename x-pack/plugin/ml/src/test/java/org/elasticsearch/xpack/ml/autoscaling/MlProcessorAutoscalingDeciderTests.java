@@ -108,7 +108,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         MlProcessorAutoscalingCapacity capacity = decider.scale(
             Settings.EMPTY,
             newContext(clusterState),
-            new MlAutoscalingContext(clusterState)
+            new MlAutoscalingContext(clusterState),
+            1
         );
 
         assertThat(capacity.nodeProcessors(), equalTo(Processors.of(7.8)));
@@ -177,7 +178,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         MlProcessorAutoscalingCapacity capacity = decider.scale(
             Settings.EMPTY,
             newContext(clusterState),
-            new MlAutoscalingContext(clusterState)
+            new MlAutoscalingContext(clusterState),
+            1
         );
 
         assertThat(capacity.nodeProcessors(), equalTo(Processors.of(8.0)));
@@ -246,7 +248,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         MlProcessorAutoscalingCapacity capacity = decider.scale(
             Settings.EMPTY,
             newContext(clusterState),
-            new MlAutoscalingContext(clusterState)
+            new MlAutoscalingContext(clusterState),
+            1
         );
 
         assertThat(capacity.nodeProcessors(), equalTo(Processors.of(4.0)));
@@ -313,11 +316,22 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         MlProcessorAutoscalingCapacity capacity = decider.scale(
             Settings.EMPTY,
             newContext(clusterState),
-            new MlAutoscalingContext(clusterState)
+            new MlAutoscalingContext(clusterState),
+            1
         );
 
         assertThat(capacity.nodeProcessors(), equalTo(Processors.of(3.8)));
         assertThat(capacity.tierProcessors(), equalTo(Processors.of(7.6)));
+        assertThat(
+            capacity.reason(),
+            equalTo("not scaling down as model assignments require more than half of the ML tier's allocated processors")
+        );
+
+        // test with allocated processor scaling
+        capacity = decider.scale(Settings.EMPTY, newContext(clusterState), new MlAutoscalingContext(clusterState), 2);
+
+        assertThat(capacity.nodeProcessors(), equalTo(Processors.of(1.9)));
+        assertThat(capacity.tierProcessors(), equalTo(Processors.of(3.8)));
         assertThat(
             capacity.reason(),
             equalTo("not scaling down as model assignments require more than half of the ML tier's allocated processors")
@@ -384,7 +398,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         MlProcessorAutoscalingCapacity capacity = decider.scale(
             Settings.EMPTY,
             newContext(clusterState),
-            new MlAutoscalingContext(clusterState)
+            new MlAutoscalingContext(clusterState),
+            1
         );
 
         assertThat(capacity.nodeProcessors(), equalTo(Processors.of(7.9)));
@@ -456,7 +471,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         MlProcessorAutoscalingCapacity capacity = decider.scale(
             Settings.EMPTY,
             newContext(clusterState),
-            new MlAutoscalingContext(clusterState)
+            new MlAutoscalingContext(clusterState),
+            1
         );
 
         assertThat(capacity.nodeProcessors(), equalTo(Processors.of(2.0)));
@@ -528,7 +544,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         MlProcessorAutoscalingCapacity capacity = decider.scale(
             Settings.EMPTY,
             newContext(clusterState),
-            new MlAutoscalingContext(clusterState)
+            new MlAutoscalingContext(clusterState),
+            1
         );
 
         assertThat(capacity.nodeProcessors(), equalTo(Processors.ZERO));

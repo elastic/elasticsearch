@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
@@ -39,7 +40,7 @@ public class BertTokenizer extends NlpTokenizer {
     public static final String SEPARATOR_TOKEN = "[SEP]";
     public static final String PAD_TOKEN = "[PAD]";
     public static final String CLASS_TOKEN = "[CLS]";
-    public static final String MASK_TOKEN = "[MASK]";
+    public static final String MASK_TOKEN = BertTokenization.MASK_TOKEN;
 
     private static final Set<String> NEVER_SPLIT = Set.of(MASK_TOKEN);
 

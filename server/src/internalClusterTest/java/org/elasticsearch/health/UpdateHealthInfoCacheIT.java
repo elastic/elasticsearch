@@ -19,6 +19,7 @@ import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -71,6 +72,7 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
         }
     }
 
+    @TestLogging(value = "org.elasticsearch.health.node:DEBUG", reason = "https://github.com/elastic/elasticsearch/issues/97213")
     public void testHealthNodeFailOver() throws Exception {
         try (InternalTestCluster internalCluster = internalCluster()) {
             decreasePollingInterval(internalCluster);
@@ -88,6 +90,7 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
         }
     }
 
+    @TestLogging(value = "org.elasticsearch.health.node:DEBUG", reason = "https://github.com/elastic/elasticsearch/issues/97213")
     public void testMasterFailure() throws Exception {
         try (InternalTestCluster internalCluster = internalCluster()) {
             decreasePollingInterval(internalCluster);
@@ -128,7 +131,7 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
             new FetchHealthInfoCacheAction.Request()
         ).get();
         for (String nodeId : expectedNodeIds) {
-            assertThat(healthResponse.getHealthInfo().diskInfoByNode().get(nodeId), equalTo(GREEN));
+            assertThat("Unexpected data for " + nodeId, healthResponse.getHealthInfo().diskInfoByNode().get(nodeId), equalTo(GREEN));
         }
         if (notExpectedNodeId != null) {
             assertThat(healthResponse.getHealthInfo().diskInfoByNode().containsKey(notExpectedNodeId), equalTo(false));
@@ -136,7 +139,7 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
         Client healthNodeClient = internalCluster.client(healthNode.getName());
         healthResponse = healthNodeClient.execute(FetchHealthInfoCacheAction.INSTANCE, new FetchHealthInfoCacheAction.Request()).get();
         for (String nodeId : expectedNodeIds) {
-            assertThat(healthResponse.getHealthInfo().diskInfoByNode().get(nodeId), equalTo(GREEN));
+            assertThat("Unexpected data for " + nodeId, healthResponse.getHealthInfo().diskInfoByNode().get(nodeId), equalTo(GREEN));
         }
     }
 

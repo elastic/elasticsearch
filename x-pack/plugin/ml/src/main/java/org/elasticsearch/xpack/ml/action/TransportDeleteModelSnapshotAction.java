@@ -81,10 +81,10 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
             ModelSnapshot deleteCandidate = deleteCandidates.get(0);
 
             // Verify the snapshot is not being used
-            jobManager.getJob(request.getJobId(), ActionListener.wrap(job -> {
+            jobManager.getJob(request.getJobId(), listener.delegateFailureAndWrap((delegate, job) -> {
                 String currentModelInUse = job.getModelSnapshotId();
                 if (currentModelInUse != null && currentModelInUse.equals(request.getSnapshotId())) {
-                    listener.onFailure(
+                    delegate.onFailure(
                         new IllegalArgumentException(
                             Messages.getMessage(Messages.REST_CANNOT_DELETE_HIGHEST_PRIORITY, request.getSnapshotId(), request.getJobId())
                         )
@@ -94,7 +94,7 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
 
                 // Delete the snapshot and any associated state files
                 JobDataDeleter deleter = new JobDataDeleter(client, request.getJobId());
-                deleter.deleteModelSnapshots(Collections.singletonList(deleteCandidate), listener.delegateFailure((l, bulkResponse) -> {
+                deleter.deleteModelSnapshots(Collections.singletonList(deleteCandidate), delegate.safeMap(bulkResponse -> {
                     String msg = Messages.getMessage(
                         Messages.JOB_AUDIT_SNAPSHOT_DELETED,
                         deleteCandidate.getSnapshotId(),
@@ -104,9 +104,9 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
                     auditor.info(request.getJobId(), msg);
                     logger.debug(() -> format("[%s] %s", request.getJobId(), msg));
                     // We don't care about the bulk response, just that it succeeded
-                    l.onResponse(AcknowledgedResponse.TRUE);
+                    return AcknowledgedResponse.TRUE;
                 }));
-            }, listener::onFailure));
+            }));
         }, listener::onFailure);
     }
 }

@@ -626,7 +626,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 getWatcherThreadPoolSize(settings),
                 1000,
                 "xpack.watcher.thread_pool",
-                false
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             );
             return Collections.singletonList(builder);
         }

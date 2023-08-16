@@ -114,6 +114,8 @@ public final class Messages {
     public static final String INFERENCE_NOT_FOUND_MULTIPLE = "Could not find trained models {0}";
     public static final String INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION =
         "Configuration [{0}] requires minimum node version [{1}] (current minimum node version [{2}]";
+    public static final String INFERENCE_CONFIG_QUERY_BAD_FORMAT = "Inference config query is not parsable";
+    public static final String INFERENCE_CONFIG_INCORRECT_TYPE = "Inference config of type [{0}] is invalid, must be of type [{1}]";
     public static final String MODEL_DEFINITION_NOT_FOUND = "Could not find trained model definition [{0}]";
     public static final String MODEL_METADATA_NOT_FOUND = "Could not find trained model metadata {0}";
     public static final String VOCABULARY_NOT_FOUND = "Could not find vocabulary document [{1}] for trained model [{0}]";
@@ -154,7 +156,7 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_NO_DATA = "Datafeed has been retrieving no data for a while";
     public static final String JOB_AUDIT_DATAFEED_MISSING_DATA =
         "Datafeed has missed {0} documents due to ingest latency, latest bucket with missing data is [{1}]."
-            + " Consider increasing query_delay";
+            + " Consider increasing query_delay and investigate the cause of high latency in your ingestion process.";
     public static final String JOB_AUDIT_DATAFEED_RECOVERED = "Datafeed has recovered data extraction and analysis";
     public static final String JOB_AUDIT_DATAFEED_STARTED_FROM_TO = "Datafeed started (from: {0} to: {1}) with frequency [{2}]";
     public static final String JOB_AUDIT_DATAFEED_STARTED_REALTIME = "Datafeed started in real-time";

@@ -48,6 +48,7 @@ import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 
@@ -583,7 +584,11 @@ public class CancellableTasksIT extends ESIntegTestCase {
                             ACTION.name(),
                             subRequest,
                             transportRequestOptions,
-                            new ActionListenerResponseHandler<TestResponse>(latchedListener, TestResponse::new)
+                            new ActionListenerResponseHandler<TestResponse>(
+                                latchedListener,
+                                TestResponse::new,
+                                TransportResponseHandler.TRANSPORT_WORKER
+                            )
                         );
                     }
                 }

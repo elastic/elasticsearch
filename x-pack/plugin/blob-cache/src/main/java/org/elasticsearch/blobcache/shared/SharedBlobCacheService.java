@@ -286,7 +286,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     private final LongAdder evictCount = new LongAdder();
 
     public SharedBlobCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool, String ioExecutor) {
-        this(environment, settings, threadPool, ioExecutor, threadPool.executor(ioExecutor));
+        this(environment, settings, threadPool, ioExecutor, ioExecutor);
     }
 
     // gradlew requires 'rawtypes' even if IntelliJ doesn't
@@ -296,11 +296,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         Settings settings,
         ThreadPool threadPool,
         String ioExecutor,
-        Executor bulkIOExecutor
+        String bulkExecutor
     ) {
         this.threadPool = threadPool;
         this.ioExecutor = threadPool.executor(ioExecutor);
-        this.bulkIOExecutor = bulkIOExecutor;
+        this.bulkIOExecutor = threadPool.executor(bulkExecutor);
         long totalFsSize;
         try {
             totalFsSize = FsProbe.getTotal(Environment.getFileStore(environment.nodeDataPaths()[0]));

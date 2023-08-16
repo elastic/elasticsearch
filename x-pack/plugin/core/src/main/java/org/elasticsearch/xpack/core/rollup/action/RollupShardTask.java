@@ -9,15 +9,18 @@ package org.elasticsearch.xpack.core.rollup.action;
 
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class RollupShardTask extends CancellableTask {
+public class RollupShardTask extends AllocatedPersistentTask {
+    public static final String TASK_NAME = "rollup-shard";
     private final String rollupIndex;
     private volatile long totalShardDocCount;
     private volatile long docsProcessed;
@@ -37,20 +40,23 @@ public class RollupShardTask extends CancellableTask {
         RollupShardIndexerStatus.INITIALIZED
     );
     private final RollupBulkStats rollupBulkStats;
-    private final AtomicReference<RollupBeforeBulkInfo> lastBeforeBulkInfo = new AtomicReference<>(null);
-    private final AtomicReference<RollupAfterBulkInfo> lastAfterBulkInfo = new AtomicReference<>(null);
+    // Need to set initial values, because these atomic references can be read before bulk indexing started or when downsampling empty index
+    private final AtomicReference<RollupBeforeBulkInfo> lastBeforeBulkInfo = new AtomicReference<>(new RollupBeforeBulkInfo(0, 0, 0, 0));
+    private final AtomicReference<RollupAfterBulkInfo> lastAfterBulkInfo = new AtomicReference<>(
+        new RollupAfterBulkInfo(0, 0, 0, 0, false, 0)
+    );
 
     public RollupShardTask(
         long id,
-        String type,
-        String action,
-        TaskId parentTask,
-        String rollupIndex,
+        final String type,
+        final String action,
+        final TaskId parentTask,
+        final String rollupIndex,
         long indexStartTimeMillis,
         long indexEndTimeMillis,
-        DownsampleConfig config,
-        Map<String, String> headers,
-        ShardId shardId
+        final DownsampleConfig config,
+        final Map<String, String> headers,
+        final ShardId shardId
     ) {
         super(id, type, action, RollupField.NAME + "_" + rollupIndex + "[" + shardId.id() + "]", parentTask, headers);
         this.rollupIndex = rollupIndex;
@@ -60,6 +66,26 @@ public class RollupShardTask extends CancellableTask {
         this.shardId = shardId;
         this.rollupStartTime = System.currentTimeMillis();
         this.rollupBulkStats = new RollupBulkStats();
+    }
+
+    @Override
+    protected void init(
+        final PersistentTasksService persistentTasksService,
+        final TaskManager taskManager,
+        final String persistentTaskId,
+        final long allocationId
+    ) {
+        super.init(persistentTasksService, taskManager, persistentTaskId, allocationId);
+    }
+
+    // TODO: just for testing
+    public void testInit(
+        final PersistentTasksService persistentTasksService,
+        final TaskManager taskManager,
+        final String persistentTaskId,
+        final long allocationId
+    ) {
+        init(persistentTasksService, taskManager, persistentTaskId, allocationId);
     }
 
     public String getRollupIndex() {

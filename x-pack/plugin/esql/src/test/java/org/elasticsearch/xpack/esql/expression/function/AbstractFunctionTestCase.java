@@ -229,6 +229,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public final void testSimple() {
         Expression expression = buildFieldExpression(testCase);
         assertThat(expression.dataType(), equalTo(testCase.expectedType));
+        // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
         Object result = toJavaObject(evaluator(expression).get().eval(row(testCase.getDataValues())), 0);
         assertThat(result, testCase.getMatcher());
     }

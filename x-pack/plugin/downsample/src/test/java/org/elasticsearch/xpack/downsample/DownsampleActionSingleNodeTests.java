@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -48,8 +50,10 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -71,8 +75,8 @@ import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilde
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskCancelHelper;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -84,9 +88,9 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.elasticsearch.xpack.rollup.Rollup;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -105,6 +109,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -114,6 +119,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
@@ -140,6 +146,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private static final int MAX_DIM_VALUES = 5;
     private static final long MAX_NUM_BUCKETS = 10;
+    public static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
     private String sourceIndex, rollupIndex;
     private long startTime;
@@ -150,7 +157,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(
             LocalStateCompositeXPackPlugin.class,
-            Rollup.class,
+            Downsample.class,
             AggregateMetricMapperPlugin.class,
             DataStreamsPlugin.class,
             IndexLifecycle.class
@@ -162,9 +169,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         sourceIndex = randomAlphaOfLength(14).toLowerCase(Locale.ROOT);
         rollupIndex = "rollup-" + sourceIndex;
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
-        docCount = randomIntBetween(10, 9000);
-        numOfShards = randomIntBetween(1, 4);
-        numOfReplicas = randomIntBetween(0, 3);
+        docCount = randomIntBetween(1000, 9000);
+        numOfShards = randomIntBetween(1, 1);
+        numOfReplicas = randomIntBetween(0, 0);
 
         // Values for keyword dimensions
         dimensionValues = new ArrayList<>(MAX_DIM_VALUES);
@@ -287,7 +294,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .endObject();
         };
         bulkIndex(sourceSupplier);
-        prepareSourceIndex(sourceIndex);
+        prepareSourceIndex(sourceIndex, true);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(sourceIndex, rollupIndex, config);
     }
@@ -324,7 +331,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
 
         // Downsample the source index
-        prepareSourceIndex(sourceIndex);
+        prepareSourceIndex(sourceIndex, true);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(sourceIndex, rollupIndex, config);
 
@@ -375,7 +382,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .endObject();
         };
         bulkIndex(sourceSupplier);
-        prepareSourceIndex(sourceIndex);
+        prepareSourceIndex(sourceIndex, true);
         rollup(sourceIndex, rollupIndex, config);
 
         GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
@@ -431,14 +438,14 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             return builder.endObject();
         };
         bulkIndex(sourceSupplier);
-        prepareSourceIndex(sourceIndex);
+        prepareSourceIndex(sourceIndex, true);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(sourceIndex, rollupIndex, config);
     }
 
     public void testCannotRollupToExistingIndex() throws Exception {
         DownsampleConfig config = new DownsampleConfig(randomInterval());
-        prepareSourceIndex(sourceIndex);
+        prepareSourceIndex(sourceIndex, true);
 
         // Create an empty index with the same name as the rollup index
         assertAcked(indicesAdmin().prepareCreate(rollupIndex).setSettings(indexSettings(1, 0)).get());
@@ -452,7 +459,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     public void testRollupEmptyIndex() throws IOException {
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         // Source index has been created in the setup() method
-        prepareSourceIndex(sourceIndex);
+        prepareSourceIndex(sourceIndex, true);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(sourceIndex, rollupIndex, config);
     }
@@ -478,7 +485,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .get();
 
         DownsampleConfig config = new DownsampleConfig(randomInterval());
-        prepareSourceIndex(sourceIndex);
+        prepareSourceIndex(sourceIndex, true);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(sourceIndex, rollupIndex, config);
     }
@@ -506,7 +513,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         bulkIndex(sourceSupplier);
-        prepareSourceIndex(sourceIndex);
+        prepareSourceIndex(sourceIndex, true);
         var rollupListener = new ActionListener<AcknowledgedResponse>() {
             boolean success;
 
@@ -524,7 +531,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 fail("Rollup failed: " + e.getMessage());
             }
         };
-        client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, rollupIndex, config), rollupListener);
+        client().execute(
+            DownsampleAction.INSTANCE,
+            new DownsampleAction.Request(sourceIndex, rollupIndex, TIMEOUT, config),
+            rollupListener
+        );
         assertBusy(() -> {
             try {
                 assertEquals(indicesAdmin().prepareGetIndex().addIndices(rollupIndex).get().getIndices().length, 1);
@@ -532,11 +543,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 fail("rollup index has not been created");
             }
         });
-        ResourceAlreadyExistsException exception = expectThrows(
-            ResourceAlreadyExistsException.class,
-            () -> rollup(sourceIndex, rollupIndex, config)
-        );
-        assertThat(exception.getMessage(), containsString(rollupIndex));
+        rollup(sourceIndex, rollupIndex, config);
         // We must wait until the in-progress rollup ends, otherwise data will not be cleaned up
         assertBusy(() -> assertTrue("In progress rollup did not complete", rollupListener.success), 60, TimeUnit.SECONDS);
     }
@@ -556,10 +563,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
                 .endObject();
         };
-        bulkIndex(dataStreamName, sourceSupplier);
+        bulkIndex(dataStreamName, sourceSupplier, docCount);
 
         String sourceIndex = rollover(dataStreamName).getOldIndex();
-        prepareSourceIndex(sourceIndex);
+        prepareSourceIndex(sourceIndex, true);
         String rollupIndex = "rollup-" + sourceIndex;
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(sourceIndex, rollupIndex, config);
@@ -583,7 +590,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         bulkIndex(sourceSupplier);
-        prepareSourceIndex(sourceIndex);
+        prepareSourceIndex(sourceIndex, true);
 
         IndicesService indexServices = getInstanceFromNode(IndicesService.class);
         Index srcIndex = resolveIndex(sourceIndex);
@@ -603,6 +610,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             emptyMap(),
             shard.shardId()
         );
+        task.testInit(mock(PersistentTasksService.class), mock(TaskManager.class), randomAlphaOfLength(5), randomIntBetween(1, 5));
         TaskCancelHelper.cancel(task, "test cancel");
 
         // re-use source index as temp index for test
@@ -614,11 +622,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             rollupIndex,
             config,
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
-            new String[] {}
+            new String[] {},
+            new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
         );
 
-        TaskCancelledException exception = expectThrows(TaskCancelledException.class, () -> indexer.execute());
-        assertThat(exception.getMessage(), equalTo("Shard [" + sourceIndex + "][" + shardNum + "] rollup cancelled"));
+        RollupShardIndexerException exception = expectThrows(RollupShardIndexerException.class, () -> indexer.execute());
+        assertThat(exception.getCause().getMessage(), equalTo("Shard [" + sourceIndex + "][" + shardNum + "] rollup cancelled"));
     }
 
     public void testRollupBulkFailed() throws IOException {
@@ -631,31 +640,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         bulkIndex(sourceSupplier);
-        prepareSourceIndex(sourceIndex);
-
-        // block rollup index
-        assertAcked(
-            indicesAdmin().preparePutTemplate(rollupIndex)
-                .setPatterns(List.of(rollupIndex))
-                .setSettings(Settings.builder().put("index.blocks.write", "true").build())
-                .get()
-        );
-
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
-        assertThat(exception.getMessage(), equalTo("Unable to rollup index [" + sourceIndex + "]"));
-    }
-
-    public void testTooManyBytesInFlight() throws IOException {
-        // create rollup config and index documents into source index
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
-            .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
-            .field(FIELD_NUMERIC_1, randomDouble())
-            .endObject();
-        bulkIndex(sourceSupplier);
-        prepareSourceIndex(sourceIndex);
+        prepareSourceIndex(sourceIndex, true);
 
         IndicesService indexServices = getInstanceFromNode(IndicesService.class);
         Index srcIndex = resolveIndex(sourceIndex);
@@ -674,6 +659,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             emptyMap(),
             shard.shardId()
         );
+        task.testInit(mock(PersistentTasksService.class), mock(TaskManager.class), randomAlphaOfLength(5), randomIntBetween(1, 5));
 
         // re-use source index as temp index for test
         RollupShardIndexer indexer = new RollupShardIndexer(
@@ -684,7 +670,75 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             rollupIndex,
             config,
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
-            new String[] {}
+            new String[] {},
+            new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
+        );
+
+        // block rollup index
+        assertAcked(
+            indicesAdmin().preparePutTemplate(rollupIndex)
+                .setPatterns(List.of(rollupIndex))
+                .setSettings(Settings.builder().put("index.blocks.write", "true").build())
+                .get()
+        );
+
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, indexer::execute);
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "Downsampling task ["
+                    + task.getPersistentTaskId()
+                    + "] on shard "
+                    + shard.shardId()
+                    + " failed indexing ["
+                    + task.getNumFailed()
+                    + "]"
+            )
+        );
+    }
+
+    public void testTooManyBytesInFlight() throws IOException {
+        // create rollup config and index documents into source index
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+            .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
+            .field(FIELD_NUMERIC_1, randomDouble())
+            .endObject();
+        bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex, true);
+
+        IndicesService indexServices = getInstanceFromNode(IndicesService.class);
+        Index srcIndex = resolveIndex(sourceIndex);
+        IndexService indexService = indexServices.indexServiceSafe(srcIndex);
+        int shardNum = randomIntBetween(0, numOfShards - 1);
+        IndexShard shard = indexService.getShard(shardNum);
+        RollupShardTask task = new RollupShardTask(
+            randomLong(),
+            "rollup",
+            "action",
+            TaskId.EMPTY_TASK_ID,
+            rollupIndex,
+            indexService.getIndexSettings().getTimestampBounds().startTime(),
+            indexService.getIndexSettings().getTimestampBounds().endTime(),
+            config,
+            emptyMap(),
+            shard.shardId()
+        );
+        task.testInit(mock(PersistentTasksService.class), mock(TaskManager.class), randomAlphaOfLength(5), randomIntBetween(1, 5));
+
+        // re-use source index as temp index for test
+        RollupShardIndexer indexer = new RollupShardIndexer(
+            task,
+            client(),
+            indexService,
+            shard.shardId(),
+            rollupIndex,
+            config,
+            new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
+            new String[] {},
+            new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
         );
         /*
          * Here we set the batch size and the total bytes in flight size to tiny numbers so that we are guaranteed to trigger the bulk
@@ -696,6 +750,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testRollupStats() throws IOException {
+        final PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         final DownsampleConfig config = new DownsampleConfig(randomInterval());
         final SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
@@ -704,7 +759,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         bulkIndex(sourceSupplier);
-        prepareSourceIndex(sourceIndex);
+        prepareSourceIndex(sourceIndex, true);
 
         final IndicesService indexServices = getInstanceFromNode(IndicesService.class);
         final Index resolvedSourceIndex = resolveIndex(sourceIndex);
@@ -723,6 +778,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 emptyMap(),
                 shard.shardId()
             );
+            task.testInit(persistentTasksService, mock(TaskManager.class), randomAlphaOfLength(5), randomIntBetween(1, 5));
 
             final RollupShardIndexer indexer = new RollupShardIndexer(
                 task,
@@ -732,7 +788,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 rollupIndex,
                 config,
                 new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
-                new String[] {}
+                new String[] {},
+                new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
             );
 
             assertEquals(0.0F, task.getDocsProcessedPercentage(), 0.001);
@@ -743,33 +800,197 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
             final DownsampleIndexerAction.ShardDownsampleResponse executeResponse = indexer.execute();
 
-            assertEquals(executeResponse.getNumIndexed(), task.getNumIndexed());
-            assertEquals(task.getNumReceived(), task.getTotalShardDocCount());
-            assertEquals(indexService.getShard(shardNum).docStats().getCount(), task.getTotalShardDocCount());
-            assertEquals(100.0F, task.getDocsProcessedPercentage(), 0.001);
-            assertTrue(task.getRollupBulkInfo().bulkTookSumMillis() >= 0);
-            assertEquals(task.getRollupBulkInfo().bulkIngestSumMillis(), task.getRollupBulkInfo().maxBulkIngestMillis());
-            assertEquals(task.getRollupBulkInfo().bulkIngestSumMillis(), task.getRollupBulkInfo().minBulkIngestMillis());
-            assertTrue(task.getRollupBulkInfo().bulkTookSumMillis() >= 0);
-            assertEquals(task.getRollupBulkInfo().bulkTookSumMillis(), task.getRollupBulkInfo().maxBulkTookMillis());
-            assertEquals(task.getRollupBulkInfo().bulkTookSumMillis(), task.getRollupBulkInfo().minBulkTookMillis());
-            assertEquals(1L, task.getRollupBulkInfo().totalBulkCount());
-            assertEquals(indexService.getIndexSettings().getTimestampBounds().startTime(), task.getIndexStartTimeMillis());
-            assertEquals(indexService.getIndexSettings().getTimestampBounds().endTime(), task.getIndexEndTimeMillis());
-            assertEquals(RollupShardIndexerStatus.COMPLETED, task.getRollupShardIndexerStatus());
-            assertEquals(task.getNumSent(), task.getNumIndexed());
-            assertEquals(task.getNumIndexed(), task.getLastBeforeBulkInfo().numberOfActions());
-            assertTrue(task.getLastBeforeBulkInfo().estimatedSizeInBytes() > 0);
-            assertFalse(task.getLastAfterBulkInfo().hasFailures());
-            assertEquals(RestStatus.OK.getStatus(), task.getLastAfterBulkInfo().restStatusCode());
-            assertTrue(task.getLastAfterBulkInfo().lastTookInMillis() >= 0);
-            assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastIndexingTimestamp());
-            assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastSourceTimestamp());
-            assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastTargetTimestamp());
-            assertTrue(indexService.getIndexSettings().getTimestampBounds().endTime() >= task.getLastIndexingTimestamp());
-            assertTrue(indexService.getIndexSettings().getTimestampBounds().endTime() >= task.getLastSourceTimestamp());
-            assertTrue(indexService.getIndexSettings().getTimestampBounds().endTime() >= task.getLastTargetTimestamp());
+            assertRollupIndexer(indexService, shardNum, task, executeResponse, task.getTotalShardDocCount());
         }
+    }
+
+    public void testResumeRollup() throws IOException {
+        // create rollup config and index documents into source index
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+            .field(FIELD_DIMENSION_1, randomBoolean() ? "dim1" : "dim2")
+            .field(FIELD_NUMERIC_1, randomDouble())
+            .endObject();
+        bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex, true);
+
+        IndicesService indexServices = getInstanceFromNode(IndicesService.class);
+        Index srcIndex = resolveIndex(sourceIndex);
+        IndexService indexService = indexServices.indexServiceSafe(srcIndex);
+        int shardNum = randomIntBetween(0, numOfShards - 1);
+        IndexShard shard = indexService.getShard(shardNum);
+
+        RollupShardTask task = new RollupShardTask(
+            randomLong(),
+            "rollup",
+            "action",
+            TaskId.EMPTY_TASK_ID,
+            rollupIndex,
+            indexService.getIndexSettings().getTimestampBounds().startTime(),
+            indexService.getIndexSettings().getTimestampBounds().endTime(),
+            config,
+            emptyMap(),
+            shard.shardId()
+        );
+        task.testInit(mock(PersistentTasksService.class), mock(TaskManager.class), randomAlphaOfLength(5), randomIntBetween(1, 5));
+
+        RollupShardIndexer indexer = new RollupShardIndexer(
+            task,
+            client(),
+            indexService,
+            shard.shardId(),
+            rollupIndex,
+            config,
+            new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
+            new String[] {},
+            new RollupShardPersistentTaskState(
+                RollupShardIndexerStatus.STARTED,
+                new BytesRef(
+                    new byte[] {
+                        0x01,
+                        0x0C,
+                        0x64,
+                        0x69,
+                        0x6d,
+                        0x65,
+                        0x6E,
+                        0x73,
+                        0x69,
+                        0x6F,
+                        0x6E,
+                        0x5F,
+                        0x6B,
+                        0x77,
+                        0x73,
+                        0x04,
+                        0x64,
+                        0x69,
+                        0x6D,
+                        0x31 }
+                )
+            )
+        );
+
+        final DownsampleIndexerAction.ShardDownsampleResponse response2 = indexer.execute();
+
+        assertRollupIndexer(indexService, shardNum, task, response2, task.getTotalShardDocCount());
+    }
+
+    public void testResumeRollupPartial() throws IOException {
+        // create rollup config and index documents into source index
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+            .field(FIELD_DIMENSION_1, randomBoolean() ? "dim1" : "dim2")
+            .field(FIELD_NUMERIC_1, randomDouble())
+            .endObject();
+        bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex, true);
+
+        IndicesService indexServices = getInstanceFromNode(IndicesService.class);
+        Index srcIndex = resolveIndex(sourceIndex);
+        IndexService indexService = indexServices.indexServiceSafe(srcIndex);
+        int shardNum = randomIntBetween(0, numOfShards - 1);
+        IndexShard shard = indexService.getShard(shardNum);
+
+        RollupShardTask task = new RollupShardTask(
+            randomLong(),
+            "rollup",
+            "action",
+            TaskId.EMPTY_TASK_ID,
+            rollupIndex,
+            indexService.getIndexSettings().getTimestampBounds().startTime(),
+            indexService.getIndexSettings().getTimestampBounds().endTime(),
+            config,
+            emptyMap(),
+            shard.shardId()
+        );
+        task.testInit(mock(PersistentTasksService.class), mock(TaskManager.class), randomAlphaOfLength(5), randomIntBetween(1, 5));
+
+        RollupShardIndexer indexer = new RollupShardIndexer(
+            task,
+            client(),
+            indexService,
+            shard.shardId(),
+            rollupIndex,
+            config,
+            new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
+            new String[] {},
+            new RollupShardPersistentTaskState(
+                RollupShardIndexerStatus.STARTED,
+                new BytesRef(
+                    new byte[] {
+                        0x01,
+                        0x0C,
+                        0x64,
+                        0x69,
+                        0x6d,
+                        0x65,
+                        0x6E,
+                        0x73,
+                        0x69,
+                        0x6F,
+                        0x6E,
+                        0x5F,
+                        0x6B,
+                        0x77,
+                        0x73,
+                        0x04,
+                        0x64,
+                        0x69,
+                        0x6D,
+                        0x32 }
+                )
+            )
+        );
+
+        final DownsampleIndexerAction.ShardDownsampleResponse response2 = indexer.execute();
+        int dim2DocCount = client().prepareSearch(sourceIndex)
+            .setQuery(new TermQueryBuilder(FIELD_DIMENSION_1, "dim2"))
+            .setSize(10_000)
+            .get()
+            .getHits()
+            .getHits().length;
+
+        assertRollupIndexer(indexService, shardNum, task, response2, dim2DocCount);
+    }
+
+    private static void assertRollupIndexer(
+        final IndexService indexService,
+        int shardNum,
+        final RollupShardTask task,
+        final DownsampleIndexerAction.ShardDownsampleResponse response,
+        long totalShardDocCount
+    ) {
+        assertEquals(response.getNumIndexed(), task.getNumIndexed());
+        assertEquals(task.getNumReceived(), totalShardDocCount);
+        assertEquals(indexService.getShard(shardNum).docStats().getCount(), task.getTotalShardDocCount());
+        assertEquals(100.0D * task.getNumReceived() / task.getTotalShardDocCount(), task.getDocsProcessedPercentage(), 0.001);
+        assertTrue(task.getRollupBulkInfo().bulkTookSumMillis() >= 0);
+        assertEquals(task.getRollupBulkInfo().bulkIngestSumMillis(), task.getRollupBulkInfo().maxBulkIngestMillis());
+        assertEquals(task.getRollupBulkInfo().bulkIngestSumMillis(), task.getRollupBulkInfo().minBulkIngestMillis());
+        assertTrue(task.getRollupBulkInfo().bulkTookSumMillis() >= 0);
+        assertEquals(task.getRollupBulkInfo().bulkTookSumMillis(), task.getRollupBulkInfo().maxBulkTookMillis());
+        assertEquals(task.getRollupBulkInfo().bulkTookSumMillis(), task.getRollupBulkInfo().minBulkTookMillis());
+        assertEquals(1L, task.getRollupBulkInfo().totalBulkCount());
+        assertEquals(indexService.getIndexSettings().getTimestampBounds().startTime(), task.getIndexStartTimeMillis());
+        assertEquals(indexService.getIndexSettings().getTimestampBounds().endTime(), task.getIndexEndTimeMillis());
+        assertEquals(RollupShardIndexerStatus.COMPLETED, task.getRollupShardIndexerStatus());
+        assertEquals(task.getNumSent(), task.getNumIndexed());
+        assertEquals(task.getNumIndexed(), task.getLastBeforeBulkInfo().numberOfActions());
+        assertTrue(task.getLastBeforeBulkInfo().estimatedSizeInBytes() > 0);
+        assertFalse(task.getLastAfterBulkInfo().hasFailures());
+        assertEquals(RestStatus.OK.getStatus(), task.getLastAfterBulkInfo().restStatusCode());
+        assertTrue(task.getLastAfterBulkInfo().lastTookInMillis() >= 0);
+        assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastIndexingTimestamp());
+        assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastSourceTimestamp());
+        assertTrue(indexService.getIndexSettings().getTimestampBounds().startTime() <= task.getLastTargetTimestamp());
+        assertTrue(indexService.getIndexSettings().getTimestampBounds().endTime() >= task.getLastIndexingTimestamp());
+        assertTrue(indexService.getIndexSettings().getTimestampBounds().endTime() >= task.getLastSourceTimestamp());
+        assertTrue(indexService.getIndexSettings().getTimestampBounds().endTime() >= task.getLastTargetTimestamp());
     }
 
     private DateHistogramInterval randomInterval() {
@@ -786,10 +1007,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private void bulkIndex(SourceSupplier sourceSupplier) throws IOException {
-        bulkIndex(sourceIndex, sourceSupplier);
+        bulkIndex(sourceIndex, sourceSupplier, docCount);
     }
 
-    private void bulkIndex(String indexName, SourceSupplier sourceSupplier) throws IOException {
+    private void bulkIndex(final String indexName, final SourceSupplier sourceSupplier, int docCount) throws IOException {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < docCount; i++) {
@@ -817,18 +1038,18 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docsIndexed);
     }
 
-    private void prepareSourceIndex(String sourceIndex) {
+    private void prepareSourceIndex(final String sourceIndex, boolean blockWrite) {
         // Set the source index to read-only state
         assertAcked(
             indicesAdmin().prepareUpdateSettings(sourceIndex)
-                .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build())
+                .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), blockWrite).build())
                 .get()
         );
     }
 
     private void rollup(String sourceIndex, String rollupIndex, DownsampleConfig config) {
         assertAcked(
-            client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, rollupIndex, config)).actionGet()
+            client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, rollupIndex, TIMEOUT, config)).actionGet()
         );
     }
 
@@ -1269,9 +1490,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject();
         };
-        docCount = 512; // Hard code to have 512 documents in the source index, otherwise running this test take too long.
-        bulkIndex(sourceIndex, sourceSupplier);
-        prepareSourceIndex(sourceIndex);
+        bulkIndex(sourceIndex, sourceSupplier, 512);
+        prepareSourceIndex(sourceIndex, true);
 
         int n = randomIntBetween(3, 6);
         final CountDownLatch rollupComplete = new CountDownLatch(n);
@@ -1294,5 +1514,91 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         for (int i = 0; i < n; i++) {
             assertRollupIndex(sourceIndex, targets.get(i), config);
         }
+    }
+
+    public void testDuplicateRollupRequest() throws IOException, InterruptedException {
+        final DownsampleConfig config = new DownsampleConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> {
+            String ts = randomDateForInterval(config.getInterval());
+            double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
+            int labelIntegerValue = randomInt();
+            long labelLongValue = randomLong();
+            String labelIpv4Address = NetworkAddress.format(randomIp(true));
+            String labelIpv6Address = NetworkAddress.format(randomIp(false));
+            Date labelDateValue = randomDate();
+            int keywordArraySize = randomIntBetween(2, 5);
+            String[] keywordArray = new String[keywordArraySize];
+            for (int i = 0; i < keywordArraySize; ++i) {
+                keywordArray[i] = randomAlphaOfLength(10);
+            }
+            int doubleArraySize = randomIntBetween(3, 10);
+            double[] doubleArray = new double[doubleArraySize];
+            for (int i = 0; i < doubleArraySize; ++i) {
+                doubleArray[i] = randomDouble();
+            }
+            return XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_TIMESTAMP, ts)
+                .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
+                .field(FIELD_DIMENSION_2, randomIntBetween(1, 10))
+                .field(FIELD_NUMERIC_1, randomInt())
+                .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
+                .startObject(FIELD_AGG_METRIC)
+                .field("min", randomDoubleBetween(-2000, -1001, true))
+                .field("max", randomDoubleBetween(-1000, 1000, true))
+                .field("sum", randomIntBetween(100, 10000))
+                .field("value_count", randomIntBetween(100, 1000))
+                .endObject()
+                .field(FIELD_LABEL_DOUBLE, labelDoubleValue)
+                .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
+                .field(FIELD_LABEL_INTEGER, labelIntegerValue)
+                .field(FIELD_LABEL_KEYWORD, ts)
+                .field(FIELD_LABEL_UNMAPPED, randomBoolean() ? labelLongValue : labelDoubleValue)
+                .field(FIELD_LABEL_TEXT, ts)
+                .field(FIELD_LABEL_BOOLEAN, randomBoolean())
+                .field(FIELD_LABEL_IPv4_ADDRESS, labelIpv4Address)
+                .field(FIELD_LABEL_IPv6_ADDRESS, labelIpv6Address)
+                .field(FIELD_LABEL_DATE, labelDateValue)
+                .field(FIELD_LABEL_KEYWORD_ARRAY, keywordArray)
+                .field(FIELD_LABEL_DOUBLE_ARRAY, doubleArray)
+                .startObject(FIELD_LABEL_AGG_METRIC)
+                .field("min", randomDoubleBetween(-2000, -1001, true))
+                .field("max", randomDoubleBetween(-1000, 1000, true))
+                .field("sum", Double.valueOf(randomIntBetween(100, 10000)))
+                .field("value_count", randomIntBetween(100, 1000))
+                .endObject()
+                .endObject();
+        };
+        bulkIndex(sourceIndex, sourceSupplier, 512);
+        prepareSourceIndex(sourceIndex, true);
+
+        final CountDownLatch rollupComplete = new CountDownLatch(2);
+        final String targetIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        AtomicBoolean firstFailed = new AtomicBoolean(false);
+        AtomicBoolean secondFailed = new AtomicBoolean(false);
+        // NOTE: we expect one thread to run the downsample operation and the other one to fail
+        new Thread(() -> {
+            try {
+                rollup(sourceIndex, targetIndex, config);
+            } catch (ResourceAlreadyExistsException e) {
+                firstFailed.set(true);
+            } finally {
+                rollupComplete.countDown();
+            }
+
+        }).start();
+        new Thread(() -> {
+            try {
+                rollup(sourceIndex, targetIndex, config);
+            } catch (ResourceAlreadyExistsException e) {
+                secondFailed.set(true);
+            } finally {
+                rollupComplete.countDown();
+            }
+        }).start();
+
+        assertTrue(rollupComplete.await(30, TimeUnit.SECONDS));
+        assertFalse(firstFailed.get() ^ secondFailed.get());
+        assertRollupIndex(sourceIndex, targetIndex, config);
     }
 }

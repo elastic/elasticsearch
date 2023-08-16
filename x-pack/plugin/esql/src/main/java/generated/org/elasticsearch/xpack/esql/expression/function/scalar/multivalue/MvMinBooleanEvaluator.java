@@ -26,8 +26,14 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
     return "MvMin";
   }
 
+  /**
+   * Evaluate blocks containing at least one multivalued field.
+   */
   @Override
   public Block evalNullable(Block fieldVal) {
+    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+      return evalAscendingNullable(fieldVal);
+    }
     BooleanBlock v = (BooleanBlock) fieldVal;
     int positionCount = v.getPositionCount();
     BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount);
@@ -50,8 +56,14 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
     return builder.build();
   }
 
+  /**
+   * Evaluate blocks containing at least one multivalued field.
+   */
   @Override
   public Vector evalNotNullable(Block fieldVal) {
+    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+      return evalAscendingNotNullable(fieldVal);
+    }
     BooleanBlock v = (BooleanBlock) fieldVal;
     int positionCount = v.getPositionCount();
     boolean[] values = new boolean[positionCount];
@@ -65,6 +77,44 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
         value = MvMin.process(value, next);
       }
       boolean result = value;
+      values[p] = result;
+    }
+    return new BooleanArrayVector(values, positionCount);
+  }
+
+  /**
+   * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
+   */
+  private Block evalAscendingNullable(Block fieldVal) {
+    BooleanBlock v = (BooleanBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount);
+    for (int p = 0; p < positionCount; p++) {
+      int valueCount = v.getValueCount(p);
+      if (valueCount == 0) {
+        builder.appendNull();
+        continue;
+      }
+      int first = v.getFirstValueIndex(p);
+      int idx = MvMin.ascendingIndex(valueCount);
+      boolean result = v.getBoolean(first + idx);
+      builder.appendBoolean(result);
+    }
+    return builder.build();
+  }
+
+  /**
+   * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
+   */
+  private Vector evalAscendingNotNullable(Block fieldVal) {
+    BooleanBlock v = (BooleanBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    boolean[] values = new boolean[positionCount];
+    for (int p = 0; p < positionCount; p++) {
+      int valueCount = v.getValueCount(p);
+      int first = v.getFirstValueIndex(p);
+      int idx = MvMin.ascendingIndex(valueCount);
+      boolean result = v.getBoolean(first + idx);
       values[p] = result;
     }
     return new BooleanArrayVector(values, positionCount);

@@ -117,6 +117,6 @@ abstract class ArithmeticMapper<T extends ArithmeticOperation> extends EvalMappe
                 return castToEvaluator(op, layout, DataTypes.DOUBLE, doubles);
             }
         }
-        throw new AssertionError("resolved type for [" + op + "] but didn't implement mapping");
+        throw new UnsupportedOperationException("resolved type for [" + op + "] but didn't implement mapping");
     }
 }

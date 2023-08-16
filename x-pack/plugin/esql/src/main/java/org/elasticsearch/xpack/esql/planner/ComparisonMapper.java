@@ -107,7 +107,7 @@ abstract class ComparisonMapper<T extends BinaryComparison> extends EvalMapper.E
         this.longs = longs;
         this.doubles = doubles;
         this.keywords = keywords;
-        this.bools = (lhs, rhs) -> { throw new AssertionError("bool unsupported"); };
+        this.bools = (lhs, rhs) -> { throw new UnsupportedOperationException("bool unsupported"); };
     }
 
     @Override
@@ -140,7 +140,7 @@ abstract class ComparisonMapper<T extends BinaryComparison> extends EvalMapper.E
         if (leftType == DataTypes.DATETIME) {
             return () -> longs.apply(leftEval.get(), rightEval.get());
         }
-        throw new AssertionError("resolved type for [" + bc + "] but didn't implement mapping");
+        throw new UnsupportedOperationException("resolved type for [" + bc + "] but didn't implement mapping");
     }
 
     static Supplier<EvalOperator.ExpressionEvaluator> castToEvaluator(

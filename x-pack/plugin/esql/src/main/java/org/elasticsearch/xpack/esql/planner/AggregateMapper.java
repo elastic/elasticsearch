@@ -118,7 +118,7 @@ public class AggregateMapper {
     private List<IntermediateStateDesc> getNonNull(AggDef aggDef) {
         var l = mapper.get(aggDef);
         if (l == null) {
-            throw new AssertionError("Cannot find intermediate state for: " + aggDef);
+            throw new UnsupportedOperationException("Cannot find intermediate state for: " + aggDef);
         }
         return l;
     }
@@ -156,7 +156,8 @@ public class AggregateMapper {
         try {
             return (List<IntermediateStateDesc>) lookup(aggDef.aggClazz(), aggDef.type(), aggDef.grouping()).invokeExact();
         } catch (Throwable t) {
-            throw new AssertionError(t);
+            // invokeExact forces us to handle any Throwable thrown by lookup.
+            throw new UnsupportedOperationException(t);
         }
     }
 
@@ -170,7 +171,7 @@ public class AggregateMapper {
                     MethodType.methodType(List.class)
                 );
         } catch (IllegalAccessException | NoSuchMethodException | ClassNotFoundException e) {
-            throw new AssertionError(e);
+            throw new UnsupportedOperationException(e);
         }
     }
 

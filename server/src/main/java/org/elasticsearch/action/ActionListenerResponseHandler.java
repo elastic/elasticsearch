@@ -21,8 +21,7 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 
 /**
- * A simple base class for action response listeners, defaulting to using the SAME executor (as its
- * very common on response handlers).
+ * An adapter for handling transport responses using an {@link ActionListener}.
  */
 public class ActionListenerResponseHandler<Response extends TransportResponse> implements TransportResponseHandler<Response> {
 
@@ -30,14 +29,19 @@ public class ActionListenerResponseHandler<Response extends TransportResponse> i
     private final Writeable.Reader<Response> reader;
     private final Executor executor;
 
+    /**
+     * @param listener The listener to notify with the transport response received.
+     * @param reader   Used to deserialize the response.
+     * @param executor The executor to use to deserialize the response and notify the listener. You must only use
+     *                 {@link EsExecutors#DIRECT_EXECUTOR_SERVICE} (or equivalently {@link TransportResponseHandler#TRANSPORT_WORKER})
+     *                 for very performance-critical actions, and even then only if the deserialization and handling work is very cheap,
+     *                 because this executor will perform because this executor will perform all the work for responses from remote nodes on
+     *                 the receiving transport worker itself.
+     */
     public ActionListenerResponseHandler(ActionListener<? super Response> listener, Writeable.Reader<Response> reader, Executor executor) {
         this.listener = Objects.requireNonNull(listener);
         this.reader = Objects.requireNonNull(reader);
         this.executor = Objects.requireNonNull(executor);
-    }
-
-    public ActionListenerResponseHandler(ActionListener<? super Response> listener, Writeable.Reader<Response> reader) {
-        this(listener, reader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     @Override

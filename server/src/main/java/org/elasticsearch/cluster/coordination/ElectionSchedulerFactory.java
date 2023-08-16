@@ -218,11 +218,12 @@ public class ElectionSchedulerFactory {
 
         @Override
         public String toString() {
-            return "ElectionScheduler{attempt=" + attempt + ", " + ElectionSchedulerFactory.this + "}";
+            return "ElectionScheduler{attempt=" + attempt + ",isClosed=" + isClosed.get() + "," + ElectionSchedulerFactory.this + "}";
         }
 
         @Override
         public void close() {
+            logger.trace("closing {}", this);
             boolean wasNotPreviouslyClosed = isClosed.compareAndSet(false, true);
             assert wasNotPreviouslyClosed;
         }

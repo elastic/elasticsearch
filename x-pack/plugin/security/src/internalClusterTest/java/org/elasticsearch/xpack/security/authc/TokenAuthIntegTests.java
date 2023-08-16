@@ -92,20 +92,20 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         final OAuth2Token token = createToken(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING);
         for (TokenService tokenService : internalCluster().getInstances(TokenService.class)) {
             PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
-            tokenService.decodeToken(token.accessToken(), userTokenFuture);
+            tokenService.decodeToken(token.accessToken(), false, userTokenFuture);
             assertNotNull(userTokenFuture.actionGet());
         }
         // start a new node and see if it can decrypt the token
         String nodeName = internalCluster().startNode();
         for (TokenService tokenService : internalCluster().getInstances(TokenService.class)) {
             PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
-            tokenService.decodeToken(token.accessToken(), userTokenFuture);
+            tokenService.decodeToken(token.accessToken(), false, userTokenFuture);
             assertNotNull(userTokenFuture.actionGet());
         }
 
         TokenService tokenService = internalCluster().getInstance(TokenService.class, nodeName);
         PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
-        tokenService.decodeToken(token.accessToken(), userTokenFuture);
+        tokenService.decodeToken(token.accessToken(), false, userTokenFuture);
         assertNotNull(userTokenFuture.actionGet());
     }
 
@@ -531,6 +531,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // We now have two documents, the original(now refreshed) token doc and the new one with the new access doc
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
+            // refresh to make sure the token docs are visible
+            Request refreshRequest = new Request(HttpPost.METHOD_NAME, SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_refresh");
+            refreshRequest.setOptions(SECURITY_REQUEST_OPTIONS);
+            getRestClient().performRequest(refreshRequest);
             Request searchRequest = new Request(HttpPost.METHOD_NAME, SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_search");
             searchRequest.setOptions(SECURITY_REQUEST_OPTIONS);
             searchRequest.setJsonEntity("""
@@ -585,7 +589,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(e, throwableWithMessage(containsString("token has already been refreshed more than 30 seconds in the past")));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85697")
     public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
         final Clock clock = Clock.systemUTC();
         final List<String> tokens = Collections.synchronizedList(new ArrayList<>());

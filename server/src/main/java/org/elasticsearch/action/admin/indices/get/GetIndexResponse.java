@@ -183,7 +183,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.concat(
             Iterators.single((builder, params) -> builder.startObject()),
-            Arrays.stream(indices).<ToXContent>map(index -> (builder, params) -> {
+            Iterators.map(Iterators.forArray(indices), index -> (builder, params) -> {
                 builder.startObject(index);
 
                 builder.startObject("aliases");
@@ -229,7 +229,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
                 }
 
                 return builder.endObject();
-            }).iterator(),
+            }),
             Iterators.single((builder, params) -> builder.endObject())
         );
     }

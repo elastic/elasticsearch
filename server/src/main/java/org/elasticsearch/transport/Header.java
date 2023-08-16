@@ -49,10 +49,6 @@ public class Header {
         return requestId;
     }
 
-    byte getStatus() {
-        return status;
-    }
-
     boolean isRequest() {
         return TransportStatus.isRequest(status);
     }

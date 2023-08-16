@@ -105,7 +105,9 @@ index:
       "managed_by_lifecycle" : true,
       "index_creation_date_millis" : 1679475563571,
       "time_since_index_creation" : "843ms",
-      "lifecycle" : { },
+      "lifecycle" : {
+        "enabled": true
+      },
       "error": "{\"type\":\"validation_exception\",\"reason\":\"Validation Failed: 1: this action would add [2] shards, but this cluster
 currently has [4]/[3] maximum normal shards open;\"}"        <1>
   }

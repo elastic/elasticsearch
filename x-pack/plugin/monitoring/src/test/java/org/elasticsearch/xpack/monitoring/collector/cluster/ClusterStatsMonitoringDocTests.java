@@ -575,13 +575,17 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "built_in_char_filters": [],
                     "built_in_tokenizers": [],
                     "built_in_filters": [],
-                    "built_in_analyzers": []
+                    "built_in_analyzers": [],
+                    "synonyms": {}
                   },
                   "versions": [],
                   "search" : {
                     "total" : 0,
                     "queries" : {},
                     "sections" : {}
+                  },
+                  "dense_vector": {
+                    "value_count": 0
                   }
                 },
                 "nodes": {

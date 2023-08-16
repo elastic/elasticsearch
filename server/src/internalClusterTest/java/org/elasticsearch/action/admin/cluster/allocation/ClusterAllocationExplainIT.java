@@ -1188,7 +1188,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                 assertNotEquals(Token.END_OBJECT, parser.currentToken());
             } while (parser.currentName() != "roles");
 
-            // Check that the "roles" reported are those set via the node Settings.
+            // Check that the "roles" reported are those explicitly set via the node Settings.
             // Note: list() implicitly consumes the parser START_ARRAY and END_ARRAY tokens.
             assertEquals(Arrays.asList("data_hot", "ingest", "master"), parser.list());
         }

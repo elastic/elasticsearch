@@ -33,7 +33,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Locale;
 
@@ -110,7 +109,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             cae.getCurrentNode().getId(),
             cae.getCurrentNode().getName(),
             cae.getCurrentNode().getAddress(),
-            "data",
+            "data",  // begin roles array
             "data_cold",
             "data_content",
             "data_frozen",
@@ -123,7 +122,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             "remote_cluster_client",
             "search",
             "transform",
-            "voting_only",
+            "voting_only",  // end roles array
             explanation };
         assertEquals(XContentHelper.stripWhitespace(Strings.format("""
             {

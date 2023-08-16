@@ -94,7 +94,7 @@
   - is_true: rebalance_explanation
 
 ---
-"Cluster shard allocation explanation test includes node's roles":
+"Cluster allocation explanation response includes node's roles":
   - skip:
       version: " - 8.9.99"
       reason: The roles field was introduced in 8.10.0

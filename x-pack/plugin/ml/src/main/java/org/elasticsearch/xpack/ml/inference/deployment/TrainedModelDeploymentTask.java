@@ -102,8 +102,14 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         return params;
     }
 
-    public void stop(String reason, ActionListener<AcknowledgedResponse> listener) {
-        trainedModelAssignmentNodeService.stopDeploymentAndNotify(this, reason, listener);
+    public void stop(String reason, boolean waitForCompletion, ActionListener<AcknowledgedResponse> listener) {
+
+        if (waitForCompletion) {
+            // TODO call graceful stop here
+            trainedModelAssignmentNodeService.stopDeploymentAndNotify(this, reason, listener);
+        } else {
+            trainedModelAssignmentNodeService.stopDeploymentAndNotify(this, reason, listener);
+        }
     }
 
     public void markAsStopped(String reason) {

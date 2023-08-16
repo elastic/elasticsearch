@@ -55,6 +55,12 @@ public class RestStopTrainedModelDeploymentAction extends BaseRestHandler {
             request.setForce(
                 restRequest.paramAsBoolean(StopTrainedModelDeploymentAction.Request.FORCE.getPreferredName(), request.isForce())
             );
+            request.setWaitForCompletion(
+                restRequest.paramAsBoolean(
+                    StopTrainedModelDeploymentAction.Request.WAIT_FOR_COMPLETION.getPreferredName(),
+                    request.shouldWaitForCompletion()
+                )
+            );
         }
         return channel -> client.execute(StopTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

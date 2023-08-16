@@ -14,14 +14,19 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.planner.EvalMapper;
+import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -127,7 +132,23 @@ public class CoalesceTests extends AbstractFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
+    protected Coalesce build(Source source, List<Expression> args) {
         return new Coalesce(Source.EMPTY, args.stream().toList());
+    }
+
+    public void testCoalesceIsLazy() {
+        List<Expression> sub = new ArrayList<>(testCase.getDataAsFields());
+        FieldAttribute evil = new FieldAttribute(Source.EMPTY, "evil", new EsField("evil", sub.get(0).dataType(), Map.of(), true));
+        sub.add(evil);
+        Coalesce exp = build(Source.EMPTY, sub);
+        Layout.Builder builder = new Layout.Builder();
+        buildLayout(builder, exp);
+        Layout layout = builder.build();
+        assertThat(toJavaObject(exp.toEvaluator(child -> {
+            if (child == evil) {
+                return () -> page -> { throw new AssertionError("shouldn't be called"); };
+            }
+            return EvalMapper.toEvaluator(child, layout);
+        }).get().eval(row(testCase.getDataValues())), 0), testCase.getMatcher());
     }
 }

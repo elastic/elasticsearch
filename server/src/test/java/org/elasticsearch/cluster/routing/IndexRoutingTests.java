@@ -583,6 +583,12 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(routing, Map.of("foo.bar", "cat", "baz", "dog"), Math.floorMod(hash(List.of("foo.bar", "cat")), shards));
     }
 
+    public void testRoutingPathNumbersInSource() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting routing = indexRoutingForPath(shards, "foo");
+        assertIndexShard(routing, Map.of("foo", 123), Math.floorMod(hash(List.of("foo", "123")), shards));
+    }
+
     public void testRoutingPathBwc() throws IOException {
         IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
         IndexRouting routing = indexRoutingForPath(version, 8, "dim.*,other.*,top");

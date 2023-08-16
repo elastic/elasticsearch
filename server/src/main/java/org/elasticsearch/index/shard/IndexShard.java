@@ -2174,6 +2174,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 );
             }
         } else {
+            if (writeAllowedStates.contains(state) == false) {
+                throw new IllegalIndexShardStateException(
+                    shardId,
+                    state,
+                    "operation only allowed when shard state is one of " + writeAllowedStates + ", origin [" + origin + "]"
+                );
+            }
             if (origin == Engine.Operation.Origin.PRIMARY) {
                 assert assertPrimaryMode();
                 // We only do indexing into primaries that are started since:
@@ -2188,13 +2195,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 assert origin == Engine.Operation.Origin.LOCAL_RESET;
                 assert getActiveOperationsCount() == OPERATIONS_BLOCKED
                     : "locally resetting without blocking operations, active operations [" + getActiveOperationsCount() + "]";
-            }
-            if (writeAllowedStates.contains(state) == false) {
-                throw new IllegalIndexShardStateException(
-                    shardId,
-                    state,
-                    "operation only allowed when shard state is one of " + writeAllowedStates + ", origin [" + origin + "]"
-                );
             }
         }
     }

@@ -62,7 +62,6 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -179,12 +178,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         SearchListenerPlugin.waitSearchStarted();
         SearchListenerPlugin.allowQueryPhase();
 
-        assertBusy(() -> {
-            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
-            assertFalse(statusResponse.isRunning());
-            assertNotNull(statusResponse.getCompletionStatus());
-        });
-
+        waitForSearchTasksToFinish();
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
 
@@ -294,12 +288,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         SearchListenerPlugin.waitSearchStarted();
         SearchListenerPlugin.allowQueryPhase();
 
-        assertBusy(() -> {
-            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
-            assertFalse(statusResponse.isRunning());
-            assertNotNull(statusResponse.getCompletionStatus());
-        });
-
+        waitForSearchTasksToFinish();
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
             assertNotNull(finishedResponse);
@@ -373,12 +362,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertNotNull(response.getSearchResponse());
 
-        assertBusy(() -> {
-            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
-            assertFalse(statusResponse.isRunning());
-            assertNotNull(statusResponse.getCompletionStatus());
-        });
-        Thread.sleep(255);
+        waitForSearchTasksToFinish();
 
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
@@ -533,11 +517,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         SearchListenerPlugin.waitSearchStarted();
         SearchListenerPlugin.allowQueryPhase();
 
-        assertBusy(() -> {
-            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
-            assertFalse(statusResponse.isRunning());
-            assertNotNull(statusResponse.getCompletionStatus());
-        });
+        waitForSearchTasksToFinish();
 
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
@@ -654,12 +634,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         SearchListenerPlugin.waitSearchStarted();
         SearchListenerPlugin.allowQueryPhase();
 
-        assertBusy(() -> {
-            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
-            assertFalse(statusResponse.isRunning());
-            assertNotNull(statusResponse.getCompletionStatus());
-        });
-        Thread.sleep(255);
+        waitForSearchTasksToFinish();
 
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
@@ -772,12 +747,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertNotNull(response.getSearchResponse());
 
-        assertBusy(() -> {
-            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
-            assertFalse(statusResponse.isRunning());
-            assertNotNull(statusResponse.getCompletionStatus());
-        });
-        Thread.sleep(255);
+        waitForSearchTasksToFinish();
 
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
@@ -873,11 +843,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertNotNull(response.getSearchResponse());
 
-        assertBusy(() -> {
-            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
-            assertFalse(statusResponse.isRunning());
-            assertNotNull(statusResponse.getCompletionStatus());
-        });
+        waitForSearchTasksToFinish();
 
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
@@ -952,11 +918,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertNotNull(response.getSearchResponse());
 
-        assertBusy(() -> {
-            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
-            assertFalse(statusResponse.isRunning());
-            assertNotNull(statusResponse.getCompletionStatus());
-        });
+        waitForSearchTasksToFinish();
 
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
@@ -1033,11 +995,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertNotNull(response.getSearchResponse());
 
-        assertBusy(() -> {
-            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
-            assertFalse(statusResponse.isRunning());
-            assertNotNull(statusResponse.getCompletionStatus());
-        });
+        waitForSearchTasksToFinish();
 
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
@@ -1208,18 +1166,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
 
         assertBusy(() -> assertTrue(cancelFuture.isDone()));
-        assertBusy(() -> {
-            final Iterable<TransportService> transportServices = cluster(REMOTE_CLUSTER).getInstances(TransportService.class);
-            for (TransportService transportService : transportServices) {
-                assertThat(transportService.getTaskManager().getBannedTaskIds(), Matchers.empty());
-            }
-        });
 
-        // wait until search status endpoint reports it as completed
-        assertBusy(() -> {
-            AsyncStatusResponse statusResponseAfterCompletion = getAsyncStatus(response.getId());
-            assertNotNull(statusResponseAfterCompletion.getCompletionStatus());
-        });
+        waitForSearchTasksToFinish();
 
         AsyncStatusResponse statusResponseAfterCompletion = getAsyncStatus(response.getId());
         assertTrue(statusResponseAfterCompletion.isPartial());
@@ -1338,13 +1286,9 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             SearchListenerPlugin.allowQueryPhase();
         }
 
+        waitForSearchTasksToFinish();
+
         assertBusy(() -> expectThrows(ExecutionException.class, () -> getAsyncStatus(response.getId())));
-        assertBusy(() -> {
-            final Iterable<TransportService> transportServices = cluster(REMOTE_CLUSTER).getInstances(TransportService.class);
-            for (TransportService transportService : transportServices) {
-                assertThat(transportService.getTaskManager().getBannedTaskIds(), Matchers.empty());
-            }
-        });
     }
 
     public void testCancellationViaTimeoutWithAllowPartialResultsSetToFalse() throws Exception {
@@ -1411,32 +1355,52 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         // query phase has begun, so wait for query failure (due to timeout)
         SearchListenerPlugin.waitQueryFailure();
 
-        // wait for the async_search task to be cancelled or unregistered
+        // wait for search tasks to complete and be unregistered
         assertBusy(() -> {
-            ListTasksResponse taskResponses = client().admin().cluster().prepareListTasks().setDetailed(true).get();
-            List<TaskInfo> asyncSearchTaskInfos = new ArrayList<>();
-            for (TaskInfo task : taskResponses.getTasks()) {
-                if (task.action().contains("search")) {
-                    if (task.description().contains("async_search{indices[")) {
-                        asyncSearchTaskInfos.add(task);
-                    }
-                }
-            }
+            ListTasksResponse listTasksResponse = client(LOCAL_CLUSTER).admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(SearchAction.INSTANCE.name())
+                .get();
+            List<TaskInfo> tasks = listTasksResponse.getTasks();
+            assertThat(tasks.size(), equalTo(0));
 
-            if (asyncSearchTaskInfos.size() > 0) {
-                // if still present, and it is cancelled, then we can proceed with the test
-                assertTrue(asyncSearchTaskInfos.get(0).cancelled());
-            }
-            // if not present, then it has been unregistered and the async search should no longer be running, so can proceed
-        }, 30, TimeUnit.SECONDS);
-
-        assertBusy(() -> { assertFalse(getAsyncStatus(response.getId()).isRunning()); });
+            ListTasksResponse remoteTasksResponse = client(REMOTE_CLUSTER).admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(SearchAction.INSTANCE.name())
+                .get();
+            List<TaskInfo> remoteTasks = remoteTasksResponse.getTasks();
+            assertThat(remoteTasks.size(), equalTo(0));
+        });
 
         AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
         assertFalse(statusResponse.isRunning());
         assertEquals(0, statusResponse.getSuccessfulShards());
         assertEquals(0, statusResponse.getSkippedShards());
         assertThat(statusResponse.getFailedShards(), greaterThanOrEqualTo(1));
+
+        waitForSearchTasksToFinish();
+    }
+
+    private void waitForSearchTasksToFinish() throws Exception {
+        assertBusy(() -> {
+            ListTasksResponse listTasksResponse = client(LOCAL_CLUSTER).admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(SearchAction.INSTANCE.name())
+                .get();
+            List<TaskInfo> tasks = listTasksResponse.getTasks();
+            assertThat(tasks.size(), equalTo(0));
+
+            ListTasksResponse remoteTasksResponse = client(REMOTE_CLUSTER).admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(SearchAction.INSTANCE.name())
+                .get();
+            List<TaskInfo> remoteTasks = remoteTasksResponse.getTasks();
+            assertThat(remoteTasks.size(), equalTo(0));
+        });
 
         assertBusy(() -> {
             final Iterable<TransportService> transportServices = cluster(REMOTE_CLUSTER).getInstances(TransportService.class);

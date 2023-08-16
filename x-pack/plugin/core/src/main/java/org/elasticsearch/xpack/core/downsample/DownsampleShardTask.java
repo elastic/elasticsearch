@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.rollup.action;
+package org.elasticsearch.xpack.core.downsample;
 
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.shard.ShardId;
@@ -19,9 +19,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class RollupShardTask extends AllocatedPersistentTask {
+public class DownsampleShardTask extends AllocatedPersistentTask {
     public static final String TASK_NAME = "rollup-shard";
-    private final String rollupIndex;
+    private final String downsampleIndex;
     private volatile long totalShardDocCount;
     private volatile long docsProcessed;
     private final long indexStartTimeMillis;
@@ -36,36 +36,38 @@ public class RollupShardTask extends AllocatedPersistentTask {
     private final AtomicLong lastSourceTimestamp = new AtomicLong(0);
     private final AtomicLong lastTargetTimestamp = new AtomicLong(0);
     private final AtomicLong lastIndexingTimestamp = new AtomicLong(0);
-    private final AtomicReference<RollupShardIndexerStatus> rollupShardIndexerStatus = new AtomicReference<>(
-        RollupShardIndexerStatus.INITIALIZED
+    private final AtomicReference<DownsampleShardIndexerStatus> downsampleShardIndexerStatus = new AtomicReference<>(
+        DownsampleShardIndexerStatus.INITIALIZED
     );
-    private final RollupBulkStats rollupBulkStats;
+    private final DownsampleBulkStats downsampleBulkStats;
     // Need to set initial values, because these atomic references can be read before bulk indexing started or when downsampling empty index
-    private final AtomicReference<RollupBeforeBulkInfo> lastBeforeBulkInfo = new AtomicReference<>(new RollupBeforeBulkInfo(0, 0, 0, 0));
-    private final AtomicReference<RollupAfterBulkInfo> lastAfterBulkInfo = new AtomicReference<>(
-        new RollupAfterBulkInfo(0, 0, 0, 0, false, 0)
+    private final AtomicReference<DownsampleBeforeBulkInfo> lastBeforeBulkInfo = new AtomicReference<>(
+        new DownsampleBeforeBulkInfo(0, 0, 0, 0)
+    );
+    private final AtomicReference<DownsampleAfterBulkInfo> lastAfterBulkInfo = new AtomicReference<>(
+        new DownsampleAfterBulkInfo(0, 0, 0, 0, false, 0)
     );
 
-    public RollupShardTask(
+    public DownsampleShardTask(
         long id,
         final String type,
         final String action,
         final TaskId parentTask,
-        final String rollupIndex,
+        final String downsampleIndex,
         long indexStartTimeMillis,
         long indexEndTimeMillis,
         final DownsampleConfig config,
         final Map<String, String> headers,
         final ShardId shardId
     ) {
-        super(id, type, action, RollupField.NAME + "_" + rollupIndex + "[" + shardId.id() + "]", parentTask, headers);
-        this.rollupIndex = rollupIndex;
+        super(id, type, action, RollupField.NAME + "_" + downsampleIndex + "[" + shardId.id() + "]", parentTask, headers);
+        this.downsampleIndex = downsampleIndex;
         this.indexStartTimeMillis = indexStartTimeMillis;
         this.indexEndTimeMillis = indexEndTimeMillis;
         this.config = config;
         this.shardId = shardId;
         this.rollupStartTime = System.currentTimeMillis();
-        this.rollupBulkStats = new RollupBulkStats();
+        this.downsampleBulkStats = new DownsampleBulkStats();
     }
 
     @Override
@@ -88,8 +90,8 @@ public class RollupShardTask extends AllocatedPersistentTask {
         init(persistentTasksService, taskManager, persistentTaskId, allocationId);
     }
 
-    public String getRollupIndex() {
-        return rollupIndex;
+    public String getDownsampleIndex() {
+        return downsampleIndex;
     }
 
     public DownsampleConfig config() {
@@ -102,7 +104,7 @@ public class RollupShardTask extends AllocatedPersistentTask {
 
     @Override
     public Status getStatus() {
-        return new RollupShardStatus(
+        return new DownsampleShardStatus(
             shardId,
             rollupStartTime,
             numReceived.get(),
@@ -117,10 +119,10 @@ public class RollupShardTask extends AllocatedPersistentTask {
             indexEndTimeMillis,
             docsProcessed,
             100.0F * docsProcessed / totalShardDocCount,
-            rollupBulkStats.getRollupBulkInfo(),
+            downsampleBulkStats.getRollupBulkInfo(),
             lastBeforeBulkInfo.get(),
             lastAfterBulkInfo.get(),
-            rollupShardIndexerStatus.get()
+            downsampleShardIndexerStatus.get()
         );
     }
 
@@ -148,11 +150,11 @@ public class RollupShardTask extends AllocatedPersistentTask {
         return lastTargetTimestamp.get();
     }
 
-    public RollupBeforeBulkInfo getLastBeforeBulkInfo() {
+    public DownsampleBeforeBulkInfo getLastBeforeBulkInfo() {
         return lastBeforeBulkInfo.get();
     }
 
-    public RollupAfterBulkInfo getLastAfterBulkInfo() {
+    public DownsampleAfterBulkInfo getLastAfterBulkInfo() {
         return lastAfterBulkInfo.get();
     }
 
@@ -164,8 +166,8 @@ public class RollupShardTask extends AllocatedPersistentTask {
         return rollupStartTime;
     }
 
-    public RollupShardIndexerStatus getRollupShardIndexerStatus() {
-        return rollupShardIndexerStatus.get();
+    public DownsampleShardIndexerStatus getDownsampleShardIndexerStatus() {
+        return downsampleShardIndexerStatus.get();
     }
 
     public long getLastIndexingTimestamp() {
@@ -212,16 +214,16 @@ public class RollupShardTask extends AllocatedPersistentTask {
         lastIndexingTimestamp.set(timestamp);
     }
 
-    public void setBeforeBulkInfo(final RollupBeforeBulkInfo beforeBulkInfo) {
+    public void setBeforeBulkInfo(final DownsampleBeforeBulkInfo beforeBulkInfo) {
         lastBeforeBulkInfo.set(beforeBulkInfo);
     }
 
-    public void setAfterBulkInfo(final RollupAfterBulkInfo afterBulkInfo) {
+    public void setAfterBulkInfo(final DownsampleAfterBulkInfo afterBulkInfo) {
         lastAfterBulkInfo.set(afterBulkInfo);
     }
 
-    public void setRollupShardIndexerStatus(final RollupShardIndexerStatus status) {
-        this.rollupShardIndexerStatus.set(status);
+    public void setDownsampleShardIndexerStatus(final DownsampleShardIndexerStatus status) {
+        this.downsampleShardIndexerStatus.set(status);
     }
 
     public void setTotalShardDocCount(int totalShardDocCount) {
@@ -232,11 +234,11 @@ public class RollupShardTask extends AllocatedPersistentTask {
         this.docsProcessed = docsProcessed;
     }
 
-    public void updateRollupBulkInfo(long bulkIngestTookMillis, long bulkTookMillis) {
-        this.rollupBulkStats.update(bulkIngestTookMillis, bulkTookMillis);
+    public void updateBulkInfo(long bulkIngestTookMillis, long bulkTookMillis) {
+        this.downsampleBulkStats.update(bulkIngestTookMillis, bulkTookMillis);
     }
 
-    public RollupBulkInfo getRollupBulkInfo() {
-        return this.rollupBulkStats.getRollupBulkInfo();
+    public DownsampleBulkInfo getDownsampleBulkInfo() {
+        return this.downsampleBulkStats.getRollupBulkInfo();
     }
 }

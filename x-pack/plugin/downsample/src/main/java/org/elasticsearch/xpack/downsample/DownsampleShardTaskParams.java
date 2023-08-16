@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,7 +26,7 @@ import java.util.Objects;
 
 public record DownsampleShardTaskParams(
     DownsampleConfig downsampleConfig,
-    String rollupIndex,
+    String downsampleIndex,
     long indexStartTimeMillis,
     long indexEndTimeMillis,
     ShardId shardId,
@@ -34,9 +34,9 @@ public record DownsampleShardTaskParams(
     String[] labels
 ) implements PersistentTaskParams {
 
-    public static final String NAME = RollupShardTask.TASK_NAME;
+    public static final String NAME = DownsampleShardTask.TASK_NAME;
     private static final ParseField DOWNSAMPLE_CONFIG = new ParseField("downsample_config");
-    private static final ParseField ROLLUP_INDEX = new ParseField("rollup_index");
+    private static final ParseField DOWNSAMPLE_INDEX = new ParseField("rollup_index");
     private static final ParseField INDEX_START_TIME_MILLIS = new ParseField("index_start_time_millis");
     private static final ParseField INDEX_END_TIME_MILLIS = new ParseField("index_end_time_millis");
     private static final ParseField SHARD_ID = new ParseField("shard_id");
@@ -50,7 +50,7 @@ public record DownsampleShardTaskParams(
             (p, c) -> DownsampleConfig.fromXContent(p),
             DOWNSAMPLE_CONFIG
         );
-        PARSER.declareString(DownsampleShardTaskParams.Builder::rollupIndex, ROLLUP_INDEX);
+        PARSER.declareString(DownsampleShardTaskParams.Builder::downsampleIndex, DOWNSAMPLE_INDEX);
         PARSER.declareLong(DownsampleShardTaskParams.Builder::indexStartTimeMillis, INDEX_START_TIME_MILLIS);
         PARSER.declareLong(DownsampleShardTaskParams.Builder::indexEndTimeMillis, INDEX_END_TIME_MILLIS);
         PARSER.declareString(DownsampleShardTaskParams.Builder::shardId, SHARD_ID);
@@ -74,7 +74,7 @@ public record DownsampleShardTaskParams(
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(DOWNSAMPLE_CONFIG.getPreferredName(), downsampleConfig);
-        builder.field(ROLLUP_INDEX.getPreferredName(), rollupIndex);
+        builder.field(DOWNSAMPLE_INDEX.getPreferredName(), downsampleIndex);
         builder.field(INDEX_START_TIME_MILLIS.getPreferredName(), indexStartTimeMillis);
         builder.field(INDEX_END_TIME_MILLIS.getPreferredName(), indexEndTimeMillis);
         builder.field(SHARD_ID.getPreferredName(), shardId);
@@ -96,7 +96,7 @@ public record DownsampleShardTaskParams(
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         downsampleConfig.writeTo(out);
-        out.writeString(rollupIndex);
+        out.writeString(downsampleIndex);
         out.writeVLong(indexStartTimeMillis);
         out.writeVLong(indexEndTimeMillis);
         shardId.writeTo(out);
@@ -130,7 +130,7 @@ public record DownsampleShardTaskParams(
         return indexStartTimeMillis == that.indexStartTimeMillis
             && indexEndTimeMillis == that.indexEndTimeMillis
             && Objects.equals(downsampleConfig, that.downsampleConfig)
-            && Objects.equals(rollupIndex, that.rollupIndex)
+            && Objects.equals(downsampleIndex, that.downsampleIndex)
             && Objects.equals(shardId.id(), that.shardId.id())
             && Objects.equals(shardId.getIndexName(), that.shardId.getIndexName())
             && Arrays.equals(metrics, that.metrics)
@@ -141,7 +141,7 @@ public record DownsampleShardTaskParams(
     public int hashCode() {
         int result = Objects.hash(
             downsampleConfig,
-            rollupIndex,
+            downsampleIndex,
             indexStartTimeMillis,
             indexEndTimeMillis,
             shardId.id(),
@@ -154,7 +154,7 @@ public record DownsampleShardTaskParams(
 
     public static class Builder {
         DownsampleConfig downsampleConfig;
-        String rollupIndex;
+        String downsampleIndex;
         long indexStartTimeMillis;
         long indexEndTimeMillis;
         ShardId shardId;
@@ -166,8 +166,8 @@ public record DownsampleShardTaskParams(
             return this;
         }
 
-        public Builder rollupIndex(final String rollupIndex) {
-            this.rollupIndex = rollupIndex;
+        public Builder downsampleIndex(final String downsampleIndex) {
+            this.downsampleIndex = downsampleIndex;
             return this;
         }
 
@@ -199,7 +199,7 @@ public record DownsampleShardTaskParams(
         public DownsampleShardTaskParams build() {
             return new DownsampleShardTaskParams(
                 downsampleConfig,
-                rollupIndex,
+                downsampleIndex,
                 indexStartTimeMillis,
                 indexEndTimeMillis,
                 shardId,

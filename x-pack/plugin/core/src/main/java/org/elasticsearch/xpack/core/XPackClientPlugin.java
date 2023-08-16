@@ -412,7 +412,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             TermsEnumAction.INSTANCE,
             // TSDB Downsampling
             DownsampleIndexerAction.INSTANCE,
-            org.elasticsearch.xpack.core.downsample.DownsampleAction.INSTANCE
+            org.elasticsearch.action.downsample.DownsampleAction.INSTANCE
         );
     }
 

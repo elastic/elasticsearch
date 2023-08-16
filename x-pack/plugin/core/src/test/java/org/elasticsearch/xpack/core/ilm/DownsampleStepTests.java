@@ -26,6 +26,7 @@ import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
@@ -84,18 +85,19 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
     }
 
     private IndexMetadata getIndexMetadata(String index, String lifecycleName, DownsampleStep step) {
+        IndexMetadata im = IndexMetadata.builder(index)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase(step.getKey().phase());
         lifecycleState.setAction(step.getKey().action());
         lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
-
-        return IndexMetadata.builder(index)
-            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
-            .numberOfShards(randomIntBetween(1, 5))
-            .numberOfReplicas(randomIntBetween(0, 5))
-            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
-            .build();
+        lifecycleState.setDownsampleIndexName(DownsamplePrepareLifeCycleStateStep.generateDownsampleIndexName(im, step.getFixedInterval()));
+        return IndexMetadata.builder(im).putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap()).build();
     }
 
     private static void assertDownsampleActionRequest(DownsampleAction.Request request, String sourceIndex) {
@@ -178,20 +180,24 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         String lifecycleName = randomAlphaOfLength(5);
         DownsampleStep step = createRandomInstance();
 
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        String downsampleIndex = DownsamplePrepareLifeCycleStateStep.generateDownsampleIndexName(
+            sourceIndexMetadata,
+            step.getFixedInterval()
+        );
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase(step.getKey().phase());
         lifecycleState.setAction(step.getKey().action());
         lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
-
-        String downsampleIndex = generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
         lifecycleState.setDownsampleIndexName(downsampleIndex);
 
-        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
-            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+        sourceIndexMetadata = IndexMetadata.builder(sourceIndexMetadata)
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
-            .numberOfShards(randomIntBetween(1, 5))
-            .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         // Create an in-progress downsample index (index.downsample.status: started)
@@ -207,19 +213,23 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             .build();
         Map<String, IndexMetadata> indices = Map.of(downsampleIndex, indexMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices)).build();
+        mockClientDownsampleCall(sourceIndexName);
 
+        final AtomicBoolean listenerIsCalled = new AtomicBoolean(false);
         step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
-                fail("onResponse should not be called in this test, because there's an in-progress downsample index");
+                listenerIsCalled.set(true);
             }
 
             @Override
             public void onFailure(Exception e) {
-                assertTrue(e instanceof IllegalStateException);
-                assertTrue(e.getMessage().contains("already exists with downsample status [started]"));
+                listenerIsCalled.set(true);
+                logger.error("-> " + e.getMessage(), e);
+                fail("repeatedly calling the downsampling API is expected, but got exception [" + e.getMessage() + "]");
             }
         });
+        assertThat(listenerIsCalled.get(), is(true));
     }
 
     public void testNextStepKey() {

@@ -18,9 +18,11 @@ import java.io.IOException;
 
 public abstract class EnterpriseSearchBaseRestHandler extends BaseRestHandler {
     protected final XPackLicenseState licenseState;
+    protected final LicenseUtils.Product product;
 
-    protected EnterpriseSearchBaseRestHandler(XPackLicenseState licenseState) {
+    protected EnterpriseSearchBaseRestHandler(XPackLicenseState licenseState, LicenseUtils.Product product) {
         this.licenseState = licenseState;
+        this.product = product;
     }
 
     protected final BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
@@ -31,7 +33,9 @@ public abstract class EnterpriseSearchBaseRestHandler extends BaseRestHandler {
             // and return a license error.
             request.params().keySet().forEach(key -> request.param(key, ""));
             request.content();
-            return channel -> channel.sendResponse(new RestResponse(channel, LicenseUtils.newComplianceException(this.licenseState)));
+            return channel -> channel.sendResponse(
+                new RestResponse(channel, LicenseUtils.newComplianceException(this.licenseState, this.product))
+            );
         }
     }
 

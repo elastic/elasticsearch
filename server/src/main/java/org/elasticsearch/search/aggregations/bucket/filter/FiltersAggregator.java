@@ -314,44 +314,61 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             final DocId currentDocID = new DocId();
             currentDocID.set(-1);
 
+            if (useCompetitiveIterator) {
+                return new LeafBucketCollectorBase(sub, null) {
+
+                    @Override
+                    public void collect(int doc, long bucket) throws IOException {
+                        // Check if the competitive iterator has matched the current doc.
+                        if (doc == currentDocID.get()) {
+                            for (int i = 0; i < filteredDocIdSetIterators.length; i++) {
+                                if (lastMatches[i] == doc) {
+                                    collectBucket(sub, doc, bucketOrd(bucket, i));
+                                }
+                            }
+                        } else {
+                            currentDocID.set(doc);
+                            advanceAndCollectBuckets(doc, bucket, filteredDocIdSetIterators, lastMatches, sub);
+                        }
+                    }
+
+                    @Override
+                    public DocIdSetIterator competitiveIterator() {
+                        return new CompetitiveIterator(filteredDocIdSetIterators, lastMatches, currentDocID, maxDocId);
+                    }
+
+                };
+            }
             return new LeafBucketCollectorBase(sub, null) {
 
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    boolean matched = false;
-                    // Check if the competitive iterator has matched the current doc.
-                    if (useCompetitiveIterator && doc == currentDocID.get()) {
-                        for (int i = 0; i < filteredDocIdSetIterators.length; i++) {
-                            if (lastMatches[i] == doc) {
-                                collectBucket(sub, doc, bucketOrd(bucket, i));
-                            }
-                        }
-                    } else {
-                        currentDocID.set(doc);
-                        for (int i = 0; i < filteredDocIdSetIterators.length; i++) {
-                            if (lastMatches[i] < doc) {
-                                lastMatches[i] = filteredDocIdSetIterators[i].advance(doc);
-                            }
-                            if (lastMatches[i] == doc) {
-                                collectBucket(sub, doc, bucketOrd(bucket, i));
-                                matched = true;
-                            }
-                        }
-                    }
-                    if (otherBucketKey != null && false == matched) {
+                    boolean matched = advanceAndCollectBuckets(doc, bucket, filteredDocIdSetIterators, lastMatches, sub);
+                    if (otherBucketKey != null && matched == false) {
                         collectBucket(sub, doc, bucketOrd(bucket, filteredDocIdSetIterators.length));
                     }
                 }
-
-                @Override
-                public DocIdSetIterator competitiveIterator() {
-                    if (useCompetitiveIterator == false) {
-                        return null;
-                    }
-                    return new CompetitiveIterator(filteredDocIdSetIterators, lastMatches, currentDocID, maxDocId);
-                }
-
             };
+        }
+
+        private boolean advanceAndCollectBuckets(
+            int doc,
+            long bucket,
+            DocIdSetIterator[] filteredDocIdSetIterators,
+            int[] lastMatches,
+            LeafBucketCollector sub
+        ) throws IOException {
+            boolean matched = false;
+            for (int i = 0; i < filteredDocIdSetIterators.length; i++) {
+                if (lastMatches[i] < doc) {
+                    lastMatches[i] = filteredDocIdSetIterators[i].advance(doc);
+                }
+                if (lastMatches[i] == doc) {
+                    collectBucket(sub, doc, bucketOrd(bucket, i));
+                    matched = true;
+                }
+            }
+            return matched;
         }
 
         final long bucketOrd(long owningBucketOrdinal, int filterOrd) {

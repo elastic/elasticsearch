@@ -2086,42 +2086,37 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         var aggSupportsParallelCollection = new DateRangeAggregationBuilder("dateRange");
         var aggDoesNotSupportParallelCollection = new TermsAggregationBuilder("terms");
         var addedAggregation = searchSourceBuilder != null && randomBoolean()
-                ? randomFrom(aggSupportsParallelCollection, aggDoesNotSupportParallelCollection)
-                : null;
+            ? randomFrom(aggSupportsParallelCollection, aggDoesNotSupportParallelCollection)
+            : null;
         if (addedAggregation != null) searchSourceBuilder.aggregation(addedAggregation);
 
         for (var resultsType : ResultsType.values()) {
             Runnable boilerplateForExhaustiveSwitch = switch (resultsType) {
                 case NONE, FETCH -> () -> assertFalse(
-                        "NONE and FETCH do not support parallel collection.",
-                        SearchService.isParallelCollectionSupportedForResults(
-                                resultsType,
-                                searchSourceBuilder,
-                                true
-                        ));
+                    "NONE and FETCH do not support parallel collection.",
+                    SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilder, true)
+                );
                 case DFS -> () -> {
-                    assertTrue("DFS supports parallel collection.", SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilder, true));
-                    assertTrue("DFS supports parallel collection when isQueryPhaseParallelismEnabled is false.", SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilder, false));
+                    assertTrue(
+                        "DFS supports parallel collection.",
+                        SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilder, true)
+                    );
+                    assertTrue(
+                        "DFS supports parallel collection when isQueryPhaseParallelismEnabled is false.",
+                        SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilder, false)
+                    );
                 };
                 case QUERY -> () -> {
                     assertFalse("", SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilder, false));
                     if (addedAggregation == aggDoesNotSupportParallelCollection) {
                         assertFalse(
-                                "Query supports Parallel collection when enabled and supported by aggregation.",
-                                SearchService.isParallelCollectionSupportedForResults(
-                                        resultsType,
-                                        searchSourceBuilder,
-                                        true
-                                )
+                            "Query supports Parallel collection when enabled and supported by aggregation.",
+                            SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilder, true)
                         );
                     } else if (addedAggregation == null || addedAggregation == aggSupportsParallelCollection) {
                         assertTrue(
-                                "Query supports Parallel collection when enabled and does not contain unsupported agg.",
-                                SearchService.isParallelCollectionSupportedForResults(
-                                        resultsType,
-                                        searchSourceBuilder,
-                                        true
-                                )
+                            "Query supports Parallel collection when enabled and does not contain unsupported agg.",
+                            SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilder, true)
                         );
                     }
                 };

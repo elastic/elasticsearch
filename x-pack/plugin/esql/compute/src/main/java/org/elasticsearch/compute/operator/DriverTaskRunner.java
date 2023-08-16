@@ -60,7 +60,9 @@ public class DriverTaskRunner {
                         }
 
                         @Override
-                        public void handleResponse() {}
+                        public void handleResponse() {
+                            driverListener.onResponse(null);
+                        }
 
                         @Override
                         public void handleException(TransportException exp) {

@@ -77,8 +77,8 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 int docId = docIdsInLeaf[i];
                 var routingBuilder = builders[i];
 
-                tsIdDocValues.advanceExact(docId);
-                assert tsIdDocValues.getValueCount() == 1;
+                boolean found = tsIdDocValues.advanceExact(docId);
+                assert found;
                 BytesRef tsid = tsIdDocValues.lookupOrd(tsIdDocValues.ordValue());
                 timestampDocValues.advanceExact(docId);
                 assert timestampDocValues.docValueCount() == 1;

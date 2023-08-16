@@ -25,7 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class TopDocsCollectorManagerFactoryTests extends ESTestCase {
+public class QueryPhaseCollectorManagerTests extends ESTestCase {
 
     public void testShortcutTotalHitCountTextField() throws IOException {
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
@@ -39,7 +39,7 @@ public class TopDocsCollectorManagerFactoryTests extends ESTestCase {
             iw.commit();
             try (IndexReader reader = iw.getReader()) {
                 final Query testQuery = new FieldExistsQuery("text");
-                int hitCount = TopDocsCollectorManagerFactory.shortcutTotalHitCount(reader, testQuery);
+                int hitCount = QueryPhaseCollectorManager.shortcutTotalHitCount(reader, testQuery);
                 assertEquals(-1, hitCount);
             }
         }
@@ -59,7 +59,7 @@ public class TopDocsCollectorManagerFactoryTests extends ESTestCase {
             iw.commit();
             try (IndexReader reader = iw.getReader()) {
                 final Query testQuery = new FieldExistsQuery("string");
-                int hitCount = TopDocsCollectorManagerFactory.shortcutTotalHitCount(reader, testQuery);
+                int hitCount = QueryPhaseCollectorManager.shortcutTotalHitCount(reader, testQuery);
                 assertEquals(2, hitCount);
             }
         }
@@ -75,7 +75,7 @@ public class TopDocsCollectorManagerFactoryTests extends ESTestCase {
             iw.commit();
             try (IndexReader reader = iw.getReader()) {
                 final Query testQuery = new FieldExistsQuery("int");
-                int hitCount = TopDocsCollectorManagerFactory.shortcutTotalHitCount(reader, testQuery);
+                int hitCount = QueryPhaseCollectorManager.shortcutTotalHitCount(reader, testQuery);
                 assertEquals(1, hitCount);
             }
         }

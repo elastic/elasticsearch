@@ -893,7 +893,7 @@ public class ClusterStateTests extends ESTestCase {
                     .put(
                         IndexMetadata.builder("index")
                             .state(IndexMetadata.State.OPEN)
-                            .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id))
+                            .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
                             .putMapping(
                                 new MappingMetadata(
                                     "type",
@@ -995,7 +995,7 @@ public class ClusterStateTests extends ESTestCase {
     private ClusterState buildClusterState() throws IOException {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
             .state(IndexMetadata.State.OPEN)
-            .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id))
+            .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
             .putMapping(new MappingMetadata("type", new HashMap<>() {
                 {
                     put("type1", new HashMap<String, Object>() {
@@ -1067,14 +1067,14 @@ public class ClusterStateTests extends ESTestCase {
                             .addVotingConfigExclusion(new CoordinationMetadata.VotingConfigExclusion("exlucdedNodeId", "excludedNodeName"))
                             .build()
                     )
-                    .persistentSettings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id).build())
-                    .transientSettings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id).build())
+                    .persistentSettings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()).build())
+                    .transientSettings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()).build())
                     .put(indexMetadata, false)
                     .put(
                         IndexTemplateMetadata.builder("template")
                             .patterns(List.of("pattern1", "pattern2"))
                             .order(0)
-                            .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id))
+                            .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
                             .putMapping("type", "{ \"key1\": {} }")
                             .build()
                     )

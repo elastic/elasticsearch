@@ -2603,7 +2603,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public void handleResponse(TransportResponse.Empty response) {
+            public void handleResponse() {
                 responseLatch.countDown();
             }
 
@@ -2670,7 +2670,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public void handleResponse(TransportResponse.Empty response) {
+            public void handleResponse() {
                 responseLatch.countDown();
             }
 
@@ -2783,7 +2783,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public void handleResponse(TransportResponse.Empty response) {
+            public void handleResponse() {
                 responseLatch.countDown();
             }
 
@@ -3348,7 +3348,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
 
                     @Override
-                    public void handleResponse(final TransportResponse.Empty response) {
+                    public void handleResponse() {
                         fail("handle response should not be invoked");
                     }
 
@@ -3441,5 +3441,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         return future;
     }
 
-    private static final EmptyTransportResponseHandler NOOP_HANDLER = new EmptyTransportResponseHandler(ActionListener.noop());
+    private static final TransportResponseHandler.Empty NOOP_HANDLER = TransportResponseHandler.empty(
+        TransportResponseHandler.TRANSPORT_WORKER,
+        ActionListener.noop()
+    );
 }

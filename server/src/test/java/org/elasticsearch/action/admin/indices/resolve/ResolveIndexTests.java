@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Request;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedAlias;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedDataStream;
@@ -422,7 +421,7 @@ public class ResolveIndexTests extends ESTestCase {
         boolean frozen
     ) {
         Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.hidden", hidden)
             .put("index.frozen", frozen);
 

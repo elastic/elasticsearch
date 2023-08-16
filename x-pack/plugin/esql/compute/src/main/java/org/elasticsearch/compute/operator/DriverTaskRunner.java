@@ -60,7 +60,7 @@ public class DriverTaskRunner {
                         }
 
                         @Override
-                        public void handleResponse(TransportResponse.Empty unused) {
+                        public void handleResponse() {
                             driverListener.onResponse(null);
                         }
 

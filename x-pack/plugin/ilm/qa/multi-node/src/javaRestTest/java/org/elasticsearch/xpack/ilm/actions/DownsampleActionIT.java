@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
@@ -312,6 +313,82 @@ public class DownsampleActionIT extends ESRestTestCase {
         String rollupIndex = getRollupIndexName(client(), index, fixedInterval);
         assertNull("Rollup index should not have been created", rollupIndex);
         assertTrue("Source index should not have been deleted", indexExists(index));
+    }
+
+    public void testDownsampleTwice() throws Exception {
+        // Create the ILM policy
+        Request request = new Request("PUT", "_ilm/policy/" + policy);
+        request.setJsonEntity("""
+            {
+                "policy": {
+                    "phases": {
+                        "warm": {
+                            "actions": {
+                                "downsample": {
+                                    "fixed_interval" : "1m"
+                                }
+                            }
+                        },
+                        "cold": {
+                            "actions": {
+                                "downsample": {
+                                    "fixed_interval" : "1h"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """);
+        client().performRequest(request);
+
+        // Create a template
+        Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
+        createIndexTemplateRequest.setJsonEntity(Strings.format(TEMPLATE, dataStream, policy));
+        assertOK(client().performRequest(createIndexTemplateRequest));
+
+        String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
+        index(client(), dataStream, true, null, "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
+
+        var getDataStreamResponse = client().performRequest(new Request("GET", "/_data_stream/" + dataStream));
+        String firstBackingIndex = ObjectPath.eval("data_streams.0.indices.0.index_name", responseAsMap(getDataStreamResponse));
+        logger.info("firstBackingIndex: {}", firstBackingIndex);
+        assertBusy(
+            () -> assertThat(
+                "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
+                explainIndex(client(), firstBackingIndex).get("step"),
+                is(CheckNotDataStreamWriteIndexStep.NAME)
+            ),
+            30,
+            TimeUnit.SECONDS
+        );
+
+        // Manual rollover the original index such that it's not the write index in the data stream anymore
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        String downsampleIndexName = "downsample-" + firstBackingIndex + "-1m";
+        String downsampleOfDownsampleIndexName = "downsample-" + firstBackingIndex + "-1h";
+        try {
+            assertBusy(() -> {
+                assertThat(indexExists(downsampleOfDownsampleIndexName), is(true));
+                assertThat(indexExists(firstBackingIndex), is(false));
+                assertThat(indexExists(downsampleIndexName), is(false));
+
+                Map<String, Object> settings = getOnlyIndexSettings(client(), downsampleOfDownsampleIndexName);
+                assertEquals(firstBackingIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
+                assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
+                assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
+            }, 60, TimeUnit.SECONDS);
+        } catch (AssertionError ae) {
+            if (indexExists(firstBackingIndex)) {
+                logger.error("Index [{}] ilm explain {}", firstBackingIndex, explainIndex(client(), firstBackingIndex));
+            } else if (indexExists(downsampleIndexName)) {
+                logger.error("Index [{}] ilm explain {}", firstBackingIndex, explainIndex(client(), downsampleIndexName));
+            } else if (indexExists(downsampleOfDownsampleIndexName)) {
+                logger.error("Index [{}] ilm explain {}", firstBackingIndex, explainIndex(client(), downsampleOfDownsampleIndexName));
+            }
+            throw ae;
+        }
     }
 
     /**

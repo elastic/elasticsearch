@@ -86,7 +86,10 @@ public class AnalysisRegistryTests extends ESTestCase {
     }
 
     private static IndexSettings indexSettingsOfCurrentVersion(Settings.Builder settings) {
-        return IndexSettingsModule.newIndexSettings("index", settings.put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        return IndexSettingsModule.newIndexSettings(
+            "index",
+            settings.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
+        );
     }
 
     @Override
@@ -236,7 +239,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     public void testConfigureCamelCaseTokenFilter() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.analysis.filter.testFilter.type", "mock")
             .put("index.analysis.filter.test_filter.type", "mock")
             .put("index.analysis.analyzer.custom_analyzer_with_camel_case.tokenizer", "standard")
@@ -306,7 +309,7 @@ public class AnalysisRegistryTests extends ESTestCase {
 
     public void testBuiltInAnalyzersAreCached() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
         IndexAnalyzers indexAnalyzers = emptyAnalysisRegistry(settings).build(IndexCreationContext.CREATE_INDEX, idxSettings);
         IndexAnalyzers otherIndexAnalyzers = emptyAnalysisRegistry(settings).build(IndexCreationContext.CREATE_INDEX, idxSettings);

@@ -36,7 +36,6 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -244,7 +243,7 @@ public class LeaderChecker {
                     }
 
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public void handleResponse() {
                         if (isClosed.get()) {
                             logger.debug("closed check scheduler received a response, doing nothing");
                             return;

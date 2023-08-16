@@ -2080,6 +2080,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98534")
     public void testIsParallelCollectionSupportedForResults() {
         SearchSourceBuilder searchSourceBuilder = randomBoolean() ? null : new SearchSourceBuilder();
         if (searchSourceBuilder != null && randomBoolean()) {

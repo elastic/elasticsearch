@@ -2655,6 +2655,86 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
     }
 
+    public void testAuthorizationOfMultipleActionsSingleIndexBulkItems() {
+        final String action = BulkAction.NAME + "[s]";
+        final AtomicInteger idCounter = new AtomicInteger();
+        final Set<String> actionTypes = new HashSet<>();
+        final String indexName = randomAlphaOfLengthBetween(1, 4);
+        final BulkItemRequest[] items = randomArray(1, 8, BulkItemRequest[]::new, () -> {
+            switch (randomFrom(DocWriteRequest.OpType.values())) {
+                case INDEX -> {
+                    actionTypes.add(IndexAction.NAME + ":op_type/index");
+                    return new BulkItemRequest(
+                        idCounter.get(),
+                        new IndexRequest(indexName).id("id" + idCounter.incrementAndGet()).opType(DocWriteRequest.OpType.INDEX)
+                    );
+                }
+                case CREATE -> {
+                    actionTypes.add(IndexAction.NAME + ":op_type/create");
+                    return new BulkItemRequest(
+                        idCounter.get(),
+                        new IndexRequest(indexName).id("id" + idCounter.incrementAndGet()).opType(DocWriteRequest.OpType.CREATE)
+                    );
+                }
+                case DELETE -> {
+                    actionTypes.add(DeleteAction.NAME);
+                    return new BulkItemRequest(idCounter.get(), new DeleteRequest(indexName, "id" + idCounter.incrementAndGet()));
+                }
+                case UPDATE -> {
+                    actionTypes.add(UpdateAction.NAME);
+                    return new BulkItemRequest(idCounter.get(), new UpdateRequest(indexName, "id" + idCounter.incrementAndGet()));
+                }
+                default -> throw new IllegalStateException("Unexpected value");
+            }
+        });
+        RoleDescriptor goodRole = new RoleDescriptor(
+            "good-role",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices(indexName).privileges(randomFrom("all", "write")).build() },
+            null
+        );
+        roleMap.put("good-role", goodRole);
+
+        final ShardId shardId = new ShardId(indexName, UUID.randomUUID().toString(), 1);
+        final BulkShardRequest request = new BulkShardRequest(shardId, randomFrom(WriteRequest.RefreshPolicy.values()), items);
+
+        mockEmptyMetadata();
+        final Authentication authentication;
+        final String requestId;
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            authentication = createAuthentication(new User("user", "good-role"));
+            requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+            authorize(authentication, action, request);
+        }
+
+        // bulk shard request is authorized
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(action),
+            eq(request),
+            authzInfoRoles(new String[] { goodRole.getName() })
+        );
+        // there's one granted audit entry for each action type
+        actionTypes.forEach(actionType -> {
+            verify(auditTrail).explicitIndexAccessEvent(
+                eq(requestId),
+                eq(AuditLevel.ACCESS_GRANTED),
+                eq(authentication),
+                eq(actionType),
+                eq(new String[] { indexName }),
+                eq(BulkItemRequest.class.getSimpleName()),
+                eq(request.remoteAddress()),
+                authzInfoRoles(new String[] { goodRole.getName() })
+            );
+        });
+        verifyNoMoreInteractions(auditTrail);
+        // all bulk items go through as authorized
+        for (BulkItemRequest bulkItemRequest : request.items()) {
+            assertThat(bulkItemRequest.getPrimaryResponse(), nullValue());
+        }
+    }
+
     public void testAuthorizationOfIndividualIndexAndDeleteBulkItems() {
         final String action = BulkAction.NAME + "[s]";
         final BulkItemRequest[] items = {

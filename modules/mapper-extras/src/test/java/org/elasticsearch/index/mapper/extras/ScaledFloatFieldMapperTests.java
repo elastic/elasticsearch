@@ -157,8 +157,8 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesSearchable() throws Exception {
-        boolean[] indexables = new boolean[] {true, false};
-        boolean[] hasDocValues = new boolean[] {true, false};
+        boolean[] indexables = new boolean[] { true, false };
+        boolean[] hasDocValues = new boolean[] { true, false };
         for (boolean indexable : indexables) {
             for (boolean hasDocValue : hasDocValues) {
                 MapperService mapperService = createMapperService(

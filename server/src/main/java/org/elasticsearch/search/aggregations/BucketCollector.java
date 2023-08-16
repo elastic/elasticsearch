@@ -79,7 +79,7 @@ public abstract class BucketCollector {
         return new BucketCollectorWrapper(this);
     }
 
-    private record BucketCollectorWrapper(BucketCollector bucketCollector) implements Collector {
+    public record BucketCollectorWrapper(BucketCollector bucketCollector) implements Collector {
 
         @Override
         public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {

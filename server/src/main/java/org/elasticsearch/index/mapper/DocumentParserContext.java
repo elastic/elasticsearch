@@ -540,27 +540,27 @@ public abstract class DocumentParserContext {
     public void postProcessDynamicMappers() {
         List<Mapper> postProcessedMappers = new ArrayList<>();
 
-        Map<String, List<Number>> denseVectorFields = dynamicMappers.stream()
+        Map<String, Integer> dynamicDenseVectorFieldNameToDimCount = dynamicMappers.stream()
             .filter(subClassObj -> subClassObj instanceof NumberFieldMapper)
             .map(NumberFieldMapper.class::cast)
             .filter(m -> "float".equals(m.typeName()))
-            .collect(Collectors.groupingBy(FieldMapper::name, Collectors.mapping(NumberFieldMapper::parsedValue, Collectors.toList())))
+            .collect(Collectors.groupingBy(FieldMapper::name,Collectors.counting()))
             .entrySet()
             .stream()
-            .filter(e -> e.getValue().size() >= MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING && e.getValue().size() <= MAX_DIMS_COUNT)
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            .filter(e -> e.getValue() >= MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING && e.getValue() <= MAX_DIMS_COUNT)
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().intValue()));
 
-        if (denseVectorFields.isEmpty()) {
+        if (dynamicDenseVectorFieldNameToDimCount.isEmpty()) {
             return;
         }
 
         for (Mapper mapper : dynamicMappers) {
-            if (denseVectorFields.containsKey(mapper.name())) {
-                List<Number> fieldValues = denseVectorFields.get(mapper.name());
-                DenseVectorFieldMapper.DynamicBuilder builder = new DenseVectorFieldMapper.DynamicBuilder(
+            if (dynamicDenseVectorFieldNameToDimCount.containsKey(mapper.name())) {
+                int size = dynamicDenseVectorFieldNameToDimCount.get(mapper.name());
+                DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
                     mapper.name(),
                     indexSettings().getIndexVersionCreated(),
-                    fieldValues.size()
+                    size
                 );
 
                 DenseVectorFieldMapper denseVectorFieldMapper = builder.build(createDynamicMapperBuilderContext());

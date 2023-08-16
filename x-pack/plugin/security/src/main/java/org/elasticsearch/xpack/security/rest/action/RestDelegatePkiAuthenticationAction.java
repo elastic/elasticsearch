@@ -50,11 +50,8 @@ public final class RestDelegatePkiAuthenticationAction extends SecurityBaseRestH
     }
 
     @Override
-    protected Exception checkFeatureAvailable() {
-        Exception failedFeature = super.checkFeatureAvailable();
-        if (failedFeature != null) {
-            return failedFeature;
-        } else if (Security.PKI_REALM_FEATURE.checkWithoutTracking(licenseState)) {
+    protected Exception innerCheckFeatureAvailable() {
+        if (Security.PKI_REALM_FEATURE.checkWithoutTracking(licenseState)) {
             return null;
         } else {
             logger.info("The '{}' realm is not available under the current license", PkiRealmSettings.TYPE);

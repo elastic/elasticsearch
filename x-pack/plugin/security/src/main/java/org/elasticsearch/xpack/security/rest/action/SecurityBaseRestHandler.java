@@ -59,17 +59,24 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
      * Check whether the given request is allowed within the current license state and setup,
      * and return the name of any unlicensed feature.
      * By default this returns an exception if security is not enabled.
-     * Sub-classes can override this method if they have additional requirements.
+     * Sub-classes can override {@link #innerCheckFeatureAvailable()} if they have additional requirements.
      *
      * @return {@code null} if all required features are available, otherwise an exception to be
-     * sent to the requestor
+     * sent to the requester
      */
-    protected Exception checkFeatureAvailable() {
+    public final Exception checkFeatureAvailable() {
         if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
             return new IllegalStateException("Security is not enabled but a security rest handler is registered");
         } else {
-            return null;
+            return innerCheckFeatureAvailable();
         }
+    }
+
+    /**
+     * Implementers should implement this method when sub-classes have additional license requirements.
+     */
+    protected Exception innerCheckFeatureAvailable() {
+        return null;
     }
 
     /**

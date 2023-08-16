@@ -92,8 +92,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
     final class StoredIdLoader implements IdLoader {
 
-        public StoredIdLoader() {
-        }
+        public StoredIdLoader() {}
 
         @Override
         public Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {

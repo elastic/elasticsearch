@@ -436,7 +436,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return entry;
     }
 
-    public void fetchFullEntry(KeyType cacheKey, long length, RangeMissingHandler writer, ActionListener<Integer> listener) {
+    public void fetchFullEntry(KeyType cacheKey, long length, RangeMissingHandler writer) {
         int finalRegion = getRegion(length);
         long regionLength = regionSize;
         for (int region = 0; region <= finalRegion; region++) {
@@ -454,7 +454,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 (channel, pos, relativePos, len) -> 0,
                 writer,
                 bulkIOExecutor,
-                listener
+                ActionListener.noop()
             );
         }
     }

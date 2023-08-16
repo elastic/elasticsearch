@@ -8,7 +8,6 @@
 package org.elasticsearch.blobcache.shared;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -370,17 +369,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertEquals(5, cacheService.freeRegionCount());
             CountDownLatch latch = new CountDownLatch(3);
             cacheService.fetchFullEntry(cacheKey, size(250), (channel, channelPos, relativePos, length, progressUpdater) -> {
+                latch.countDown();
                 progressUpdater.accept(length);
-            }, new ActionListener<>() {
-                @Override
-                public void onResponse(Integer integer) {
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError(e);
-                }
             });
 
             assertTrue(latch.await(10, TimeUnit.SECONDS));

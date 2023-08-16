@@ -900,4 +900,56 @@ a:double
 // end::floor-result[]
 ;
 
+sqrt
+// tag::sqrt[]
+ROW d = 100.0
+| EVAL s = SQRT(d);
+// end::sqrt[]
 
+// tag::sqrt-result[]
+d: double | s:double
+100.0    | 10.0
+// end::sqrt-result[]
+;
+
+sqrtOfInteger
+row i = 81 | eval s = sqrt(i);
+
+i:integer | s:double
+81        | 9
+;
+
+sqrtOfNegative
+row d = -1.0 | eval s = is_nan(sqrt(d));
+
+d:double | s:boolean
+-1.0     | true
+;
+
+sqrtOfNan
+row d = 0.0/0.0 | eval s = is_nan(sqrt(d));
+
+d:double | s:boolean
+NaN      | true
+;
+
+sqrtOfZero
+row d = 0.0 |eval s = sqrt(d);
+
+d:double | s:double
+0.0     | 0.0
+;
+
+sqrtOfNegativeZero
+row d = -0.0 |eval s = sqrt(d);
+
+d:double | s:double
+-0.0     | -0.0
+;
+
+sqrtOfInfinite
+row d = 1/0.0 | eval s = is_infinite(sqrt(d));
+
+d:double | s:boolean
+Infinity | true
+;

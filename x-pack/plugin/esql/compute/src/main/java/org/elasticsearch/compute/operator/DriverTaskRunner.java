@@ -53,22 +53,7 @@ public class DriverTaskRunner {
                     new DriverRequest(driver),
                     parentTask,
                     TransportRequestOptions.EMPTY,
-                    new TransportResponseHandler.Empty() {
-                        @Override
-                        public Executor executor(ThreadPool threadPool) {
-                            return TRANSPORT_WORKER;
-                        }
-
-                        @Override
-                        public void handleResponse() {
-                            driverListener.onResponse(null);
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            driverListener.onFailure(exp);
-                        }
-                    }
+                    TransportResponseHandler.empty(TransportResponseHandler.TRANSPORT_WORKER, driverListener)
                 );
             }
         };

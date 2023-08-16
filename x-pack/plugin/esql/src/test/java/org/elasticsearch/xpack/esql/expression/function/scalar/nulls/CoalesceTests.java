@@ -39,7 +39,8 @@ public class CoalesceTests extends AbstractFunctionTestCase {
     }
 
     /**
-     * Generate the test cases for this test
+     * Generate the test cases for this test. The tests don't actually include
+     * any nulls, but we insert those nulls in {@link #testSimpleWithNulls()}.
      */
     @ParametersFactory
     public static Iterable<Object[]> parameters() {

@@ -172,7 +172,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             pipelinesHaveRun = in.readBoolean();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_062)) {
-            this.pipelines = in.readList(StreamInput::readString);
+            this.pipelines = new ArrayList<>(in.readList(StreamInput::readString));
         }
     }
 

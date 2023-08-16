@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.action.downsample;
 
-import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 

@@ -33,6 +33,15 @@ days). Only indices with an `index.mode` of `time_series` support this setting.
 For more information, refer to <<tsds-look-ahead-time>>. Additionally this setting
 can not be less than `time_series.poll_interval` cluster setting.
 
+[[index-look-back-time]]
+`index.look_back_time`::
+(<<_static_index_settings,Static>>, <<time-units,time units>>)
+Interval used to calculate the `index.time_series.start_time` for a TSDS's first
+backing index when a tsdb data stream is created. Defaults to `2h` (2 hours).
+Accepts `1m` (one minute) to `7d` (seven days). Only indices with an `index.mode`
+of `time_series` support this setting. For more information,
+refer to <<tsds-look-back-time>>.
+
 [[index-routing-path]] `index.routing_path`::
 (<<_static_index_settings,Static>>, string or array of strings) Plain `keyword`
 fields used to route documents in a TSDS to index shards. Supports wildcards

@@ -375,12 +375,10 @@ public class Archives {
                     + "$process.StandardInput.WriteLine('"
                     + keystorePassword
                     + "'); "
-                    + "Start-Sleep -s "
+                    + "$ErrorActionPreference = 'Continue'; "
+                    + "Wait-Process -Timeout "
                     + ES_STARTUP_SLEEP_TIME_SECONDS
-                    + "; "
-                    // + "Wait-Process -Timeout "
-                    // + ES_STARTUP_SLEEP_TIME_SECONDS
-                    // + " -Id $process.Id; "
+                    + " -Id $process.Id; "
                     + "$process.Id;"
             );
         } else {

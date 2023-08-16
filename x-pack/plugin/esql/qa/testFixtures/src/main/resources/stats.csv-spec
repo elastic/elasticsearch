@@ -359,64 +359,68 @@ byUnmentionedIntAndLong
 from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by languages, trunk_worked_seconds | sort c desc;
 
 c:long | languages:integer | trunk_worked_seconds:long
-13 | 5 | 300000000
-10 | 2 | 300000000
- 9 | 4 | 300000000
- 9 | 3 | 200000000
- 8 | 4 | 200000000
- 8 | 3 | 300000000
- 7 | 1 | 200000000
- 6 | 2 | 200000000
- 6 | 1 | 300000000
- 4 | 5 | 200000000
+    13 |                 5 | 300000000
+    10 |                 2 | 300000000
+     9 |                 4 | 300000000
+     9 |                 3 | 200000000
+     8 |                 4 | 200000000
+     8 |                 3 | 300000000
+     7 |                 1 | 200000000
+     6 |                 2 | 200000000
+     6 |              null | 300000000
+     6 |                 1 | 300000000
+     4 |              null | 200000000
+     4 |                 5 | 200000000
 ;
 
 byUnmentionedIntAndBoolean
 from employees | stats c = count(gender) by languages, still_hired | sort c desc, languages desc;
 
 c:long | languages:integer | still_hired:boolean
-11 | 3 | false
-11 | 2 | true
-10 | 4 | false
- 9 | 5 | true
- 8 | 5 | false
- 8 | 1 | false
- 7 | 4 | true
- 6 | 3 | true
- 5 | 2 | false
- 5 | 1 | true
+    11 |                 3 | false
+    11 |                 2 | true
+    10 |                 4 | false
+     9 |                 5 | true
+     8 |                 5 | false
+     8 |                 1 | false
+     7 |                 4 | true
+     6 |              null | false
+     6 |                 3 | true
+     5 |                 2 | false
+     5 |                 1 | true
+     4 |              null | true
 ;
 
 byDateAndKeywordAndInt
 from employees | eval d = date_trunc(hire_date, 1 year) | stats c = count(emp_no) by d, gender, languages | sort c desc, d, languages desc | limit 10;
 
-c:long | d:date | gender:keyword | languages:integer
-3 | 1986-01-01T00:00:00.000Z | M | 2
-3 | 1987-01-01T00:00:00.000Z | M | 2
-2 | 1985-01-01T00:00:00.000Z | M | 5
-2 | 1985-01-01T00:00:00.000Z | M | 3
-2 | 1986-01-01T00:00:00.000Z | M | 5
-2 | 1986-01-01T00:00:00.000Z | M | 4
-2 | 1987-01-01T00:00:00.000Z | F | 5
-2 | 1987-01-01T00:00:00.000Z | M | 3
-2 | 1987-01-01T00:00:00.000Z | M | 1
-2 | 1988-01-01T00:00:00.000Z | F | 5
+c:long |           d:date         | gender:keyword | languages:integer
+     3 | 1986-01-01T00:00:00.000Z | M              | 2
+     3 | 1987-01-01T00:00:00.000Z | M              | 2
+     2 | 1985-01-01T00:00:00.000Z | M              | 5
+     2 | 1985-01-01T00:00:00.000Z | M              | 3
+     2 | 1986-01-01T00:00:00.000Z | M              | 5
+     2 | 1986-01-01T00:00:00.000Z | M              | 4
+     2 | 1987-01-01T00:00:00.000Z | null           | 5
+     2 | 1987-01-01T00:00:00.000Z | F              | 5
+     2 | 1987-01-01T00:00:00.000Z | M              | 3
+     2 | 1987-01-01T00:00:00.000Z | M              | 1
 ;
 
 byDateAndKeywordAndIntWithAlias
 from employees | eval d = date_trunc(hire_date, 1 year) | rename gender as g, languages as l, emp_no as e | keep d, g, l, e | stats c = count(e) by d, g, l | sort c desc, d, l desc | limit 10;
 
-c:long | d:date | g:keyword | l:integer
-3 | 1986-01-01T00:00:00.000Z | M | 2
-3 | 1987-01-01T00:00:00.000Z | M | 2
-2 | 1985-01-01T00:00:00.000Z | M | 5
-2 | 1985-01-01T00:00:00.000Z | M | 3
-2 | 1986-01-01T00:00:00.000Z | M | 5
-2 | 1986-01-01T00:00:00.000Z | M | 4
-2 | 1987-01-01T00:00:00.000Z | F | 5
-2 | 1987-01-01T00:00:00.000Z | M | 3
-2 | 1987-01-01T00:00:00.000Z | M | 1
-2 | 1988-01-01T00:00:00.000Z | F | 5
+c:long |           d:date         | g:keyword | l:integer
+     3 | 1986-01-01T00:00:00.000Z | M         | 2
+     3 | 1987-01-01T00:00:00.000Z | M         | 2
+     2 | 1985-01-01T00:00:00.000Z | M         | 5
+     2 | 1985-01-01T00:00:00.000Z | M         | 3
+     2 | 1986-01-01T00:00:00.000Z | M         | 5
+     2 | 1986-01-01T00:00:00.000Z | M         | 4
+     2 | 1987-01-01T00:00:00.000Z | null      | 5
+     2 | 1987-01-01T00:00:00.000Z | F         | 5
+     2 | 1987-01-01T00:00:00.000Z | M         | 3
+     2 | 1987-01-01T00:00:00.000Z | M         | 1
 ;
 
 byDoubleAndBoolean

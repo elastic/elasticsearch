@@ -93,6 +93,7 @@ public class EvaluatorProcessor implements Processor {
                             mvEvaluatorAnn.extraName(),
                             mvEvaluatorAnn.finish(),
                             mvEvaluatorAnn.single(),
+                            mvEvaluatorAnn.ascending(),
                             warnExceptions(evaluatorMethod)
                         ).sourceFile(),
                         env

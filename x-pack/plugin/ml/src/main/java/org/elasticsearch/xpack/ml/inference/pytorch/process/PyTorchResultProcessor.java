@@ -149,7 +149,7 @@ public class PyTorchResultProcessor {
             timeMs = 0L;
         }
 
-        logger.trace(() -> format("[%s] Parsed inference result with id [%s]", modelId, result.requestId()));
+        logger.debug(() -> format("[%s] Parsed inference result with id [%s]", modelId, result.requestId()));
         updateStats(timeMs, Boolean.TRUE.equals(result.isCacheHit()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
@@ -163,7 +163,7 @@ public class PyTorchResultProcessor {
         ThreadSettings threadSettings = result.threadSettings();
         assert threadSettings != null;
 
-        logger.trace(() -> format("[%s] Parsed thread settings result with id [%s]", modelId, result.requestId()));
+        logger.debug(() -> format("[%s] Parsed thread settings result with id [%s]", modelId, result.requestId()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
             logger.debug(() -> format("[%s] no pending result for thread settings [%s]", modelId, result.requestId()));
@@ -176,7 +176,7 @@ public class PyTorchResultProcessor {
         AckResult ack = result.ackResult();
         assert ack != null;
 
-        logger.trace(() -> format("[%s] Parsed ack result with id [%s]", modelId, result.requestId()));
+        logger.debug(() -> format("[%s] Parsed ack result with id [%s]", modelId, result.requestId()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
             logger.debug(() -> format("[%s] no pending result for ack [%s]", modelId, result.requestId()));
@@ -194,7 +194,7 @@ public class PyTorchResultProcessor {
             errorCount++;
         }
 
-        logger.trace(() -> format("[%s] Parsed error with id [%s]", modelId, result.requestId()));
+        logger.debug(() -> format("[%s] Parsed error with id [%s]", modelId, result.requestId()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
             logger.debug(() -> format("[%s] no pending result for error [%s]", modelId, result.requestId()));

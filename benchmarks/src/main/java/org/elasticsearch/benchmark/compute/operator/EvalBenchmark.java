@@ -8,6 +8,7 @@
 
 package org.elasticsearch.benchmark.compute.operator;
 
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -19,6 +20,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.planner.EvalMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -65,7 +67,7 @@ public class EvalBenchmark {
         }
     }
 
-    @Param({ "abs", "add", "date_trunc", "equal_to_const", "long_equal_to_long", "long_equal_to_int" })
+    @Param({ "abs", "add", "date_trunc", "equal_to_const", "long_equal_to_long", "long_equal_to_int", "mv_min", "mv_min_ascending" })
     public String operation;
 
     private static Operator operator(String operation) {
@@ -112,6 +114,10 @@ public class EvalBenchmark {
                 FieldAttribute lhs = longField();
                 FieldAttribute rhs = intField();
                 yield EvalMapper.toEvaluator(new Equals(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get();
+            }
+            case "mv_min", "mv_min_ascending" -> {
+                FieldAttribute longField = longField();
+                yield EvalMapper.toEvaluator(new MvMin(Source.EMPTY, longField), layout(longField)).get();
             }
             default -> throw new UnsupportedOperationException();
         };
@@ -178,6 +184,14 @@ public class EvalBenchmark {
                     }
                 }
             }
+            case "mv_min", "mv_min_ascending" -> {
+                LongVector v = actual.<LongBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    if (v.getLong(i) != i) {
+                        throw new AssertionError("[" + operation + "] expected [" + i + "] but was [" + v.getLong(i) + "]");
+                    }
+                }
+            }
             default -> throw new UnsupportedOperationException();
         }
     }
@@ -208,6 +222,20 @@ public class EvalBenchmark {
                     rhs.appendInt(i * 100_000);
                 }
                 yield new Page(lhs.build(), rhs.build());
+            }
+            case "mv_min", "mv_min_ascending" -> {
+                var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
+                if (operation.endsWith("ascending")) {
+                    builder.mvOrdering(Block.MvOrdering.ASCENDING);
+                }
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.beginPositionEntry();
+                    builder.appendLong(i);
+                    builder.appendLong(i + 1);
+                    builder.appendLong(i + 2);
+                    builder.endPositionEntry();
+                }
+                yield new Page(builder.build());
             }
             default -> throw new UnsupportedOperationException();
         };

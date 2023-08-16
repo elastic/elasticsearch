@@ -56,6 +56,12 @@ public @interface MvEvaluator {
     String single() default "";
 
     /**
+     * Optional method called to process blocks whose values are sorted
+     * in ascending order.
+     */
+    String ascending() default "";
+
+    /**
      * Exceptions thrown by the process method to catch and convert
      * into a warning and turn into a null value.
      */

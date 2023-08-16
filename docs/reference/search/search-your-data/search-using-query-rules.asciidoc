@@ -148,7 +148,7 @@ PUT /_query_rules/my-ruleset
       "type": "pinned",
       "criteria": [
         {
-          "type": "fuzzy",
+          "type": "contains",
           "metadata": "query_string",
           "values": [ "beagles" ]
         }

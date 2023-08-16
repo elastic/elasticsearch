@@ -83,6 +83,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -2080,27 +2081,53 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98534")
     public void testIsParallelCollectionSupportedForResults() {
         SearchSourceBuilder searchSourceBuilder = randomBoolean() ? null : new SearchSourceBuilder();
-        if (searchSourceBuilder != null && randomBoolean()) {
-            searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));
+        var aggSupportsParallelCollection = new DateRangeAggregationBuilder("dateRange");
+        var aggDoesNotSupportParallelCollection = new TermsAggregationBuilder("terms");
+        var addedAggregation = searchSourceBuilder != null && randomBoolean()
+                ? randomFrom(aggSupportsParallelCollection, aggDoesNotSupportParallelCollection)
+                : null;
+        if (addedAggregation != null) searchSourceBuilder.aggregation(addedAggregation);
+
+        for (var resultsType : ResultsType.values()) {
+            Runnable boilerplateForExhaustiveSwitch = switch (resultsType) {
+                case NONE, FETCH -> () -> assertFalse(
+                        "NONE and FETCH do not support parallel collection.",
+                        SearchService.isParallelCollectionSupportedForResults(
+                                resultsType,
+                                searchSourceBuilder,
+                                true
+                        ));
+                case DFS -> () -> {
+                    assertTrue("DFS supports parallel collection.", SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilder, true));
+                    assertTrue("DFS supports parallel collection when isQueryPhaseParallelismEnabled is false.", SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilder, false));
+                };
+                case QUERY -> () -> {
+                    assertFalse("", SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilder, false));
+                    if (addedAggregation == aggDoesNotSupportParallelCollection) {
+                        assertFalse(
+                                "Query supports Parallel collection when enabled and supported by aggregation.",
+                                SearchService.isParallelCollectionSupportedForResults(
+                                        resultsType,
+                                        searchSourceBuilder,
+                                        true
+                                )
+                        );
+                    } else if (addedAggregation == null || addedAggregation == aggSupportsParallelCollection) {
+                        assertTrue(
+                                "Query supports Parallel collection when enabled and does not contain unsupported agg.",
+                                SearchService.isParallelCollectionSupportedForResults(
+                                        resultsType,
+                                        searchSourceBuilder,
+                                        true
+                                )
+                        );
+                    }
+                };
+            };
+            boilerplateForExhaustiveSwitch.run();
         }
-        assertTrue(SearchService.isParallelCollectionSupportedForResults(ResultsType.DFS, searchSourceBuilder, true));
-        assertFalse(
-            SearchService.isParallelCollectionSupportedForResults(
-                randomFrom(randomFrom(ResultsType.QUERY, ResultsType.NONE, ResultsType.FETCH)),
-                searchSourceBuilder,
-                false
-            )
-        );
-        assertFalse(
-            SearchService.isParallelCollectionSupportedForResults(
-                randomFrom(randomFrom(ResultsType.QUERY, ResultsType.NONE, ResultsType.FETCH)),
-                searchSourceBuilder,
-                true
-            )
-        );
     }
 
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {

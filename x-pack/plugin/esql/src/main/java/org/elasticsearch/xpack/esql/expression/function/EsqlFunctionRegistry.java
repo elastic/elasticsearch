@@ -66,7 +66,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedi
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
@@ -130,6 +132,8 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Length.class, Length::new, "length"),
                 def(Substring.class, Substring::new, "substring"),
                 def(Concat.class, Concat::new, "concat"),
+                def(LTrim.class, LTrim::new, "ltrim"),
+                def(RTrim.class, RTrim::new, "rtrim"),
                 def(Trim.class, Trim::new, "trim"),
                 def(StartsWith.class, StartsWith::new, "starts_with") },
             // date

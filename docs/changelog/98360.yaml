@@ -1,6 +1,6 @@
 pr: 98360
 summary: Use a competitive iterator in `FiltersAggregator`
 area: Aggregations
-type: feature
+type: enhancement
 issues:
  - 97544

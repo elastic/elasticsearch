@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
@@ -65,6 +66,12 @@ public class Verifier {
         this.metrics = metrics;
     }
 
+    /**
+     * Verify that a {@link LogicalPlan} can be executed.
+     *
+     * @param plan The logical plan to be verified
+     * @return a collection of verification failures; empty if and only if the plan is valid
+     */
     Collection<Failure> verify(LogicalPlan plan) {
         Set<Failure> failures = new LinkedHashSet<>();
 
@@ -179,6 +186,12 @@ public class Verifier {
                     failures.add(f);
                 }
             });
+            p.forEachExpression(Neg.class, neg -> {
+                Failure f = validateUnsignedLongNegation(neg);
+                if (f != null) {
+                    failures.add(f);
+                }
+            });
         });
 
         // gather metrics
@@ -213,7 +226,7 @@ public class Verifier {
         }
     }
 
-    public static Collection<Failure> validateRow(Row row) {
+    private static Collection<Failure> validateRow(Row row) {
         List<Failure> failures = new ArrayList<>(row.fields().size());
         row.fields().forEach(o -> {
             if (EsqlDataTypes.isRepresentable(o.dataType()) == false && o instanceof Alias a) {
@@ -271,13 +284,14 @@ public class Verifier {
         return null;
     }
 
-    // Ensure that UNSIGNED_LONG types are not implicitly converted when used in arithmetic binary operator, as this cannot be done since:
-    // - unsigned longs are passed through the engine as longs, so/and
-    // - negative values cannot be represented (i.e. range [Long.MIN_VALUE, "abs"(Long.MIN_VALUE) + Long.MAX_VALUE] won't fit on 64 bits);
-    // - a conversion to double isn't possible, since upper range UL values can no longer be distinguished
-    // ex: (double) 18446744073709551615 == (double) 18446744073709551614
-    // - the implicit ESQL's Cast doesn't currently catch Exception and nullify the result.
-    // Let the user handle the operation explicitly.
+    /** Ensure that UNSIGNED_LONG types are not implicitly converted when used in arithmetic binary operator, as this cannot be done since:
+     *  - unsigned longs are passed through the engine as longs, so/and
+     *  - negative values cannot be represented (i.e. range [Long.MIN_VALUE, "abs"(Long.MIN_VALUE) + Long.MAX_VALUE] won't fit on 64 bits);
+     *  - a conversion to double isn't possible, since upper range UL values can no longer be distinguished
+     *  ex: (double) 18446744073709551615 == (double) 18446744073709551614
+     *  - the implicit ESQL's Cast doesn't currently catch Exception and nullify the result.
+     *  Let the user handle the operation explicitly.
+     */
     public static Failure validateUnsignedLongOperator(BinaryOperator<?, ?, ?, ?> bo) {
         DataType leftType = bo.left().dataType();
         DataType rightType = bo.right().dataType();
@@ -290,6 +304,22 @@ public class Verifier {
                 rightType.typeName(),
                 DataTypes.UNSIGNED_LONG.typeName(),
                 DataTypes.UNSIGNED_LONG.typeName()
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Negating an unsigned long is invalid.
+     */
+    private static Failure validateUnsignedLongNegation(Neg neg) {
+        DataType childExpressionType = neg.field().dataType();
+        if (childExpressionType.equals(DataTypes.UNSIGNED_LONG)) {
+            return fail(
+                neg,
+                "negation unsupported for arguments of type [{}] in expression [{}]",
+                childExpressionType.typeName(),
+                neg.sourceText()
             );
         }
         return null;

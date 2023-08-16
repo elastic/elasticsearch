@@ -280,6 +280,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             );
             assertThat(configs, hasSize(1));
             Map<String, Object> metadata = (Map<String, Object>) configs.get(0).get("metadata");
+            Integer canonicalRequiredMemory = (int) (ByteSizeValue.ofMb(240).getBytes() + 2 * RAW_MODEL_SIZE);
             if (metadata != null) {
                 // test required memory estimation for a model with metadata memory requirements
                 assertThat(metadata, is(not(nullValue())));
@@ -287,18 +288,14 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                 long perDeploymentMemoryBytes = ((Number) metadata.get("per_deployment_memory_bytes")).longValue();
                 assertThat(metadata.containsKey("per_allocation_memory_bytes"), is(true));
                 long perAllocationMemoryBytes = ((Number) metadata.get("per_allocation_memory_bytes")).longValue();
-
-                if (perDeploymentMemoryBytes > 0 && perAllocationMemoryBytes > 0) {
-                    assertThat(
-                        requiredNativeMemory,
-                        equalTo((int) (perDeploymentMemoryBytes + perAllocationMemoryBytes * numberOfAllocations + RAW_MODEL_SIZE))
-                    );
-                } else {
-                    assertThat(requiredNativeMemory, equalTo((int) (ByteSizeValue.ofMb(240).getBytes() + 2 * RAW_MODEL_SIZE)));
-                }
+                Integer expectedRequiredMemory = Math.max(
+                    canonicalRequiredMemory,
+                    (int) (perDeploymentMemoryBytes + perAllocationMemoryBytes * numberOfAllocations + RAW_MODEL_SIZE)
+                );
+                assertThat(requiredNativeMemory, equalTo(expectedRequiredMemory));
             } else {
                 // test required memory estimation for a model without metadata memory requirements
-                assertThat(requiredNativeMemory, equalTo((int) (ByteSizeValue.ofMb(240).getBytes() + 2 * RAW_MODEL_SIZE)));
+                assertThat(requiredNativeMemory, equalTo(canonicalRequiredMemory));
             }
 
             stopDeployment(modelId);

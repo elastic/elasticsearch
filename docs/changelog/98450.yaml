@@ -1,5 +1,0 @@
-pr: 98450
-summary: Add a `fetchFullEntry` method to `SharedBlobCacheService`
-area: "Snapshot/Restore"
-type: enhancement
-issues: []

@@ -9,7 +9,6 @@
 package org.elasticsearch.action.support.broadcast.node;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.IndicesRequest;
@@ -45,8 +44,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.rest.RestStatus;
@@ -71,6 +73,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -104,12 +107,34 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     private TransportService transportService;
 
     public static class Request extends BroadcastRequest<Request> {
+        private final RefCounted refCounted = AbstractRefCounted.of(() -> {});
+
         public Request(StreamInput in) throws IOException {
             super(in);
         }
 
         public Request(String... indices) {
             super(indices);
+        }
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refCounted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
         }
     }
 
@@ -286,7 +311,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         ClusterState.Builder stateBuilder = ClusterState.builder(new ClusterName(TEST_CLUSTER));
         stateBuilder.nodes(discoBuilder);
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(TEST_INDEX)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfReplicas(0)
             .numberOfShards(totalIndexShards);
 
@@ -354,6 +379,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         action.doExecute(null, request, listener);
+        request.decRef(); // before the forked tasks complete
         awaitForkedTasks();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
@@ -372,6 +398,9 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             // check one request was sent to each node
             assertEquals(1, entry.getValue().size());
         }
+
+        assertFalse(request.hasReferences());
+        assertTrue(capturedRequests.values().stream().flatMap(Collection::stream).noneMatch(cr -> cr.request().hasReferences()));
     }
 
     public void testNoShardOperationsExecutedIfTaskCancelled() throws Exception {

@@ -3,8 +3,8 @@ setup:
       version: " - 8.9.99"
       reason: Introduced in 8.10.0
   - do:
-      synonyms.put:
-        synonyms_set: test-get-synonyms
+      synonyms.put_synonym:
+        id: test-get-synonyms
         body:
           synonyms_set:
             - synonyms: "hello, hi"
@@ -15,29 +15,29 @@ setup:
 ---
 "Delete synonyms set":
   - do:
-      synonyms.delete:
-        synonyms_set: test-get-synonyms
+      synonyms.delete_synonym:
+        id: test-get-synonyms
 
   - match:
       acknowledged: true
 
   - do:
       catch: missing
-      synonyms.get:
-        synonyms_set: test-get-synonyms
+      synonyms.get_synonym:
+        id: test-get-synonyms
 
 ---
 "Delete synonyms set - not found":
   - do:
       catch: missing
-      synonyms.delete:
-        synonyms_set: unknown-synonym-set
+      synonyms.delete_synonym:
+        id: unknown-synonym-set
 
 ---
 "Delete synonyms set - does not impact other synonym sets":
   - do:
-      synonyms.put:
-        synonyms_set: test-other-synonyms
+      synonyms.put_synonym:
+        id: test-other-synonyms
         body:
           synonyms_set:
             - synonyms: "hola, hi"
@@ -45,12 +45,12 @@ setup:
             - synonyms: "test => check"
               id: "test-other-2"
   - do:
-      synonyms.delete:
-        synonyms_set: test-get-synonyms
+      synonyms.delete_synonym:
+        id: test-get-synonyms
 
   - do:
-      synonyms.get:
-        synonyms_set: test-other-synonyms
+      synonyms.get_synonym:
+        id: test-other-synonyms
 
   - match:
       count: 2
@@ -90,13 +90,13 @@ setup:
                 search_analyzer: my_analyzer1
 
   - do:
-      catch: /Synonyms set \[test-get-synonyms\] cannot be deleted as it is used in the following indices:\ my_index1/
-      synonyms.delete:
-        synonyms_set: test-get-synonyms
+      catch: /synonyms set \[test-get-synonyms\] cannot be deleted as it is used in the following indices:\ my_index1/
+      synonyms.delete_synonym:
+        id: test-get-synonyms
 
   - do:
-      synonyms.get:
-        synonyms_set: test-get-synonyms
+      synonyms.get_synonym:
+        id: test-get-synonyms
 
   - match:
       count: 2

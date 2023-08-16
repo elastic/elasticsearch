@@ -42,17 +42,6 @@ import java.util.Objects;
  */
 public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
-    // This represents when the data stream lifecycle was explicitly set to be null, meaning the user wants to remove the
-    // lifecycle.
-    public static final DataStreamLifecycle NO_LIFECYCLE = new DataStreamLifecycle() {
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params, RolloverConfiguration rolloverConfiguration)
-            throws IOException {
-            return builder.nullValue();
-        }
-    };
-
     private static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField MAPPINGS = new ParseField("mappings");
     private static final ParseField ALIASES = new ParseField("aliases");
@@ -94,10 +83,9 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }, ALIASES);
         // We adjust the parser to ensure that the error message will be consistent with that of an unknown field.
         if (DataStreamLifecycle.isFeatureEnabled()) {
-            PARSER.declareObjectOrNull(
+            PARSER.declareObject(
                 ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> DataStreamLifecycle.fromXContent(p),
-                NO_LIFECYCLE,
                 LIFECYCLE
             );
         }
@@ -149,10 +137,12 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         } else {
             this.aliases = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+        if (in.getTransportVersion().onOrAfter(DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
+            this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
+        } else if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             boolean isExplicitNull = in.readBoolean();
             if (isExplicitNull) {
-                this.lifecycle = NO_LIFECYCLE;
+                this.lifecycle = DataStreamLifecycle.newBuilder().enabled(false).build();
             } else {
                 this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
             }
@@ -201,8 +191,10 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             out.writeBoolean(true);
             out.writeMap(this.aliases, StreamOutput::writeString, (stream, aliasMetadata) -> aliasMetadata.writeTo(stream));
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
-            boolean isExplicitNull = lifecycle == NO_LIFECYCLE;
+        if (out.getTransportVersion().onOrAfter(DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
+            out.writeOptionalWriteable(lifecycle);
+        } else if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+            boolean isExplicitNull = lifecycle != null && lifecycle.isEnabled() == false;
             out.writeBoolean(isExplicitNull);
             if (isExplicitNull == false) {
                 out.writeOptionalWriteable(lifecycle);

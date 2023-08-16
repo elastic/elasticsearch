@@ -84,7 +84,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         indexTemplateVersion = ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION;
         indexManager = new ProfilingIndexManager(threadPool, client, clusterService) {
             @Override
-            protected boolean isAllResourcesCreated(ClusterChangedEvent event) {
+            protected boolean isAllResourcesCreated(ClusterChangedEvent event, Settings settings) {
                 return templatesCreated.get();
             }
 
@@ -273,12 +273,13 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         templatesCreated.set(true);
+        int nextIndexTemplateVersion = ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION + 1;
 
         ProfilingIndexManager.ProfilingIndex idx = ProfilingIndexManager.ProfilingIndex.regular(
             "profiling-test",
             1,
             ProfilingIndexManager.OnVersionBump.KEEP_OLD,
-            new Migration.Builder().migrateToIndexTemplateVersion(2)
+            new Migration.Builder().migrateToIndexTemplateVersion(nextIndexTemplateVersion)
                 .addProperty("test", "keyword")
                 .dynamicSettings(
                     Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(30)).build()
@@ -293,7 +294,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
 
         managedIndices = List.of(idx, idx2);
         // index is out of date and should be migrated
-        indexTemplateVersion = 2;
+        indexTemplateVersion = nextIndexTemplateVersion;
         ClusterChangedEvent event = createClusterChangedEvent(managedIndices, nodes);
 
         AtomicInteger mappingUpdates = new AtomicInteger(0);

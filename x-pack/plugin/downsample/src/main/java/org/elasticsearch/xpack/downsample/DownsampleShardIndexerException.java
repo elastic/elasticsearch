@@ -9,15 +9,15 @@ package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.ElasticsearchException;
 
-public class RollupShardIndexerException extends ElasticsearchException {
+public class DownsampleShardIndexerException extends ElasticsearchException {
     private final boolean retriable;
 
-    public RollupShardIndexerException(final Throwable cause, final String message, boolean retriable) {
+    public DownsampleShardIndexerException(final Throwable cause, final String message, boolean retriable) {
         super(message, cause);
         this.retriable = retriable;
     }
 
-    public RollupShardIndexerException(final String message, boolean retriable) {
+    public DownsampleShardIndexerException(final String message, boolean retriable) {
         super(message);
         this.retriable = retriable;
     }

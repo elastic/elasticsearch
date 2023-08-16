@@ -76,9 +76,9 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
@@ -99,7 +99,7 @@ import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDE
 /**
  * The master downsample action that coordinates
  *  -  creating the downsample index
- *  -  instantiating {@link RollupShardIndexer}s to index downsample documents
+ *  -  instantiating {@link DownsampleShardIndexer}s to index downsample documents
  *  -  cleaning up state
  */
 public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAction<DownsampleAction.Request> {
@@ -170,7 +170,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
         this.threadContext = threadPool.getThreadContext();
-        this.taskQueue = clusterService.createTaskQueue("rollup", Priority.URGENT, STATE_UPDATE_TASK_EXECUTOR);
+        this.taskQueue = clusterService.createTaskQueue("downsample", Priority.URGENT, STATE_UPDATE_TASK_EXECUTOR);
         this.persistentTasksService = persistentTasksService;
     }
 
@@ -226,7 +226,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         if (state.blocks().indexBlocked(ClusterBlockLevel.WRITE, sourceIndexName) == false) {
             listener.onFailure(
                 new ElasticsearchException(
-                    "Rollup requires setting [" + IndexMetadata.SETTING_BLOCKS_WRITE + " = true] for index [" + sourceIndexName + "]"
+                    "Downsample requires setting [" + IndexMetadata.SETTING_BLOCKS_WRITE + " = true] for index [" + sourceIndexName + "]"
                 )
             );
             return;
@@ -274,7 +274,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 .filter(entry -> sourceIndexName.equals(entry.getKey()))
                 .findFirst()
                 .map(mappingMetadata -> mappingMetadata.getValue().sourceAsMap())
-                .orElseThrow(() -> new IllegalArgumentException("No mapping found for rollup source index [" + sourceIndexName + "]"));
+                .orElseThrow(() -> new IllegalArgumentException("No mapping found for downsample source index [" + sourceIndexName + "]"));
 
             // 2. Extract downsample config from index mappings
             final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(sourceIndexMetadata);
@@ -330,7 +330,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                         labelFields
                     );
                 } else {
-                    listener.onFailure(new ElasticsearchException("Failed to create rollup index [" + downsampleIndexName + "]"));
+                    listener.onFailure(new ElasticsearchException("Failed to create downsample index [" + downsampleIndexName + "]"));
                 }
             }, e -> {
                 if (e instanceof ResourceAlreadyExistsException) {
@@ -385,7 +385,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     // NOTE: don't need to wait if the persistent task completed and was removed
                     return true;
                 }
-                RollupShardPersistentTaskState runningPersistentTaskState = (RollupShardPersistentTaskState) runningTask.getState();
+                DownsampleShardPersistentTaskState runningPersistentTaskState = (DownsampleShardPersistentTaskState) runningTask.getState();
                 return runningPersistentTaskState != null && runningPersistentTaskState.done();
             };
             var taskListener = new PersistentTasksService.WaitForPersistentTaskListener<>() {
@@ -407,7 +407,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             };
             persistentTasksService.sendStartRequest(
                 persistentTaskId,
-                RollupShardTask.TASK_NAME,
+                DownsampleShardTask.TASK_NAME,
                 params,
                 ActionListener.wrap(
                     startedTask -> persistentTasksService.waitForPersistentTaskCondition(

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.rollup.action;
+package org.elasticsearch.xpack.core.downsample;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,7 +22,7 @@ import java.io.IOException;
  * This class includes statistics collected by the downsampling task before
  * a bulk indexing operation starts.
  */
-public record RollupBeforeBulkInfo(long currentTimeMillis, long executionId, long estimatedSizeInBytes, int numberOfActions)
+public record DownsampleBeforeBulkInfo(long currentTimeMillis, long executionId, long estimatedSizeInBytes, int numberOfActions)
     implements
         NamedWriteable,
         ToXContentObject {
@@ -34,11 +34,11 @@ public record RollupBeforeBulkInfo(long currentTimeMillis, long executionId, lon
     private static final ParseField ESTIMATED_SIZE_IN_BYTES = new ParseField("estimated_size_in_bytes");
     private static final ParseField NUMBER_OF_ACTIONS = new ParseField("number_of_actions");
 
-    private static final ConstructingObjectParser<RollupBeforeBulkInfo, Void> PARSER;
+    private static final ConstructingObjectParser<DownsampleBeforeBulkInfo, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(
             NAME,
-            args -> new RollupBeforeBulkInfo((Long) args[0], (Long) args[1], (Long) args[2], (Integer) args[3])
+            args -> new DownsampleBeforeBulkInfo((Long) args[0], (Long) args[1], (Long) args[2], (Integer) args[3])
         );
 
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), CURRENT_TIME_IN_MILLIS);
@@ -47,7 +47,7 @@ public record RollupBeforeBulkInfo(long currentTimeMillis, long executionId, lon
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_ACTIONS);
     }
 
-    public RollupBeforeBulkInfo(final StreamInput in) throws IOException {
+    public DownsampleBeforeBulkInfo(final StreamInput in) throws IOException {
         this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVInt());
     }
 
@@ -74,7 +74,7 @@ public record RollupBeforeBulkInfo(long currentTimeMillis, long executionId, lon
         return builder.endObject();
     }
 
-    public static RollupBeforeBulkInfo fromXContent(XContentParser parser) throws IOException {
+    public static DownsampleBeforeBulkInfo fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 }

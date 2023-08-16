@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.rollup.action;
+package org.elasticsearch.xpack.core.downsample;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,7 +22,7 @@ import java.io.IOException;
  * This class includes statistics collected by the downsampling task
  * for bulk indexing operations.
  */
-public record RollupBulkInfo(
+public record DownsampleBulkInfo(
     long totalBulkCount,
     long bulkIngestSumMillis,
     long maxBulkIngestMillis,
@@ -42,11 +42,11 @@ public record RollupBulkInfo(
     private static final ParseField MAX_BULK_TOOK_MILLIS = new ParseField("max_bulk_took_millis");
     private static final ParseField MIN_BULK_TOOK_MILLIS = new ParseField("min_bulk_took_millis");
 
-    private static final ConstructingObjectParser<RollupBulkInfo, Void> PARSER;
+    private static final ConstructingObjectParser<DownsampleBulkInfo, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(
             NAME,
-            args -> new RollupBulkInfo(
+            args -> new DownsampleBulkInfo(
                 (Long) args[0],
                 (Long) args[1],
                 (Long) args[2],
@@ -66,11 +66,11 @@ public record RollupBulkInfo(
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), MIN_BULK_TOOK_MILLIS);
     }
 
-    public RollupBulkInfo(final StreamInput in) throws IOException {
+    public DownsampleBulkInfo(final StreamInput in) throws IOException {
         this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
     }
 
-    public static RollupBulkInfo fromXContext(XContentParser parser) throws IOException {
+    public static DownsampleBulkInfo fromXContext(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 

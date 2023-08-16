@@ -436,6 +436,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return entry;
     }
 
+    /**
+     * Fetch and cache the full blob for the given cache entry from the remote repository
+     * @param cacheKey  the key to fetch data for
+     * @param length    the length of the blob to fetch
+     * @param writer    a writer that handles writing of newly downloaded data to the shared cache
+     */
     public void fetchFullEntry(KeyType cacheKey, long length, RangeMissingHandler writer) {
         int finalRegion = getRegion(length);
         long regionLength = regionSize;

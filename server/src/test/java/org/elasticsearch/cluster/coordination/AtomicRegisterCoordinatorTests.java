@@ -184,7 +184,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98423")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98488") // also #98419
     public void testElectionSchedulingAfterDiscoveryOutage() {}
 
     @Override

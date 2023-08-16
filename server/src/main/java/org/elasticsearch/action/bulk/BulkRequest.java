@@ -75,6 +75,7 @@ public class BulkRequest extends ActionRequest
     private String globalRouting;
     private String globalIndex;
     private Boolean globalRequireAlias;
+    private Boolean simulate = false;
 
     private long sizeInBytes = 0;
 
@@ -86,6 +87,7 @@ public class BulkRequest extends ActionRequest
         requests.addAll(in.readList(i -> DocWriteRequest.readDocumentRequest(null, i)));
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
+        simulate = in.readBoolean();
     }
 
     public BulkRequest(@Nullable String globalIndex) {
@@ -389,6 +391,15 @@ public class BulkRequest extends ActionRequest
         return this;
     }
 
+    public BulkRequest simulate(Boolean simulate) {
+        this.simulate = simulate;
+        return this;
+    }
+
+    public Boolean simulate() {
+        return this.simulate;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -422,6 +433,7 @@ public class BulkRequest extends ActionRequest
         out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
+        out.writeBoolean(simulate);
     }
 
     @Override

@@ -41,6 +41,9 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -123,6 +126,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private Object rawTimestamp;
     private boolean pipelinesHaveRun = false;
 
+    private List<String> pipelines = new ArrayList<>();
+
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
     }
@@ -166,6 +171,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)) {
             pipelinesHaveRun = in.readBoolean();
         }
+        this.pipelines = in.readList(StreamInput::readString);
     }
 
     public IndexRequest() {
@@ -726,6 +732,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)) {
             out.writeBoolean(pipelinesHaveRun);
         }
+        out.writeCollection(pipelines, StreamOutput::writeString);
     }
 
     @Override
@@ -828,5 +835,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     public boolean pipelinesHaveRun() {
         return pipelinesHaveRun;
+    }
+
+    public void addPipeline(String pipeline) {
+        pipelines.add(pipeline);
+    }
+
+    public List<String> getPipelines() {
+        return Collections.unmodifiableList(pipelines);
     }
 }

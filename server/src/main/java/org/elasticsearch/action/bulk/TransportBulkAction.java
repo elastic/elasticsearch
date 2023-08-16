@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
+import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteResponse;
@@ -286,6 +287,29 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             if (shouldAutoCreate && (indexAndFlag.getValue() == false)) {
                 autoCreateIndices.add(index);
             }
+        }
+
+        if (bulkRequest.simulate()) {
+            for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                DocWriteRequest<?> request = bulkRequest.requests.get(i);
+                responses.set(
+                    i,
+                    BulkItemResponse.success(
+                        0,
+                        OpType.CREATE,
+                        new SimulateIndexResponse(
+                            request.index(),
+                            ((IndexRequest) request).source(),
+                            ((IndexRequest) request).getContentType(),
+                            ((IndexRequest) request).getPipelines()
+                        )
+                    )
+                );
+            }
+            listener.onResponse(
+                new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTime))
+            );
+            return;
         }
 
         // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.

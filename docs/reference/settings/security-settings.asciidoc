@@ -2563,6 +2563,36 @@ include::ssl-settings.asciidoc[]
 
 include::ssl-settings.asciidoc[]
 
+[[remote-cluster-server-tls-ssl-settings]]
+
+beta::[]
+
+:ssl-prefix:             xpack.security.remote_cluster_server
+:component:              Remote cluster server (API key based model)
+:client-auth-default:    none
+:verifies!:
+:server:
+:secure-pass:
+:ssl-context:            security-remote-cluster-server
+:ssl-layer:              remote cluster server networking layer, which {es} uses to communicate with remote cluster clients
+
+include::ssl-settings.asciidoc[]
+
+[[remote-cluster-client-tls-ssl-settings]]
+
+beta::[]
+
+:ssl-prefix:             xpack.security.remote_cluster_client
+:component:              Remote cluster client (API key based model)
+:client-auth-default:    none
+:verifies:
+:server!:
+:secure-pass:
+:ssl-context:            security-remote-cluster-client
+:ssl-layer:              remote cluster client networking layer, which {es} uses to communicate with remote cluster servers
+
+include::ssl-settings.asciidoc[]
+
 [[ssl-tls-profile-settings]]
 [discrete]
 ===== Transport profile TLS/SSL settings

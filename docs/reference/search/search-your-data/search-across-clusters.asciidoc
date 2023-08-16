@@ -945,7 +945,7 @@ use `*` in the index position or an error will be returned.
 To exclude a specific remote index, you would put the minus sign in front
 of the index, such as `mycluster:-myindex`.
 
-==== Exclude a remote cluster
+*Exclude a remote cluster*
 
 Here's how you would exclude `cluster_three` from a
 {ccs} that uses a wildcard to specify a list of clusters:
@@ -971,7 +971,7 @@ the index position. This indicates that you do not want the search to make any c
 `cluster_three`.
 
 
-==== Exclude a remote index
+*Exclude a remote index*
 
 Suppose you want to search all indices matching `my-index-*` but you want to exclude
 `my-index-000001` on `cluster_three`. Here's how you could do that:

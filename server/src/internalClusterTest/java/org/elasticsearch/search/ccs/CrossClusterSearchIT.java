@@ -400,8 +400,8 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         }
 
         TimeValue searchTimeout = new TimeValue(100, TimeUnit.MILLISECONDS);
-        // query builder that will sleep for the specified amount of time in the query phase but only on the remote Index
-        SlowRunningQueryBuilder slowRunningQueryBuilder = new SlowRunningQueryBuilder(searchTimeout.millis() * 5, remoteIndex);
+        // query builder that will sleep for the specified amount of time in the query phase
+        SlowRunningQueryBuilder slowRunningQueryBuilder = new SlowRunningQueryBuilder(searchTimeout.millis() * 5);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(slowRunningQueryBuilder).timeout(searchTimeout);
         searchRequest.source(sourceBuilder);
         client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
@@ -416,7 +416,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
         assertNotNull(localClusterSearchInfo);
-        assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+        assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
         assertThat(localClusterSearchInfo.getIndexExpression(), equalTo(localIndex));
         assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
         assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards));
@@ -424,7 +424,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
         assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
         assertThat(localClusterSearchInfo.getTook().millis(), greaterThanOrEqualTo(0L));
-        assertFalse(localClusterSearchInfo.isTimedOut());
+        assertTrue(localClusterSearchInfo.isTimedOut());
 
         SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER).get();
         assertNotNull(remoteClusterSearchInfo);

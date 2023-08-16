@@ -119,7 +119,7 @@ public class InboundHandler {
                 responseHandler = findResponseHandler(header);
                 // ignore if its null, the service logs it
                 if (responseHandler != null) {
-                    resolveResponseHandler(message, responseHandler, remoteAddress);
+                    executeResponseHandler(message, responseHandler, remoteAddress);
                 }
             }
         } finally {
@@ -132,7 +132,7 @@ public class InboundHandler {
         }
     }
 
-    private void resolveResponseHandler(
+    private void executeResponseHandler(
         InboundMessage message,
         TransportResponseHandler<?> responseHandler,
         InetSocketAddress remoteAddress
@@ -160,13 +160,11 @@ public class InboundHandler {
             header.getRequestId(),
             messageListener
         );
-        final TransportResponseHandler<?> responseHandler;
         if (theHandler == null && header.isError()) {
-            responseHandler = handshaker.removeHandlerForHandshake(header.getRequestId());
+            return handshaker.removeHandlerForHandshake(header.getRequestId());
         } else {
-            responseHandler = theHandler;
+            return theHandler;
         }
-        return responseHandler;
     }
 
     private static void logSlowMessage(InboundMessage message, long took, long logThreshold, TransportResponseHandler<?> responseHandler) {
@@ -285,15 +283,11 @@ public class InboundHandler {
         }
     }
 
-    private static <T extends TransportRequest> void doHandleRequest(
-        RequestHandlerRegistry<T> reg,
-        T request,
-        TransportChannel transportChannel
-    ) {
+    private static <T extends TransportRequest> void doHandleRequest(RequestHandlerRegistry<T> reg, T request, TransportChannel channel) {
         try {
-            reg.processMessageReceived(request, transportChannel);
+            reg.processMessageReceived(request, channel);
         } catch (Exception e) {
-            sendErrorResponse(reg.getAction(), transportChannel, e);
+            sendErrorResponse(reg.getAction(), channel, e);
         }
     }
 

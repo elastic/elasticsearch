@@ -158,5 +158,10 @@ public class Coalesce extends ScalarFunction implements Mappable {
             }
             return result.build();
         }
+
+        @Override
+        public String toString() {
+            return "CoalesceEvaluator[values=" + evaluators + ']';
+        }
     }
 }

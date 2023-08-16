@@ -119,7 +119,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * This class exists to give a human-readable string representation of the test case.
      */
-    protected static class TestCaseSupplier implements Supplier<TestCase> {
+    public static class TestCaseSupplier implements Supplier<TestCase> {
 
         private String name;
         private final Supplier<TestCase> wrapped;

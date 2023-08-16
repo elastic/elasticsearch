@@ -54,9 +54,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsFinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsInfinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsNaN;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Least;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pi;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
@@ -324,15 +326,17 @@ public final class PlanNamedTypes {
             // ScalarFunction
             of(ScalarFunction.class, Atan2.class, PlanNamedTypes::writeAtan2, PlanNamedTypes::readAtan2),
             of(ScalarFunction.class, AutoBucket.class, PlanNamedTypes::writeAutoBucket, PlanNamedTypes::readAutoBucket),
-            of(ScalarFunction.class, Case.class, PlanNamedTypes::writeCase, PlanNamedTypes::readCase),
+            of(ScalarFunction.class, Case.class, PlanNamedTypes::writeVararg, PlanNamedTypes::readVarag),
             of(ScalarFunction.class, CIDRMatch.class, PlanNamedTypes::writeCIDRMatch, PlanNamedTypes::readCIDRMatch),
-            of(ScalarFunction.class, Coalesce.class, PlanNamedTypes::writeCoalesce, PlanNamedTypes::readCoalesce),
+            of(ScalarFunction.class, Coalesce.class, PlanNamedTypes::writeVararg, PlanNamedTypes::readVarag),
             of(ScalarFunction.class, Concat.class, PlanNamedTypes::writeConcat, PlanNamedTypes::readConcat),
             of(ScalarFunction.class, DateExtract.class, PlanNamedTypes::writeDateExtract, PlanNamedTypes::readDateExtract),
             of(ScalarFunction.class, DateFormat.class, PlanNamedTypes::writeDateFormat, PlanNamedTypes::readDateFormat),
             of(ScalarFunction.class, DateParse.class, PlanNamedTypes::writeDateTimeParse, PlanNamedTypes::readDateTimeParse),
             of(ScalarFunction.class, DateTrunc.class, PlanNamedTypes::writeDateTrunc, PlanNamedTypes::readDateTrunc),
             of(ScalarFunction.class, E.class, PlanNamedTypes::writeNoArgScalar, PlanNamedTypes::readNoArgScalar),
+            of(ScalarFunction.class, Greatest.class, PlanNamedTypes::writeVararg, PlanNamedTypes::readVarag),
+            of(ScalarFunction.class, Least.class, PlanNamedTypes::writeVararg, PlanNamedTypes::readVarag),
             of(ScalarFunction.class, Now.class, PlanNamedTypes::writeNow, PlanNamedTypes::readNow),
             of(ScalarFunction.class, Pi.class, PlanNamedTypes::writeNoArgScalar, PlanNamedTypes::readNoArgScalar),
             of(ScalarFunction.class, Round.class, PlanNamedTypes::writeRound, PlanNamedTypes::readRound),
@@ -1126,20 +1130,19 @@ public final class PlanNamedTypes {
         out.writeExpression(bucket.to());
     }
 
-    static Case readCase(PlanStreamInput in) throws IOException {
-        return new Case(Source.EMPTY, in.readList(readerFromPlanReader(PlanStreamInput::readExpression)));
+    static final Map<String, BiFunction<Source, List<Expression>, ScalarFunction>> VARARG_CTORS = Map.ofEntries(
+        entry(name(Case.class), Case::new),
+        entry(name(Coalesce.class), Coalesce::new),
+        entry(name(Greatest.class), Greatest::new),
+        entry(name(Least.class), Least::new)
+    );
+
+    static ScalarFunction readVarag(PlanStreamInput in, String name) throws IOException {
+        return VARARG_CTORS.get(name).apply(Source.EMPTY, in.readList(readerFromPlanReader(PlanStreamInput::readExpression)));
     }
 
-    static void writeCase(PlanStreamOutput out, Case caseValue) throws IOException {
-        out.writeCollection(caseValue.children(), writerFromPlanWriter(PlanStreamOutput::writeExpression));
-    }
-
-    static Coalesce readCoalesce(PlanStreamInput in) throws IOException {
-        return new Coalesce(Source.EMPTY, in.readList(readerFromPlanReader(PlanStreamInput::readExpression)));
-    }
-
-    static void writeCoalesce(PlanStreamOutput out, Coalesce coalesce) throws IOException {
-        out.writeCollection(coalesce.children(), writerFromPlanWriter(PlanStreamOutput::writeExpression));
+    static void writeVararg(PlanStreamOutput out, ScalarFunction vararg) throws IOException {
+        out.writeCollection(vararg.children(), writerFromPlanWriter(PlanStreamOutput::writeExpression));
     }
 
     static Concat readConcat(PlanStreamInput in) throws IOException {

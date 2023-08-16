@@ -116,7 +116,7 @@ Refer to <<remote-clusters>>.
 [role="exclude",id="cross-cluster-kibana"]
 ==== {ccs-cap} and {kib}
 
-Refer to <<clusters-privileges-ccs-kibana,Configure privileges for {ccs} and {kib}>>.
+Refer to <<remote-clusters>>.
 
 [role="exclude",id="ccr-getting-started"]
 === Configure {ccr}
@@ -1950,18 +1950,3 @@ Refer to <<remote-clusters>>
 === Configure roles and users for remote clusters
 
 Refer to <<remote-clusters>>
-
-[[clusters-privileges-ccs-kibana]]
-[discrete]
-==== Configure privileges for {ccs} and {kib}
-
-Refer to <<remote-clusters>>
-[role="exclude",id="remote-clusters-api-key"]
-=== Add remote clusters using API key authentication
-
-coming::[8.10]
-
-[role="exclude",id="remote-clusters-cert"]
-=== Add remote clusters using TLS certificate authentication
-
-coming::[8.10]

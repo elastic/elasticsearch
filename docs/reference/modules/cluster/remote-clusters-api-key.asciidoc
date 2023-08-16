@@ -1,7 +1,43 @@
 [[remote-clusters-api-key]]
 === Add remote clusters using API key authentication
 
+coming::[8.10]
 beta::[]
+
+API key authentication enables a local cluster to authenticate itself with a
+remote cluster via a cross-cluster API key. The API key needs to be created by
+an administrator of the remote cluster. The local cluster is configured to
+provide this API key on each request to the remote cluster. The remote cluster
+verifies the API key and grants access, based on the API key's privileges.
+
+All cross-cluster requests from the local cluster are bound by the API key's
+privileges, regardless of local users associated with the requests. For example,
+if the API key only allows read access to `my-index` on the remote cluster, even
+a superuser from the local cluster is limited by this constraint. This mechanism
+enables the remote cluster's administrator to have full control over who can
+access what data with cross-cluster search and/or cross-cluster replication. The
+remote cluster's administrator can be confident that no access is possible
+beyond what is explicitly assigned to the API key.
+
+On the local cluster side, not every local user needs to access every piece of
+data allowed by the API key. An administrator of the local cluster can further
+configure additional permission constraints on local users so each user only
+gets access to the necessary remote data. Note it is only possible to further
+reduce the permissions allowed by the API key for individual local users. It is
+impossible to increase the permissions to go beyond what is allowed by the API
+key.
+
+In this model, cross-cluster operations use a dedicated server port (remote
+cluster interface) for communication between clusters. A remote cluster must
+enable this port for local clusters to connect. Configure Transport Layer
+Security (TLS) for this port to maximize security. 
+
+The local cluster must trust the remote cluster on the remote cluster interface.
+This means that the local cluster trusts the remote cluster's certificate
+authority (CA) that signs the server certificate used by the remote cluster
+interface. When establishing a connection, all nodes from the local cluster that
+participate in cross-cluster communication verify certificates from nodes on the
+other side, based on the TLS trust configuration.
 
 To add a remote cluster using API key authentication:
 
@@ -12,7 +48,114 @@ To add a remote cluster using API key authentication:
 [[remote-clusters-security-api-key]]
 ==== Establish trust with a remote cluster
 
-coming::[8.10]
+. The {es} security features need to be enabled on both clusters, on every node.
+Security is enabled by default. If it's disabled, set `xpack.security.enabled`
+to `true` in `elasticsearch.yml`. Refer to <<general-security-settings>>.
+
+. On the remote cluster, enable the remote cluster server port on every node by
+setting `remote_cluster_server.enabled` to `true` in `elasticsearch.yml`. The
+port number defaults to `9443` and can be configured with the
+`remote_cluster.port` setting. Refer to <<remote-cluster-network-settings>>.
+
+. Next, generate a CA and a server certificate/key pair. On one of the nodes
+of the remote cluster, from the directory where {es} has been installed:
+
+.. If you don't have a CA already, create a CA:
++
+[source,sh]
+----
+./bin/elasticsearch-certutil ca --pem --out=cross-cluster-ca.zip --pass CA_PASSWORD
+----
++
+Replace `CA_PASSWORD` with the password you want to use for the CA. You can 
+remove the `--pass` option and its argument if you are not deploying to a 
+production environment.
+
+.. Unzip the generated `cross-cluster-ca.zip` file. This compressed file
+contains the following content:
++
+[source,txt]
+----
+/ca
+|_ ca.crt
+|_ ca.key
+----
+
+.. Generate a certificate and private key pair for the nodes in your cluster:
++
+[source,sh]
+----
+./bin/elasticsearch-certutil cert --out=cross-cluster.p12 --pass=CERT_PASSWORD --ca-cert=ca/ca.crt --ca-key=ca/ca.key --ca-pass=CA_PASSWORD --dns=example.com --ip=127.0.0.1
+----
++
+* Replace `CA_PASSWORD` with the CA password from the previous step.
+* Replace `CERT_PASSWORD` with the password you want to use for the generated
+private key.
+* Use the `--dns` option to specify the relevant DNS name for the certificate.
+You can specify it multiple times for multiple DNS.
+* Use the `--pi` option to specify the relevant IP address for the certificate.
+You can specify it multiple times for multiple IP addresses.
+
+.. If the cluster has multiple nodes, you can either:
++
+* create a single wildcard certificate for all nodes;
+* or, create separate certificates for each node either manually or in batch
+with the <<certutil-silent,silent mode>>.
+
+. On the remote cluster, on every node:
+.. Copy the `cross-cluster.p12` file from the earlier step to the `config`
+directory. If you didn't create a wildcard certificate, make sure you copy the
+correct node-specific p12 file.
+.. Add following configuration to `elasticsearch.yml`:
++
+[source,yaml]
+----
+xpack.security.remote_cluster_server.ssl.enabled
+xpack.security.remote_cluster_server.ssl.keystore.path=cross-cluster.p12
+----
+
+.. Add the SSL keystore password to the {es} keystore:
++
+[source,sh]
+----
+./bin/elasticsearch-keystore add xpack.security.remote_cluster_server.ssl.keystore.secure_password
+----
++
+When prompted, enter the `CERT_PASSWORD` from the earlier step.
+
+. Restart the remote cluster.
+
+. On the remote cluster, generate a cross-cluster API key using the
+<<security-api-create-cross-cluster-api-key>> API or
+{kibana-ref}/api-keys.html[Kibana]. Grant the key the required access for {ccs}
+or {ccr}.
+
+. On the local cluster, on every node:
+
+.. Copy the `ca.crt` file generated on the remote cluster earlier into the
+`config` directory, renaming the file `remote-cluster-ca.crt`.
+
+.. Add following configuration to `elasticsearch.yml`:
++
+[source,yaml]
+----
+xpack.security.remote_cluster_client.ssl.enabled: true
+xpack.security.remote_cluster_client.ssl.certificate_authorities: [ "remote-cluster-ca.crt" ]
+----
+
+.. Add the cross-cluster API key, created on the remote cluster earlier, to the
+keystore:
++
+[source,sh]
+----
+./bin/elasticsearch-keystore add cluster.remote.ALIAS.credentials
+----
++
+Replace `ALIAS` with the alias you will use to connect to the remote cluster 
+later. When prompted, enter the cross-cluster API key created on the remote
+cluster earlier.
+
+. Restart the local cluster.
 
 [[remote-clusters-connect-api-key]]
 ==== Connect to a remote cluster

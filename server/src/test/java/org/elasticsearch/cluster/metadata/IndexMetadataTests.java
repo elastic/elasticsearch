@@ -464,7 +464,7 @@ public class IndexMetadataTests extends ESTestCase {
             final IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
                 () -> IndexMetadata.builder("index")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder("index").build())

@@ -2411,7 +2411,10 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String action = BulkAction.NAME + "[s]";
         final BulkItemRequest[] items;
         final DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
+        // the "good role" authorizes all the bulk items
         final RoleDescriptor goodRole;
+        // the "bad role" does not authorize any bulk items
+        final RoleDescriptor badRole;
         final AtomicInteger idCounter = new AtomicInteger();
         final Set<String> allIndexNames = new HashSet<>();
         final Supplier<String> indexNameSupplier = () -> {
@@ -2419,6 +2422,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             allIndexNames.add(indexName);
             return indexName;
         };
+        // build a request with bulk items of the same action type, but multiple index names
         switch (opType) {
             case INDEX -> {
                 items = randomArray(
@@ -2439,6 +2443,19 @@ public class AuthorizationServiceTests extends ESTestCase {
                             indexName -> IndicesPrivileges.builder()
                                 .indices(indexName)
                                 .privileges(randomFrom("all", "create", "index", "write"))
+                                .build()
+                        )
+                        .toArray(IndicesPrivileges[]::new),
+                    null
+                );
+                badRole = new RoleDescriptor(
+                    "bad-role",
+                    null,
+                    allIndexNames.stream()
+                        .map(
+                            indexName -> IndicesPrivileges.builder()
+                                .indices(indexName)
+                                .privileges(randomFrom("create_doc", "delete"))
                                 .build()
                         )
                         .toArray(IndicesPrivileges[]::new),
@@ -2469,6 +2486,14 @@ public class AuthorizationServiceTests extends ESTestCase {
                         .toArray(IndicesPrivileges[]::new),
                     null
                 );
+                badRole = new RoleDescriptor(
+                    "bad-role",
+                    null,
+                    allIndexNames.stream()
+                        .map(indexName -> IndicesPrivileges.builder().indices(indexName).privileges("delete").build())
+                        .toArray(IndicesPrivileges[]::new),
+                    null
+                );
             }
             case DELETE -> {
                 items = randomArray(
@@ -2488,6 +2513,19 @@ public class AuthorizationServiceTests extends ESTestCase {
                             indexName -> IndicesPrivileges.builder()
                                 .indices(indexName)
                                 .privileges(randomFrom("all", "delete", "write"))
+                                .build()
+                        )
+                        .toArray(IndicesPrivileges[]::new),
+                    null
+                );
+                badRole = new RoleDescriptor(
+                    "bad-role",
+                    null,
+                    allIndexNames.stream()
+                        .map(
+                            indexName -> IndicesPrivileges.builder()
+                                .indices(indexName)
+                                .privileges(randomFrom("index", "create", "create_doc"))
                                 .build()
                         )
                         .toArray(IndicesPrivileges[]::new),
@@ -2517,19 +2555,45 @@ public class AuthorizationServiceTests extends ESTestCase {
                         .toArray(IndicesPrivileges[]::new),
                     null
                 );
+                badRole = new RoleDescriptor(
+                    "bad-role",
+                    null,
+                    allIndexNames.stream()
+                        .map(
+                            indexName -> IndicesPrivileges.builder()
+                                .indices(indexName)
+                                .privileges(randomFrom("create", "create_doc", "delete"))
+                                .build()
+                        )
+                        .toArray(IndicesPrivileges[]::new),
+                    null
+                );
             }
             default -> throw new IllegalStateException("Unexpected value: " + opType);
         }
         roleMap.put("good-role", goodRole);
-        final Authentication authentication = createAuthentication(new User("user", "good-role"));
+        roleMap.put("bad-role", badRole);
 
         final ShardId shardId = new ShardId("some-concrete-shard-index-name", UUID.randomUUID().toString(), 1);
         final BulkShardRequest request = new BulkShardRequest(shardId, randomFrom(WriteRequest.RefreshPolicy.values()), items);
 
         mockEmptyMetadata();
-        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        authorize(authentication, action, request);
+        final Authentication authentication;
+        final String requestId;
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            authentication = createAuthentication(new User("user", "good-role"));
+            requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+            authorize(authentication, action, request);
+        }
 
+        // bulk shard request is authorized
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(action),
+            eq(request),
+            authzInfoRoles(new String[] { goodRole.getName() })
+        );
         // there's only one "access granted" record for all the bulk items
         verify(auditTrail).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication), eq(switch (opType) {
             case INDEX -> IndexAction.NAME + ":op_type/index";
@@ -2544,17 +2608,50 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(request.remoteAddress()),
             authzInfoRoles(new String[] { goodRole.getName() })
         );
-        verify(auditTrail).accessGranted(
-            eq(requestId),
-            eq(authentication),
-            eq(action),
-            eq(request),
-            authzInfoRoles(new String[] { goodRole.getName() })
-        ); // bulk request is allowed
         verifyNoMoreInteractions(auditTrail);
         // all bulk items go through as authorized
         for (BulkItemRequest bulkItemRequest : request.items()) {
             assertThat(bulkItemRequest.getPrimaryResponse(), nullValue());
+        }
+
+        final Authentication badAuthentication;
+        final String badRequestId;
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            badAuthentication = createAuthentication(new User("bad-user", "bad-role"));
+            badRequestId = AuditUtil.getOrGenerateRequestId(threadContext);
+            // the bulk shard request is authorized, but the bulk items are not
+            authorize(badAuthentication, action, request);
+        }
+        // bulk shard request is authorized
+        verify(auditTrail).accessGranted(
+            eq(badRequestId),
+            eq(badAuthentication),
+            eq(action),
+            eq(request),
+            authzInfoRoles(new String[] { badRole.getName() })
+        );
+        // there's only one "access denied" record for all the bulk items
+        verify(auditTrail).explicitIndexAccessEvent(
+            eq(badRequestId),
+            eq(AuditLevel.ACCESS_DENIED),
+            eq(badAuthentication),
+            eq(switch (opType) {
+                case INDEX -> IndexAction.NAME + ":op_type/index";
+                case CREATE -> IndexAction.NAME + ":op_type/create";
+                case UPDATE -> UpdateAction.NAME;
+                case DELETE -> DeleteAction.NAME;
+            }),
+            argThat(
+                indicesArrays -> indicesArrays.length == allIndexNames.size() && allIndexNames.containsAll(Arrays.asList(indicesArrays))
+            ),
+            eq(BulkItemRequest.class.getSimpleName()),
+            eq(request.remoteAddress()),
+            authzInfoRoles(new String[] { badRole.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+        // all bulk items are failures
+        for (BulkItemRequest bulkItemRequest : request.items()) {
+            assertThat(bulkItemRequest.getPrimaryResponse().isFailed(), is(true));
         }
     }
 

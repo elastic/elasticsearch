@@ -18,6 +18,6 @@ echo "Downloading $(echo "$json" | jq -r '.id')..."
 
 curl -o "${jdk}.exe" "$(echo "$json" | jq -r '.url')"
 
-./java8.exe /s INSTALLDIR=C:\\users\\buildkite\\.java\\java8
+powershell -C ".\java8.exe /s INSTALLDIR=C:\\users\\buildkite\\.java\\java8"
 
 sleep 20

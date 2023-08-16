@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.rollup.action;
+package org.elasticsearch.xpack.core.downsample;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Objects;
 
-public class RollupShardStatus implements Task.Status {
+public class DownsampleShardStatus implements Task.Status {
     public static final String NAME = "rollup-index-shard";
     private static final ParseField SHARD_FIELD = new ParseField("shard");
     private static final ParseField START_TIME_FIELD = new ParseField("start_time");
@@ -57,12 +57,12 @@ public class RollupShardStatus implements Task.Status {
     private final long indexEndTimeMillis;
     private final long docsProcessed;
     private final float docsProcessedPercentage;
-    private final RollupBulkInfo rollupBulkInfo;
-    private final RollupBeforeBulkInfo rollupBeforeBulkInfo;
-    private final RollupAfterBulkInfo rollupAfterBulkInfo;
-    private final RollupShardIndexerStatus rollupShardIndexerStatus;
+    private final DownsampleBulkInfo downsampleBulkInfo;
+    private final DownsampleBeforeBulkInfo downsampleBeforeBulkInfo;
+    private final DownsampleAfterBulkInfo downsampleAfterBulkInfo;
+    private final DownsampleShardIndexerStatus downsampleShardIndexerStatus;
 
-    private static final ConstructingObjectParser<RollupShardStatus, Void> PARSER;
+    private static final ConstructingObjectParser<DownsampleShardStatus, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(NAME, args -> {
             final ShardId _shardId = ShardId.fromString((String) args[0]);
@@ -79,11 +79,11 @@ public class RollupShardStatus implements Task.Status {
             final Long _indexEndTimeMillis = (Long) args[11];
             final Long _docsProcessed = (Long) args[12];
             final Float _docsProcessedPercentage = (Float) args[13];
-            final RollupBulkInfo _rollupBulkInfo = (RollupBulkInfo) args[14];
-            final RollupBeforeBulkInfo _rollupBeforeBulkInfo = (RollupBeforeBulkInfo) args[15];
-            final RollupAfterBulkInfo _rollupAfterBulkInfo = (RollupAfterBulkInfo) args[16];
-            final RollupShardIndexerStatus _rollupShardIndexerStatus = RollupShardIndexerStatus.valueOf((String) args[17]);
-            return new RollupShardStatus(
+            final DownsampleBulkInfo _downsampleBulkInfo = (DownsampleBulkInfo) args[14];
+            final DownsampleBeforeBulkInfo _downsampleBeforeBulkInfo = (DownsampleBeforeBulkInfo) args[15];
+            final DownsampleAfterBulkInfo _downsampleAfterBulkInfo = (DownsampleAfterBulkInfo) args[16];
+            final DownsampleShardIndexerStatus _downsampleShardIndexerStatus = DownsampleShardIndexerStatus.valueOf((String) args[17]);
+            return new DownsampleShardStatus(
                 _shardId,
                 _rollupStart,
                 _numReceived,
@@ -98,10 +98,10 @@ public class RollupShardStatus implements Task.Status {
                 _indexEndTimeMillis,
                 _docsProcessed,
                 _docsProcessedPercentage,
-                _rollupBulkInfo,
-                _rollupBeforeBulkInfo,
-                _rollupAfterBulkInfo,
-                _rollupShardIndexerStatus
+                _downsampleBulkInfo,
+                _downsampleBeforeBulkInfo,
+                _downsampleAfterBulkInfo,
+                _downsampleShardIndexerStatus
             );
         });
 
@@ -119,21 +119,25 @@ public class RollupShardStatus implements Task.Status {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), INDEX_END_TIME_MILLIS);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), DOCS_PROCESSED);
         PARSER.declareFloat(ConstructingObjectParser.constructorArg(), DOCS_PROCESSED_PERCENTAGE);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> RollupBulkInfo.fromXContext(p), ROLLUP_BULK_INFO);
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> RollupBeforeBulkInfo.fromXContent(p),
+            (p, c) -> DownsampleBulkInfo.fromXContext(p),
+            ROLLUP_BULK_INFO
+        );
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> DownsampleBeforeBulkInfo.fromXContent(p),
             ROLLUP_BEFORE_BULK_INFO
         );
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> RollupAfterBulkInfo.fromXContent(p),
+            (p, c) -> DownsampleAfterBulkInfo.fromXContent(p),
             ROLLUP_AFTER_BULK_INFO
         );
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ROLLUP_SHARD_INDEXER_STATUS);
     }
 
-    public RollupShardStatus(StreamInput in) throws IOException {
+    public DownsampleShardStatus(StreamInput in) throws IOException {
         shardId = new ShardId(in);
         rollupStart = in.readLong();
         numReceived = in.readLong();
@@ -149,10 +153,10 @@ public class RollupShardStatus implements Task.Status {
             indexEndTimeMillis = in.readVLong();
             docsProcessed = in.readVLong();
             docsProcessedPercentage = in.readFloat();
-            rollupBulkInfo = new RollupBulkInfo(in);
-            rollupBeforeBulkInfo = new RollupBeforeBulkInfo(in);
-            rollupAfterBulkInfo = new RollupAfterBulkInfo(in);
-            rollupShardIndexerStatus = in.readEnum(RollupShardIndexerStatus.class);
+            downsampleBulkInfo = new DownsampleBulkInfo(in);
+            downsampleBeforeBulkInfo = new DownsampleBeforeBulkInfo(in);
+            downsampleAfterBulkInfo = new DownsampleAfterBulkInfo(in);
+            downsampleShardIndexerStatus = in.readEnum(DownsampleShardIndexerStatus.class);
         } else {
             totalShardDocCount = -1;
             lastSourceTimestamp = -1;
@@ -162,14 +166,14 @@ public class RollupShardStatus implements Task.Status {
             indexEndTimeMillis = -1;
             docsProcessed = 0;
             docsProcessedPercentage = 0;
-            rollupBulkInfo = null;
-            rollupBeforeBulkInfo = null;
-            rollupAfterBulkInfo = null;
-            rollupShardIndexerStatus = null;
+            downsampleBulkInfo = null;
+            downsampleBeforeBulkInfo = null;
+            downsampleAfterBulkInfo = null;
+            downsampleShardIndexerStatus = null;
         }
     }
 
-    public RollupShardStatus(
+    public DownsampleShardStatus(
         ShardId shardId,
         long rollupStart,
         long numReceived,
@@ -184,10 +188,10 @@ public class RollupShardStatus implements Task.Status {
         long indexEndTimeMillis,
         long docsProcessed,
         float docsProcessedPercentage,
-        final RollupBulkInfo rollupBulkInfo,
-        final RollupBeforeBulkInfo rollupBeforeBulkInfo,
-        final RollupAfterBulkInfo rollupAfterBulkInfo,
-        final RollupShardIndexerStatus rollupShardIndexerStatus
+        final DownsampleBulkInfo downsampleBulkInfo,
+        final DownsampleBeforeBulkInfo downsampleBeforeBulkInfo,
+        final DownsampleAfterBulkInfo downsampleAfterBulkInfo,
+        final DownsampleShardIndexerStatus downsampleShardIndexerStatus
     ) {
         this.shardId = shardId;
         this.rollupStart = rollupStart;
@@ -203,13 +207,13 @@ public class RollupShardStatus implements Task.Status {
         this.indexEndTimeMillis = indexEndTimeMillis;
         this.docsProcessed = docsProcessed;
         this.docsProcessedPercentage = docsProcessedPercentage;
-        this.rollupBulkInfo = rollupBulkInfo;
-        this.rollupBeforeBulkInfo = rollupBeforeBulkInfo;
-        this.rollupAfterBulkInfo = rollupAfterBulkInfo;
-        this.rollupShardIndexerStatus = rollupShardIndexerStatus;
+        this.downsampleBulkInfo = downsampleBulkInfo;
+        this.downsampleBeforeBulkInfo = downsampleBeforeBulkInfo;
+        this.downsampleAfterBulkInfo = downsampleAfterBulkInfo;
+        this.downsampleShardIndexerStatus = downsampleShardIndexerStatus;
     }
 
-    public static RollupShardStatus fromXContent(XContentParser parser) throws IOException {
+    public static DownsampleShardStatus fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -230,10 +234,10 @@ public class RollupShardStatus implements Task.Status {
         builder.field(INDEX_END_TIME_MILLIS.getPreferredName(), indexEndTimeMillis);
         builder.field(DOCS_PROCESSED.getPreferredName(), docsProcessed);
         builder.field(DOCS_PROCESSED_PERCENTAGE.getPreferredName(), docsProcessedPercentage);
-        rollupBulkInfo.toXContent(builder, params);
-        rollupBeforeBulkInfo.toXContent(builder, params);
-        rollupAfterBulkInfo.toXContent(builder, params);
-        builder.field(ROLLUP_SHARD_INDEXER_STATUS.getPreferredName(), rollupShardIndexerStatus);
+        downsampleBulkInfo.toXContent(builder, params);
+        downsampleBeforeBulkInfo.toXContent(builder, params);
+        downsampleAfterBulkInfo.toXContent(builder, params);
+        builder.field(ROLLUP_SHARD_INDEXER_STATUS.getPreferredName(), downsampleShardIndexerStatus);
         return builder.endObject();
     }
 
@@ -260,10 +264,10 @@ public class RollupShardStatus implements Task.Status {
             out.writeVLong(indexEndTimeMillis);
             out.writeVLong(docsProcessed);
             out.writeFloat(docsProcessedPercentage);
-            rollupBulkInfo.writeTo(out);
-            rollupBeforeBulkInfo.writeTo(out);
-            rollupAfterBulkInfo.writeTo(out);
-            out.writeEnum(rollupShardIndexerStatus);
+            downsampleBulkInfo.writeTo(out);
+            downsampleBeforeBulkInfo.writeTo(out);
+            downsampleAfterBulkInfo.writeTo(out);
+            out.writeEnum(downsampleShardIndexerStatus);
         } else {
             out.writeBoolean(false);
         }
@@ -273,7 +277,7 @@ public class RollupShardStatus implements Task.Status {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        RollupShardStatus that = (RollupShardStatus) o;
+        DownsampleShardStatus that = (DownsampleShardStatus) o;
         return rollupStart == that.rollupStart
             && numReceived == that.numReceived
             && numSent == that.numSent
@@ -289,10 +293,10 @@ public class RollupShardStatus implements Task.Status {
             && docsProcessedPercentage == that.docsProcessedPercentage
             && Objects.equals(shardId.getIndexName(), that.shardId.getIndexName())
             && Objects.equals(shardId.id(), that.shardId.id())
-            && Objects.equals(rollupBulkInfo, that.rollupBulkInfo)
-            && Objects.equals(rollupBeforeBulkInfo, that.rollupBeforeBulkInfo)
-            && Objects.equals(rollupAfterBulkInfo, that.rollupAfterBulkInfo)
-            && Objects.equals(rollupShardIndexerStatus, that.rollupShardIndexerStatus);
+            && Objects.equals(downsampleBulkInfo, that.downsampleBulkInfo)
+            && Objects.equals(downsampleBeforeBulkInfo, that.downsampleBeforeBulkInfo)
+            && Objects.equals(downsampleAfterBulkInfo, that.downsampleAfterBulkInfo)
+            && Objects.equals(downsampleShardIndexerStatus, that.downsampleShardIndexerStatus);
     }
 
     @Override
@@ -313,10 +317,10 @@ public class RollupShardStatus implements Task.Status {
             indexEndTimeMillis,
             docsProcessed,
             docsProcessedPercentage,
-            rollupBulkInfo,
-            rollupBeforeBulkInfo,
-            rollupAfterBulkInfo,
-            rollupShardIndexerStatus
+            downsampleBulkInfo,
+            downsampleBeforeBulkInfo,
+            downsampleAfterBulkInfo,
+            downsampleShardIndexerStatus
         );
     }
 

@@ -5,11 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.rollup.action;
+package org.elasticsearch.xpack.core.downsample;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-public class RollupBulkStats {
+public class DownsampleBulkStats {
     private final AtomicLong totalBulkCount = new AtomicLong(0);
     private final AtomicLong bulkIngestSumMillis = new AtomicLong(0);
     private final AtomicLong maxBulkIngestMillis = new AtomicLong(-1);
@@ -39,10 +39,10 @@ public class RollupBulkStats {
     }
 
     /**
-     * @return An instance of {@link RollupBulkInfo} including rollup bulk indexing statistics.
+     * @return An instance of {@link DownsampleBulkInfo} including rollup bulk indexing statistics.
      */
-    public RollupBulkInfo getRollupBulkInfo() {
-        return new RollupBulkInfo(
+    public DownsampleBulkInfo getRollupBulkInfo() {
+        return new DownsampleBulkInfo(
             this.totalBulkCount.get(),
             this.bulkIngestSumMillis.get(),
             Math.max(0, this.maxBulkIngestMillis.get()),

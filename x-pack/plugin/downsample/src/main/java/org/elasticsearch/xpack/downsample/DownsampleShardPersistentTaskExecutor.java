@@ -27,21 +27,21 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardIndexerStatus;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
-public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<DownsampleShardTaskParams> {
-    private static final Logger logger = LogManager.getLogger(RollupShardPersistentTaskExecutor.class);
+public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecutor<DownsampleShardTaskParams> {
+    private static final Logger logger = LogManager.getLogger(DownsampleShardPersistentTaskExecutor.class);
     private final Client client;
     private final IndicesService indicesService;
 
-    public RollupShardPersistentTaskExecutor(
+    public DownsampleShardPersistentTaskExecutor(
         final Client client,
         final IndicesService indicesService,
         final String taskName,
@@ -59,7 +59,7 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<D
         final PersistentTaskState state
     ) {
         // NOTE: query the downsampling target index so that we can start the downsampling task from the latest indexed tsid.
-        final SearchRequest searchRequest = new SearchRequest(params.rollupIndex());
+        final SearchRequest searchRequest = new SearchRequest(params.downsampleIndex());
         searchRequest.source().sort(TimeSeriesIdFieldMapper.NAME, SortOrder.DESC).size(1);
         searchRequest.preference("_shards:" + params.shardId().id());
         client.search(
@@ -71,7 +71,11 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<D
         );
     }
 
-    private void fork(final AllocatedPersistentTask task, final DownsampleShardTaskParams params, final SearchHit[] lastRollupTsidHits) {
+    private void fork(
+        final AllocatedPersistentTask task,
+        final DownsampleShardTaskParams params,
+        final SearchHit[] lastDownsampledTsidHits
+    ) {
         client.threadPool().executor(Downsample.DOWSAMPLE_TASK_THREAD_POOL_NAME).execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
@@ -80,37 +84,37 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<D
 
             @Override
             protected void doRun() throws Exception {
-                startRollupShardIndexer(task, params, lastRollupTsidHits);
+                startDownsampleShardIndexer(task, params, lastDownsampledTsidHits);
             }
         });
     }
 
-    private void startRollupShardIndexer(
+    private void startDownsampleShardIndexer(
         final AllocatedPersistentTask task,
         final DownsampleShardTaskParams params,
-        final SearchHit[] lastRollupTsidHits
+        final SearchHit[] lastDownsampleTsidHits
     ) {
-        final RollupShardPersistentTaskState initialState = lastRollupTsidHits.length == 0
-            ? new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
-            : new RollupShardPersistentTaskState(
-                RollupShardIndexerStatus.STARTED,
-                Arrays.stream(lastRollupTsidHits).findFirst().get().field("_tsid").getValue()
+        final DownsampleShardPersistentTaskState initialState = lastDownsampleTsidHits.length == 0
+            ? new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
+            : new DownsampleShardPersistentTaskState(
+                DownsampleShardIndexerStatus.STARTED,
+                Arrays.stream(lastDownsampleTsidHits).findFirst().get().field("_tsid").getValue()
             );
-        final RollupShardIndexer rollupShardIndexer = new RollupShardIndexer(
-            (RollupShardTask) task,
+        final DownsampleShardIndexer downsampleShardIndexer = new DownsampleShardIndexer(
+            (DownsampleShardTask) task,
             client,
             getIndexService(indicesService, params),
             params.shardId(),
-            params.rollupIndex(),
+            params.downsampleIndex(),
             params.downsampleConfig(),
             params.metrics(),
             params.labels(),
             initialState
         );
         try {
-            rollupShardIndexer.execute();
+            downsampleShardIndexer.execute();
             task.markAsCompleted();
-        } catch (final RollupShardIndexerException e) {
+        } catch (final DownsampleShardIndexerException e) {
             if (e.isRetriable()) {
                 logger.error("Downsampling task [" + task.getPersistentTaskId() + " retriable failure [" + e.getMessage() + "]");
                 task.markAsLocallyAborted(e.getMessage());
@@ -138,12 +142,12 @@ public class RollupShardPersistentTaskExecutor extends PersistentTasksExecutor<D
         final Map<String, String> headers
     ) {
         final DownsampleShardTaskParams params = taskInProgress.getParams();
-        return new RollupShardTask(
+        return new DownsampleShardTask(
             id,
             type,
             action,
             parentTaskId,
-            params.rollupIndex(),
+            params.downsampleIndex(),
             params.indexStartTimeMillis(),
             params.indexEndTimeMillis(),
             params.downsampleConfig(),

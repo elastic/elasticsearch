@@ -546,30 +546,30 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
     public void testLookBackTime() throws IOException {
         // Create template that uses index.look_back_time index setting:
         String template = """
-        {
-            "index_patterns": ["test*"],
-            "template": {
-                "settings":{
-                    "index": {
-                        "look_back_time": "24h",
-                        "number_of_replicas": 0,
-                        "mode": "time_series"
-                    }
-                },
-                "mappings":{
-                    "properties": {
-                        "@timestamp" : {
-                            "type": "date"
-                        },
-                        "field": {
-                            "type": "keyword",
-                            "time_series_dimension": true
+            {
+                "index_patterns": ["test*"],
+                "template": {
+                    "settings":{
+                        "index": {
+                            "look_back_time": "24h",
+                            "number_of_replicas": 0,
+                            "mode": "time_series"
+                        }
+                    },
+                    "mappings":{
+                        "properties": {
+                            "@timestamp" : {
+                                "type": "date"
+                            },
+                            "field": {
+                                "type": "keyword",
+                                "time_series_dimension": true
+                            }
                         }
                     }
-                }
-            },
-            "data_stream": {}
-        }""";
+                },
+                "data_stream": {}
+            }""";
         var putIndexTemplateRequest = new Request("PUT", "/_index_template/2");
         putIndexTemplateRequest.setJsonEntity(template);
         assertOK(client().performRequest(putIndexTemplateRequest));

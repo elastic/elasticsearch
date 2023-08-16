@@ -171,7 +171,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)) {
             pipelinesHaveRun = in.readBoolean();
         }
-        this.pipelines = in.readList(StreamInput::readString);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_062)) {
+            this.pipelines = in.readList(StreamInput::readString);
+        }
     }
 
     public IndexRequest() {
@@ -732,7 +734,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)) {
             out.writeBoolean(pipelinesHaveRun);
         }
-        out.writeCollection(pipelines, StreamOutput::writeString);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_062)) {
+            out.writeCollection(pipelines, StreamOutput::writeString);
+        }
     }
 
     @Override

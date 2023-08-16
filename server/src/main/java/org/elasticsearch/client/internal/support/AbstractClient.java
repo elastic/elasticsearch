@@ -276,9 +276,6 @@ import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequestBuilder;
-import org.elasticsearch.action.ingest.SimulateIngestAction;
-import org.elasticsearch.action.ingest.SimulateIngestRequest;
-import org.elasticsearch.action.ingest.SimulateIngestResponse;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
@@ -1054,11 +1051,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source, XContentType xContentType) {
             return new SimulatePipelineRequestBuilder(this, SimulatePipelineAction.INSTANCE, source, xContentType);
-        }
-
-        @Override
-        public void simulateIngest(SimulateIngestRequest request, ActionListener<SimulateIngestResponse> listener) {
-            execute(SimulateIngestAction.INSTANCE, request, listener);
         }
 
         @Override

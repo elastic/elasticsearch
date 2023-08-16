@@ -102,8 +102,6 @@ import org.elasticsearch.action.ingest.GetPipelineRequestBuilder;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequestBuilder;
-import org.elasticsearch.action.ingest.SimulateIngestRequest;
-import org.elasticsearch.action.ingest.SimulateIngestResponse;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
@@ -529,8 +527,6 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Simulates an ingest pipeline
      */
     void simulatePipeline(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener);
-
-    void simulateIngest(SimulateIngestRequest request, ActionListener<SimulateIngestResponse> listener);
 
     /**
      * Simulates an ingest pipeline

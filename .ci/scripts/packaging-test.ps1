@@ -27,6 +27,7 @@ Remove-Item -Recurse -Force \tmp -ErrorAction Ignore
 New-Item -ItemType directory -Path \tmp
 
 $ErrorActionPreference="Continue"
+Add-Content -Path $profile.AllUsersAllHosts -Value '$ErrorActionPreference="Continue"'
 & .\gradlew.bat -g "$env:USERPROFILE\.gradle" --parallel --no-daemon --scan --console=plain $GradleTasks
 
 exit $LastExitCode

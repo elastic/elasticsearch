@@ -63,7 +63,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         var service = new IngestMetricsService(clusterSettings(Settings.EMPTY), () -> 0, memoryMetricsService);
         var indexTierMetrics = service.getIndexTierMetrics();
         // If the node is not elected as master (i.e. we haven't got any cluster state notification) it shouldn't return any info
-        assertThat(indexTierMetrics.nodesLoad(), is(empty()));
+        assertThat(indexTierMetrics.getNodesLoad(), is(empty()));
 
         service.clusterChanged(
             new ClusterChangedEvent(
@@ -74,7 +74,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         );
 
         var indexTierMetricsAfterClusterStateEvent = service.getIndexTierMetrics();
-        assertThat(indexTierMetricsAfterClusterStateEvent.nodesLoad(), is(empty()));
+        assertThat(indexTierMetricsAfterClusterStateEvent.getNodesLoad(), is(empty()));
     }
 
     public void testOnlyIndexNodesAreTracked() {
@@ -97,7 +97,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             )
         );
         var indexTierMetrics = service.getIndexTierMetrics();
-        var metricQualityCount = indexTierMetrics.nodesLoad()
+        var metricQualityCount = indexTierMetrics.getNodesLoad()
             .stream()
             .collect(Collectors.groupingBy(NodeIngestLoadSnapshot::metricQuality, Collectors.counting()));
 
@@ -146,9 +146,9 @@ public class IngestMetricsServiceTests extends ESTestCase {
         service.trackNodeIngestLoad(indexNode.getId(), 2, 1.5);
 
         var indexTierMetrics = service.getIndexTierMetrics();
-        assertThat(indexTierMetrics.nodesLoad(), hasSize(1));
+        assertThat(indexTierMetrics.getNodesLoad(), hasSize(1));
 
-        var indexNodeLoad = indexTierMetrics.nodesLoad().get(0);
+        var indexNodeLoad = indexTierMetrics.getNodesLoad().get(0);
         assertThat(indexNodeLoad.load(), is(equalTo(1.5)));
         assertThat(indexTierMetrics.toString(), indexNodeLoad.metricQuality(), is(equalTo(MetricQuality.EXACT)));
 
@@ -161,9 +161,9 @@ public class IngestMetricsServiceTests extends ESTestCase {
         fakeClock.addAndGet(inaccurateMetricTime.getNanos());
 
         var indexTierMetricsAfterNodeMetricIsInaccurate = service.getIndexTierMetrics();
-        assertThat(indexTierMetricsAfterNodeMetricIsInaccurate.nodesLoad(), hasSize(1));
+        assertThat(indexTierMetricsAfterNodeMetricIsInaccurate.getNodesLoad(), hasSize(1));
 
-        var indexNodeLoadAfterMissingMetrics = indexTierMetricsAfterNodeMetricIsInaccurate.nodesLoad().get(0);
+        var indexNodeLoadAfterMissingMetrics = indexTierMetricsAfterNodeMetricIsInaccurate.getNodesLoad().get(0);
         assertThat(indexNodeLoadAfterMissingMetrics.load(), is(equalTo(1.5)));
         assertThat(indexNodeLoadAfterMissingMetrics.metricQuality(), is(equalTo(MetricQuality.MINIMUM)));
 
@@ -176,9 +176,9 @@ public class IngestMetricsServiceTests extends ESTestCase {
             service.trackNodeIngestLoad(indexNode.getId(), 3, 0.5);
 
             var indexTierMetricsAfterNodeReJoins = service.getIndexTierMetrics();
-            assertThat(indexTierMetricsAfterNodeReJoins.nodesLoad(), hasSize(1));
+            assertThat(indexTierMetricsAfterNodeReJoins.getNodesLoad(), hasSize(1));
 
-            var indexNodeLoadAfterRejoining = indexTierMetricsAfterNodeReJoins.nodesLoad().get(0);
+            var indexNodeLoadAfterRejoining = indexTierMetricsAfterNodeReJoins.getNodesLoad().get(0);
             assertThat(indexNodeLoadAfterRejoining.load(), is(equalTo(0.5)));
             assertThat(indexNodeLoadAfterRejoining.metricQuality(), is(equalTo(MetricQuality.EXACT)));
         } else {
@@ -186,7 +186,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             fakeClock.addAndGet(staleLoadWindow.getNanos());
 
             var indexTierMetricsAfterTTLExpires = service.getIndexTierMetrics();
-            assertThat(indexTierMetricsAfterTTLExpires.nodesLoad(), hasSize(0));
+            assertThat(indexTierMetricsAfterTTLExpires.getNodesLoad(), hasSize(0));
         }
     }
 
@@ -214,9 +214,9 @@ public class IngestMetricsServiceTests extends ESTestCase {
         }
 
         var indexTierMetrics = service.getIndexTierMetrics();
-        assertThat(indexTierMetrics.nodesLoad().toString(), indexTierMetrics.nodesLoad(), hasSize(1));
+        assertThat(indexTierMetrics.getNodesLoad().toString(), indexTierMetrics.getNodesLoad(), hasSize(1));
 
-        var indexNodeLoad = indexTierMetrics.nodesLoad().get(0);
+        var indexNodeLoad = indexTierMetrics.getNodesLoad().get(0);
         assertThat(indexNodeLoad.load(), is(equalTo(maxSeqNoIngestionLoad)));
         assertThat(indexNodeLoad.metricQuality(), is(equalTo(MetricQuality.EXACT)));
     }
@@ -242,12 +242,12 @@ public class IngestMetricsServiceTests extends ESTestCase {
             )
         );
         var indexTierMetrics = service.getIndexTierMetrics();
-        var metricQualityCount = indexTierMetrics.nodesLoad()
+        var metricQualityCount = indexTierMetrics.getNodesLoad()
             .stream()
             .collect(Collectors.groupingBy(NodeIngestLoadSnapshot::metricQuality, Collectors.counting()));
 
         // When the node hasn't published a metric yet, we consider it as missing
-        assertThat(indexTierMetrics.nodesLoad().toString(), metricQualityCount.get(MetricQuality.MISSING), is(equalTo(1L)));
+        assertThat(indexTierMetrics.getNodesLoad().toString(), metricQualityCount.get(MetricQuality.MISSING), is(equalTo(1L)));
 
         service.clusterChanged(
             new ClusterChangedEvent(
@@ -258,7 +258,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         );
 
         var indexTierMetricsAfterMasterHandover = service.getIndexTierMetrics();
-        assertThat(indexTierMetricsAfterMasterHandover.nodesLoad(), is(empty()));
+        assertThat(indexTierMetricsAfterMasterHandover.getNodesLoad(), is(empty()));
     }
 
     private static double randomIngestionLoad() {

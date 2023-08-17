@@ -145,9 +145,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
 
         // any of the replica sizes should be accepted
         var metrics = service.getSearchTierMetrics();
-        assertThat(metrics.maxShardCopies(), equalTo(new MaxShardCopies(2, MetricQuality.EXACT)));
+        assertThat(metrics.getMaxShardCopies(), equalTo(new MaxShardCopies(2, MetricQuality.EXACT)));
         assertThat(
-            metrics.storageMetrics(),
+            metrics.getStorageMetrics(),
             anyOf(
                 equalTo(new StorageMetrics(2 * 1024, 2 * 1024, 2 * 2048, MetricQuality.EXACT)),
                 equalTo(new StorageMetrics(2 * 1025, 2 * 1025, 2 * 2050, MetricQuality.EXACT))

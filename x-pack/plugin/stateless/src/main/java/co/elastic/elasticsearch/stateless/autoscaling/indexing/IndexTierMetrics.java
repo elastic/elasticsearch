@@ -17,38 +17,93 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import co.elastic.elasticsearch.stateless.autoscaling.AbstractBaseTierMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.AutoscalingMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetrics;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
-public record IndexTierMetrics(List<NodeIngestLoadSnapshot> nodesLoad, MemoryMetrics memoryMetrics) implements AutoscalingMetrics {
+public class IndexTierMetrics extends AbstractBaseTierMetrics implements AutoscalingMetrics {
+
+    private final List<NodeIngestLoadSnapshot> nodesLoad;
+    private final MemoryMetrics memoryMetrics;
+
+    public IndexTierMetrics(List<NodeIngestLoadSnapshot> nodesLoad, MemoryMetrics memoryMetrics) {
+        this.nodesLoad = nodesLoad;
+        this.memoryMetrics = memoryMetrics;
+    }
+
+    public IndexTierMetrics(String reason, ElasticsearchException exception) {
+        super(reason, exception);
+        this.nodesLoad = null;
+        this.memoryMetrics = null;
+    }
 
     public IndexTierMetrics(StreamInput in) throws IOException {
-        this(in.readList(NodeIngestLoadSnapshot::new), new MemoryMetrics(in));
+        super(in);
+        if (in.getTransportVersion().before(TransportVersion.V_8_500_063)) {
+            this.nodesLoad = in.readList(NodeIngestLoadSnapshot::new);
+            this.memoryMetrics = new MemoryMetrics(in);
+            return;
+        }
+
+        this.nodesLoad = in.readOptionalList(NodeIngestLoadSnapshot::new);
+        this.memoryMetrics = in.readOptionalWriteable(MemoryMetrics::new);
+    }
+
+    public List<NodeIngestLoadSnapshot> getNodesLoad() {
+        return nodesLoad;
+    }
+
+    public MemoryMetrics getMemoryMetrics() {
+        return memoryMetrics;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(nodesLoad);
-        memoryMetrics.writeTo(out);
+        if (out.getTransportVersion().before(TransportVersion.V_8_500_063)) {
+            out.writeList(nodesLoad);
+            memoryMetrics.writeTo(out);
+            return;
+        }
+        super.writeTo(out);
+        out.writeOptionalCollection(nodesLoad);
+        out.writeOptionalWriteable(memoryMetrics);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-
+    public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
         builder.object("metrics", (objectBuilder) -> {
             objectBuilder.xContentList("indexing_load", nodesLoad);
             memoryMetrics.toXContent(objectBuilder, params);
         });
-
-        builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
+
+        final IndexTierMetrics that = (IndexTierMetrics) other;
+
+        return Objects.equals(this.nodesLoad, that.nodesLoad) && Objects.equals(this.memoryMetrics, that.memoryMetrics);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(nodesLoad, memoryMetrics);
     }
 }

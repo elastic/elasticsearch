@@ -68,9 +68,9 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
 
         assertBusy(() -> assertThat(ingestLoadPublishSent.get(), equalTo(1)));
         var metrics = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class).getIndexTierMetrics();
-        assertThat(metrics.toString(), metrics.nodesLoad().size(), equalTo(1));
-        assertThat(metrics.toString(), metrics.nodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
-        assertThat(metrics.toString(), metrics.nodesLoad().get(0).load(), equalTo(0.0));
+        assertThat(metrics.toString(), metrics.getNodesLoad().size(), equalTo(1));
+        assertThat(metrics.toString(), metrics.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+        assertThat(metrics.toString(), metrics.getNodesLoad().get(0).load(), equalTo(0.0));
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 0).build());
@@ -84,9 +84,9 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         // We'd need an assertBusy since the second publish might still miss the recent load.
         assertBusy(() -> {
             var metricsAfter = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class).getIndexTierMetrics();
-            assertThat(metricsAfter.toString(), metricsAfter.nodesLoad().size(), equalTo(1));
-            assertThat(metricsAfter.toString(), metricsAfter.nodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
-            assertThat(metricsAfter.toString(), metricsAfter.nodesLoad().get(0).load(), greaterThan(0.0));
+            assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().size(), equalTo(1));
+            assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).load(), greaterThan(0.0));
         });
     }
 
@@ -127,9 +127,9 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
 
         assertBusy(() -> assertThat(ingestLoadPublishSent.get(), equalTo(1)));
         var metrics = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class).getIndexTierMetrics();
-        assertThat(metrics.toString(), metrics.nodesLoad().size(), equalTo(1));
-        assertThat(metrics.toString(), metrics.nodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
-        assertThat(metrics.toString(), metrics.nodesLoad().get(0).load(), equalTo(0.0));
+        assertThat(metrics.toString(), metrics.getNodesLoad().size(), equalTo(1));
+        assertThat(metrics.toString(), metrics.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+        assertThat(metrics.toString(), metrics.getNodesLoad().get(0).load(), equalTo(0.0));
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 0).build());
@@ -139,9 +139,9 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         indexDocs(indexName, randomIntBetween(5000, 10000));
         assertBusy(() -> {
             var metricsAfter = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class).getIndexTierMetrics();
-            assertThat(metricsAfter.toString(), metricsAfter.nodesLoad().size(), equalTo(1));
-            assertThat(metricsAfter.toString(), metricsAfter.nodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
-            assertThat(metricsAfter.toString(), metricsAfter.nodesLoad().get(0).load(), allOf(greaterThan(0.0), lessThanOrEqualTo(1.0)));
+            assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().size(), equalTo(1));
+            assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).load(), allOf(greaterThan(0.0), lessThanOrEqualTo(1.0)));
         });
         // Block the executor workers to pile up writes
         var threadpool = internalCluster().getInstance(ThreadPool.class, indexNodeName);
@@ -167,9 +167,9 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         // Eventually just because of queueing, the load will go above the current available threads
         assertBusy(() -> {
             var metricsAfter = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class).getIndexTierMetrics();
-            assertThat(metricsAfter.toString(), metricsAfter.nodesLoad().size(), equalTo(1));
-            assertThat(metricsAfter.toString(), metricsAfter.nodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
-            assertThat(metricsAfter.toString(), metricsAfter.nodesLoad().get(0).load(), greaterThan((double) executorThreads));
+            assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().size(), equalTo(1));
+            assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).load(), greaterThan((double) executorThreads));
         });
         barrier.await(30, TimeUnit.SECONDS);
     }
@@ -200,9 +200,9 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         // Wait for a publication of the metrics
         longAwait(metricPublicationBarrier);
         var metrics = ingestMetricsService.getIndexTierMetrics();
-        assertThat(metrics.toString(), metrics.nodesLoad().size(), equalTo(1));
-        assertThat(metrics.toString(), metrics.nodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
-        assertThat(metrics.toString(), metrics.nodesLoad().get(0).load(), equalTo(0.0));
+        assertThat(metrics.toString(), metrics.getNodesLoad().size(), equalTo(1));
+        assertThat(metrics.toString(), metrics.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+        assertThat(metrics.toString(), metrics.getNodesLoad().get(0).load(), equalTo(0.0));
         // Block the executor workers to simulate long-running write tasks
         var threadpool = internalCluster().getInstance(ThreadPool.class, indexNodeName);
         var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadpool.executor(ThreadPool.Names.WRITE);
@@ -216,11 +216,11 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         // Eventually just because of the "long-running" tasks, the load will go up
         assertBusy(() -> {
             var metricsAfter = ingestMetricsService.getIndexTierMetrics();
-            assertThat(metricsAfter.toString(), metricsAfter.nodesLoad().size(), equalTo(1));
-            assertThat(metricsAfter.toString(), metricsAfter.nodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().size(), equalTo(1));
+            assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
             assertThat(
                 metricsAfter.toString(),
-                metricsAfter.nodesLoad().get(0).load(),
+                metricsAfter.getNodesLoad().get(0).load(),
                 allOf(greaterThan(0.0), lessThanOrEqualTo((double) executorThreads))
             );
         });
@@ -254,7 +254,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
 
         // Wait for a publication of the metrics
         longAwait(barrier);
-        var loadsBeforeIndexing = ingestMetricsService.getIndexTierMetrics().nodesLoad();
+        var loadsBeforeIndexing = ingestMetricsService.getIndexTierMetrics().getNodesLoad();
         assertThat(loadsBeforeIndexing.size(), equalTo(1));
         assertThat(loadsBeforeIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
         assertThat(loadsBeforeIndexing.get(0).load(), equalTo(0.0));
@@ -267,7 +267,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             longAwait(barrier);
         }
         assertBusy(() -> {
-            var loadsAfterIndexing = ingestMetricsService.getIndexTierMetrics().nodesLoad();
+            var loadsAfterIndexing = ingestMetricsService.getIndexTierMetrics().getNodesLoad();
             assertThat(loadsAfterIndexing.size(), equalTo(1));
             assertThat(loadsAfterIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
             assertThat(loadsAfterIndexing.get(0).load(), equalTo(0.0));
@@ -286,7 +286,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             longAwait(barrier);
         }
         assertBusy(() -> {
-            var loadsAfterIndexing = ingestMetricsService.getIndexTierMetrics().nodesLoad();
+            var loadsAfterIndexing = ingestMetricsService.getIndexTierMetrics().getNodesLoad();
             assertThat(loadsAfterIndexing.size(), equalTo(1));
             assertThat(loadsAfterIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
             assertThat(loadsAfterIndexing.get(0).load(), greaterThan(0.0));
@@ -423,7 +423,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
 
     private static List<NodeIngestLoadSnapshot> getNodeIngestLoad() {
         var ingestMetricsService = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class);
-        var loadsAfterIndexing = ingestMetricsService.getIndexTierMetrics().nodesLoad();
+        var loadsAfterIndexing = ingestMetricsService.getIndexTierMetrics().getNodesLoad();
         return loadsAfterIndexing;
     }
 

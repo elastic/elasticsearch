@@ -2082,42 +2082,61 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testIsParallelCollectionSupportedForResults() {
-        SearchSourceBuilder searchSourceBuilder = randomBoolean() ? null : new SearchSourceBuilder();
-        var aggSupportsParallelCollection = new DateRangeAggregationBuilder("dateRange");
-        var aggDoesNotSupportParallelCollection = new TermsAggregationBuilder("terms");
-        var addedAggregation = searchSourceBuilder != null && randomBoolean()
-            ? randomFrom(aggSupportsParallelCollection, aggDoesNotSupportParallelCollection)
-            : null;
-        if (addedAggregation != null) searchSourceBuilder.aggregation(addedAggregation);
-
+        SearchSourceBuilder searchSourceBuilderOrNull = randomBoolean() ? null : new SearchSourceBuilder();
         for (var resultsType : ResultsType.values()) {
+            // The following exhaustive switch expression is used to enforce totality checking of the ResultsType enum.
             Runnable boilerplateForExhaustiveSwitch = switch (resultsType) {
                 case NONE, FETCH -> () -> assertFalse(
-                    "NONE and FETCH phases do not support parallel collection.",
-                    SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilder, randomBoolean())
+                        "NONE and FETCH phases do not support parallel collection.",
+                        SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderOrNull, randomBoolean())
                 );
                 case DFS -> () -> {
                     assertTrue(
-                        "DFS phase supports parallel collection.",
-                        SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilder, randomBoolean())
+                            "DFS phase always supports parallel collection.",
+                            SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderOrNull, randomBoolean())
                     );
                 };
                 case QUERY -> () -> {
-                    assertFalse(
-                        "Parallel collection can be disabled for Query Phase.",
-                        SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilder, false)
+                    SearchSourceBuilder searchSourceBuilderNoAgg = new SearchSourceBuilder();
+                    assertTrue(
+                            "Parallel collection should be supported for the query phase when no agg is present.",
+                            SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderNoAgg, true)
                     );
-                    if (addedAggregation == aggDoesNotSupportParallelCollection) {
-                        assertFalse(
-                            "Parallel collection disabled for Query phase with unsupported Agg",
-                            SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilder, true)
-                        );
-                    } else if (addedAggregation == null || addedAggregation == aggSupportsParallelCollection) {
-                        assertTrue(
-                            "Query phase supports Parallel collection when enabled && does not contain unsupported agg.",
-                            SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilder, true)
-                        );
-                    }
+                    assertTrue(
+                            "Parallel collection should be supported for the query phase when the source is null.",
+                            SearchService.isParallelCollectionSupportedForResults(resultsType, null, true)
+                    );
+
+                    SearchSourceBuilder searchSourceAggSupportsParallelCollection = new SearchSourceBuilder();
+                    searchSourceAggSupportsParallelCollection.aggregation(new DateRangeAggregationBuilder("dateRange"));
+                    assertTrue(
+                            "Parallel collection should be supported for the query phase when when enabled && contains supported agg.",
+                            SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceAggSupportsParallelCollection, true)
+                    );
+
+                    assertFalse(
+                            "Parallel collection should not be supported for the query phase when disabled.",
+                            SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderNoAgg, false)
+                    );
+                    assertFalse(
+                            "Parallel collection should not be supported for the query phase when disabled and source is null.",
+                            SearchService.isParallelCollectionSupportedForResults(resultsType, null, false)
+                    );
+
+                    SearchSourceBuilder searchSourceAggDoesNotSupportParallelCollection = new SearchSourceBuilder();
+                    searchSourceAggDoesNotSupportParallelCollection.aggregation(new TermsAggregationBuilder("terms"));
+                    assertFalse(
+                            "Parallel collection should not be supported for the query phase when when enabled && does not contains supported agg.",
+                            SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceAggDoesNotSupportParallelCollection, true)
+                    );
+
+                    SearchSourceBuilder searchSourceMultiAggDoesNotSupportParallelCollection = new SearchSourceBuilder();
+                    searchSourceMultiAggDoesNotSupportParallelCollection.aggregation(new TermsAggregationBuilder("terms"));
+                    searchSourceMultiAggDoesNotSupportParallelCollection.aggregation(new DateRangeAggregationBuilder("dateRange"));
+                    assertFalse(
+                            "Parallel collection should not be supported for the query phase when when enabled && contains unsupported agg.",
+                            SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceMultiAggDoesNotSupportParallelCollection, true)
+                    );
                 };
             };
             boilerplateForExhaustiveSwitch.run();

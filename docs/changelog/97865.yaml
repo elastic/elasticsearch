@@ -1,0 +1,14 @@
+pr: 97865
+summary: Exclude clusters from a cross-cluster search
+area: Search
+type: enhancement
+issues: []
+highlight:
+  title: Exclude clusters from a cross-cluster search
+  body: |-
+    When doing a cross-cluster search, if you use a wildcard to include a list of clusters, you
+    can explicitly exclude one or more clusters with a minus sign ('-'). To exclude an entire cluster,
+    put the minus sign in front of the cluster alias, such as: `remote*:*,-remote3:*,-remote5:*`.
+    In that case, clusters with the alias "remote3" and "remote5" will be excluded from the search.
+    For this feature, you must use `*` in the index position or an error will be returned.
+  notable: true

@@ -185,7 +185,7 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
      * Detached index versions added below here.
      */
     private static class CurrentHolder {
-        private static final IndexVersion CURRENT = findCurrent(V_8_10_0);
+        private static final IndexVersion CURRENT = findCurrent(V_8_11_0);
 
         // finds the pluggable current version, or uses the given fallback
         private static IndexVersion findCurrent(IndexVersion fallback) {

@@ -9,15 +9,16 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MUL;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongMultiplyExact;
 
-public class Mul extends EsqlArithmeticOperation {
+public class Mul extends EsqlArithmeticOperation implements BinaryComparisonInversible {
 
-    Mul(Source source, Expression left, Expression right) {
+    public Mul(Source source, Expression left, Expression right) {
         super(
             source,
             left,

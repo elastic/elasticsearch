@@ -37,7 +37,8 @@ public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
 
         if (type.isNumeric()) {
             var f = toEvaluator.apply(field());
-            Supplier<ExpressionEvaluator> supplier;
+            Supplier<ExpressionEvaluator> supplier = null;
+
             if (type == DataTypes.INTEGER) {
                 supplier = () -> new NegIntsEvaluator(source(), f.get());
             }
@@ -46,6 +47,10 @@ public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
                 supplier = () -> new NegLongsEvaluator(source(), f.get());
             } else if (type == DataTypes.DOUBLE) {
                 supplier = () -> new NegDoublesEvaluator(f.get());
+            }
+
+            if (supplier != null) {
+                return supplier;
             }
         }
         throw new EsqlIllegalArgumentException("arithmetic negation operator with unsupported data type [" + type + "]");

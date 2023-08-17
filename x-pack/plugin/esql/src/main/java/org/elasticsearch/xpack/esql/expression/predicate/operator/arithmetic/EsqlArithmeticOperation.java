@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
@@ -30,7 +29,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
-abstract class EsqlArithmeticOperation extends ArithmeticOperation implements BinaryComparisonInversible, EvaluatorMapper {
+abstract class EsqlArithmeticOperation extends ArithmeticOperation implements EvaluatorMapper {
 
     enum OperationSymbol implements BinaryArithmeticOperation {
         ADD("+"),

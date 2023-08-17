@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.ADD;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAddExact;
 
-public class Add extends EsqlArithmeticOperation {
+public class Add extends EsqlArithmeticOperation implements BinaryComparisonInversible {
 
     public Add(Source source, Expression left, Expression right) {
         super(

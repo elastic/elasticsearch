@@ -1,5 +1,5 @@
 [[esql-rtrim]]
-=== `LTRIM`
+=== `RTRIM`
 Removes trailing whitespaces from strings.
 
 [source.merge.styled,esql]

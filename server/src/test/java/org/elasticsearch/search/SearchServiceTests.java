@@ -2126,7 +2126,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     SearchSourceBuilder searchSourceAggDoesNotSupportParallelCollection = new SearchSourceBuilder();
                     searchSourceAggDoesNotSupportParallelCollection.aggregation(new TermsAggregationBuilder("terms"));
                     assertFalse(
-                        "Parallel collection should not be supported for the query phase when when enabled && does not contains supported agg.",
+                        "Parallel collection should not be supported for the query phase when when "
+                            + "enabled && does not contains supported agg.",
                         SearchService.isParallelCollectionSupportedForResults(
                             resultsType,
                             searchSourceAggDoesNotSupportParallelCollection,

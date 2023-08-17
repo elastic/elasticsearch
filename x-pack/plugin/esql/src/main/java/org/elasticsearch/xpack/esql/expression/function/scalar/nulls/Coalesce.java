@@ -14,6 +14,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -105,15 +106,7 @@ public class Coalesce extends ScalarFunction implements Mappable {
 
     @Override
     public boolean foldable() {
-        for (Expression c : children()) {
-            if (c.foldable() == false) {
-                return false;
-            }
-            if (c.fold() != null) { // TODO is this ok?
-                return true;
-            }
-        }
-        return true;
+        return Expressions.foldable(children());
     }
 
     @Override

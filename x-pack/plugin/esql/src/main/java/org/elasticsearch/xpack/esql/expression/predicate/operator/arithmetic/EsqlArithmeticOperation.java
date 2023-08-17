@@ -31,6 +31,11 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
 abstract class EsqlArithmeticOperation extends ArithmeticOperation implements EvaluatorMapper {
 
+    /**
+     * The only role of this enum is to fit the super constructor that expects a BinaryOperation which is
+     * used just for its symbol.
+     * The rest of the methods should not be triggered hence the UOE.
+     */
     enum OperationSymbol implements BinaryArithmeticOperation {
         ADD("+"),
         SUB("-"),
@@ -117,7 +122,7 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
             ArithmeticEvaluator eval;
             if (commonType == INTEGER) {
                 eval = ints;
-            } else if (commonType == LONG){
+            } else if (commonType == LONG) {
                 eval = longs;
             } else if (commonType == UNSIGNED_LONG) {
                 eval = ulongs;

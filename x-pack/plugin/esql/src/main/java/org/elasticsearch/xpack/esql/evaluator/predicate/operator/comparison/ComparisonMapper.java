@@ -153,16 +153,8 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         DataType required,
         BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> buildEvaluator
     ) {
-        Supplier<EvalOperator.ExpressionEvaluator> lhs = Cast.cast(
-            op.left().dataType(),
-            required,
-            toEvaluator(op.left(), layout)
-        );
-        Supplier<EvalOperator.ExpressionEvaluator> rhs = Cast.cast(
-            op.right().dataType(),
-            required,
-            toEvaluator(op.right(), layout)
-        );
+        Supplier<EvalOperator.ExpressionEvaluator> lhs = Cast.cast(op.left().dataType(), required, toEvaluator(op.left(), layout));
+        Supplier<EvalOperator.ExpressionEvaluator> rhs = Cast.cast(op.right().dataType(), required, toEvaluator(op.right(), layout));
         return () -> buildEvaluator.apply(lhs.get(), rhs.get());
     }
 
@@ -176,16 +168,8 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
             EvalOperator.ExpressionEvaluator,
             EvalOperator.ExpressionEvaluator> buildEvaluator
     ) {
-        Supplier<EvalOperator.ExpressionEvaluator> lhs = Cast.cast(
-            op.left().dataType(),
-            required,
-            toEvaluator(op.left(), layout)
-        );
-        Supplier<EvalOperator.ExpressionEvaluator> rhs = Cast.cast(
-            op.right().dataType(),
-            required,
-            toEvaluator(op.right(), layout)
-        );
+        Supplier<EvalOperator.ExpressionEvaluator> lhs = Cast.cast(op.left().dataType(), required, toEvaluator(op.left(), layout));
+        Supplier<EvalOperator.ExpressionEvaluator> rhs = Cast.cast(op.right().dataType(), required, toEvaluator(op.right(), layout));
         return () -> buildEvaluator.apply(op.source(), lhs.get(), rhs.get());
     }
 }

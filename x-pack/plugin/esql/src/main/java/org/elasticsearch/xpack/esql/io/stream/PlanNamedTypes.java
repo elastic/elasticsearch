@@ -1285,14 +1285,13 @@ public final class PlanNamedTypes {
 
     // -- ArithmeticOperations
 
-    static final Map<String, TriFunction<Source, Expression, Expression, ArithmeticOperation>> ARITHMETIC_CTRS =
-        Map.ofEntries(
-            entry(name(Add.class), Add::new),
-            entry(name(Sub.class), Sub::new),
-            entry(name(Mul.class), Mul::new),
-            entry(name(Div.class), Div::new),
-            entry(name(Mod.class), Mod::new)
-        );
+    static final Map<String, TriFunction<Source, Expression, Expression, ArithmeticOperation>> ARITHMETIC_CTRS = Map.ofEntries(
+        entry(name(Add.class), Add::new),
+        entry(name(Sub.class), Sub::new),
+        entry(name(Mul.class), Mul::new),
+        entry(name(Div.class), Div::new),
+        entry(name(Mod.class), Mod::new)
+    );
 
     static ArithmeticOperation readArithmeticOperation(PlanStreamInput in, String name) throws IOException {
         var left = in.readExpression();

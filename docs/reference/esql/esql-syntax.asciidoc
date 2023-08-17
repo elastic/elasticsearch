@@ -115,6 +115,30 @@ The following boolean operators are supported:
 * `NOT`
 
 [discrete]
+[[esql-predicates]]
+=== Predicates
+
+For NULL comparison use the `IS NULL` and `IS NOT NULL` predicates:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/null.csv-spec[tag=is-null]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/null.csv-spec[tag=is-not-null-result]
+|===
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/null.csv-spec[tag=is-not-null]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/null.csv-spec[tag=is-not-null-result]
+|===
+
+[discrete]
 [[esql-timespan-literals]]
 === Timespan literals
 

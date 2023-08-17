@@ -96,6 +96,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitBooleanDefault(EsqlBaseParser.BooleanDefaultContext ctx);
   /**
+   * Enter a parse tree produced by the {@code isNull}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterIsNull(EsqlBaseParser.IsNullContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code isNull}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitIsNull(EsqlBaseParser.IsNullContext ctx);
+  /**
    * Enter a parse tree produced by the {@code regexExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree

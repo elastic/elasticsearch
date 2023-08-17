@@ -74,7 +74,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 
 import java.util.Locale;
 
@@ -143,7 +142,7 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
             // conditional
             new FunctionDefinition[] { def(Case.class, Case::new, "case") },
             // null
-            new FunctionDefinition[] { def(Coalesce.class, Coalesce::new, "coalesce"), def(IsNull.class, IsNull::new, "is_null"), },
+            new FunctionDefinition[] { def(Coalesce.class, Coalesce::new, "coalesce"), },
             // IP
             new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
             // conversion functions

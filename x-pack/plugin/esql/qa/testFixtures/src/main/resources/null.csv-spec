@@ -1,6 +1,6 @@
 isNull
 from employees
-| where is_null(gender)
+| where gender is null
 | sort first_name
 | keep first_name, gender
 | limit 3;
@@ -13,7 +13,7 @@ Duangkaew         |null
 
 notIsNull
 from employees
-| where not is_null(gender)
+| where gender is not null
 | sort first_name
 | keep first_name, gender
 | limit 3;
@@ -22,6 +22,38 @@ first_name:keyword|gender:keyword
 Alejandro         |F
 Amabile           |M
 Anneke            |F
+;
+
+isNullForDocs
+// tag::is-null[]
+FROM employees
+| WHERE birth_date IS NULL
+| KEEP first_name, last_name
+| SORT first_name
+| LIMIT 3
+// end::is-null[]
+;
+
+// tag::is-null-result[]
+first_name:keyword|last_name:keyword   
+Basil             |Tramer         
+Florian           |Syrotiuk       
+Lucien            |Rosenbaum
+// end::is-null-result[]
+;
+
+isNotNullForDocs
+// tag::is-not-null[]
+FROM employees
+| WHERE is_rehired IS NOT NULL
+| STATS count(emp_no)
+// end::is-not-null[]
+;
+
+// tag::is-not-null-result[]
+count(emp_no):long 
+84
+// end::is-not-null-result[]
 ;
 
 coalesceSimple

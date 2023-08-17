@@ -112,46 +112,11 @@ xpack.security.http.filter.deny: _all
 --------------------------------------------------
 
 [discrete]
-[[dynamic-ip-filtering]]
-==== Dynamically updating IP filter settings
-
-In case of running in an environment with highly dynamic IP addresses like cloud
-based hosting, it is very hard to know the IP addresses upfront when provisioning
-a machine. Instead of changing the configuration file and restarting the node,
-you can use the _Cluster Update Settings API_. For example:
-
-[source,console]
---------------------------------------------------
-PUT /_cluster/settings
-{
-  "persistent" : {
-    "xpack.security.transport.filter.allow" : "172.16.0.0/24"
-  }
-}
---------------------------------------------------
-
-You can also dynamically disable filtering completely:
-
-[source,console]
---------------------------------------------------
-PUT /_cluster/settings
-{
-  "persistent" : {
-    "xpack.security.transport.filter.enabled" : false
-  }
-}
---------------------------------------------------
-// TEST[continued]
-
-NOTE: In order to avoid locking yourself out of the cluster, the default bound
-      transport address will never be denied. This means you can always SSH into
-      a system and use curl to apply changes.
-
-[discrete]
 === Remote cluster (API key based model) filtering
 
 beta::[]
 
+// TODO: fix the link to new page of API key based remote clusters
 You may want to have different IP filtering for the remote cluster server interface.
 
 [source,yaml]
@@ -171,7 +136,7 @@ But the exact allow and deny lists can be different between them.
 
 [discrete]
 [[dynamic-ip-filtering]]
-==== Dynamically updating IP filter settings
+=== Dynamically updating IP filter settings
 
 In case of running in an environment with highly dynamic IP addresses like cloud
 based hosting, it is very hard to know the IP addresses upfront when provisioning

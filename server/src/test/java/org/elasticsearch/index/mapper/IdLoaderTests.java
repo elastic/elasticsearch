@@ -34,9 +34,12 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -50,15 +53,9 @@ public class IdLoaderTests extends ESTestCase {
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs = List.of(
             new Doc(startTime, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx"))),
-            new Doc(startTime + 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"), new Dimension("dim3", 5))),
+            new Doc(startTime + 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"))),
             new Doc(startTime + 2, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "xxx")))
         );
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = writer -> {
-            for (Doc doc : docs) {
-                indexDoc(routing, writer, doc);
-            }
-            writer.forceMerge(1);
-        };
         CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
             assertThat(indexReader.leaves(), hasSize(1));
             LeafReader leafReader = indexReader.leaves().get(0).reader();
@@ -68,66 +65,134 @@ public class IdLoaderTests extends ESTestCase {
             assertThat(leaf.getId(1), equalTo(expectedId(routing, docs.get(1))));
             assertThat(leaf.getId(2), equalTo(expectedId(routing, docs.get(2))));
         };
-        prepareIndexReader(buildIndex, verify);
+        prepareIndexReader(indexAndForceMerge(routing, docs), verify);
     }
 
-    public void testSynthesizeIdMultipleeSegments() throws Exception {
+    public void testSynthesizeIdMultipleSegments() throws Exception {
         var routingPaths = List.of("dim1");
         var routing = createRouting(routingPaths);
         var idLoader = IdLoader.createTsIdLoader(routing, routingPaths);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
-        List<Doc> docs = List.of(
+        List<Doc> docs1 = List.of(
             new Doc(startTime, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx"))),
-            new Doc(startTime + 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"))),
-            new Doc(startTime + 2, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "xxx")))
+            new Doc(startTime - 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx"))),
+            new Doc(startTime - 2, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx"))),
+            new Doc(startTime - 3, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx")))
+        );
+        List<Doc> docs2 = List.of(
+            new Doc(startTime, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"))),
+            new Doc(startTime - 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"))),
+            new Doc(startTime - 2, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"))),
+            new Doc(startTime - 3, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy")))
+        );
+        List<Doc> docs3 = List.of(
+            new Doc(startTime, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "yyy"))),
+            new Doc(startTime - 1, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "yyy"))),
+            new Doc(startTime - 2, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "yyy"))),
+            new Doc(startTime - 3, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "yyy")))
         );
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = writer -> {
-            for (Doc doc : docs) {
+            for (Doc doc : docs1) {
                 indexDoc(routing, writer, doc);
-                writer.flush();
+            }
+            writer.flush();
+            for (Doc doc : docs2) {
+                indexDoc(routing, writer, doc);
+            }
+            writer.flush();
+            for (Doc doc : docs3) {
+                indexDoc(routing, writer, doc);
+            }
+            writer.flush();
+        };
+        CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
+            assertThat(indexReader.leaves(), hasSize(3));
+            {
+                LeafReader leafReader = indexReader.leaves().get(0).reader();
+                assertThat(leafReader.numDocs(), equalTo(docs1.size()));
+                var leaf = idLoader.leaf(null, leafReader, IntStream.range(0, docs1.size()).toArray());
+                for (int i = 0; i < docs1.size(); i++) {
+                    assertThat(leaf.getId(i), equalTo(expectedId(routing, docs1.get(i))));
+                }
+            }
+            {
+                LeafReader leafReader = indexReader.leaves().get(1).reader();
+                assertThat(leafReader.numDocs(), equalTo(docs2.size()));
+                var leaf = idLoader.leaf(null, leafReader, new int[] { 0, 3 });
+                assertThat(leaf.getId(0), equalTo(expectedId(routing, docs2.get(0))));
+                assertThat(leaf.getId(3), equalTo(expectedId(routing, docs2.get(3))));
+            }
+            {
+                LeafReader leafReader = indexReader.leaves().get(2).reader();
+                assertThat(leafReader.numDocs(), equalTo(docs3.size()));
+                var leaf = idLoader.leaf(null, leafReader, new int[] { 1, 2 });
+                assertThat(leaf.getId(1), equalTo(expectedId(routing, docs3.get(1))));
+                assertThat(leaf.getId(2), equalTo(expectedId(routing, docs3.get(2))));
+            }
+            {
+                LeafReader leafReader = indexReader.leaves().get(2).reader();
+                assertThat(leafReader.numDocs(), equalTo(docs3.size()));
+                var leaf = idLoader.leaf(null, leafReader, new int[] { 3 });
+                expectThrows(IllegalArgumentException.class, () -> leaf.getId(0));
             }
         };
+        prepareIndexReader(buildIndex, verify);
+    }
+
+    public void testSynthesizeIdRandom() throws Exception {
+        var routingPaths = List.of("dim1");
+        var routing = createRouting(routingPaths);
+        var idLoader = IdLoader.createTsIdLoader(routing, routingPaths);
+
+        long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
+        Set<String> expectedIDs = new HashSet<>();
+        List<Doc> randomDocs = new ArrayList<>();
+        int numberOfTimeSeries = randomIntBetween(8, 64);
+        for (int i = 0; i < numberOfTimeSeries; i++) {
+            int numberOfDimensions = randomIntBetween(1, 6);
+            List<Dimension> dimensions = new ArrayList<>(numberOfDimensions);
+            for (int j = 1; j <= numberOfDimensions; j++) {
+                String fieldName = "dim" + j;
+                Object value;
+                if (j == 5) {
+                    value = randomLongBetween(1, 20);
+                } else {
+                    value = randomAlphaOfLength(4);
+                }
+                dimensions.add(new Dimension(fieldName, value));
+            }
+            int numberOfSamples = randomIntBetween(1, 16);
+            for (int j = 0; j < numberOfSamples; j++) {
+                Doc doc = new Doc(startTime++, dimensions);
+                randomDocs.add(doc);
+                expectedIDs.add(expectedId(routing, doc));
+            }
+        }
         CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
             assertThat(indexReader.leaves(), hasSize(1));
             LeafReader leafReader = indexReader.leaves().get(0).reader();
-            assertThat(leafReader.numDocs(), equalTo(docs.size()));
-            var leaf = idLoader.leaf(null, leafReader, IntStream.range(0, docs.size()).toArray());
-            for (int i = 0; i < docs.size(); i++) {
-                assertThat(leaf.getId(i), equalTo(expectedId(routing, docs.get(i))));
+            assertThat(leafReader.numDocs(), equalTo(randomDocs.size()));
+            var leaf = idLoader.leaf(null, leafReader, IntStream.range(0, randomDocs.size()).toArray());
+            for (int i = 0; i < randomDocs.size(); i++) {
+                String actualId = leaf.getId(i);
+                assertTrue("docId=" + i + " id=" + actualId, expectedIDs.remove(actualId));
             }
         };
-        prepareIndexReader(buildIndex, verify);
+        prepareIndexReader(indexAndForceMerge(routing, randomDocs), verify);
+        assertThat(expectedIDs, empty());
     }
 
-    public void testSynthesizeId() throws Exception {
-        var routingPaths = List.of("dim1");
-        var routing = createRouting(routingPaths);
-        var idLoader = IdLoader.createTsIdLoader(routing, routingPaths);
-
-        long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
-        List<Doc> docs = List.of(
-            new Doc(startTime, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx"))),
-            new Doc(startTime + 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"))),
-            new Doc(startTime + 2, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "xxx"))),
-            new Doc(startTime + 3, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "xxx")))
-        );
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = writer -> {
+    private static CheckedConsumer<RandomIndexWriter, IOException> indexAndForceMerge(
+        IndexRouting.ExtractFromSource routing,
+        List<Doc> docs
+    ) {
+        return writer -> {
             for (Doc doc : docs) {
                 indexDoc(routing, writer, doc);
             }
             writer.forceMerge(1);
         };
-        CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
-            assertThat(indexReader.leaves(), hasSize(1));
-            LeafReader leafReader = indexReader.leaves().get(0).reader();
-            assertThat(leafReader.numDocs(), equalTo(docs.size()));
-            var leaf = idLoader.leaf(null, leafReader, IntStream.range(0, docs.size()).toArray());
-            for (int i = 0; i < docs.size(); i++) {
-                assertThat(leaf.getId(i), equalTo(expectedId(routing, docs.get(i))));
-            }
-        };
-        prepareIndexReader(buildIndex, verify);
     }
 
     private void prepareIndexReader(
@@ -160,6 +225,7 @@ public class IdLoaderTests extends ESTestCase {
         for (Dimension dimension : doc.dimensions) {
             if (dimension.value instanceof Number n) {
                 builder.addLong(dimension.field, n.longValue());
+                fields.add(new SortedNumericDocValuesField(dimension.field, ((Number) dimension.value).longValue()));
             } else {
                 builder.addString(dimension.field, dimension.value.toString());
                 fields.add(new SortedSetDocValuesField(dimension.field, new BytesRef(dimension.value.toString())));
@@ -174,7 +240,11 @@ public class IdLoaderTests extends ESTestCase {
         var routingBuilder = routing.builder();
         var timeSeriesIdBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(routingBuilder);
         for (Dimension dimension : doc.dimensions) {
-            timeSeriesIdBuilder.addString(dimension.field, dimension.value.toString());
+            if (dimension.value instanceof Number n) {
+                timeSeriesIdBuilder.addLong(dimension.field, n.longValue());
+            } else {
+                timeSeriesIdBuilder.addString(dimension.field, dimension.value.toString());
+            }
         }
         return TsidExtractingIdFieldMapper.createId(
             false,

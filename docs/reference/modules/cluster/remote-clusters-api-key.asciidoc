@@ -48,11 +48,15 @@ To add a remote cluster using API key authentication:
 [[remote-clusters-security-api-key]]
 ==== Establish trust with a remote cluster
 
-. The {es} security features need to be enabled on both clusters, on every node.
+=====  Prerequisite
+
+The {es} security features need to be enabled on both clusters, on every node.
 Security is enabled by default. If it's disabled, set `xpack.security.enabled`
 to `true` in `elasticsearch.yml`. Refer to <<general-security-settings>>.
 
-. On the remote cluster, enable the remote cluster server port on every node by
+===== On the remote cluster
+
+. Enable the remote cluster server port on every node of the remote cluster by
 setting `remote_cluster_server.enabled` to `true` in `elasticsearch.yml`. The
 port number defaults to `9443` and can be configured with the
 `remote_cluster.port` setting. Refer to <<remote-cluster-network-settings>>.
@@ -60,7 +64,7 @@ port number defaults to `9443` and can be configured with the
 . Next, generate a CA and a server certificate/key pair. On one of the nodes
 of the remote cluster, from the directory where {es} has been installed:
 
-.. If you don't have a CA already, create a CA:
+.. Create a CA, if you don't have a CA already:
 +
 [source,sh]
 ----
@@ -81,7 +85,8 @@ contains the following content:
 |_ ca.key
 ----
 
-.. Generate a certificate and private key pair for the nodes in your cluster:
+.. Generate a certificate and private key pair for the nodes in the remote 
+cluster:
 +
 [source,sh]
 ----
@@ -96,13 +101,13 @@ You can specify it multiple times for multiple DNS.
 * Use the `--pi` option to specify the relevant IP address for the certificate.
 You can specify it multiple times for multiple IP addresses.
 
-.. If the cluster has multiple nodes, you can either:
+.. If the remote cluster has multiple nodes, you can either:
 +
 * create a single wildcard certificate for all nodes;
 * or, create separate certificates for each node either manually or in batch
 with the <<certutil-silent,silent mode>>.
 
-. On the remote cluster, on every node:
+. On every node of the remote cluster:
 .. Copy the `cross-cluster.p12` file from the earlier step to the `config`
 directory. If you didn't create a wildcard certificate, make sure you copy the
 correct node-specific p12 file.
@@ -130,7 +135,9 @@ When prompted, enter the `CERT_PASSWORD` from the earlier step.
 {kibana-ref}/api-keys.html[Kibana]. Grant the key the required access for {ccs}
 or {ccr}.
 
-. On the local cluster, on every node:
+===== On the local cluster
+
+. On every node of the local cluster:
 
 .. Copy the `ca.crt` file generated on the remote cluster earlier into the
 `config` directory, renaming the file `remote-cluster-ca.crt`.

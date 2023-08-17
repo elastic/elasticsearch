@@ -1050,7 +1050,8 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 circuitBreakerService,
                 authenticator,
                 sslService,
-                sharedGroupFactory
+                sharedGroupFactory,
+                null
             );
             this.doHandshake = doHandshake;
         }

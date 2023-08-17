@@ -125,7 +125,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
     @Override
     protected Netty4MessageInboundHandler getNetty4MessageInboundHandler(String name) {
-        if (remoteClusterPortEnabled == false || REMOTE_CLUSTER_PROFILE.equals(name) == false) {
+        if (remoteClusterPortEnabled == false || REMOTE_CLUSTER_PROFILE.equals(name) == false || apiKeyService == null) {
             return super.getNetty4MessageInboundHandler(name);
         }
 

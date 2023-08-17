@@ -39,7 +39,7 @@ public class ConcurrentSearchSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     @Override
-    protected boolean eagerConcurrentSearch() {
+    protected boolean enableConcurrentSearch() {
         return eagerConcurrentSearch;
     }
 }

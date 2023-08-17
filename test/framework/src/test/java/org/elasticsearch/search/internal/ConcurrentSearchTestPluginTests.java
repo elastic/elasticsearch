@@ -40,7 +40,7 @@ public class ConcurrentSearchTestPluginTests extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean eagerConcurrentSearch() {
+    protected boolean enableConcurrentSearch() {
         return eagerConcurrentSearch;
     }
 }

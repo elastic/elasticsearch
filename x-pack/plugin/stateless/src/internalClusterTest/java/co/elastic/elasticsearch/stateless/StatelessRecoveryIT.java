@@ -1066,6 +1066,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
     public void testRecoverIndexingShardWithStaleIndexingShard() throws Exception {
         String indexNodeA = startIndexNode();
         String searchNode = startSearchNode();
+        String masterName = internalCluster().getMasterName();
 
         final String indexName = "index-name";
         createIndex(indexName, indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms").build());
@@ -1098,7 +1099,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         );
         MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
-            internalCluster().getMasterName()
+            masterName
         );
 
         String indexNodeB = startIndexNode();
@@ -1122,7 +1123,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             removedNode.actionGet();
 
             logger.info("waiting for [{}] to be removed from cluster", indexNodeA);
-            ensureStableCluster(3, internalCluster().getMasterName());
+            ensureStableCluster(3, masterName);
 
             assertBusy(() -> assertThat(getPrimaryTerms(indexName)[0], greaterThan(initialPrimaryTerm)));
 

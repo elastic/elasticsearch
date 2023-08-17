@@ -24,7 +24,7 @@ import java.util.List;
 /**
  * Responsible for loading the _id from stored fields or for TSDB synthesizing the _id from the routing, _tsid and @timestamp fields.
  */
-public sealed interface IdLoader permits IdLoader.TsIdLoader,IdLoader.StoredIdLoader {
+public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdLoader {
 
     /**
      * @return returns an {@link IdLoader} instance the loads the _id from stored field.
@@ -45,7 +45,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader,IdLoader.StoredIdLo
     /**
      * Returns a leaf instance for a leaf reader that returns the _id for segment level doc ids.
      */
-    sealed interface Leaf permits StoredLeaf,TsIdLeaf {
+    sealed interface Leaf permits StoredLeaf, TsIdLeaf {
 
         /**
          * @param subDocId The segment level doc id for which the return the _id

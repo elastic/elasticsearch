@@ -82,9 +82,7 @@ public class TransportTermsEnumActionTests extends ESSingleNodeTestCase {
         assertThat(
             ex.getCause().getCause().getMessage(),
             containsString(
-                "was released first in version "
-                    + version
-                    + ", failed compatibility check trying to send it to node with version"
+                "was released first in version " + version + ", failed compatibility check trying to send it to node with version"
             )
         );
     }

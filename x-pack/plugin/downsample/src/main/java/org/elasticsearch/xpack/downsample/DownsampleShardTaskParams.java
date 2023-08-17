@@ -104,18 +104,6 @@ public record DownsampleShardTaskParams(
         out.writeStringArray(labels);
     }
 
-    public static DownsampleShardTaskParams readFromStream(final StreamInput in) throws IOException {
-        return new DownsampleShardTaskParams(
-            new DownsampleConfig(in),
-            in.readString(),
-            in.readVLong(),
-            in.readVLong(),
-            new ShardId(in),
-            in.readStringArray(),
-            in.readStringArray()
-        );
-    }
-
     public static DownsampleShardTaskParams fromXContent(XContentParser parser) throws IOException {
         final DownsampleShardTaskParams.Builder builder = new DownsampleShardTaskParams.Builder();
         PARSER.parse(parser, builder, null);

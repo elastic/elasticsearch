@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Describes the indices where ML is storing various stats about the users jobs.
@@ -25,6 +26,7 @@ public class MlStatsIndex {
     public static final String TEMPLATE_NAME = ".ml-stats";
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
+    public static final int STATS_INDEX_MAPPINGS_VERSION = 1;
 
     private MlStatsIndex() {}
 
@@ -36,7 +38,12 @@ public class MlStatsIndex {
     }
 
     public static String mapping() {
-        return TemplateUtils.loadTemplate("/ml/stats_index_mappings.json", Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE);
+        return TemplateUtils.loadTemplate(
+            "/ml/stats_index_mappings.json",
+            Version.CURRENT.toString(),
+            MAPPINGS_VERSION_VARIABLE,
+            Map.of("xpack.ml.managed.index.version", Integer.toString(STATS_INDEX_MAPPINGS_VERSION))
+        );
     }
 
     public static String indexPattern() {

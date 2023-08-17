@@ -8,10 +8,53 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MUL;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongMultiplyExact;
 
-public class Mul {
+public class Mul extends EsqlArithmeticOperation {
+
+    Mul(Source source, Expression left, Expression right) {
+        super(
+            source,
+            left,
+            right,
+            MUL,
+            MulIntsEvaluator::new,
+            MulLongsEvaluator::new,
+            MulUnsignedLongsEvaluator::new,
+            (s, l, r) -> new MulDoublesEvaluator(l, r)
+        );
+    }
+
+    @Override
+    public ArithmeticOperationFactory binaryComparisonInverse() {
+        return Div::new;
+    }
+
+    @Override
+    protected boolean isCommutative() {
+        return true;
+    }
+
+    @Override
+    public Mul swapLeftAndRight() {
+        return new Mul(source(), right(), left());
+    }
+
+    @Override
+    protected NodeInfo<Mul> info() {
+        return NodeInfo.create(this, Mul::new, left(), right());
+    }
+
+    @Override
+    protected Mul replaceChildren(Expression left, Expression right) {
+        return new Mul(source(), left, right);
+    }
+
     @Evaluator(extraName = "Ints", warnExceptions = { ArithmeticException.class })
     static int processInts(int lhs, int rhs) {
         return Math.multiplyExact(lhs, rhs);
@@ -31,4 +74,5 @@ public class Mul {
     static double processDoubles(double lhs, double rhs) {
         return lhs * rhs;
     }
+
 }

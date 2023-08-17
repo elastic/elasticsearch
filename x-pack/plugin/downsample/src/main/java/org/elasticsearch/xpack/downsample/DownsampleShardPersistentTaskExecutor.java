@@ -215,7 +215,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     public static class DelegatingAction extends ActionType<ActionResponse.Empty> {
 
         public static final DelegatingAction INSTANCE = new DelegatingAction();
-        public static final String NAME = "indices:data/read/dummy";
+        public static final String NAME = "indices:data/read/downsample_delegate";
 
         private DelegatingAction() {
             super(NAME, in -> new ActionResponse.Empty());

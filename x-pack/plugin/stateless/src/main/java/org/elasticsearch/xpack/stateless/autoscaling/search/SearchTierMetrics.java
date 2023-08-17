@@ -17,41 +17,106 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
+import co.elastic.elasticsearch.stateless.autoscaling.AbstractBaseTierMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.AutoscalingMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetrics;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
-public record SearchTierMetrics(MemoryMetrics memoryMetrics, MaxShardCopies maxShardCopies, StorageMetrics storageMetrics)
-    implements
-        AutoscalingMetrics {
+public class SearchTierMetrics extends AbstractBaseTierMetrics implements AutoscalingMetrics {
+    private final MemoryMetrics memoryMetrics;
+    private final MaxShardCopies maxShardCopies;
+    private final StorageMetrics storageMetrics;
+
+    public SearchTierMetrics(MemoryMetrics memoryMetrics, MaxShardCopies maxShardCopies, StorageMetrics storageMetrics) {
+        super();
+        this.memoryMetrics = memoryMetrics;
+        this.maxShardCopies = maxShardCopies;
+        this.storageMetrics = storageMetrics;
+    }
+
+    public SearchTierMetrics(String reason, ElasticsearchException exception) {
+        super(reason, exception);
+        this.memoryMetrics = null;
+        this.maxShardCopies = null;
+        this.storageMetrics = null;
+    }
 
     public SearchTierMetrics(StreamInput in) throws IOException {
-        this(new MemoryMetrics(in), new MaxShardCopies(in), new StorageMetrics(in));
+        super(in);
+        if (in.getTransportVersion().before(TransportVersion.V_8_500_063)) {
+            this.memoryMetrics = new MemoryMetrics(in);
+            this.maxShardCopies = new MaxShardCopies(in);
+            this.storageMetrics = new StorageMetrics(in);
+            return;
+        }
+
+        this.memoryMetrics = in.readOptionalWriteable(MemoryMetrics::new);
+        this.maxShardCopies = in.readOptionalWriteable(MaxShardCopies::new);
+        this.storageMetrics = in.readOptionalWriteable(StorageMetrics::new);
+    }
+
+    public MemoryMetrics getMemoryMetrics() {
+        return memoryMetrics;
+    }
+
+    public MaxShardCopies getMaxShardCopies() {
+        return maxShardCopies;
+    }
+
+    public StorageMetrics getStorageMetrics() {
+        return storageMetrics;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        memoryMetrics.writeTo(out);
-        maxShardCopies.writeTo(out);
-        storageMetrics.writeTo(out);
+        super.writeTo(out);
+        if (out.getTransportVersion().before(TransportVersion.V_8_500_063)) {
+            memoryMetrics.writeTo(out);
+            maxShardCopies.writeTo(out);
+            storageMetrics.writeTo(out);
+            return;
+        }
+        out.writeOptionalWriteable(memoryMetrics);
+        out.writeOptionalWriteable(maxShardCopies);
+        out.writeOptionalWriteable(storageMetrics);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-
+    public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
         builder.object("metrics", (objectBuilder) -> {
             memoryMetrics.toXContent(objectBuilder, params);
             maxShardCopies.toXContent(objectBuilder, params);
             storageMetrics.toXContent(objectBuilder, params);
         });
-
-        builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
+
+        final SearchTierMetrics that = (SearchTierMetrics) other;
+
+        return Objects.equals(this.memoryMetrics, that.memoryMetrics)
+            && Objects.equals(this.maxShardCopies, that.maxShardCopies)
+            && Objects.equals(this.storageMetrics, that.storageMetrics);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(memoryMetrics, maxShardCopies, storageMetrics);
     }
 }

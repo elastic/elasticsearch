@@ -172,10 +172,6 @@ class DownsampleShardIndexer {
 
         if (task.getNumIndexed() != task.getNumSent()) {
             task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.FAILED);
-            task.updatePersistentTaskState(
-                new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.FAILED, null),
-                ActionListener.noop()
-            );
             final String error = "Downsampling task ["
                 + task.getPersistentTaskId()
                 + "] on shard "
@@ -199,10 +195,6 @@ class DownsampleShardIndexer {
                 + task.getNumFailed()
                 + "]";
             logger.info(error);
-            task.updatePersistentTaskState(
-                new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.FAILED, null),
-                ActionListener.noop()
-            );
             throw new DownsampleShardIndexerException(error, false);
         }
 

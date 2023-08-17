@@ -1,0 +1,25 @@
+[[esql-mv_concat]]
+=== `MV_CONCAT`
+Converts a multivalued string field into a single valued field containing the
+concatenation of all values separated by a delimiter:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=mv_concat]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=mv_concat-result]
+|===
+
+If you want to concat non-string fields call <<esql-to_string>> on them first:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=mv_concat-to_string]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=mv_concat-to_string-result]
+|===
+

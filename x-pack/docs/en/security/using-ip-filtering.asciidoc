@@ -167,5 +167,5 @@ PUT /_cluster/settings
 // TEST[continued]
 
 NOTE: In order to avoid locking yourself out of the cluster, the default bound
-transport address will never be denied. This means you can always SSH into
-a system and use curl to apply changes.
+      transport address will never be denied. This means you can always SSH into
+      a system and use curl to apply changes.

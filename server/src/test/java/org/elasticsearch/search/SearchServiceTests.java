@@ -179,7 +179,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected boolean enableConcurrentSearch() {
-        //we don't test search concurrency specifically but we want to verify default behaviour hence we disable it.
+        // we don't test search concurrency specifically but we want to verify default behaviour hence we disable it.
         return false;
     }
 

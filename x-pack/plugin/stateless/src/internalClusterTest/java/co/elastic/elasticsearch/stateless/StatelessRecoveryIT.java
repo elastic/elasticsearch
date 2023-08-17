@@ -300,6 +300,56 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         }
     }
 
+    /**
+     * Verify that if we index after a relocation, we remember the indexed ops even if the new node crashes.
+     * This ensures that there is a flush with a new translog registration after relocation.
+     */
+    public void testIndexAfterRelocation() throws IOException {
+        final var numShards = randomIntBetween(1, 3);
+        final var indexNode = startIndexNode();
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(numShards, 0).build());
+        ensureGreen(indexName);
+        final AtomicInteger docIdGenerator = new AtomicInteger();
+        final IntConsumer docIndexer = numDocs -> {
+            var bulkRequest = client().prepareBulk();
+            for (int i = 0; i < numDocs; i++) {
+                bulkRequest.add(
+                    new IndexRequest(indexName).id("doc-" + docIdGenerator.incrementAndGet())
+                        .source("field", randomUnicodeOfCodepointLengthBetween(1, 25))
+                );
+            }
+            assertNoFailures(bulkRequest.get(TimeValue.timeValueSeconds(10)));
+        };
+
+        docIndexer.accept(between(1, 10));
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNode), indexName);
+
+        final var indexNode2 = startIndexNode();
+
+        // wait for relocation
+        ensureGreen();
+
+        docIndexer.accept(between(1, 10));
+
+        // we ought to crash, but do not flush on close in stateless
+        internalCluster().stopNode(indexNode2);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", (String) null), indexName);
+        ensureGreen();
+
+        // verify all docs are present without needing input from a search node
+        var bulkRequest = client().prepareBulk();
+        for (int docId = 1; docId < docIdGenerator.get(); docId++) {
+            bulkRequest.add(new IndexRequest(indexName).id("doc-" + docId).create(true).source(Map.of()));
+        }
+        var bulkResponse = bulkRequest.get(TimeValue.timeValueSeconds(10));
+        for (BulkItemResponse bulkResponseItem : bulkResponse.getItems()) {
+            assertEquals(RestStatus.CONFLICT, bulkResponseItem.status());
+        }
+    }
+
     public void testFailedRelocatingIndexShardHasNoCurrentRecoveries() throws Exception {
         final var indexNodeA = startIndexNode();
 

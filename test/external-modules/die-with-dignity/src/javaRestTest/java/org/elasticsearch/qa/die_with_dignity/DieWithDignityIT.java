@@ -8,6 +8,7 @@
 
 package org.elasticsearch.qa.die_with_dignity;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -25,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -45,9 +47,8 @@ public class DieWithDignityIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97789")
     public void testDieWithDignity() throws Exception {
-        final long pid = cluster.getPid(0);
+        final long pid = getElasticsearchPid();
         assertJvmArgs(pid, containsString("-Ddie.with.dignity.test=true"));
 
         expectThrows(IOException.class, () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
@@ -97,6 +98,33 @@ public class DieWithDignityIT extends ESRestTestCase {
             logger.error("jcmd output: " + String.join("\n", outputLines));
             throw ae;
         }
+    }
+
+    private long getElasticsearchPid() throws IOException, InterruptedException {
+        long pid = cluster.getPid(0);
+        if (Constants.WINDOWS == false) {
+            return pid;
+        }
+
+        // on windows the elasticsearch.bat script must create a child process, so here we find that process id
+        String filter = String.format(Locale.ROOT, "parentprocessid = '%d' and Name = 'java.exe'", pid);
+        String script = "Get-CIMInstance -ClassName win32_process -filter %s | Select-Object -ExpandProperty ProcessId";
+        String[] command = new String[] {
+            "powershell.exe",
+            "-Command",
+            String.format(Locale.ROOT, script, filter);
+        };
+        ProcessBuilder pb = new ProcessBuilder();
+        pb.command(command);
+        var proc = pb.start();
+        long ret = proc.waitFor();
+        String output = new String(proc.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        if (ret != 0) {
+            String error = new String(proc.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+            logger.error("Failed to get Elasticsearch java pid in powershell");
+            logger.error("\nOutput:\n" + output + "\nError:\n" + error);
+        }
+        return Long.parseLong(output);
     }
 
     private List<String> readLines(InputStream is) throws IOException {

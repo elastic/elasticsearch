@@ -62,12 +62,8 @@ In many cases, a brute-force kNN search is not efficient enough. For this
 reason, the `dense_vector` type supports indexing vectors into a specialized
 data structure to support fast kNN retrieval through the <<search-api-knn, `knn` option>> in the search API
 
-NOTE: Indexing vectors for approximate kNN search is an expensive process. It
-can take substantial time to ingest documents that contain vector fields with
-`index` enabled. See <<tune-knn-search,k-nearest neighbor (kNN) search>> to
-learn more about the memory requirements.
-
-You can enable indexing by setting the `index` parameter:
+Indexing is enabled by default for dense vector fields.
+When indexing is enabled, you can define the vector similarity to use in kNN search:
 
 [source,console]
 --------------------------------------------------
@@ -78,14 +74,35 @@ PUT my-index-2
       "my_vector": {
         "type": "dense_vector",
         "dims": 3,
-        "index": true,
-        "similarity": "dot_product" <1>
+        "similarity": "dot_product"
       }
     }
   }
 }
 --------------------------------------------------
-<1> When `index` is enabled, you must define the vector similarity to use in kNN search
+
+NOTE: Indexing vectors for approximate kNN search is an expensive process. It
+can take substantial time to ingest documents that contain vector fields with
+`index` enabled. See <<tune-knn-search,k-nearest neighbor (kNN) search>> to
+learn more about the memory requirements.
+
+You can disable indexing by setting the `index` parameter to `false`:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-2
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 3,
+        "index": false
+      }
+    }
+  }
+}
+--------------------------------------------------
 
 {es} uses the https://arxiv.org/abs/1603.09320[HNSW algorithm] to support
 efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
@@ -117,17 +134,17 @@ Number of vector dimensions. Can't exceed `2048`.
 `index`::
 (Optional, Boolean)
 If `true`, you can search this field using the <<knn-search-api, kNN search
-API>>. Defaults to `false`.
+API>>. Defaults to `true`.
 
 [[dense-vector-similarity]]
 `similarity`::
-(Required^*^, string)
+(Optional^*^, string)
 The vector similarity metric to use in kNN search. Documents are ranked by
 their vector field's similarity to the query vector. The `_score` of each
 document will be derived from the similarity, in a way that ensures scores are
-positive and that a larger score corresponds to a higher ranking.
+positive and that a larger score corresponds to a higher ranking. Defaults to `cosine`.
 +
-^*^ If `index` is `true`, this parameter is required.
+^*^ This parameter can only be specified when `index` is `true`.
 +
 .Valid values for `similarity`
 [%collapsible%open]
@@ -168,12 +185,15 @@ a distinct set of options.
 
 [[dense-vector-index-options]]
 `index_options`::
-(Optional, object)
+(Optional^*^, object)
 An optional section that configures the kNN indexing algorithm. The HNSW
 algorithm has two internal parameters that influence how the data structure is
 built. These can be adjusted to improve the accuracy of results, at the
 expense of slower indexing speed. When `index_options` is provided, all of its
 properties must be defined.
++
+^*^ This parameter can only be specified when `index` is `true`.
++
 +
 .Properties of `index_options`
 [%collapsible%open]

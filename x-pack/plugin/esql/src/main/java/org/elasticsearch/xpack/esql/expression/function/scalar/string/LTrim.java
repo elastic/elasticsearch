@@ -25,12 +25,11 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 /**
- * Removes leading and trailing whitespaces from a string.
+ * Removes leading whitespaces from a string.
  */
-public final class Trim extends UnaryScalarFunction implements Mappable {
-
-    public Trim(Source source, Expression str) {
-        super(source, str);
+public class LTrim extends UnaryScalarFunction implements Mappable {
+    public LTrim(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -52,21 +51,21 @@ public final class Trim extends UnaryScalarFunction implements Mappable {
         Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
     ) {
         Supplier<EvalOperator.ExpressionEvaluator> field = toEvaluator.apply(field());
-        return () -> new TrimEvaluator(field.get());
+        return () -> new LTrimEvaluator(field.get());
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Trim(source(), newChildren.get(0));
+        return new LTrim(source(), newChildren.get(0));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Trim::new, field());
+        return NodeInfo.create(this, LTrim::new, field());
     }
 
     @Evaluator
-    static BytesRef process(BytesRef val) {
+    static BytesRef process(final BytesRef val) {
         int offset = val.offset;
         UnicodeUtil.UTF8CodePoint codePoint = new UnicodeUtil.UTF8CodePoint();
         while (offset < val.offset + val.length) {
@@ -76,17 +75,6 @@ public final class Trim extends UnaryScalarFunction implements Mappable {
             }
             offset += codePoint.numBytes;
         }
-
-        int end = offset;
-        int i = offset;
-        while (i < val.offset + val.length) {
-            codePoint = UnicodeUtil.codePointAt(val.bytes, i, codePoint);
-            if (Character.isWhitespace(codePoint.codePoint) == false) {
-                end = i + codePoint.numBytes;
-            }
-            i += codePoint.numBytes;
-        }
-
-        return new BytesRef(val.bytes, offset, end - offset);
+        return new BytesRef(val.bytes, offset, val.length + val.offset - offset);
     }
 }

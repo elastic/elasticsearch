@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.AbstractWireSerializingTransformTestCase;
@@ -355,7 +354,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomMetadata(),
             randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
-            randomBoolean() ? null : MlConfigVersion.CURRENT.toString()
+            randomBoolean() ? null : Version.CURRENT.toString()
         );
 
         TransformConfigUpdate update = new TransformConfigUpdate(

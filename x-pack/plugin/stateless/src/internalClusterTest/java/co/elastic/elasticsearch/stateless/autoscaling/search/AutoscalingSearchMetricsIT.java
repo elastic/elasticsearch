@@ -57,9 +57,9 @@ public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
         refresh(indexName);
         assertBusy(() -> {
             var metrics = searchMetricsService.getSearchTierMetrics();
-            assertThat(metrics.maxShardCopies(), equalTo(new MaxShardCopies(1, MetricQuality.EXACT)));
-            assertThat(metrics.storageMetrics().totalInteractiveDataSizeInBytes(), greaterThan(0L));
-            assertThat(metrics.storageMetrics().totalDataSizeInBytes(), greaterThan(0L));
+            assertThat(metrics.getMaxShardCopies(), equalTo(new MaxShardCopies(1, MetricQuality.EXACT)));
+            assertThat(metrics.getStorageMetrics().totalInteractiveDataSizeInBytes(), greaterThan(0L));
+            assertThat(metrics.getStorageMetrics().totalDataSizeInBytes(), greaterThan(0L));
         });
     }
 
@@ -81,9 +81,9 @@ public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
         refresh(indexName);
         assertBusy(() -> {
             var metrics = searchMetricsService.getSearchTierMetrics();
-            assertThat(metrics.maxShardCopies(), equalTo(new MaxShardCopies(1, MetricQuality.EXACT)));
-            assertThat(metrics.storageMetrics().totalInteractiveDataSizeInBytes(), equalTo(0L));
-            assertThat(metrics.storageMetrics().totalDataSizeInBytes(), greaterThan(0L));
+            assertThat(metrics.getMaxShardCopies(), equalTo(new MaxShardCopies(1, MetricQuality.EXACT)));
+            assertThat(metrics.getStorageMetrics().totalInteractiveDataSizeInBytes(), equalTo(0L));
+            assertThat(metrics.getStorageMetrics().totalDataSizeInBytes(), greaterThan(0L));
         });
     }
 
@@ -110,9 +110,9 @@ public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
 
         assertBusy(() -> {
             var metrics = searchMetricsService.getSearchTierMetrics();
-            assertThat(metrics.maxShardCopies(), equalTo(new MaxShardCopies(1, MetricQuality.EXACT)));
-            assertThat(metrics.storageMetrics().totalInteractiveDataSizeInBytes(), equalTo(0L));
-            assertThat(metrics.storageMetrics().totalDataSizeInBytes(), greaterThan(0L));
+            assertThat(metrics.getMaxShardCopies(), equalTo(new MaxShardCopies(1, MetricQuality.EXACT)));
+            assertThat(metrics.getStorageMetrics().totalInteractiveDataSizeInBytes(), equalTo(0L));
+            assertThat(metrics.getStorageMetrics().totalDataSizeInBytes(), greaterThan(0L));
         });
 
         // extend boost window to 2 weeks
@@ -120,9 +120,9 @@ public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
 
         assertBusy(() -> {
             var metrics = searchMetricsService.getSearchTierMetrics();
-            assertThat(metrics.maxShardCopies(), equalTo(new MaxShardCopies(1, MetricQuality.EXACT)));
-            assertThat(metrics.storageMetrics().totalInteractiveDataSizeInBytes(), greaterThan(0L));
-            assertThat(metrics.storageMetrics().totalDataSizeInBytes(), greaterThan(0L));
+            assertThat(metrics.getMaxShardCopies(), equalTo(new MaxShardCopies(1, MetricQuality.EXACT)));
+            assertThat(metrics.getStorageMetrics().totalInteractiveDataSizeInBytes(), greaterThan(0L));
+            assertThat(metrics.getStorageMetrics().totalDataSizeInBytes(), greaterThan(0L));
         });
     }
 

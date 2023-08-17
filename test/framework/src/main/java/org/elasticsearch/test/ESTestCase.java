@@ -139,6 +139,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -1833,6 +1834,15 @@ public abstract class ESTestCase extends LuceneTestCase {
             Thread.currentThread().interrupt();
             throw new AssertionError("unexpected", e);
         } catch (Exception e) {
+            throw new AssertionError("unexpected", e);
+        }
+    }
+
+    public static void safeAwait(CountDownLatch countDownLatch) {
+        try {
+            assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new AssertionError("unexpected", e);
         }
     }

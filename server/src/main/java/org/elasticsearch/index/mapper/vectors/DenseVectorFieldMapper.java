@@ -115,6 +115,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public Builder(String name, IndexVersion indexVersionCreated) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
+            final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexedByDefault);
+            if (indexedByDefault) {
+                // Only serialize on newer index versions to prevent breaking existing indices when upgrading
+                this.indexed.alwaysSerialize();
+            }
+            this.similarity = Parameter.enumParam(
+                "similarity",
+                false,
+                m -> toType(m).similarity,
+                (Supplier<VectorSimilarity>) () -> indexedByDefault && indexed.getValue() ? VectorSimilarity.COSINE : null,
+                VectorSimilarity.class
+            ).acceptsNull().setSerializerCheck((id, ic, v) -> v != null);
 
             this.dims = new Parameter<>(
                 "dims",
@@ -125,10 +138,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 XContentBuilder::field,
                 Objects::toString
             );
-
-            similarity = Parameter.enumParam("similarity", false, m -> toType(m).similarity, VectorSimilarity.COSINE, VectorSimilarity.class);
-
-            indexed = Parameter.indexParam(m -> toType(m).indexed, true);
 
             validateParams();
         }
@@ -172,6 +181,24 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.similarity.requiresParameter(indexed);
             this.indexOptions.requiresParameter(indexed);
             this.indexOptions.setSerializerCheck((id, ic, v) -> v != null);
+            this.indexed.addValidator(v -> {
+                if (v) {
+                    if (similarity.getValue() == null) {
+                        throw new IllegalArgumentException("Field [index] requires field [similarity] to be configured and not null");
+                    }
+                } else {
+                    if (similarity.isConfigured() && similarity.getValue() != null) {
+                        throw new IllegalArgumentException(
+                            "Field [similarity] can only be specified for a field of type [dense_vector] when it is indexed"
+                        );
+                    }
+                    if (indexOptions.isConfigured() && indexOptions.getValue() != null) {
+                        throw new IllegalArgumentException(
+                            "Field [index_options] can only be specified for a field of type [dense_vector] when it is indexed"
+                        );
+                    }
+                }
+            });
             dims.addValidator(dims -> {
                 if (dims == null) {
                     throw new MapperParsingException("Missing required parameter [dims] for field [" + name + "]");

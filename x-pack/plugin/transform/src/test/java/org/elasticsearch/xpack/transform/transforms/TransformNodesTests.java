@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
@@ -310,7 +311,7 @@ public class TransformNodesTests extends ESTestCase {
     private static DiscoveryNode newDiscoveryNode(String id, TransformConfigVersion version, DiscoveryNodeRole... roles) {
         return DiscoveryNodeUtils.builder(id)
             .roles(Set.of(roles))
-            .version(Version.CURRENT)
+            .version(Version.CURRENT, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current())
             .attributes(Map.of(TransformConfigVersion.TRANSFORM_CONFIG_VERSION_NODE_ATTR, version.toString()))
             .build();
     }

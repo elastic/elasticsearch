@@ -16,18 +16,18 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class TrimTests extends AbstractTrimTests {
-    public TrimTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+public class RTrimTests extends AbstractTrimTests {
+    public RTrimTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameters("TrimEvaluator", true, true);
+        return parameters("RTrimEvaluator", false, true);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Trim(source, args.get(0));
+        return new RTrim(source, args.get(0));
     }
 }

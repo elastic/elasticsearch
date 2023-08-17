@@ -752,7 +752,6 @@ DATE_TRUNC(
 
 <1> string expression denoting the unit to which the date/datetime/interval
 should be truncated to. If `null`, the function returns `null`.
-<2> date/datetime/interval expression. If `null`, the function returns `null`.
 
 *Output*: datetime/interval
 

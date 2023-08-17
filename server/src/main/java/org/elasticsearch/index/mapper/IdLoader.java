@@ -21,7 +21,7 @@ import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import java.io.IOException;
 import java.util.List;
 
-public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdLoader {
+public sealed interface IdLoader permits IdLoader.TsIdLoader,IdLoader.StoredIdLoader {
 
     static IdLoader fromLeafStoredFieldLoader() {
         return new StoredIdLoader();
@@ -33,7 +33,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
     Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException;
 
-    sealed interface Leaf permits StoredLeaf, TsIdLeaf {
+    sealed interface Leaf permits StoredLeaf,TsIdLeaf {
 
         String getId(int subDocId);
 
@@ -63,7 +63,8 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                     var builder = builders[i];
                     if (dv.advanceExact(docId)) {
                         for (int j = 0; j < dv.docValueCount(); j++) {
-                            builder.addMatching(routingField, dv.lookupOrd(dv.nextOrd()));
+                            BytesRef routingValue = dv.lookupOrd(dv.nextOrd());
+                            builder.addMatching(routingField, routingValue);
                         }
                     }
                 }
@@ -75,15 +76,16 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             SortedNumericDocValues timestampDocValues = DocValues.getSortedNumeric(reader, DataStream.TIMESTAMP_FIELD_NAME);
             for (int i = 0; i < docIdsInLeaf.length; i++) {
                 int docId = docIdsInLeaf[i];
-                var routingBuilder = builders[i];
 
                 boolean found = tsIdDocValues.advanceExact(docId);
                 assert found;
                 BytesRef tsid = tsIdDocValues.lookupOrd(tsIdDocValues.ordValue());
-                timestampDocValues.advanceExact(docId);
+                found = timestampDocValues.advanceExact(docId);
+                assert found;
                 assert timestampDocValues.docValueCount() == 1;
                 long timestamp = timestampDocValues.nextValue();
 
+                var routingBuilder = builders[i];
                 ids[i] = TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, new byte[16]);
             }
             return new TsIdLeaf(docIdsInLeaf, ids);

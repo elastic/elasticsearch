@@ -63,9 +63,7 @@ public class TransportResolveIndexActionTests extends ESTestCase {
                 public void writeTo(StreamOutput out) throws IOException {
                     super.writeTo(out);
                     if (out.getTransportVersion().before(transportVersion)) {
-                        throw new IllegalArgumentException(
-                            "This request isn't serializable before transport version " + transportVersion
-                        );
+                        throw new IllegalArgumentException("This request isn't serializable before transport version " + transportVersion);
                     }
                 }
             };
@@ -91,10 +89,7 @@ public class TransportResolveIndexActionTests extends ESTestCase {
 
             assertThat(ex.getMessage(), containsString("not compatible with version"));
             assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
-            assertEquals(
-                "This request isn't serializable before transport version " + transportVersion,
-                ex.getCause().getMessage()
-            );
+            assertEquals("This request isn't serializable before transport version " + transportVersion, ex.getCause().getMessage());
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }

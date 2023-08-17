@@ -24,7 +24,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
@@ -350,7 +349,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
         index(client(), dataStream, true, null, "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
-        String firstBackingIndex = DataStream.getDefaultBackingIndexName(dataStream, 1 );
+        String firstBackingIndex = DataStream.getDefaultBackingIndexName(dataStream, 1);
         logger.info("--> firstBackingIndex: {}", firstBackingIndex);
         assertBusy(
             () -> assertThat(

@@ -18,7 +18,6 @@ import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 import org.elasticsearch.script.ScriptService;
@@ -41,10 +41,10 @@ import java.util.function.Supplier;
 public final class SimilarityService {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimilarityService.class);
     public static final String DEFAULT_SIMILARITY = "BM25";
-    private static final Map<String, Function<Version, Supplier<Similarity>>> DEFAULTS;
-    public static final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> BUILT_IN;
+    private static final Map<String, Function<IndexVersion, Supplier<Similarity>>> DEFAULTS;
+    public static final Map<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>> BUILT_IN;
     static {
-        Map<String, Function<Version, Supplier<Similarity>>> defaults = new HashMap<>();
+        Map<String, Function<IndexVersion, Supplier<Similarity>>> defaults = new HashMap<>();
         defaults.put("BM25", version -> {
             final LegacyBM25Similarity similarity = SimilarityProviders.createBM25Similarity(Settings.EMPTY, version);
             return () -> similarity;
@@ -54,7 +54,7 @@ public final class SimilarityService {
             return () -> similarity;
         });
 
-        Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> builtIn = new HashMap<>();
+        Map<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>> builtIn = new HashMap<>();
         builtIn.put("BM25", (settings, version, scriptService) -> SimilarityProviders.createBM25Similarity(settings, version));
         builtIn.put("boolean", (settings, version, scriptService) -> SimilarityProviders.createBooleanSimilarity(settings, version));
         builtIn.put("DFR", (settings, version, scriptService) -> SimilarityProviders.createDfrSimilarity(settings, version));
@@ -79,7 +79,7 @@ public final class SimilarityService {
     public SimilarityService(
         IndexSettings indexSettings,
         ScriptService scriptService,
-        Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities
+        Map<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>> similarities
     ) {
         Map<String, Supplier<Similarity>> providers = Maps.newMapWithExpectedSize(similarities.size());
         Map<String, Settings> similaritySettings = indexSettings.getSettings().getGroups(IndexModule.SIMILARITY_SETTINGS_PREFIX);
@@ -96,8 +96,8 @@ public final class SimilarityService {
             } else if ((similarities.containsKey(typeName) || BUILT_IN.containsKey(typeName)) == false) {
                 throw new IllegalArgumentException("Unknown Similarity type [" + typeName + "] for [" + name + "]");
             }
-            TriFunction<Settings, Version, ScriptService, Similarity> defaultFactory = BUILT_IN.get(typeName);
-            TriFunction<Settings, Version, ScriptService, Similarity> factory = similarities.getOrDefault(typeName, defaultFactory);
+            TriFunction<Settings, IndexVersion, ScriptService, Similarity> defaultFactory = BUILT_IN.get(typeName);
+            TriFunction<Settings, IndexVersion, ScriptService, Similarity> factory = similarities.getOrDefault(typeName, defaultFactory);
             Similarity similarity = factory.apply(providerSettings, indexSettings.getIndexVersionCreated(), scriptService);
             validateSimilarity(indexSettings.getIndexVersionCreated(), similarity);
             if (BUILT_IN.containsKey(typeName) == false || "scripted".equals(typeName)) {
@@ -107,7 +107,7 @@ public final class SimilarityService {
             final Similarity similarityF = similarity; // like similarity but final
             providers.put(name, () -> similarityF);
         }
-        for (Map.Entry<String, Function<Version, Supplier<Similarity>>> entry : DEFAULTS.entrySet()) {
+        for (Map.Entry<String, Function<IndexVersion, Supplier<Similarity>>> entry : DEFAULTS.entrySet()) {
             providers.put(entry.getKey(), entry.getValue().apply(indexSettings.getIndexVersionCreated()));
         }
         this.similarities = providers;
@@ -165,13 +165,13 @@ public final class SimilarityService {
         }
     }
 
-    static void validateSimilarity(Version indexCreatedVersion, Similarity similarity) {
+    static void validateSimilarity(IndexVersion indexCreatedVersion, Similarity similarity) {
         validateScoresArePositive(indexCreatedVersion, similarity);
         validateScoresDoNotDecreaseWithFreq(indexCreatedVersion, similarity);
         validateScoresDoNotIncreaseWithNorm(indexCreatedVersion, similarity);
     }
 
-    private static void validateScoresArePositive(Version indexCreatedVersion, Similarity similarity) {
+    private static void validateScoresArePositive(IndexVersion indexCreatedVersion, Similarity similarity) {
         CollectionStatistics collectionStats = new CollectionStatistics("some_field", 1200, 1100, 3000, 2000);
         TermStatistics termStats = new TermStatistics(new BytesRef("some_value"), 100, 130);
         SimScorer scorer = similarity.scorer(2f, collectionStats, termStats);
@@ -197,7 +197,7 @@ public final class SimilarityService {
         }
     }
 
-    private static void validateScoresDoNotDecreaseWithFreq(Version indexCreatedVersion, Similarity similarity) {
+    private static void validateScoresDoNotDecreaseWithFreq(IndexVersion indexCreatedVersion, Similarity similarity) {
         CollectionStatistics collectionStats = new CollectionStatistics("some_field", 1200, 1100, 3000, 2000);
         TermStatistics termStats = new TermStatistics(new BytesRef("some_value"), 100, 130);
         SimScorer scorer = similarity.scorer(2f, collectionStats, termStats);
@@ -228,7 +228,7 @@ public final class SimilarityService {
         }
     }
 
-    private static void validateScoresDoNotIncreaseWithNorm(Version indexCreatedVersion, Similarity similarity) {
+    private static void validateScoresDoNotIncreaseWithNorm(IndexVersion indexCreatedVersion, Similarity similarity) {
         CollectionStatistics collectionStats = new CollectionStatistics("some_field", 1200, 1100, 3000, 2000);
         TermStatistics termStats = new TermStatistics(new BytesRef("some_value"), 100, 130);
         SimScorer scorer = similarity.scorer(2f, collectionStats, termStats);

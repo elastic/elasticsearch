@@ -21,7 +21,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -46,6 +45,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -100,7 +100,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
@@ -134,7 +134,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -176,7 +176,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -207,7 +207,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -238,7 +238,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -299,7 +299,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -328,7 +328,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                             0L,
                             Collections.emptyMap()
                         ),
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         new ActionListener<>() {
                             @Override
                             public void onResponse(RepositoryData repositoryData) {
@@ -358,7 +358,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 new Snapshot("src_only", snapshotId),
-                Version.CURRENT,
+                IndexVersion.current(),
                 indexId
             )
         );
@@ -448,7 +448,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
@@ -476,7 +476,14 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         Engine.Result result = targetShard.applyIndexOperationOnPrimary(
                             Versions.MATCH_ANY,
                             VersionType.INTERNAL,
-                            new SourceToParse(id, source, XContentHelper.xContentType(source), rootFieldsVisitor.routing(), Map.of()),
+                            new SourceToParse(
+                                id,
+                                source,
+                                XContentHelper.xContentType(source),
+                                rootFieldsVisitor.routing(),
+                                Map.of(),
+                                false
+                            ),
                             SequenceNumbers.UNASSIGNED_SEQ_NO,
                             0,
                             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,

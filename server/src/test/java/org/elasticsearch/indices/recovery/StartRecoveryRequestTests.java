@@ -25,7 +25,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Collections;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,8 +44,8 @@ public class StartRecoveryRequestTests extends ESTestCase {
         final StartRecoveryRequest outRequest = new StartRecoveryRequest(
             new ShardId("test", "_na_", 0),
             UUIDs.randomBase64UUID(),
-            DiscoveryNodeUtils.create("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
-            DiscoveryNodeUtils.create("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
+            DiscoveryNodeUtils.builder("a").roles(emptySet()).version(targetNodeVersion).build(),
+            DiscoveryNodeUtils.builder("b").roles(emptySet()).version(targetNodeVersion).build(),
             metadataSnapshot,
             randomBoolean(),
             randomNonNegativeLong(),

@@ -1,0 +1,5 @@
+pr: 96588
+summary: Support for patter_replace filter in keyword normalizer
+area: Search
+type: enhancement
+issues: []

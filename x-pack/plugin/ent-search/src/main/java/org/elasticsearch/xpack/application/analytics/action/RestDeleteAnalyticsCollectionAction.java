@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
+import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
+import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -21,7 +23,10 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestDeleteAnalyticsCollectionAction extends BaseRestHandler {
+public class RestDeleteAnalyticsCollectionAction extends EnterpriseSearchBaseRestHandler {
+    public RestDeleteAnalyticsCollectionAction(XPackLicenseState licenseState) {
+        super(licenseState, LicenseUtils.Product.BEHAVIORAL_ANALYTICS);
+    }
 
     @Override
     public String getName() {
@@ -34,7 +39,7 @@ public class RestDeleteAnalyticsCollectionAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+    protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         DeleteAnalyticsCollectionAction.Request request = new DeleteAnalyticsCollectionAction.Request(restRequest.param("collection_name"));
         return channel -> client.execute(DeleteAnalyticsCollectionAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

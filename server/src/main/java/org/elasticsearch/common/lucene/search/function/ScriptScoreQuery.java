@@ -24,7 +24,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScoreScript.ExplanationHolder;
@@ -45,7 +45,7 @@ public class ScriptScoreQuery extends Query {
     private final Float minScore;
     private final String indexName;
     private final int shardId;
-    private final Version indexVersion;
+    private final IndexVersion indexVersion;
 
     public ScriptScoreQuery(
         Query subQuery,
@@ -55,7 +55,7 @@ public class ScriptScoreQuery extends Query {
         Float minScore,
         String indexName,
         int shardId,
-        Version indexVersion
+        IndexVersion indexVersion
     ) {
         this.subQuery = subQuery;
         this.script = script;

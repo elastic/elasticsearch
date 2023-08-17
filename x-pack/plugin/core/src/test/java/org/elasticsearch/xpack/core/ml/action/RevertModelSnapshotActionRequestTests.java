@@ -39,11 +39,6 @@ public class RevertModelSnapshotActionRequestTests extends AbstractXContentSeria
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Request doParseInstance(XContentParser parser) {
         return RevertModelSnapshotAction.Request.parseRequest(null, null, parser);
     }

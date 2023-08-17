@@ -17,7 +17,6 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.ProfileResult;
-import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
 
@@ -54,11 +53,6 @@ public final class FetchSearchResult extends SearchPhaseResult {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             out.writeOptionalWriteable(profileResult);
         }
-    }
-
-    @Override
-    public QuerySearchResult queryResult() {
-        return null;
     }
 
     @Override

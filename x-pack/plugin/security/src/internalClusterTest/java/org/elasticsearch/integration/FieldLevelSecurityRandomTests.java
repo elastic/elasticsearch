@@ -156,7 +156,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
             fieldMappers[j++] = "type=text";
             doc.put(field, "value");
         }
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping(fieldMappers));
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping(fieldMappers));
         client().prepareIndex("test").setId("1").setSource(doc).setRefreshPolicy(IMMEDIATE).get();
 
         for (String allowedField : allowedFields) {
@@ -177,9 +177,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
 
     public void testDuel() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
 

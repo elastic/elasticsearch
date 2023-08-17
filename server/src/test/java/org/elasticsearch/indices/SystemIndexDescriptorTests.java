@@ -34,36 +34,72 @@ public class SystemIndexDescriptorTests extends ESTestCase {
      */
     public void testValidation() {
         {
-            Exception ex = expectThrows(NullPointerException.class, () -> new SystemIndexDescriptor(null, randomAlphaOfLength(5)));
+            Exception ex = expectThrows(
+                NullPointerException.class,
+                () -> SystemIndexDescriptor.builder()
+                    .setIndexPattern(null)
+                    .setDescription(randomAlphaOfLength(5))
+                    .setType(Type.INTERNAL_UNMANAGED)
+                    .build()
+            );
             assertThat(ex.getMessage(), containsString("must not be null"));
         }
 
         {
-            Exception ex = expectThrows(IllegalArgumentException.class, () -> new SystemIndexDescriptor("", randomAlphaOfLength(5)));
-            assertThat(ex.getMessage(), containsString("must at least 2 characters in length"));
-        }
-
-        {
-            Exception ex = expectThrows(IllegalArgumentException.class, () -> new SystemIndexDescriptor(".", randomAlphaOfLength(5)));
+            Exception ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> SystemIndexDescriptor.builder()
+                    .setIndexPattern("")
+                    .setDescription(randomAlphaOfLength(5))
+                    .setType(Type.INTERNAL_UNMANAGED)
+                    .build()
+            );
             assertThat(ex.getMessage(), containsString("must at least 2 characters in length"));
         }
 
         {
             Exception ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> new SystemIndexDescriptor(randomAlphaOfLength(10), randomAlphaOfLength(5))
+                () -> SystemIndexDescriptor.builder()
+                    .setIndexPattern(".")
+                    .setDescription(randomAlphaOfLength(5))
+                    .setType(Type.INTERNAL_UNMANAGED)
+                    .build()
+            );
+            assertThat(ex.getMessage(), containsString("must at least 2 characters in length"));
+        }
+
+        {
+            Exception ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> SystemIndexDescriptor.builder()
+                    .setIndexPattern(randomAlphaOfLength(10))
+                    .setDescription(randomAlphaOfLength(5))
+                    .setType(Type.INTERNAL_UNMANAGED)
+                    .build()
             );
             assertThat(ex.getMessage(), containsString("must start with the character [.]"));
         }
 
         {
-            Exception ex = expectThrows(IllegalArgumentException.class, () -> new SystemIndexDescriptor(".*", randomAlphaOfLength(5)));
+            Exception ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> SystemIndexDescriptor.builder()
+                    .setIndexPattern(".*")
+                    .setDescription(randomAlphaOfLength(5))
+                    .setType(Type.INTERNAL_UNMANAGED)
+                    .build()
+            );
             assertThat(ex.getMessage(), containsString("must not start with the character sequence [.*] to prevent conflicts"));
         }
         {
             Exception ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> new SystemIndexDescriptor(".*" + randomAlphaOfLength(10), randomAlphaOfLength(5))
+                () -> SystemIndexDescriptor.builder()
+                    .setIndexPattern(".*" + randomAlphaOfLength(10))
+                    .setDescription(randomAlphaOfLength(5))
+                    .setType(Type.INTERNAL_UNMANAGED)
+                    .build()
             );
             assertThat(ex.getMessage(), containsString("must not start with the character sequence [.*] to prevent conflicts"));
         }

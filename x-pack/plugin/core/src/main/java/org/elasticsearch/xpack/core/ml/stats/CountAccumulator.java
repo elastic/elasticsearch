@@ -37,7 +37,7 @@ public class CountAccumulator implements Writeable {
     }
 
     public CountAccumulator(StreamInput in) throws IOException {
-        this.counts = in.readMap(StreamInput::readString, StreamInput::readLong);
+        this.counts = in.readMap(StreamInput::readLong);
     }
 
     public void merge(CountAccumulator other) {

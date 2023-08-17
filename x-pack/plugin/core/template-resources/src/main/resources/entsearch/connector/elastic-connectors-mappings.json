@@ -1,0 +1,316 @@
+{
+  "template": {
+    "aliases": {
+      ".elastic-connectors":  {}
+    },
+    "mappings": {
+      "dynamic": "false",
+      "_meta": {
+        "pipeline": {
+          "default_name": "ent-search-generic-ingestion",
+          "default_extract_binary_content": true,
+          "default_run_ml_inference": false,
+          "default_reduce_whitespace": true
+        },
+        "version": ${xpack.application.connector.template.version}
+      },
+      "properties": {
+        "api_key_id": {
+          "type": "keyword"
+        },
+        "configuration": {
+          "type": "object"
+        },
+        "custom_scheduling": {
+          "type": "object"
+        },
+        "description": {
+          "type": "text"
+        },
+        "error": {
+          "type": "keyword"
+        },
+        "features": {
+          "properties": {
+            "filtering_advanced_config": {
+              "type": "boolean"
+            },
+            "filtering_rules": {
+              "type": "boolean"
+            },
+            "incremental_sync": {
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "sync_rules": {
+              "properties": {
+                "advanced": {
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "basic": {
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "filtering": {
+          "properties": {
+            "active": {
+              "properties": {
+                "advanced_snippet": {
+                  "properties": {
+                    "created_at": {
+                      "type": "date"
+                    },
+                    "updated_at": {
+                      "type": "date"
+                    },
+                    "value": {
+                      "type": "object"
+                    }
+                  }
+                },
+                "rules": {
+                  "properties": {
+                    "created_at": {
+                      "type": "date"
+                    },
+                    "field": {
+                      "type": "keyword"
+                    },
+                    "id": {
+                      "type": "keyword"
+                    },
+                    "order": {
+                      "type": "short"
+                    },
+                    "policy": {
+                      "type": "keyword"
+                    },
+                    "rule": {
+                      "type": "keyword"
+                    },
+                    "updated_at": {
+                      "type": "date"
+                    },
+                    "value": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "validation": {
+                  "properties": {
+                    "errors": {
+                      "properties": {
+                        "ids": {
+                          "type": "keyword"
+                        },
+                        "messages": {
+                          "type": "text"
+                        }
+                      }
+                    },
+                    "state": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            },
+            "domain": {
+              "type": "keyword"
+            },
+            "draft": {
+              "properties": {
+                "advanced_snippet": {
+                  "properties": {
+                    "created_at": {
+                      "type": "date"
+                    },
+                    "updated_at": {
+                      "type": "date"
+                    },
+                    "value": {
+                      "type": "object"
+                    }
+                  }
+                },
+                "rules": {
+                  "properties": {
+                    "created_at": {
+                      "type": "date"
+                    },
+                    "field": {
+                      "type": "keyword"
+                    },
+                    "id": {
+                      "type": "keyword"
+                    },
+                    "order": {
+                      "type": "short"
+                    },
+                    "policy": {
+                      "type": "keyword"
+                    },
+                    "rule": {
+                      "type": "keyword"
+                    },
+                    "updated_at": {
+                      "type": "date"
+                    },
+                    "value": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "validation": {
+                  "properties": {
+                    "errors": {
+                      "properties": {
+                        "ids": {
+                          "type": "keyword"
+                        },
+                        "messages": {
+                          "type": "text"
+                        }
+                      }
+                    },
+                    "state": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "index_name": {
+          "type": "keyword"
+        },
+        "is_native": {
+          "type": "boolean"
+        },
+        "language": {
+          "type": "keyword"
+        },
+        "last_access_control_sync_error": {
+          "type": "keyword"
+        },
+        "last_access_control_sync_scheduled_at": {
+          "type": "date"
+        },
+        "last_access_control_sync_status": {
+          "type": "keyword"
+        },
+        "last_deleted_document_count": {
+          "type": "long"
+        },
+        "last_incremental_sync_scheduled_at": {
+          "type": "date"
+        },
+        "last_indexed_document_count": {
+          "type": "long"
+        },
+        "last_seen": {
+          "type": "date"
+        },
+        "last_sync_error": {
+          "type": "keyword"
+        },
+        "last_sync_scheduled_at": {
+          "type": "date"
+        },
+        "last_sync_status": {
+          "type": "keyword"
+        },
+        "last_synced": {
+          "type": "date"
+        },
+        "name": {
+          "type": "keyword"
+        },
+        "pipeline": {
+          "properties": {
+            "extract_binary_content": {
+              "type": "boolean"
+            },
+            "name": {
+              "type": "keyword"
+            },
+            "reduce_whitespace": {
+              "type": "boolean"
+            },
+            "run_ml_inference": {
+              "type": "boolean"
+            }
+          }
+        },
+        "scheduling": {
+          "properties": {
+            "access_control": {
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "interval": {
+                  "type": "text"
+                }
+              }
+            },
+            "full": {
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "interval": {
+                  "type": "text"
+                }
+              }
+            },
+            "incremental": {
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "interval": {
+                  "type": "text"
+                }
+              }
+            }
+          }
+        },
+        "service_type": {
+          "type": "keyword"
+        },
+        "status": {
+          "type": "keyword"
+        },
+        "sync_cursor": {
+          "type": "object"
+        },
+        "sync_now": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "Built-in mappings applied by default to elastic-connectors indices",
+    "managed": true
+  },
+  "version": ${xpack.application.connector.template.version}
+}
+
+

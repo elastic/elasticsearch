@@ -1,0 +1,5 @@
+pr: 96885
+summary: Add Search ALC filter index prefix to the enterprise search user
+area: Authorization
+type: enhancement
+issues: []

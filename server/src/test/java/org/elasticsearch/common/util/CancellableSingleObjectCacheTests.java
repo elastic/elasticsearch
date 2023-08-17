@@ -10,10 +10,10 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
@@ -234,7 +234,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                         throw new AssertionError(e);
                     }
 
-                    final StepListener<Integer> stepListener = new StepListener<>();
+                    final ListenableFuture<Integer> stepListener = new ListenableFuture<>();
                     final AtomicBoolean isComplete = new AtomicBoolean();
                     final AtomicBoolean isCancelled = new AtomicBoolean();
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
@@ -255,7 +255,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                         isCancelled.set(true);
                     }
 
-                    stepListener.whenComplete(len -> {
+                    stepListener.addListener(ActionListener.wrap(len -> {
                         finishLatch.countDown();
                         assertThat(len, equalTo(input.length()));
                         assertNotEquals("FAIL", input);
@@ -266,7 +266,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                         } else {
                             assertEquals("FAIL", input);
                         }
-                    });
+                    }));
                 });
             }
 
@@ -331,7 +331,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                         throw new AssertionError(e);
                     }
 
-                    final StepListener<Integer> stepListener = new StepListener<>();
+                    final ListenableFuture<Integer> stepListener = new ListenableFuture<>();
                     final AtomicBoolean isComplete = new AtomicBoolean();
                     final AtomicBoolean isCancelled = new AtomicBoolean();
                     testCache.get(
@@ -349,7 +349,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                         isCancelled.set(true);
                     }
 
-                    stepListener.whenComplete(len -> {
+                    stepListener.addListener(ActionListener.wrap(len -> {
                         finishLatch.countDown();
                         assertThat(len, greaterThanOrEqualTo(input.length()));
                     }, e -> {
@@ -359,7 +359,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                         } else {
                             throw new AssertionError("unexpected", e);
                         }
-                    });
+                    }));
                 });
             }
 
@@ -437,7 +437,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
 
     private static class TestCache extends CancellableSingleObjectCache<String, String, Integer> {
 
-        private final LinkedList<StepListener<Function<String, Integer>>> pendingRefreshes = new LinkedList<>();
+        private final LinkedList<ListenableFuture<Function<String, Integer>>> pendingRefreshes = new LinkedList<>();
 
         private TestCache() {
             super(testThreadContext);
@@ -450,17 +450,17 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
             BooleanSupplier supersedeIfStale,
             ActionListener<Integer> listener
         ) {
-            final StepListener<Function<String, Integer>> stepListener = new StepListener<>();
+            final ListenableFuture<Function<String, Integer>> stepListener = new ListenableFuture<>();
             pendingRefreshes.offer(stepListener);
-            stepListener.whenComplete(f -> {
+            stepListener.addListener(listener.delegateFailureAndWrap((l, f) -> {
                 if (supersedeIfStale.getAsBoolean()) {
                     return;
                 }
-                ActionListener.completeWith(listener, () -> {
+                ActionListener.completeWith(l, () -> {
                     ensureNotCancelled.run();
                     return f.apply(input);
                 });
-            }, listener::onFailure);
+            }));
         }
 
         @Override
@@ -491,9 +491,9 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
             nextRefresh().onResponse(k -> { throw new AssertionError("should not be called"); });
         }
 
-        private StepListener<Function<String, Integer>> nextRefresh() {
+        private ListenableFuture<Function<String, Integer>> nextRefresh() {
             assertThat(pendingRefreshes, not(empty()));
-            final StepListener<Function<String, Integer>> nextRefresh = pendingRefreshes.poll();
+            final ListenableFuture<Function<String, Integer>> nextRefresh = pendingRefreshes.poll();
             assertNotNull(nextRefresh);
             return nextRefresh;
         }

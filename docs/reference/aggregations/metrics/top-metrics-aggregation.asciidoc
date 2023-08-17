@@ -142,6 +142,78 @@ Which returns:
 ----
 // TESTRESPONSE
 
+
+==== `missing`
+
+The `missing` parameter defines how documents with a missing value are treated. 
+By default, if any of the key components are missing, the entire document is 
+ignored. It is possible to treat the missing components as if they had a value 
+by using the `missing` parameter.
+
+[source,console]
+----
+PUT /my-index
+{
+  "mappings": {
+    "properties": {
+      "nr":    { "type": "integer" },  
+      "state":  { "type": "keyword"  } <1>
+    }
+  }
+}
+POST /my-index/_bulk?refresh
+{"index": {}}
+{"nr": 1, "state": "started"}
+{"index": {}}
+{"nr": 2, "state": "stopped"}
+{"index": {}}
+{"nr": 3, "state": "N/A"}
+{"index": {}}
+{"nr": 4} <2>
+POST /my-index/_search?filter_path=aggregations
+{
+  "aggs": {
+    "my_top_metrics": {
+      "top_metrics": {
+        "metrics": {
+          "field": "state",
+          "missing": "N/A"}, <3>
+        "sort": {"nr": "desc"}
+      }
+    }
+  }
+}
+----
+
+<1> If you want to use an aggregation on textual content, it must be a `keyword`
+type field or you must enable fielddata on that field.
+<2> This document has a missing `state` field value.
+<3> The `missing` parameter defines that if `state` field has a missing value, 
+it should be treated as if it had the `N/A` value. 
+
+The request results in the following response:
+
+[source,console-result]
+----
+{
+  "aggregations": {
+    "my_top_metrics": {
+      "top": [
+        {
+          "sort": [
+            4
+          ],
+          "metrics": {
+            "state": "N/A"
+          }
+        }
+      ]
+    }
+  }
+}
+----
+
+
 ==== `size`
 
 `top_metrics` can return the top few document's worth of metrics using the size parameter:

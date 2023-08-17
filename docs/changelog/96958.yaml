@@ -1,0 +1,5 @@
+pr: 96958
+summary: "Ingest: expose reroute inquiry/reset via Elastic-internal API bridge"
+area: Ingest Node
+type: enhancement
+issues: []

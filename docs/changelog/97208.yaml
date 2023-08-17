@@ -1,0 +1,5 @@
+pr: 97208
+summary: Improve match query rewrite
+area: Search
+type: enhancement
+issues: []

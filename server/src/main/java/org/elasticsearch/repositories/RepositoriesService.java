@@ -10,10 +10,8 @@ package org.elasticsearch.repositories;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -39,10 +37,12 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,6 +59,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
@@ -99,7 +100,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
     private final RepositoriesStatsArchive repositoriesStatsArchive;
 
-    private final List<BiConsumer<Snapshot, Version>> preRestoreChecks;
+    private final List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks;
 
     public RepositoriesService(
         Settings settings,
@@ -108,7 +109,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         Map<String, Repository.Factory> typesRegistry,
         Map<String, Repository.Factory> internalTypesRegistry,
         ThreadPool threadPool,
-        List<BiConsumer<Snapshot, Version>> preRestoreChecks
+        List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks
     ) {
         this.typesRegistry = typesRegistry;
         this.internalTypesRegistry = internalTypesRegistry;
@@ -151,41 +152,54 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             return;
         }
 
-        final StepListener<AcknowledgedResponse> acknowledgementStep = new StepListener<>();
-        final StepListener<Boolean> publicationStep = new StepListener<>(); // Boolean==changed.
+        final ListenableFuture<AcknowledgedResponse> acknowledgementStep = new ListenableFuture<>();
+        final ListenableFuture<Boolean> publicationStep = new ListenableFuture<>(); // Boolean==changed.
 
         if (request.verify()) {
 
             // When publication has completed (and all acks received or timed out) then verify the repository.
             // (if acks timed out then acknowledgementStep completes before the master processes this cluster state, hence why we have
             // to wait for the publication to be complete too)
-            final StepListener<List<DiscoveryNode>> verifyStep = new StepListener<>();
-            publicationStep.whenComplete(changed -> acknowledgementStep.whenComplete(clusterStateUpdateResponse -> {
-                if (clusterStateUpdateResponse.isAcknowledged() && changed) {
-                    // The response was acknowledged - all nodes should know about the new repository, let's verify them
-                    verifyRepository(request.name(), verifyStep);
-                } else {
-                    verifyStep.onResponse(null);
-                }
-            }, listener::onFailure), listener::onFailure);
+            final ListenableFuture<List<DiscoveryNode>> verifyStep = new ListenableFuture<>();
+            publicationStep.addListener(
+                listener.delegateFailureAndWrap(
+                    (delegate, changed) -> acknowledgementStep.addListener(
+                        delegate.delegateFailureAndWrap((l, clusterStateUpdateResponse) -> {
+                            if (clusterStateUpdateResponse.isAcknowledged() && changed) {
+                                // The response was acknowledged - all nodes should know about the new repository, let's verify them
+                                verifyRepository(request.name(), verifyStep);
+                            } else {
+                                verifyStep.onResponse(null);
+                            }
+                        })
+                    )
+                )
+            );
 
             // When verification has completed, get the repository data for the first time
-            final StepListener<RepositoryData> getRepositoryDataStep = new StepListener<>();
-            verifyStep.whenComplete(
-                ignored -> threadPool.generic()
-                    .execute(ActionRunnable.wrap(getRepositoryDataStep, l -> repository(request.name()).getRepositoryData(l))),
-                listener::onFailure
+            final ListenableFuture<RepositoryData> getRepositoryDataStep = new ListenableFuture<>();
+            verifyStep.addListener(
+                listener.delegateFailureAndWrap(
+                    (l, ignored) -> threadPool.generic()
+                        .execute(ActionRunnable.wrap(getRepositoryDataStep, ll -> repository(request.name()).getRepositoryData(ll)))
+                )
             );
 
             // When the repository metadata is ready, update the repository UUID stored in the cluster state, if available
-            final StepListener<Void> updateRepoUuidStep = new StepListener<>();
-            getRepositoryDataStep.whenComplete(
-                repositoryData -> updateRepositoryUuidInMetadata(clusterService, request.name(), repositoryData, updateRepoUuidStep),
-                listener::onFailure
+            final ListenableFuture<Void> updateRepoUuidStep = new ListenableFuture<>();
+            getRepositoryDataStep.addListener(
+                listener.delegateFailureAndWrap(
+                    (l, repositoryData) -> updateRepositoryUuidInMetadata(
+                        clusterService,
+                        request.name(),
+                        repositoryData,
+                        updateRepoUuidStep
+                    )
+                )
             );
 
             // Finally respond to the outer listener with the response from the original cluster state update
-            updateRepoUuidStep.whenComplete(ignored -> acknowledgementStep.addListener(listener), listener::onFailure);
+            updateRepoUuidStep.addListener(listener.delegateFailureAndWrap((l, ignored) -> acknowledgementStep.addListener(l)));
 
         } else {
             acknowledgementStep.addListener(listener);
@@ -233,7 +247,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         RegisterRepositoryTask(
             final RepositoriesService repositoriesService,
             final PutRepositoryRequest request,
-            final StepListener<AcknowledgedResponse> acknowledgementStep
+            final ListenableFuture<AcknowledgedResponse> acknowledgementStep
         ) {
             super(request, acknowledgementStep);
             this.repositoriesService = repositoriesService;
@@ -664,6 +678,19 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return repositoriesStats;
     }
 
+    public RepositoriesStats getRepositoriesThrottlingStats() {
+        return new RepositoriesStats(
+            repositories.values()
+                .stream()
+                .collect(
+                    Collectors.toMap(
+                        r -> r.getMetadata().name(),
+                        r -> new RepositoriesStats.ThrottlingStats(r.getRestoreThrottleTimeInNanos(), r.getSnapshotThrottleTimeInNanos())
+                    )
+                )
+        );
+    }
+
     private List<RepositoryStatsSnapshot> getRepositoryStatsForActiveRepositories() {
         return Stream.concat(repositories.values().stream(), internalRepositories.values().stream())
             .filter(r -> r instanceof MeteredBlobStoreRepository)
@@ -876,7 +903,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         );
     }
 
-    public List<BiConsumer<Snapshot, Version>> getPreRestoreVersionChecks() {
+    public List<BiConsumer<Snapshot, IndexVersion>> getPreRestoreVersionChecks() {
         return preRestoreChecks;
     }
 

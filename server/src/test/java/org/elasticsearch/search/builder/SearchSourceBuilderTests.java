@@ -33,7 +33,9 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilderTests;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -69,6 +71,7 @@ import static org.hamcrest.Matchers.hasToString;
 
 public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96896")
     public void testFromXContent() throws IOException {
         SearchSourceBuilder testSearchSourceBuilder = createSearchSourceBuilder();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -140,7 +143,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     private SearchSourceBuilder copyBuilder(SearchSourceBuilder original) throws IOException {
-        return copyBuilder(original, TransportVersion.CURRENT);
+        return copyBuilder(original, TransportVersion.current());
     }
 
     private SearchSourceBuilder copyBuilder(SearchSourceBuilder original, TransportVersion version) throws IOException {
@@ -880,6 +883,28 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         Map<String, Long> sectionsUsage = searchUsageStats.getSectionsUsage();
         assertEquals(1, sectionsUsage.size());
         assertEquals(iters, sectionsUsage.get("query").longValue());
+    }
+
+    public void testSupportsParallelCollection() {
+        SearchSourceBuilder searchSourceBuilder = createSearchSourceBuilder();
+        searchSourceBuilder.collapse(null);
+        if (searchSourceBuilder.aggregations() == null) {
+            assertTrue(searchSourceBuilder.supportsParallelCollection());
+        } else {
+            assertEquals(searchSourceBuilder.aggregations().supportsParallelCollection(), searchSourceBuilder.supportsParallelCollection());
+        }
+
+        searchSourceBuilder.aggregation(new MaxAggregationBuilder("max"));
+        assertTrue(searchSourceBuilder.supportsParallelCollection());
+
+        searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));
+        assertFalse(searchSourceBuilder.supportsParallelCollection());
+
+        searchSourceBuilder.collapse(CollapseBuilderTests.randomCollapseBuilder());
+        assertFalse(searchSourceBuilder.supportsParallelCollection());
+
+        SearchSourceBuilder collapse = new SearchSourceBuilder().collapse(CollapseBuilderTests.randomCollapseBuilder());
+        assertFalse(collapse.supportsParallelCollection());
     }
 
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {

@@ -17,6 +17,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
+import org.hamcrest.Matcher;
 
 import java.util.HashMap;
 import java.util.List;
@@ -94,6 +95,43 @@ public class CancellableFanOutTests extends ESTestCase {
         }
     }
 
+    public void testSendItemRequestFailure() {
+        final var future = new PlainActionFuture<String>();
+        new CancellableFanOut<String, String, String>() {
+            int counter;
+
+            @Override
+            protected void sendItemRequest(String item, ActionListener<String> listener) {
+                final var exception = new ElasticsearchException("simulated");
+                if (randomBoolean()) {
+                    throw exception;
+                } else {
+                    listener.onFailure(exception);
+                }
+            }
+
+            @Override
+            protected void onItemResponse(String item, String itemResponse) {
+                fail("should not get item response");
+            }
+
+            @Override
+            protected void onItemFailure(String item, Exception e) {
+                assertEquals("simulated", e.getMessage());
+                counter += 1;
+            }
+
+            @Override
+            protected String onCompletion() {
+                assertEquals(3, counter);
+                return "completed";
+            }
+        }.run(null, List.of("a", "b", "c").iterator(), future);
+
+        assertTrue(future.isDone());
+        assertEquals("completed", future.actionGet());
+    }
+
     public void testReleaseOnCancellation() {
         final var task = new CancellableTask(1, "test", "test", "", TaskId.EMPTY_TASK_ID, Map.of());
         final var future = new PlainActionFuture<String>();
@@ -143,10 +181,16 @@ public class CancellableFanOutTests extends ESTestCase {
         expectThrows(TaskCancelledException.class, future::actionGet);
     }
 
+    private static void assertCurrentThread(Matcher<String> matcher) {
+        assertThat(Thread.currentThread().getName(), matcher);
+    }
+
     public void testConcurrency() throws InterruptedException {
 
         final var isProcessorThread = startsWith("processor-thread-");
         final var isCancelThread = equalTo("cancel-thread");
+        final var isTestThread = startsWith("TEST-");
+        assertCurrentThread(isTestThread);
 
         final var items = randomList(1, 3, () -> randomAlphaOfLength(5));
         final var processorThreads = new Thread[items.size()];
@@ -155,7 +199,7 @@ public class CancellableFanOutTests extends ESTestCase {
         for (int i = 0; i < processorThreads.length; i++) {
             processorThreads[i] = new Thread(() -> {
                 try {
-                    assertThat(Thread.currentThread().getName(), isProcessorThread);
+                    assertCurrentThread(isProcessorThread);
                     final var item = Objects.requireNonNull(queue.poll(10, TimeUnit.SECONDS));
                     safeAwait(barrier);
                     item.run();
@@ -169,7 +213,7 @@ public class CancellableFanOutTests extends ESTestCase {
         final var task = new CancellableTask(1, "test", "test", "", TaskId.EMPTY_TASK_ID, Map.of());
 
         final var cancelThread = new Thread(() -> {
-            assertThat(Thread.currentThread().getName(), isCancelThread);
+            assertCurrentThread(isCancelThread);
             safeAwait(barrier);
             TaskCancelHelper.cancel(task, "test");
         }, "cancel-thread");
@@ -187,14 +231,14 @@ public class CancellableFanOutTests extends ESTestCase {
 
             @Override
             protected void onItemResponse(String s, String response) {
-                assertThat(Thread.currentThread().getName(), isProcessorThread);
+                assertCurrentThread(isProcessorThread);
                 assertEquals(s, response);
                 assertThat(itemsProcessed.incrementAndGet(), lessThanOrEqualTo(items.size()));
             }
 
             @Override
             protected void onItemFailure(String s, Exception e) {
-                assertThat(Thread.currentThread().getName(), isProcessorThread);
+                assertCurrentThread(isProcessorThread);
                 assertThat(e, instanceOf(ElasticsearchException.class));
                 assertEquals("sendItemRequest", e.getMessage());
                 assertThat(itemsProcessed.incrementAndGet(), lessThanOrEqualTo(items.size()));
@@ -203,7 +247,7 @@ public class CancellableFanOutTests extends ESTestCase {
             @Override
             protected String onCompletion() {
                 assertEquals(items.size(), itemsProcessed.get());
-                assertThat(Thread.currentThread().getName(), isProcessorThread);
+                assertCurrentThread(anyOf(isTestThread, isProcessorThread));
                 if (randomBoolean()) {
                     return "finished";
                 } else {
@@ -214,18 +258,16 @@ public class CancellableFanOutTests extends ESTestCase {
             @Override
             public void onResponse(String s) {
                 assertEquals(items.size(), itemsProcessed.get());
-                assertThat(Thread.currentThread().getName(), isProcessorThread);
+                assertCurrentThread(anyOf(isTestThread, isProcessorThread));
                 assertEquals("finished", s);
                 completionLatch.countDown();
             }
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof TaskCancelledException) {
-                    assertThat(Thread.currentThread().getName(), anyOf(isProcessorThread, isCancelThread));
-                } else {
+                assertCurrentThread(anyOf(isTestThread, isProcessorThread));
+                if (e instanceof TaskCancelledException == false) {
                     assertEquals(items.size(), itemsProcessed.get());
-                    assertThat(Thread.currentThread().getName(), isProcessorThread);
                     assertThat(e, instanceOf(ElasticsearchException.class));
                     assertEquals("onCompletion", e.getMessage());
                 }

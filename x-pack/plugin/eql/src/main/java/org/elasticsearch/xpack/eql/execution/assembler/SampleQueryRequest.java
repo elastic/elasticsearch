@@ -7,20 +7,13 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
@@ -29,7 +22,6 @@ import org.elasticsearch.xpack.eql.expression.OptionalResolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -39,12 +31,10 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.xpack.eql.execution.ExecutionUtils.copySource;
 
 public class SampleQueryRequest implements QueryRequest {
 
-    private static NamedWriteableRegistry registry = new NamedWriteableRegistry(
-        new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables()
-    );
     public static final String COMPOSITE_AGG_NAME = "keys";
     private SearchSourceBuilder searchSource;
     private final List<String> keys; // the name of the join keys
@@ -201,17 +191,4 @@ public class SampleQueryRequest implements QueryRequest {
         return a instanceof OptionalMissingAttribute || a instanceof OptionalResolvedAttribute;
     }
 
-    /*
-     * Not a great way of getting a copy of a SearchSourceBuilder
-     */
-    private static SearchSourceBuilder copySource(SearchSourceBuilder source) {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            source.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), registry)) {
-                return new SearchSourceBuilder(in);
-            }
-        } catch (IOException e) {
-            throw new EqlIllegalArgumentException("Error copying search source", e);
-        }
-    }
 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.search;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
@@ -160,10 +161,6 @@ public class SearchApplicationIndexService {
                     builder.field("type", "keyword");
                     builder.endObject();
 
-                    builder.startObject(SearchApplication.INDICES_FIELD.getPreferredName());
-                    builder.field("type", "keyword");
-                    builder.endObject();
-
                     builder.startObject(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName());
                     builder.field("type", "keyword");
                     builder.endObject();
@@ -229,8 +226,9 @@ public class SearchApplicationIndexService {
             public void onFailure(Exception e) {
                 // Convert index not found failure from the alias API into an illegal argument
                 Exception failException = e;
-                if (e instanceof IndexNotFoundException) {
-                    failException = new IllegalArgumentException(e.getMessage(), e);
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof IndexNotFoundException) {
+                    failException = new IllegalArgumentException(cause.getMessage(), cause);
                 }
                 listener.onFailure(failException);
             }
@@ -279,7 +277,6 @@ public class SearchApplicationIndexService {
             try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
                 source.startObject()
                     .field(SearchApplication.NAME_FIELD.getPreferredName(), app.name())
-                    .field(SearchApplication.INDICES_FIELD.getPreferredName(), app.indices())
                     .field(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), app.analyticsCollectionName())
                     .field(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName(), app.updatedAtMillis())
                     .directFieldAsBase64(
@@ -380,7 +377,6 @@ public class SearchApplicationIndexService {
                 .size(size)
                 .query(new QueryStringQueryBuilder(queryString))
                 .docValueField(SearchApplication.NAME_FIELD.getPreferredName())
-                .docValueField(SearchApplication.INDICES_FIELD.getPreferredName())
                 .docValueField(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName())
                 .docValueField(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName())
                 .storedFields(Collections.singletonList("_none_"))
@@ -418,7 +414,6 @@ public class SearchApplicationIndexService {
         final String resourceName = documentFields.get(SearchApplication.NAME_FIELD.getPreferredName()).getValue();
         return new SearchApplicationListItem(
             resourceName,
-            documentFields.get(SearchApplication.INDICES_FIELD.getPreferredName()).getValues().toArray(String[]::new),
             documentFields.get(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue(),
             documentFields.get(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName()).getValue()
         );
@@ -461,7 +456,7 @@ public class SearchApplicationIndexService {
 
     static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in) throws IOException {
         TransportVersion version = TransportVersion.readVersion(in);
-        assert version.onOrBefore(TransportVersion.CURRENT) : version + " >= " + TransportVersion.CURRENT;
+        assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
         in.setTransportVersion(version);
         return new SearchApplication(in);
     }
@@ -495,8 +490,9 @@ public class SearchApplicationIndexService {
 
         @Override
         public void onFailure(Exception e) {
-            if (e instanceof IndexNotFoundException) {
-                delegate.onFailure(new ResourceNotFoundException(resourceName, e));
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof IndexNotFoundException) {
+                delegate.onFailure(new ResourceNotFoundException(resourceName));
                 return;
             }
             delegate.onFailure(e);

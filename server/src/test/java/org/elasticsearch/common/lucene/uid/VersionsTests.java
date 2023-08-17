@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
@@ -231,7 +232,7 @@ public class VersionsTests extends ESTestCase {
 
         Document doc = new Document();
         doc.add(new StringField(IdFieldMapper.NAME, "1", Field.Store.YES));
-        doc.add(new LongPoint(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 1_000));
+        doc.add(new LongPoint(DataStream.TIMESTAMP_FIELD_NAME, 1_000));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, 0L));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 1L));
@@ -239,7 +240,7 @@ public class VersionsTests extends ESTestCase {
 
         doc = new Document();
         doc.add(new StringField(IdFieldMapper.NAME, "2", Field.Store.YES));
-        doc.add(new LongPoint(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 10_000));
+        doc.add(new LongPoint(DataStream.TIMESTAMP_FIELD_NAME, 10_000));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, 0L));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 1L));
@@ -272,7 +273,7 @@ public class VersionsTests extends ESTestCase {
 
     private static String createTSDBId(long timestamp) {
         Settings.Builder b = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
         IndexMetadata indexMetadata = IndexMetadata.builder("idx").settings(b).numberOfShards(1).numberOfReplicas(0).build();
         IndexRouting.ExtractFromSource.Builder routingBuilder = ((IndexRouting.ExtractFromSource) IndexRouting.fromIndexMetadata(

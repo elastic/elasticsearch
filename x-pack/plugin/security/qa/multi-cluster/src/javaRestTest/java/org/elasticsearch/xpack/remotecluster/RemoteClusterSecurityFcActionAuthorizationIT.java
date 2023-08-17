@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.remotecluster;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -17,14 +16,15 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
 import org.junit.ClassRule;
@@ -68,7 +68,6 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
     @ClassRule
     public static ElasticsearchCluster testCluster = ElasticsearchCluster.local()
         .name("test-cluster")
-        .feature(FeatureFlag.NEW_RCS_MODE)
         .module("analysis-common")
         .module("x-pack-ccr")
         .setting("xpack.license.self_generated.type", "trial")
@@ -142,7 +141,11 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             assertThat(remoteConnectionInfos, hasSize(1));
             assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
 
-            final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, "my_remote_cluster");
+            final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                threadPool,
+                "my_remote_cluster",
+                threadPool.generic()
+            );
 
             // Creating a restore session fails if index is not accessible
             final ShardId privateShardId = new ShardId("private-index", privateIndexUUID, 0);
@@ -155,7 +158,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                 e.getMessage(),
                 containsString(
                     "action [indices:internal/admin/ccr/restore/session/put] towards remote cluster is unauthorized "
-                        + "for user [_cross_cluster_access] with assigned roles [] authenticated by API key id ["
+                        + "for user [_system] with assigned roles [] authenticated by API key id ["
                         + crossClusterApiKeyMap.get("id")
                         + "] of user [test_user] on indices [private-index], this action is granted by the index privileges "
                         + "[cross_cluster_replication_internal,all]"
@@ -275,11 +278,18 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         final Map<String, Object> apiKeyMap = responseAsMap(createApiKeyResponse);
         try (MockTransportService service = startTransport("node", threadPool, (String) apiKeyMap.get("encoded"))) {
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
-            final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, "my_remote_cluster");
+            final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                threadPool,
+                "my_remote_cluster",
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
 
             final ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> remoteClusterClient.execute(RemoteClusterNodesAction.INSTANCE, RemoteClusterNodesAction.Request.INSTANCE).actionGet()
+                () -> remoteClusterClient.execute(
+                    RemoteClusterNodesAction.INSTANCE,
+                    RemoteClusterNodesAction.Request.REMOTE_CLUSTER_SERVER_NODES
+                ).actionGet()
             );
             assertThat(
                 e.getMessage(),
@@ -341,7 +351,11 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             final List<RemoteConnectionInfo> remoteConnectionInfos = remoteClusterService.getRemoteConnectionInfos().toList();
             assertThat(remoteConnectionInfos, hasSize(1));
             assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
-            final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, "my_remote_cluster");
+            final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                threadPool,
+                "my_remote_cluster",
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
 
             // 1. Not accessible because API key does not grant the access
             final ElasticsearchSecurityException e1 = expectThrows(
@@ -437,8 +451,8 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
 
         final MockTransportService service = MockTransportService.createNewService(
             builder.build(),
-            Version.CURRENT,
-            TransportVersion.CURRENT,
+            VersionInformation.CURRENT,
+            TransportVersion.current(),
             threadPool,
             null
         );
@@ -449,7 +463,10 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                     new CrossClusterAccessHeaders(
                         "ApiKey " + encodedApiKey,
-                        subjectInfoLookup.getOrDefault(action, CrossClusterAccessUser.subjectInfo(TransportVersion.CURRENT, nodeName))
+                        subjectInfoLookup.getOrDefault(
+                            action,
+                            SystemUser.crossClusterAccessSubjectInfo(TransportVersion.current(), nodeName)
+                        )
                     ).writeToContext(threadContext);
                     connection.sendRequest(requestId, action, request, options);
                 }

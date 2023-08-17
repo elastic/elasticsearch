@@ -249,7 +249,7 @@ public class DeterministicTaskQueue {
 
                 @Override
                 public boolean isShutdown() {
-                    throw new UnsupportedOperationException();
+                    return false;
                 }
 
                 @Override

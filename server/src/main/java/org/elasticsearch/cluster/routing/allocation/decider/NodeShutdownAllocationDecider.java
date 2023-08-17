@@ -33,7 +33,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
      */
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return getDecision(allocation, node.nodeId());
+        return getDecision(allocation, node.nodeId(), false);
     }
 
     /**
@@ -51,10 +51,10 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
      */
     @Override
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-        return getDecision(allocation, node.getId());
+        return getDecision(allocation, node.getId(), true);
     }
 
-    private static Decision getDecision(RoutingAllocation allocation, String nodeId) {
+    private static Decision getDecision(RoutingAllocation allocation, String nodeId, boolean canAllocateBeforeReplacementIsReady) {
         final var nodeShutdowns = allocation.metadata().nodeShutdowns().getAll();
         if (nodeShutdowns.isEmpty()) {
             return YES_EMPTY_SHUTDOWN_METADATA;
@@ -66,12 +66,16 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
         }
 
         return switch (thisNodeShutdownMetadata.getType()) {
-            case REPLACE, REMOVE, SIGTERM -> allocation.decision(
-                Decision.NO,
-                NAME,
-                "node [%s] is preparing to be removed from the cluster",
-                nodeId
-            );
+            case REMOVE, SIGTERM -> allocation.decision(Decision.NO, NAME, "node [%s] is preparing to be removed from the cluster", nodeId);
+            case REPLACE -> canAllocateBeforeReplacementIsReady
+                && allocation.getClusterState().getNodes().hasByName(thisNodeShutdownMetadata.getTargetNodeName()) == false
+                    ? allocation.decision(
+                        Decision.YES,
+                        NAME,
+                        "node [%s] is preparing to be removed from the cluster, but replacement is not yet present",
+                        nodeId
+                    )
+                    : allocation.decision(Decision.NO, NAME, "node [%s] is preparing to be removed from the cluster", nodeId);
             case RESTART -> allocation.decision(
                 Decision.YES,
                 NAME,

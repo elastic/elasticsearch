@@ -166,7 +166,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     ) throws IOException {
         super(in, NAME);
         modelId = in.readString();
-        bucketPathMap = in.readMap(StreamInput::readString, StreamInput::readString);
+        bucketPathMap = in.readMap(StreamInput::readString);
         inferenceConfig = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
         this.modelLoadingService = modelLoadingService;
         this.model = null;
@@ -264,7 +264,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
 
         SetOnce<LocalModel> loadedModel = new SetOnce<>();
         BiConsumer<Client, ActionListener<?>> modelLoadAction = (client, listener) -> modelLoadingService.get()
-            .getModelForSearch(modelId, listener.delegateFailure((delegate, localModel) -> {
+            .getModelForAggregation(modelId, listener.delegateFailure((delegate, localModel) -> {
                 loadedModel.set(localModel);
 
                 boolean isLicensed = localModel.getLicenseLevel() == License.OperationMode.BASIC

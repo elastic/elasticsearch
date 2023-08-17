@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndices;
@@ -60,6 +61,7 @@ public class IndexNameExpressionResolver {
 
     public static final String EXCLUDED_DATA_STREAMS_KEY = "es.excluded_ds";
     public static final Version SYSTEM_INDEX_ENFORCEMENT_VERSION = Version.V_8_0_0;
+    public static final IndexVersion SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION = IndexVersion.V_8_0_0;
 
     private final ThreadContext threadContext;
     private final SystemIndices systemIndices;
@@ -446,7 +448,17 @@ public class IndexNameExpressionResolver {
             infe = new IndexNotFoundException("no indices exist", Metadata.ALL);
             infe.setResources("index_or_alias", Metadata.ALL);
         } else if (indexExpressions.length == 1) {
-            infe = new IndexNotFoundException(indexExpressions[0]);
+            if (indexExpressions[0].startsWith("-")) {
+                // this can arise when multi-target syntax is used with an exclusion not in the "inclusion" list, such as
+                // "GET test1,test2,-test3"
+                // the caller should have put "GET test*,-test3"
+                infe = new IndexNotFoundException(
+                    "if you intended to exclude this index, ensure that you use wildcards that include it before explicitly excluding it",
+                    indexExpressions[0]
+                );
+            } else {
+                infe = new IndexNotFoundException(indexExpressions[0]);
+            }
             infe.setResources("index_or_alias", indexExpressions[0]);
         } else {
             infe = new IndexNotFoundException((String) null);

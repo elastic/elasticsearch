@@ -185,7 +185,7 @@ public class RoundTripTests extends ESTestCase {
     }
 
     private StreamInput toInputByteStream(Writeable example) throws IOException {
-        return toInputByteStream(TransportVersion.CURRENT, example);
+        return toInputByteStream(TransportVersion.current(), example);
     }
 
     private StreamInput toInputByteStream(TransportVersion version, Writeable example) throws IOException {

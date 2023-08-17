@@ -51,8 +51,8 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
     }
 
     public SearchUsageStats(StreamInput in) throws IOException {
-        this.queries = in.readMap(StreamInput::readString, StreamInput::readLong);
-        this.sections = in.readMap(StreamInput::readString, StreamInput::readLong);
+        this.queries = in.readMap(StreamInput::readLong);
+        this.sections = in.readMap(StreamInput::readLong);
         this.totalSearchCount = in.readVLong();
     }
 

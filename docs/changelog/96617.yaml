@@ -1,0 +1,5 @@
+pr: 96617
+summary: Improve brute force vector search speed by using Lucene functions
+area: Search
+type: enhancement
+issues: []

@@ -532,7 +532,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     public PersistentTasksCustomMetadata(StreamInput in) throws IOException {
         lastAllocationId = in.readLong();
-        tasks = in.readMap(StreamInput::readString, PersistentTask::new);
+        tasks = in.readMap(PersistentTask::new);
     }
 
     @Override

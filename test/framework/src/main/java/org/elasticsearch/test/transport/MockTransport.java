@@ -180,7 +180,7 @@ public class MockTransport extends StubbableTransport {
 
             @Override
             public TransportVersion getTransportVersion() {
-                return TransportVersion.CURRENT;
+                return TransportVersion.current();
             }
 
             @Override

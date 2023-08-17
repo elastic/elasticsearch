@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.MockLicenseState;
@@ -41,7 +41,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -66,7 +65,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -125,7 +124,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2) : null,
+            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
             null
         );
         assertFalse(flsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -141,7 +140,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2) : null,
+            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
             null
         );
         assertFalse(dlsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -162,7 +161,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2) : null,
+            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
             null
         );
         assertFalse(flsDlsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -176,7 +175,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2) : null,
+            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
             null
         );
         assertFalse(noFlsDlsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -272,7 +271,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2) : null,
+            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
             RoleRestrictionTests.randomWorkflowsRestriction(1, 2)
         );
 
@@ -302,11 +301,11 @@ public class NativeRolesStoreTests extends ESTestCase {
 
     public void testPutOfRoleWithFlsDlsUnlicensed() throws IOException {
         final Client client = mock(Client.class);
-        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.CURRENT);
+        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.current());
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final AtomicBoolean methodCalled = new AtomicBoolean(false);
 
-        final SecuritySystemIndices systemIndices = new SecuritySystemIndices();
+        final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
         systemIndices.init(client, clusterService);
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
 
@@ -382,7 +381,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     public void testPutRoleWithRemoteIndicesUnsupportedMinNodeVersion() {
         final Client client = mock(Client.class);
         final TransportVersion transportVersionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
-            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
         );
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
@@ -394,7 +393,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final AtomicBoolean methodCalled = new AtomicBoolean(false);
 
-        final SecuritySystemIndices systemIndices = new SecuritySystemIndices();
+        final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
         systemIndices.init(client, clusterService);
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
 
@@ -432,7 +431,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             e.getMessage(),
             containsString(
                 "all nodes must have transport version ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                     + "] or higher to support remote indices privileges"
             )
         );
@@ -441,6 +440,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     private ClusterService mockClusterServiceWithMinNodeVersion(TransportVersion transportVersion) {
         final ClusterService clusterService = mock(ClusterService.class, Mockito.RETURNS_DEEP_STUBS);
         when(clusterService.state().getMinTransportVersion()).thenReturn(transportVersion);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         return clusterService;
     }
 
@@ -449,7 +449,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         final String securityIndexName = SECURITY_MAIN_ALIAS + (withAlias ? "-" + randomAlphaOfLength(5) : "");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder(securityIndexName).settings(indexSettings(Version.CURRENT, 1, 0)))
+            .put(IndexMetadata.builder(securityIndexName).settings(indexSettings(IndexVersion.current(), 1, 0)))
             .build();
 
         if (withAlias) {

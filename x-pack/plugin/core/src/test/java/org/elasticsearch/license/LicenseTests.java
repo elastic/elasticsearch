@@ -205,11 +205,11 @@ public class LicenseTests extends ESTestCase {
             final License license1 = randomLicense(type).signature(signature).version(version).build();
 
             final BytesStreamOutput out = new BytesStreamOutput();
-            out.setTransportVersion(TransportVersion.CURRENT);
+            out.setTransportVersion(TransportVersion.current());
             license1.writeTo(out);
 
             final StreamInput in = out.bytes().streamInput();
-            in.setTransportVersion(TransportVersion.CURRENT);
+            in.setTransportVersion(TransportVersion.current());
             final License license2 = License.readLicense(in);
             assertThat(in.read(), Matchers.equalTo(-1));
 

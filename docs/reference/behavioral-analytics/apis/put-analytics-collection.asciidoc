@@ -2,9 +2,19 @@
 [[put-analytics-collection]]
 === Put Analytics Collection
 
+beta::[]
+
 ++++
 <titleabbrev>Put Analytics Collection</titleabbrev>
 ++++
+
+////
+[source,console]
+----
+DELETE _application/analytics/my_analytics_collection
+----
+// TEARDOWN
+////
 
 Creates an Analytics Collection.
 
@@ -38,6 +48,4 @@ The following example creates a new Analytics Collection called `my_analytics_co
 [source,console]
 ----
 PUT _application/analytics/my_analytics_collection
-
 ----
-// TEST[skip:TBD]

@@ -11,8 +11,8 @@ package org.elasticsearch.repositories;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
@@ -49,11 +49,11 @@ public class IndexSnapshotsService {
     ) {
         assert repositoryName != null;
 
-        final ActionListener<Optional<ShardSnapshotInfo>> listener = originalListener.delegateResponse((delegate, err) -> {
-            delegate.onFailure(
+        final ActionListener<Optional<ShardSnapshotInfo>> listener = originalListener.delegateResponse(
+            (delegate, err) -> delegate.onFailure(
                 new RepositoryException(repositoryName, "Unable to find the latest snapshot for shard [" + shardId + "]", err)
-            );
-        });
+            )
+        );
 
         final Repository repository = getRepository(repositoryName);
         if (repository == null) {
@@ -62,13 +62,13 @@ public class IndexSnapshotsService {
         }
 
         final String indexName = shardId.getIndexName();
-        StepListener<RepositoryData> repositoryDataStepListener = new StepListener<>();
-        StepListener<FetchShardSnapshotContext> snapshotInfoStepListener = new StepListener<>();
+        ListenableFuture<RepositoryData> repositoryDataStepListener = new ListenableFuture<>();
+        ListenableFuture<FetchShardSnapshotContext> snapshotInfoStepListener = new ListenableFuture<>();
 
-        repositoryDataStepListener.whenComplete(repositoryData -> {
+        repositoryDataStepListener.addListener(listener.delegateFailureAndWrap((delegate, repositoryData) -> {
             if (repositoryData.hasIndex(indexName) == false) {
                 logger.debug("{} repository [{}] has no snapshots of this index", shardId, repositoryName);
-                listener.onResponse(Optional.empty());
+                delegate.onResponse(Optional.empty());
                 return;
             }
 
@@ -88,7 +88,7 @@ public class IndexSnapshotsService {
                 // a valid candidate, but for simplicity we just consider that we couldn't find any valid snapshot. Existing
                 // snapshots start/end timestamps should appear in the RepositoryData eventually.
                 logger.debug("{} could not determine latest snapshot of this shard in repository [{}]", shardId, repositoryName);
-                listener.onResponse(Optional.empty());
+                delegate.onResponse(Optional.empty());
                 return;
             }
 
@@ -100,16 +100,16 @@ public class IndexSnapshotsService {
                     snapshotInfo -> new FetchShardSnapshotContext(repository, repositoryData, indexId, shardId, snapshotInfo)
                 )
             );
-        }, listener::onFailure);
+        }));
 
-        snapshotInfoStepListener.whenComplete(fetchSnapshotContext -> {
+        snapshotInfoStepListener.addListener(listener.delegateFailureAndWrap((delegate, fetchSnapshotContext) -> {
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT_META);
             final SnapshotInfo snapshotInfo = fetchSnapshotContext.getSnapshotInfo();
 
             if (snapshotInfo == null || snapshotInfo.state() != SnapshotState.SUCCESS) {
                 // We couldn't find a valid candidate
                 logger.debug("{} failed to retrieve snapshot details from [{}]", shardId, repositoryName);
-                listener.onResponse(Optional.empty());
+                delegate.onResponse(Optional.empty());
                 return;
             }
 
@@ -124,8 +124,8 @@ public class IndexSnapshotsService {
                 .findFirst()
                 .map(snapshotFiles -> fetchSnapshotContext.createIndexShardSnapshotInfo(indexMetadataId, snapshotFiles));
 
-            listener.onResponse(indexShardSnapshotInfo);
-        }, listener::onFailure);
+            delegate.onResponse(indexShardSnapshotInfo);
+        }));
 
         repository.getRepositoryData(repositoryDataStepListener);
     }

@@ -1,6 +1,0 @@
-pr: 96286
-summary: Allow the removal of an in-use template if there are other ones matching
-  the dependent data streams
-area: Data streams
-type: bug
-issues: []

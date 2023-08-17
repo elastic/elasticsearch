@@ -86,11 +86,7 @@ public class RestIndexActionTests extends RestActionTestCase {
             .build();
         clusterStateSupplier.set(
             ClusterState.builder(ClusterName.DEFAULT)
-                .nodes(
-                    DiscoveryNodes.builder()
-                        .add(DiscoveryNodeUtils.create("test", buildNewFakeTransportAddress(), minClusterVersion))
-                        .build()
-                )
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.builder("test").version(minClusterVersion).build()).build())
                 .build()
         );
         dispatchRequest(autoIdRequest);

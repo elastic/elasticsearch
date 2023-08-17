@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
@@ -117,6 +118,6 @@ abstract class ArithmeticMapper<T extends ArithmeticOperation> extends EvalMappe
                 return castToEvaluator(op, layout, DataTypes.DOUBLE, doubles);
             }
         }
-        throw new UnsupportedOperationException("resolved type for [" + op + "] but didn't implement mapping");
+        throw new EsqlIllegalArgumentException("resolved type for [" + op + "] but didn't implement mapping");
     }
 }

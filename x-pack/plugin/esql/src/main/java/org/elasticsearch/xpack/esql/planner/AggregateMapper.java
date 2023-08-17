@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
@@ -118,7 +119,7 @@ public class AggregateMapper {
     private List<IntermediateStateDesc> getNonNull(AggDef aggDef) {
         var l = mapper.get(aggDef);
         if (l == null) {
-            throw new UnsupportedOperationException("Cannot find intermediate state for: " + aggDef);
+            throw new EsqlIllegalArgumentException("Cannot find intermediate state for: " + aggDef);
         }
         return l;
     }
@@ -157,7 +158,7 @@ public class AggregateMapper {
             return (List<IntermediateStateDesc>) lookup(aggDef.aggClazz(), aggDef.type(), aggDef.grouping()).invokeExact();
         } catch (Throwable t) {
             // invokeExact forces us to handle any Throwable thrown by lookup.
-            throw new UnsupportedOperationException(t);
+            throw new EsqlIllegalArgumentException(t);
         }
     }
 
@@ -171,7 +172,7 @@ public class AggregateMapper {
                     MethodType.methodType(List.class)
                 );
         } catch (IllegalAccessException | NoSuchMethodException | ClassNotFoundException e) {
-            throw new UnsupportedOperationException(e);
+            throw new EsqlIllegalArgumentException(e);
         }
     }
 

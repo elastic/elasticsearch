@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -26,6 +25,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
@@ -172,7 +172,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
     private final String modelId;
     private final String createdBy;
-    private final Version version;
+    private final MlConfigVersion version;
     private final String description;
     private final Instant createTime;
     private final TrainedModelType modelType;
@@ -194,7 +194,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         String modelId,
         TrainedModelType modelType,
         String createdBy,
-        Version version,
+        MlConfigVersion version,
         String description,
         Instant createTime,
         LazyModelDefinition definition,
@@ -246,7 +246,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public TrainedModelConfig(StreamInput in) throws IOException {
         modelId = in.readString();
         createdBy = in.readString();
-        version = Version.readVersion(in);
+        version = MlConfigVersion.readVersion(in);
         description = in.readOptionalString();
         createTime = in.readInstant();
         definition = in.readOptionalWriteable(LazyModelDefinition::fromStreamInput);
@@ -292,7 +292,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return createdBy;
     }
 
-    public Version getVersion() {
+    public MlConfigVersion getVersion() {
         return version;
     }
 
@@ -407,7 +407,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
         out.writeString(createdBy);
-        Version.writeVersion(version, out);
+        MlConfigVersion.writeVersion(version, out);
         out.writeOptionalString(description);
         out.writeInstant(createTime);
         out.writeOptionalWriteable(definition);
@@ -556,7 +556,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private String modelId;
         private TrainedModelType modelType;
         private String createdBy;
-        private Version version;
+        private MlConfigVersion version;
         private String description;
         private Instant createTime;
         private List<String> tags = Collections.emptyList();
@@ -626,17 +626,17 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Version getVersion() {
+        public MlConfigVersion getVersion() {
             return version;
         }
 
-        public Builder setVersion(Version version) {
+        public Builder setVersion(MlConfigVersion version) {
             this.version = version;
             return this;
         }
 
         private Builder setVersion(String version) {
-            return this.setVersion(Version.fromString(version));
+            return this.setVersion(MlConfigVersion.fromString(version));
         }
 
         public Builder setDescription(String description) {
@@ -989,7 +989,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 modelId,
                 modelType,
                 createdBy == null ? "user" : createdBy,
-                version == null ? Version.CURRENT : version,
+                version == null ? MlConfigVersion.CURRENT : version,
                 description,
                 createTime == null ? Instant.now() : createTime,
                 definition,

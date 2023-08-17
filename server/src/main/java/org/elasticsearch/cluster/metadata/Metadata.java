@@ -1286,7 +1286,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         }
 
         DataStream parentDataStream = indexAbstraction.getParentDataStream();
-        if (parentDataStream != null && parentDataStream.getLifecycle() != null) {
+        if (parentDataStream != null && parentDataStream.getLifecycle() != null && parentDataStream.getLifecycle().isEnabled()) {
             // index has both ILM and data stream lifecycle configured so let's check which is preferred
             return PREFER_ILM_SETTING.get(indexMetadata.getSettings());
         }
@@ -1444,16 +1444,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             persistentSettings,
             ChunkedToXContentHelper.wrapWithObject(
                 "templates",
-                templates().values()
-                    .stream()
-                    .map(
-                        template -> (ToXContent) (builder, params) -> IndexTemplateMetadata.Builder.toXContentWithTypes(
-                            template,
-                            builder,
-                            params
-                        )
-                    )
-                    .iterator()
+                Iterators.map(
+                    templates().values().iterator(),
+                    template -> (builder, params) -> IndexTemplateMetadata.Builder.toXContentWithTypes(template, builder, params)
+                )
             ),
             indices,
             Iterators.flatMap(

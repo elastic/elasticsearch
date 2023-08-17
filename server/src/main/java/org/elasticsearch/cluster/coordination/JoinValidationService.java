@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -40,6 +39,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -49,6 +49,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
@@ -102,6 +103,7 @@ public class JoinValidationService {
     private final Queue<AbstractRunnable> queue = new ConcurrentLinkedQueue<>();
     private final Map<TransportVersion, ReleasableBytesReference> statesByVersion = new HashMap<>();
     private final RefCounted executeRefs;
+    private final Executor responseExecutor;
 
     public JoinValidationService(
         Settings settings,
@@ -114,6 +116,7 @@ public class JoinValidationService {
         this.transportService = transportService;
         this.clusterStateSupplier = clusterStateSupplier;
         this.executeRefs = AbstractRefCounted.of(() -> execute(cacheClearer));
+        this.responseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.CLUSTER_COORDINATION);
 
         final var dataPaths = Environment.PATH_DATA_SETTING.get(settings);
         transportService.registerRequestHandler(
@@ -144,7 +147,7 @@ public class JoinValidationService {
         );
     }
 
-    public void validateJoin(DiscoveryNode discoveryNode, ActionListener<TransportResponse.Empty> listener) {
+    public void validateJoin(DiscoveryNode discoveryNode, ActionListener<Void> listener) {
         if (discoveryNode.getVersion().onOrAfter(Version.V_8_3_0)) {
             if (executeRefs.tryIncRef()) {
                 try {
@@ -156,7 +159,7 @@ public class JoinValidationService {
                 listener.onFailure(new NodeClosedException(transportService.getLocalNode()));
             }
         } else {
-            final var responseHandler = new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
+            final var responseHandler = TransportResponseHandler.empty(responseExecutor, listener.delegateResponse((l, e) -> {
                 logger.warn(() -> "failed to validate incoming join request from node [" + discoveryNode + "]", e);
                 listener.onFailure(
                     new IllegalStateException(
@@ -169,7 +172,7 @@ public class JoinValidationService {
                         e
                     )
                 );
-            }), i -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.CLUSTER_COORDINATION);
+            }));
             final var clusterState = clusterStateSupplier.get();
             if (clusterState != null) {
                 assert clusterState.nodes().isLocalNodeElectedMaster();
@@ -307,10 +310,10 @@ public class JoinValidationService {
         }
     };
 
-    private class JoinValidation extends ActionRunnable<TransportResponse.Empty> {
+    private class JoinValidation extends ActionRunnable<Void> {
         private final DiscoveryNode discoveryNode;
 
-        JoinValidation(DiscoveryNode discoveryNode, ActionListener<TransportResponse.Empty> listener) {
+        JoinValidation(DiscoveryNode discoveryNode, ActionListener<Void> listener) {
             super(listener);
             this.discoveryNode = discoveryNode;
         }
@@ -342,11 +345,7 @@ public class JoinValidationService {
                     JoinHelper.JOIN_PING_ACTION_NAME,
                     TransportRequest.Empty.INSTANCE,
                     REQUEST_OPTIONS,
-                    new ActionListenerResponseHandler<>(
-                        listener,
-                        in -> TransportResponse.Empty.INSTANCE,
-                        ThreadPool.Names.CLUSTER_COORDINATION
-                    )
+                    TransportResponseHandler.empty(responseExecutor, listener)
                 );
                 return;
             }
@@ -358,9 +357,9 @@ public class JoinValidationService {
                 new BytesTransportRequest(bytes, version),
                 REQUEST_OPTIONS,
                 new CleanableResponseHandler<>(
-                    listener,
+                    listener.map(ignored -> null),
                     in -> TransportResponse.Empty.INSTANCE,
-                    ThreadPool.Names.CLUSTER_COORDINATION,
+                    responseExecutor,
                     bytes::decRef
                 )
             );

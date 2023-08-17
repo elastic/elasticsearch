@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchRoleRestrictionException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -32,9 +31,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -1479,8 +1478,6 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteCluster() throws ExecutionException, InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final RemoteIndicesPermission.Builder remoteIndicesBuilder = RemoteIndicesPermission.builder();
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final int numGroups = randomIntBetween(1, 3);
@@ -1561,8 +1558,6 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterHasDeterministicOrderForIndicesPrivileges() throws ExecutionException,
         InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final RemoteIndicesPermission.Builder remoteIndicesBuilder = RemoteIndicesPermission.builder();
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final int numGroups = randomIntBetween(2, 5);
@@ -1618,8 +1613,6 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterWithoutMatchingGroups() throws ExecutionException, InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final Role role = createSimpleRoleWithRemoteIndices(
             RemoteIndicesPermission.builder()
@@ -1648,8 +1641,6 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterWithoutRemoteIndicesPermissions() throws ExecutionException,
         InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final Role role = createSimpleRoleWithRemoteIndices(RemoteIndicesPermission.NONE);
         final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
@@ -1666,8 +1657,6 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsForRemoteClusterForReservedRoles() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
 
@@ -1898,7 +1887,9 @@ public class RBACEngineTests extends ESTestCase {
             .collect(
                 Collectors.toMap(
                     i -> i,
-                    v -> new IndexAbstraction.ConcreteIndex(IndexMetadata.builder(v).settings(indexSettings(Version.CURRENT, 1, 0)).build())
+                    v -> new IndexAbstraction.ConcreteIndex(
+                        IndexMetadata.builder(v).settings(indexSettings(IndexVersion.current(), 1, 0)).build()
+                    )
                 )
             );
 

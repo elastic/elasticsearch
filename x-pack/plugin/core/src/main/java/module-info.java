@@ -42,6 +42,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.aggregatemetric;
     exports org.elasticsearch.xpack.core.analytics.action;
     exports org.elasticsearch.xpack.core.analytics;
+    exports org.elasticsearch.xpack.core.api.filtering;
     exports org.elasticsearch.xpack.core.application;
     exports org.elasticsearch.xpack.core.archive;
     exports org.elasticsearch.xpack.core.async;
@@ -61,6 +62,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.enrich.action;
     exports org.elasticsearch.xpack.core.enrich;
     exports org.elasticsearch.xpack.core.eql;
+    exports org.elasticsearch.xpack.core.esql;
     exports org.elasticsearch.xpack.core.frozen.action;
     exports org.elasticsearch.xpack.core.frozen;
     exports org.elasticsearch.xpack.core.graph.action;
@@ -97,6 +99,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident;
+    exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel;
@@ -139,6 +142,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.security.action.service;
     exports org.elasticsearch.xpack.core.security.action.token;
     exports org.elasticsearch.xpack.core.security.action.user;
+    exports org.elasticsearch.xpack.core.security.action.settings;
     exports org.elasticsearch.xpack.core.security.action;
     exports org.elasticsearch.xpack.core.security.authc.esnative;
     exports org.elasticsearch.xpack.core.security.authc.file;

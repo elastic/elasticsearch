@@ -27,6 +27,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
@@ -225,7 +226,11 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
                 node.get(),
                 actionName,
                 request,
-                new ActionListenerResponseHandler<>(listener, ExplainDataFrameAnalyticsAction.Response::new)
+                new ActionListenerResponseHandler<>(
+                    listener,
+                    ExplainDataFrameAnalyticsAction.Response::new,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                )
             );
         } else {
             listener.onFailure(ExceptionsHelper.badRequestException("No ML, data or ingest node to run on"));

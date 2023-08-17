@@ -1,0 +1,6 @@
+pr: 97110
+summary: Copy "index.lifecycle.name" for ILM managed indices
+area: Downsampling
+type: bug
+issues:
+ - 96732

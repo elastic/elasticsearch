@@ -86,7 +86,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("creating an index with 1 shard, no replica");
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
@@ -151,7 +151,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(index)
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
                     .putInSyncAllocationIds(0, Collections.singleton("asdf"))
@@ -367,7 +367,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(index)
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
                     .putInSyncAllocationIds(0, Collections.singleton("asdf"))
@@ -424,7 +424,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("--> building initial routing table");
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
@@ -713,9 +713,9 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("node-0", Version.V_8_10_0))
-                    .add(newNode("node-1", Version.V_8_9_0))
-                    .add(newNode("node-2", Version.V_8_9_0))
+                    .add(newNode("node-0", Version.V_8_10_0, IndexVersion.V_8_10_0))
+                    .add(newNode("node-1", Version.V_8_9_0, IndexVersion.V_8_9_0))
+                    .add(newNode("node-2", Version.V_8_9_0, IndexVersion.V_8_9_0))
             )
             .metadata(Metadata.builder().put(indexMetadata, false))
             .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(shardId.getIndex()).addShard(primary).addShard(replica)))
@@ -844,7 +844,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("creating an index with 1 shard, no replica");
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
@@ -912,7 +912,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("creating an index with 1 shard, no replica");
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
@@ -987,7 +987,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(index1)
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
                     .putInSyncAllocationIds(0, Collections.singleton("randomAllocID"))
@@ -995,7 +995,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             )
             .put(
                 IndexMetadata.builder(index2)
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
                     .putInSyncAllocationIds(0, Collections.singleton("randomAllocID"))
@@ -1003,7 +1003,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             )
             .put(
                 IndexMetadata.builder(index3)
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
                     .putInSyncAllocationIds(0, Collections.singleton("randomAllocID"))

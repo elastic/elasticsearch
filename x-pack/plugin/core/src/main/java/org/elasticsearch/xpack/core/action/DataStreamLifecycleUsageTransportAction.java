@@ -60,7 +60,8 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
 
         final Collection<DataStream> dataStreams = state.metadata().dataStreams().values();
         LongSummaryStatistics retentionStats = dataStreams.stream()
-            .filter(ds -> ds.getLifecycle() != null)
+            .filter(ds -> ds.getLifecycle() != null && ds.getLifecycle().isEnabled())
+            .filter(ds -> ds.getLifecycle().getEffectiveDataRetention() != null)
             .collect(Collectors.summarizingLong(ds -> ds.getLifecycle().getEffectiveDataRetention().getMillis()));
         long dataStreamsWithLifecycles = retentionStats.getCount();
         long minRetention = dataStreamsWithLifecycles == 0 ? 0 : retentionStats.getMin();

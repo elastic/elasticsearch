@@ -13,6 +13,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.application.AbstractRestEnterpriseSearchActionTests;
 import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
+import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 import java.util.Map;
 
@@ -21,7 +22,8 @@ public class RestPutAnalyticsCollectionActionTests extends AbstractRestEnterpris
         checkLicenseForRequest(
             new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.PUT)
                 .withParams(Map.of("collection_name", "my-collection"))
-                .build()
+                .build(),
+            LicenseUtils.Product.BEHAVIORAL_ANALYTICS
         );
     }
 

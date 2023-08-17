@@ -304,7 +304,7 @@ class SnippetsTask extends DefaultTask {
     }
 
     static Source matchSource(String line) {
-        def matcher = line =~ /\["?source"?,\s*"?([-\w]+)"?(,((?!id=).)*(id="?([-\w]+)"?)?(.*))?].*/
+        def matcher = line =~ /\["?source"?(?:\.[^,]+)?,\s*"?([-\w]+)"?(,((?!id=).)*(id="?([-\w]+)"?)?(.*))?].*/
         if(matcher.matches()){
             return new Source(matches: true, language: matcher.group(1),  name: matcher.group(5))
         }

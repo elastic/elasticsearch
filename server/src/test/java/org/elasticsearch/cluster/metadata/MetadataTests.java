@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,7 +38,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -93,7 +92,7 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("index")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder("alias1").build())
@@ -150,7 +149,7 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("index")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder("alias1").build())
@@ -183,7 +182,7 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("index")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder("aa").build())
@@ -218,7 +217,7 @@ public class MetadataTests extends ESTestCase {
         Metadata.Builder metadataBuilder = Metadata.builder();
         for (String index : indices) {
             IndexMetadata.Builder indexBuilder = IndexMetadata.builder(index)
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             aliasToIndices.forEach((key, value) -> {
@@ -290,12 +289,12 @@ public class MetadataTests extends ESTestCase {
         Boolean indexBHidden
     ) {
         IndexMetadata.Builder indexAMeta = IndexMetadata.builder(indexAName)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder(aliasName).isHidden(indexAHidden).build());
         IndexMetadata.Builder indexBMeta = IndexMetadata.builder(indexBName)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder(aliasName).isHidden(indexBHidden).build());
@@ -304,7 +303,7 @@ public class MetadataTests extends ESTestCase {
 
     public void testResolveIndexRouting() {
         IndexMetadata.Builder builder = IndexMetadata.builder("index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder("alias0").build())
@@ -346,7 +345,7 @@ public class MetadataTests extends ESTestCase {
         );
 
         IndexMetadata.Builder builder2 = IndexMetadata.builder("index2")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder("alias0").build());
@@ -366,7 +365,7 @@ public class MetadataTests extends ESTestCase {
             aliasZeroBuilder.writeIndex(true);
         }
         IndexMetadata.Builder builder = IndexMetadata.builder("index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(aliasZeroBuilder.build())
@@ -423,7 +422,7 @@ public class MetadataTests extends ESTestCase {
             aliasZeroBuilder.writeIndex(false);
         }
         IndexMetadata.Builder builder2 = IndexMetadata.builder("index2")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(aliasZeroBuilderTwo.build())
@@ -589,8 +588,8 @@ public class MetadataTests extends ESTestCase {
 
     public void testFindMappings() throws IOException {
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("index1").settings(indexSettings(Version.CURRENT, 1, 0)).putMapping(FIND_MAPPINGS_TEST_ITEM))
-            .put(IndexMetadata.builder("index2").settings(indexSettings(Version.CURRENT, 1, 0)).putMapping(FIND_MAPPINGS_TEST_ITEM))
+            .put(IndexMetadata.builder("index1").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(FIND_MAPPINGS_TEST_ITEM))
+            .put(IndexMetadata.builder("index2").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(FIND_MAPPINGS_TEST_ITEM))
             .build();
 
         {
@@ -635,7 +634,7 @@ public class MetadataTests extends ESTestCase {
         );
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("index1").settings(indexSettings(Version.CURRENT, 1, 0)).putMapping(originalMappingMetadata))
+            .put(IndexMetadata.builder("index1").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(originalMappingMetadata))
             .build();
 
         {
@@ -671,9 +670,9 @@ public class MetadataTests extends ESTestCase {
         }
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("index1").settings(indexSettings(Version.CURRENT, 1, 0)).putMapping(mapping))
-            .put(IndexMetadata.builder("index2").settings(indexSettings(Version.CURRENT, 1, 0)).putMapping(mapping))
-            .put(IndexMetadata.builder("index3").settings(indexSettings(Version.CURRENT, 1, 0)).putMapping(mapping))
+            .put(IndexMetadata.builder("index1").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(mapping))
+            .put(IndexMetadata.builder("index2").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(mapping))
+            .put(IndexMetadata.builder("index3").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(mapping))
             .build();
 
         {
@@ -996,7 +995,11 @@ public class MetadataTests extends ESTestCase {
         Metadata.Builder b = Metadata.builder()
             .put(idx, false)
             .put(
-                IndexMetadata.builder(dataStreamName).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build(),
+                IndexMetadata.builder(dataStreamName)
+                    .settings(settings(IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+                    .build(),
                 false
             )
             .put(newInstance(dataStreamName, List.of(idx.getIndex())));
@@ -1050,7 +1053,7 @@ public class MetadataTests extends ESTestCase {
         for (int k = 1; k <= numBackingIndices; k++) {
             lastBackingIndexNum = randomIntBetween(lastBackingIndexNum + 1, lastBackingIndexNum + 50);
             IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, lastBackingIndexNum))
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();
@@ -1148,7 +1151,9 @@ public class MetadataTests extends ESTestCase {
 
         b = Metadata.builder();
         b.put(
-            IndexMetadata.builder("index1").settings(indexSettings(Version.CURRENT, 1, 0)).putAlias(new AliasMetadata.Builder("my-alias"))
+            IndexMetadata.builder("index1")
+                .settings(indexSettings(IndexVersion.current(), 1, 0))
+                .putAlias(new AliasMetadata.Builder("my-alias"))
         );
 
         addDataStream("d1", b);
@@ -1176,7 +1181,9 @@ public class MetadataTests extends ESTestCase {
 
         b = Metadata.builder();
         b.put(
-            IndexMetadata.builder("index1").settings(indexSettings(Version.CURRENT, 1, 0)).putAlias(new AliasMetadata.Builder("my-alias"))
+            IndexMetadata.builder("index1")
+                .settings(indexSettings(IndexVersion.current(), 1, 0))
+                .putAlias(new AliasMetadata.Builder("my-alias"))
         );
         b.dataStreams(Map.of("d1", createDataStream("d1")), Map.of("my-alias", new DataStreamAlias("my-alias", List.of("d1"), null, null)));
         e = expectThrows(IllegalStateException.class, b::build);
@@ -1244,18 +1251,20 @@ public class MetadataTests extends ESTestCase {
         String dataStreamName = "foo-datastream";
         Metadata metadata = Metadata.builder(createIndices(10, 10, dataStreamName).metadata)
             .put(
-                new IndexMetadata.Builder(dataStreamName + "-index-without-counter").settings(settings(Version.CURRENT))
+                new IndexMetadata.Builder(dataStreamName + "-index-without-counter").settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
             )
             .put(
-                new IndexMetadata.Builder(dataStreamName + randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+                new IndexMetadata.Builder(dataStreamName + randomAlphaOfLength(10)).settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
 
             )
             .put(
-                new IndexMetadata.Builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1)
+                new IndexMetadata.Builder(randomAlphaOfLength(10)).settings(settings(IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
 
             )
             .build();
@@ -1269,7 +1278,7 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = Metadata.builder(createIndices(10, 10, dataStreamName).metadata)
             .put(
                 new IndexMetadata.Builder(DataStream.BACKING_INDEX_PREFIX + dataStreamName + "-something-100012").settings(
-                    settings(Version.CURRENT)
+                    settings(IndexVersion.current())
                 ).numberOfShards(1).numberOfReplicas(1)
             )
             .build();
@@ -1280,7 +1289,7 @@ public class MetadataTests extends ESTestCase {
 
     public void testValidateDataStreamsForNullDataStreamMetadata() {
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("foo-index").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("foo-index").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
         try {
@@ -1578,7 +1587,7 @@ public class MetadataTests extends ESTestCase {
             Metadata.Builder builder = Metadata.builder(previous);
             builder.put(
                 IndexMetadata.builder(indexName)
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .creationDate(randomNonNegativeLong())
                     .numberOfShards(1)
                     .numberOfReplicas(0)
@@ -1658,7 +1667,7 @@ public class MetadataTests extends ESTestCase {
                 String indexName = aliasName + "-" + j;
                 builder.put(
                     IndexMetadata.builder(indexName)
-                        .settings(settings(Version.CURRENT))
+                        .settings(settings(IndexVersion.current()))
                         .creationDate(randomNonNegativeLong())
                         .numberOfShards(1)
                         .numberOfReplicas(0)
@@ -1684,7 +1693,7 @@ public class MetadataTests extends ESTestCase {
         {
             builder.put(
                 IndexMetadata.builder(newAliasName + "-1")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .creationDate(randomNonNegativeLong())
                     .numberOfShards(1)
                     .numberOfReplicas(0)
@@ -1755,12 +1764,12 @@ public class MetadataTests extends ESTestCase {
     public void testHiddenAliasValidation() {
         final String hiddenAliasName = "hidden_alias";
 
-        IndexMetadata hidden1 = buildIndexWithAlias("hidden1", hiddenAliasName, true, Version.CURRENT, false);
-        IndexMetadata hidden2 = buildIndexWithAlias("hidden2", hiddenAliasName, true, Version.CURRENT, false);
-        IndexMetadata hidden3 = buildIndexWithAlias("hidden3", hiddenAliasName, true, Version.CURRENT, false);
+        IndexMetadata hidden1 = buildIndexWithAlias("hidden1", hiddenAliasName, true, IndexVersion.current(), false);
+        IndexMetadata hidden2 = buildIndexWithAlias("hidden2", hiddenAliasName, true, IndexVersion.current(), false);
+        IndexMetadata hidden3 = buildIndexWithAlias("hidden3", hiddenAliasName, true, IndexVersion.current(), false);
 
-        IndexMetadata nonHidden = buildIndexWithAlias("nonhidden1", hiddenAliasName, false, Version.CURRENT, false);
-        IndexMetadata unspecified = buildIndexWithAlias("nonhidden2", hiddenAliasName, null, Version.CURRENT, false);
+        IndexMetadata nonHidden = buildIndexWithAlias("nonhidden1", hiddenAliasName, false, IndexVersion.current(), false);
+        IndexMetadata unspecified = buildIndexWithAlias("nonhidden2", hiddenAliasName, null, IndexVersion.current(), false);
 
         {
             // Should be ok:
@@ -1853,14 +1862,14 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testSystemAliasValidationMixedVersionSystemAndRegularFails() {
-        final Version random7xVersion = VersionUtils.randomVersionBetween(
+        final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            Version.V_7_0_0,
-            VersionUtils.getPreviousVersion(Version.V_8_0_0)
+            IndexVersion.V_7_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0)
         );
-        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
         final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
-        final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, Version.CURRENT, false);
+        final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, IndexVersion.current(), false);
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
@@ -1881,8 +1890,8 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testSystemAliasValidationNewSystemAndRegularFails() {
-        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
-        final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, Version.CURRENT, false);
+        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
+        final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, IndexVersion.current(), false);
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
@@ -1903,26 +1912,26 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testSystemAliasOldSystemAndNewRegular() {
-        final Version random7xVersion = VersionUtils.randomVersionBetween(
+        final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            Version.V_7_0_0,
-            VersionUtils.getPreviousVersion(Version.V_8_0_0)
+            IndexVersion.V_7_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0)
         );
         final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
-        final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, Version.CURRENT, false);
+        final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, IndexVersion.current(), false);
 
         // Should be ok:
         metadataWithIndices(oldVersionSystem, regularIndex);
     }
 
     public void testSystemIndexValidationAllRegular() {
-        final Version random7xVersion = VersionUtils.randomVersionBetween(
+        final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            Version.V_7_0_0,
-            VersionUtils.getPreviousVersion(Version.V_8_0_0)
+            IndexVersion.V_7_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0)
         );
-        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
-        final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
+        final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
         final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
 
         // Should be ok
@@ -1930,13 +1939,13 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testSystemAliasValidationAllSystemSomeOld() {
-        final Version random7xVersion = VersionUtils.randomVersionBetween(
+        final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            Version.V_7_0_0,
-            VersionUtils.getPreviousVersion(Version.V_8_0_0)
+            IndexVersion.V_7_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0)
         );
-        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
-        final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
+        final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
         final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
 
         // Should be ok:
@@ -1944,8 +1953,8 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testSystemAliasValidationAll8x() {
-        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
-        final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
+        final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
 
         // Should be ok
         metadataWithIndices(currentVersionSystem, currentVersionSystem2);
@@ -1963,7 +1972,7 @@ public class MetadataTests extends ESTestCase {
         String indexName,
         String aliasName,
         @Nullable Boolean aliasIsHidden,
-        Version indexCreationVersion,
+        IndexVersion indexCreationVersion,
         boolean isSystem
     ) {
         final AliasMetadata.Builder aliasMetadata = new AliasMetadata.Builder(aliasName);
@@ -1997,7 +2006,7 @@ public class MetadataTests extends ESTestCase {
             Metadata.Builder mb = new Metadata.Builder();
             for (int i = 0; i < numIndices; i++) {
                 IndexMetadata.Builder indexBuilder = IndexMetadata.builder("index-" + i)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                     .putMapping(definitions[i % randomMappingDefinitions.size()])
                     .numberOfShards(1)
                     .numberOfReplicas(0);
@@ -2022,7 +2031,7 @@ public class MetadataTests extends ESTestCase {
             Metadata.Builder mb = new Metadata.Builder(metadata);
             mb.put(
                 IndexMetadata.builder("index-" + numIndices)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                     .putMapping(mapping)
                     .numberOfShards(1)
                     .numberOfReplicas(0)
@@ -2069,7 +2078,7 @@ public class MetadataTests extends ESTestCase {
             Metadata.Builder mb = new Metadata.Builder(metadata);
             mb.put(
                 IndexMetadata.builder("index-" + numIndices)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                     .putMapping(newMapping)
                     .numberOfShards(1)
                     .numberOfReplicas(0)
@@ -2094,7 +2103,7 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata1 = Metadata.builder(randomMetadata())
             .put(
                 IndexMetadata.builder(indexName)
-                    .settings(settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))
+                    .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))
                     .creationDate(randomNonNegativeLong())
                     .numberOfShards(1)
                     .numberOfReplicas(0)
@@ -2271,7 +2280,7 @@ public class MetadataTests extends ESTestCase {
         Metadata.Builder b = Metadata.builder();
         for (int k = 1; k <= numIndices; k++) {
             IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("index", lastIndexNum))
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();
@@ -2286,7 +2295,7 @@ public class MetadataTests extends ESTestCase {
         for (int k = 1; k <= numBackingIndices; k++) {
             lastBackingIndexNum = randomIntBetween(lastBackingIndexNum + 1, lastBackingIndexNum + 50);
             IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, lastBackingIndexNum))
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();

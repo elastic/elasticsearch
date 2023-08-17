@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
@@ -1152,16 +1153,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     }
 
     public void testExplainRolesOutput() throws Exception {
-        logger.info("--> starting 1 node");
-        List<String> nodes = internalCluster().startNodes(1);
-
-        logger.info("--> shutting down node in order to restart with specific 'roles' setting");
-        Settings settings = internalCluster().dataPathSettings(nodes.get(0));
-        internalCluster().stopNode(nodes.get(0));
-
-        logger.info("--> restarting the stopped node with 'roles' setting added");
+        logger.info("--> starting 1 node with 'roles' setting specified");
         Settings roleSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data_hot", "ingest")).build();
-        internalCluster().startNode(Settings.builder().put(settings).put(roleSettings).build());
+        internalCluster().startNode(Settings.builder().put(roleSettings).build());
         ensureStableCluster(1);
         prepareIndex(1, 0);
 
@@ -1169,24 +1163,24 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         boolean includeDiskInfo = randomBoolean();
         ClusterAllocationExplanation explanation = runExplain(true, includeYesDecisions, includeDiskInfo);
 
-        DiscoveryNode currentNode = explanation.getCurrentNode();
-        assertTrue(currentNode.isMasterNode());
-        assertTrue(currentNode.isIngestNode());
-        assertTrue(currentNode.isHotDataNode());
+        assertEquals(
+            Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE),
+            explanation.getCurrentNode().getRoles());
 
         try (XContentParser parser = getParser(explanation)) {
             // Fast-forward to the "current_node" object, which contains "roles".
             do {
                 parser.nextToken();
                 assertNotEquals(Token.END_OBJECT, parser.currentToken());
-            } while (parser.currentName() != "current_node");
+            // The START_OBJECT has a null currentName(), so check for that before de-referencing.
+            } while (parser.currentName() == null || (parser.currentName().equals("current_node")) == false);
             assertEquals(Token.START_OBJECT, parser.nextToken());
 
             // Fast-forward to "roles" field in the "current_node" object.
             do {
                 parser.nextToken();
                 assertNotEquals(Token.END_OBJECT, parser.currentToken());
-            } while (parser.currentName() != "roles");
+            } while ((parser.currentName().equals("roles")) == false);
 
             // Check that the "roles" reported are those explicitly set via the node Settings.
             // Note: list() implicitly consumes the parser START_ARRAY and END_ARRAY tokens.

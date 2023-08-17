@@ -111,13 +111,11 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
             }
             builder.endObject();
         }
-        if (node.getRoles().isEmpty() == false) {
-            builder.startArray("roles");
-            for (DiscoveryNodeRole role : node.getRoles()) {
-                builder.value(role.roleName());
-            }
-            builder.endArray();
+        builder.startArray("roles");
+        for (DiscoveryNodeRole role : node.getRoles()) {
+            builder.value(role.roleName());
         }
+        builder.endArray();
         return builder;
     }
 

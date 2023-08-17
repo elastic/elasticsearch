@@ -35,6 +35,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction.findShardToExplain;
 import static org.hamcrest.Matchers.allOf;
@@ -109,20 +110,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             cae.getCurrentNode().getId(),
             cae.getCurrentNode().getName(),
             cae.getCurrentNode().getAddress(),
-            "data",  // begin roles array
-            "data_cold",
-            "data_content",
-            "data_frozen",
-            "data_hot",
-            "data_warm",
-            "index",
-            "ingest",
-            "master",
-            "ml",
-            "remote_cluster_client",
-            "search",
-            "transform",
-            "voting_only",  // end roles array
+            cae.getCurrentNode().getRoles().stream().map(r -> '"' + r.roleName() + '"').collect(Collectors.joining(", ", "[", "]")),
             explanation };
         assertEquals(XContentHelper.stripWhitespace(Strings.format("""
             {
@@ -135,7 +123,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                 "id": "%s",
                 "name": "%s",
                 "transport_address": "%s",
-                "roles": ["%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s"]
+                "roles": %s
               },
               "explanation": "%s"
             }""", args)), Strings.toString(builder));

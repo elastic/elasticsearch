@@ -66,6 +66,7 @@ public class TransportTermsEnumActionTests extends ESSingleNodeTestCase {
     /**
      * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98557")
     public void testCCSCheckCompatibility() throws Exception {
         TermsEnumRequest request = new TermsEnumRequest().field("field").timeout(TimeValue.timeValueSeconds(5));
         request.indexFilter(new DummyQueryBuilder() {

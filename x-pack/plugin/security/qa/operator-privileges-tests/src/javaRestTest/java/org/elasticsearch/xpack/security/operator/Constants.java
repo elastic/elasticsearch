@@ -475,6 +475,7 @@ public class Constants {
         "indices:admin/xpack/ccr/unfollow",
         "indices:admin/xpack/downsample",
         "indices:admin/xpack/downsample_indexer",
+        "indices:data/read/downsample_delegate",
         "indices:data/read/async_search/delete",
         "indices:data/read/async_search/get",
         "indices:data/read/async_search/submit",

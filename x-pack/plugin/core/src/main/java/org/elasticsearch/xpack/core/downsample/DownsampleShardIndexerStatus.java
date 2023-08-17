@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.rollup.action;
+package org.elasticsearch.xpack.core.downsample;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,15 +16,15 @@ import java.io.IOException;
 /**
  * Status of the rollup indexer task
  */
-public enum RollupShardIndexerStatus implements Writeable {
+public enum DownsampleShardIndexerStatus implements Writeable {
     INITIALIZED,
     STARTED,
     FAILED,
     COMPLETED,
     CANCELLED;
 
-    public static RollupShardIndexerStatus readFromStream(final StreamInput in) throws IOException {
-        return in.readEnum(RollupShardIndexerStatus.class);
+    public static DownsampleShardIndexerStatus readFromStream(final StreamInput in) throws IOException {
+        return in.readEnum(DownsampleShardIndexerStatus.class);
     }
 
     @Override

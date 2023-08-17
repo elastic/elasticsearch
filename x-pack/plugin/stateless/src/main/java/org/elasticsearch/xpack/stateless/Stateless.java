@@ -345,7 +345,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         components.add(consistencyService);
         var translogReplicator = setAndGet(
             this.translogReplicator,
-            new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService)
+            new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService, indicesService)
         );
         components.add(translogReplicator);
         var refreshThrottlingService = setAndGet(this.refreshThrottlingService, new RefreshThrottlingService(settings, clusterService));
@@ -642,6 +642,15 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                                 statelessCommitService.markRecoveredCommit(shardId, commit);
                             }
                             statelessCommitService.addConsumerForNewUploadedCommit(shardId, indexDirectory::updateCommit);
+
+                            final TranslogReplicator localTranslogReplicator = translogReplicator.get();
+                            statelessCommitService.addConsumerForNewUploadedCommit(
+                                indexShard.shardId(),
+                                statelessCompoundCommit -> localTranslogReplicator.markShardCommitUploaded(
+                                    indexShard.shardId(),
+                                    statelessCompoundCommit.translogRecoveryStartFile()
+                                )
+                            );
                         }
                     } finally {
                         store.decRef();

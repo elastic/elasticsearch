@@ -35,26 +35,22 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class IdLoaderTests extends ESTestCase {
 
-    public void testSimpleSynthesizeId() throws Exception {
-        var settings = indexSettings(IndexVersion.current(), 2, 1).put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-01T00:00:00.000Z")
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2001-01-01T00:00:00.000Z")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim1")
-            .build();
-        var indexMetadata = IndexMetadata.builder("index").settings(settings).build();
-        var routing = (IndexRouting.ExtractFromSource) IndexRouting.fromIndexMetadata(indexMetadata);
-        var idLoader = IdLoader.createTsIdLoader(routing, List.of("dim1"));
+    public void testSynthesizeIdSimple() throws Exception {
+        var routingPaths = List.of("dim1");
+        var routing = createRouting(routingPaths);
+        var idLoader = IdLoader.createTsIdLoader(routing, routingPaths);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs = List.of(
             new Doc(startTime, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx"))),
-            new Doc(startTime + 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"))),
+            new Doc(startTime + 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"), new Dimension("dim3", 5))),
             new Doc(startTime + 2, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "xxx")))
         );
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = writer -> {
@@ -71,6 +67,65 @@ public class IdLoaderTests extends ESTestCase {
             assertThat(leaf.getId(0), equalTo(expectedId(routing, docs.get(0))));
             assertThat(leaf.getId(1), equalTo(expectedId(routing, docs.get(1))));
             assertThat(leaf.getId(2), equalTo(expectedId(routing, docs.get(2))));
+        };
+        prepareIndexReader(buildIndex, verify);
+    }
+
+    public void testSynthesizeIdMultipleeSegments() throws Exception {
+        var routingPaths = List.of("dim1");
+        var routing = createRouting(routingPaths);
+        var idLoader = IdLoader.createTsIdLoader(routing, routingPaths);
+
+        long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
+        List<Doc> docs = List.of(
+            new Doc(startTime, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx"))),
+            new Doc(startTime + 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"))),
+            new Doc(startTime + 2, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "xxx")))
+        );
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = writer -> {
+            for (Doc doc : docs) {
+                indexDoc(routing, writer, doc);
+                writer.flush();
+            }
+        };
+        CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
+            assertThat(indexReader.leaves(), hasSize(1));
+            LeafReader leafReader = indexReader.leaves().get(0).reader();
+            assertThat(leafReader.numDocs(), equalTo(docs.size()));
+            var leaf = idLoader.leaf(null, leafReader, IntStream.range(0, docs.size()).toArray());
+            for (int i = 0; i < docs.size(); i++) {
+                assertThat(leaf.getId(i), equalTo(expectedId(routing, docs.get(i))));
+            }
+        };
+        prepareIndexReader(buildIndex, verify);
+    }
+
+    public void testSynthesizeId() throws Exception {
+        var routingPaths = List.of("dim1");
+        var routing = createRouting(routingPaths);
+        var idLoader = IdLoader.createTsIdLoader(routing, routingPaths);
+
+        long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
+        List<Doc> docs = List.of(
+            new Doc(startTime, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx"))),
+            new Doc(startTime + 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"))),
+            new Doc(startTime + 2, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "xxx"))),
+            new Doc(startTime + 3, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "xxx")))
+        );
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = writer -> {
+            for (Doc doc : docs) {
+                indexDoc(routing, writer, doc);
+            }
+            writer.forceMerge(1);
+        };
+        CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
+            assertThat(indexReader.leaves(), hasSize(1));
+            LeafReader leafReader = indexReader.leaves().get(0).reader();
+            assertThat(leafReader.numDocs(), equalTo(docs.size()));
+            var leaf = idLoader.leaf(null, leafReader, IntStream.range(0, docs.size()).toArray());
+            for (int i = 0; i < docs.size(); i++) {
+                assertThat(leaf.getId(i), equalTo(expectedId(routing, docs.get(i))));
+            }
         };
         prepareIndexReader(buildIndex, verify);
     }
@@ -128,6 +183,16 @@ public class IdLoaderTests extends ESTestCase {
             doc.timestamp,
             new byte[16]
         );
+    }
+
+    private static IndexRouting.ExtractFromSource createRouting(List<String> routingPaths) {
+        var settings = indexSettings(IndexVersion.current(), 2, 1).put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-01T00:00:00.000Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2001-01-01T00:00:00.000Z")
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPaths)
+            .build();
+        var indexMetadata = IndexMetadata.builder("index").settings(settings).build();
+        return (IndexRouting.ExtractFromSource) IndexRouting.fromIndexMetadata(indexMetadata);
     }
 
     record Doc(long timestamp, List<Dimension> dimensions) {}

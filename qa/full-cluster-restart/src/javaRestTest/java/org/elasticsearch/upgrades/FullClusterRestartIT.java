@@ -386,7 +386,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         return numDocs;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98555")
     public void testClusterState() throws Exception {
         if (isRunningAgainstOldCluster()) {
             XContentBuilder mappingsAndSettings = jsonBuilder();

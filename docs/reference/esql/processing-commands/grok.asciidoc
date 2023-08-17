@@ -1,0 +1,20 @@
+[[esql-grok]]
+=== `GROK`
+
+`GROK` enables you to extract structured data out of a string. `GROK` matches
+the string against patterns, based on regular expressions, and extracts the
+specified patterns as columns.
+
+Refer to the <<grok-processor,grok processor documentation>> for the syntax for
+of grok patterns.
+
+For example:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/grok.csv-spec[tag=grok]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/grok.csv-spec[tag=grok-result]
+|===

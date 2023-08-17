@@ -86,7 +86,20 @@ import static org.mockito.Mockito.when;
  * Base class for testing {@link Mapper}s.
  */
 public abstract class MapperTestCase extends MapperServiceTestCase {
+
+    public static final IndexVersion DEPRECATED_BOOST_INDEX_VERSION = IndexVersion.V_7_10_0;
+
     protected abstract void minimalMapping(XContentBuilder b) throws IOException;
+
+    /**
+     * Provides a way for subclasses to define minimal mappings for previous index versions
+     * @param b content builder to use for building the minimal mapping
+     * @param indexVersion index version the mapping should be created for
+     * @throws IOException
+     */
+    protected void minimalMapping(XContentBuilder b, IndexVersion indexVersion) throws IOException {
+        minimalMapping(b);
+    }
 
     /**
      * Writes the field and a sample value for it to the provided {@link XContentBuilder}.
@@ -476,8 +489,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testDeprecatedBoost() throws IOException {
         try {
-            createMapperService(IndexVersion.V_7_10_0, fieldMapping(b -> {
-                minimalMapping(b);
+            createMapperService(DEPRECATED_BOOST_INDEX_VERSION, fieldMapping(b -> {
+                minimalMapping(b, DEPRECATED_BOOST_INDEX_VERSION);
                 b.field("boost", 2.0);
             }));
             String[] warnings = Strings.concatStringArrays(

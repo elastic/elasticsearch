@@ -1,0 +1,12 @@
+[[esql-date_trunc]]
+=== `DATE_TRUNC`
+Rounds down a date to the closest interval. Intervals can be expressed using the
+<<esql-timespan-literals,timespan literal syntax>>.
+
+[source,esql]
+----
+FROM employees
+| EVAL year_hired = DATE_TRUNC(hire_date, 1 year)
+| STATS count(emp_no) BY year_hired
+| SORT year_hired
+----

@@ -409,7 +409,10 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
     }
 
     private static XContentBuilder getMappings(String version) {
-        return getMappings(builder -> builder.object("_meta", meta -> meta.field("version", version)));
+        return getMappings(builder -> builder.object("_meta", meta -> {
+            meta.field("version", version);
+            meta.field(SystemIndexDescriptor.VERSION_META_KEY, 5);
+        }));
     }
 
     // Prior to 7.12.0, .tasks had _meta.version: 3 so we need to be sure we can handle that

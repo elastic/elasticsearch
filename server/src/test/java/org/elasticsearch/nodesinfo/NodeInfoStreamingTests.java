@@ -108,11 +108,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         Build build = Build.current();
         DiscoveryNode node = DiscoveryNodeUtils.builder("test_node")
             .roles(emptySet())
-            .version(
-                VersionUtils.randomVersion(random()),
-                IndexVersion.MINIMUM_COMPATIBLE,
-                IndexVersionUtils.randomCompatibleVersion(random())
-            )
+            .version(VersionUtils.randomVersion(random()), IndexVersion.ZERO, IndexVersionUtils.randomVersion())
             .build();
         Settings settings = randomBoolean() ? null : Settings.builder().put("test", "setting").build();
         OsInfo osInfo = null;

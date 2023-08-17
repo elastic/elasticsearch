@@ -663,11 +663,7 @@ public class NodeStatsTests extends ESTestCase {
     public static NodeStats createNodeStats() {
         DiscoveryNode node = DiscoveryNodeUtils.builder("test_node")
             .roles(emptySet())
-            .version(
-                VersionUtils.randomVersion(random()),
-                IndexVersion.MINIMUM_COMPATIBLE,
-                IndexVersionUtils.randomCompatibleVersion(random())
-            )
+            .version(VersionUtils.randomVersion(random()), IndexVersion.ZERO, IndexVersionUtils.randomVersion())
             .build();
         NodeIndicesStats nodeIndicesStats = null;
         if (frequently()) {

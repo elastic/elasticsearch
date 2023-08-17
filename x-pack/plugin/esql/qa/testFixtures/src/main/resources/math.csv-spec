@@ -1008,6 +1008,14 @@ l:integer
 null
 ;
 
+leastMany
+ROW l=LEAST(10, 5, 1, -100, 0, 1234, -10000);
+
+l:integer
+-10000
+;
+
+
 greatest
 // tag::greatest[]
 ROW a = 10, b=20
@@ -1025,4 +1033,11 @@ ROW g=GREATEST(10, 5, null);
 
 g:integer
 null
+;
+
+greatestMany
+ROW g=GREATEST(10, 5, 1, -100, 0, 1234, -10000);
+
+g:integer
+1234
 ;

@@ -112,7 +112,7 @@ public class DieWithDignityIT extends ESRestTestCase {
         String[] command = new String[] {
             "powershell.exe",
             "-Command",
-            String.format(Locale.ROOT, script, filter);
+            String.format(Locale.ROOT, script, filter)
         };
         ProcessBuilder pb = new ProcessBuilder();
         pb.command(command);

@@ -96,14 +96,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return elementType;
         }, m -> toType(m).elementType, XContentBuilder::field, Objects::toString);
         private final Parameter<Integer> dims;
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, false);
-        private final Parameter<VectorSimilarity> similarity = Parameter.enumParam(
-            "similarity",
-            false,
-            m -> toType(m).similarity,
-            null,
-            VectorSimilarity.class
-        );
+        private final Parameter<Boolean> indexed;
+        private final Parameter<VectorSimilarity> similarity;
         private final Parameter<IndexOptions> indexOptions = new Parameter<>(
             "index_options",
             false,
@@ -122,18 +116,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
 
-            this.indexed.requiresParameter(similarity);
-            this.similarity.setSerializerCheck((id, ic, v) -> v != null);
-            this.similarity.requiresParameter(indexed);
-            this.indexOptions.requiresParameter(indexed);
-            this.indexOptions.setSerializerCheck((id, ic, v) -> v != null);
-        }
-
-        @Override
-        protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { elementType, dims, indexed, similarity, indexOptions, meta };
-        }
-
             this.dims = new Parameter<>(
                 "dims",
                 false,
@@ -142,7 +124,55 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 m -> toType(m).dims,
                 XContentBuilder::field,
                 Objects::toString
-            ).addValidator(dims -> {
+            );
+
+            similarity = Parameter.enumParam("similarity", false, m -> toType(m).similarity, VectorSimilarity.COSINE, VectorSimilarity.class);
+
+            indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+
+            validateParams();
+        }
+
+        public Builder(String name, IndexVersion indexVersionCreated, int dims) {
+            super(name);
+            this.indexVersionCreated = indexVersionCreated;
+
+            this.dims = new Parameter<>(
+                "dims",
+                false,
+                () -> dims,
+                (n, c, o) -> dims,
+                m -> toType(m).dims,
+                XContentBuilder::field,
+                Objects::toString
+            );
+
+            similarity = Parameter.enumParam(
+                "similarity",
+                false,
+                m -> VectorSimilarity.COSINE,
+                VectorSimilarity.COSINE,
+                VectorSimilarity.class
+            );
+
+            indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+
+            if (dims < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING || dims > MAX_DIMS_COUNT) {
+                throw new IllegalArgumentException(
+                    "dims must be in the range [" + MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING + ", " + MAX_DIMS_COUNT + "]"
+                );
+            }
+
+            validateParams();
+        }
+
+        private void validateParams() {
+            this.indexed.requiresParameter(similarity);
+            this.similarity.setSerializerCheck((id, ic, v) -> v != null);
+            this.similarity.requiresParameter(indexed);
+            this.indexOptions.requiresParameter(indexed);
+            this.indexOptions.setSerializerCheck((id, ic, v) -> v != null);
+            dims.addValidator(dims -> {
                 if (dims == null) {
                     throw new MapperParsingException("Missing required parameter [dims] for field [" + name + "]");
                 }
@@ -158,32 +188,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     );
                 }
             });
-        }
-
-        public Builder(String name, IndexVersion indexVersionCreated, int dims) {
-            super(name);
-            this.indexVersionCreated = indexVersionCreated;
-
-            this.indexed.requiresParameter(similarity);
-            this.similarity.setSerializerCheck((id, ic, v) -> v != null);
-            this.similarity.requiresParameter(indexed);
-            this.indexOptions.requiresParameter(indexed);
-            this.indexOptions.setSerializerCheck((id, ic, v) -> v != null);
-
-            if (dims < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING || dims > MAX_DIMS_COUNT) {
-                throw new IllegalArgumentException(
-                    "dims must be in the range [" + MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING + ", " + MAX_DIMS_COUNT + "]"
-                );
-            }
-            this.dims = new Parameter<>(
-                "dims",
-                false,
-                () -> dims,
-                (n, c, o) -> dims,
-                m -> toType(m).dims,
-                XContentBuilder::field,
-                Objects::toString
-            );
         }
 
         @Override
@@ -1124,7 +1128,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexCreatedVersion).init(this);
+        return new Builder(simpleName(), indexCreatedVersion, dims).init(this);
     }
 
     @Override

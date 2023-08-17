@@ -89,4 +89,7 @@ setup:
 
   - match: { test-map-dense-vector.mappings.properties.my_field.type: dense_vector }
   - match: { test-map-dense-vector.mappings.properties.my_field.dims: 128 }
+  - match: { test-map-dense-vector.mappings.properties.my_field.index: true }
+  - match: { test-map-dense-vector.mappings.properties.my_field.similarity: cosine }
+
 

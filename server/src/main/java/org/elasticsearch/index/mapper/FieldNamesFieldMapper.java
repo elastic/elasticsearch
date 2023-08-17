@@ -11,10 +11,10 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
@@ -63,8 +63,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
         private final boolean createdOnOrAfterV8;
 
-        Builder(Version indexVersionCreated) {
-            this(indexVersionCreated.onOrAfter(Version.V_8_0_0));
+        Builder(IndexVersion indexVersionCreated) {
+            this(indexVersionCreated.onOrAfter(IndexVersion.V_8_0_0));
         }
 
         Builder(boolean createdOnOrAfterV8) {
@@ -101,7 +101,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     private static final FieldNamesFieldMapper DEFAULT_OLD = new FieldNamesFieldMapper(Defaults.ENABLED, false);
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> c.indexVersionCreated().onOrAfter(Version.V_8_0_0) ? DEFAULT : DEFAULT_OLD,
+        c -> c.indexVersionCreated().onOrAfter(IndexVersion.V_8_0_0) ? DEFAULT : DEFAULT_OLD,
         c -> new Builder(c.indexVersionCreated())
     );
 

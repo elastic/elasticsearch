@@ -24,7 +24,6 @@ import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
 
 import java.util.Map;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.snapshots.RestoreService.restoreInProgress;
 
@@ -46,7 +45,7 @@ public class RestoreClusterStateListener {
     ) {
         final String uuid = response.getUuid();
         final DiscoveryNode localNode = clusterService.localNode();
-        waitForClusterState(clusterService, threadContext, new RestoreListener(listener, localNode) {
+        ClusterStateObserver.waitForState(clusterService, threadContext, new RestoreListener(listener, localNode) {
             @Override
             public void onNewClusterState(ClusterState state) {
                 var restoreState = restoreInProgress(state, uuid);
@@ -64,33 +63,18 @@ public class RestoreClusterStateListener {
                     shards.size(),
                     shards.size() - RestoreService.failedShards(shards)
                 );
-                waitForClusterState(clusterService, threadContext, new RestoreListener(listener, localNode) {
+                ClusterStateObserver.waitForState(clusterService, threadContext, new RestoreListener(listener, localNode) {
                     @Override
                     public void onNewClusterState(ClusterState state) {
                         logger.debug("restore of [{}] completed", response.getSnapshot().getSnapshotId());
                         listener.onResponse(new RestoreSnapshotResponse(restoreInfo));
                     }
-                }, clusterState -> restoreInProgress(clusterState, uuid) == null);
+                }, clusterState -> restoreInProgress(clusterState, uuid) == null, null, logger);
             }
         }, clusterState -> {
             var restoreState = restoreInProgress(clusterState, uuid);
             return restoreState == null || RestoreService.completed(restoreState.shards());
-        });
-    }
-
-    private static void waitForClusterState(
-        ClusterService clusterService,
-        ThreadContext threadContext,
-        RestoreListener restoreListener,
-        Predicate<ClusterState> statePredicate
-    ) {
-        ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadContext);
-        ClusterState state = observer.setAndGetObservedState();
-        if (statePredicate.test(state)) {
-            restoreListener.onNewClusterState(state);
-        } else {
-            observer.waitForNextChange(restoreListener, statePredicate);
-        }
+        }, null, logger);
     }
 
     private abstract static class RestoreListener implements ClusterStateObserver.Listener {

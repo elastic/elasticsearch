@@ -14,11 +14,9 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Represents the rollup capabilities of a non-rollup index.  E.g. what values/aggregations
@@ -35,9 +33,7 @@ public class RollableIndexCaps implements Writeable, ToXContentObject {
 
     public RollableIndexCaps(String indexName, List<RollupJobCaps> caps) {
         this.indexName = indexName;
-        this.jobCaps = Collections.unmodifiableList(
-            Objects.requireNonNull(caps).stream().sorted(Comparator.comparing(RollupJobCaps::getJobID)).collect(Collectors.toList())
-        );
+        this.jobCaps = caps.stream().sorted(Comparator.comparing(RollupJobCaps::getJobID)).toList();
     }
 
     public RollableIndexCaps(StreamInput in) throws IOException {

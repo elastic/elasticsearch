@@ -83,6 +83,7 @@ public class LocalClusterSpec implements ClusterSpec {
         private final String keystorePassword;
         private final Map<String, Resource> extraConfigFiles;
         private final Map<String, String> systemProperties;
+        private final List<String> jvmArgs;
         private final Map<String, String> secrets;
         private Version version;
 
@@ -104,6 +105,7 @@ public class LocalClusterSpec implements ClusterSpec {
             String keystorePassword,
             Map<String, Resource> extraConfigFiles,
             Map<String, String> systemProperties,
+            List<String> jvmArgs,
             Map<String, String> secrets
         ) {
             this.cluster = cluster;
@@ -123,6 +125,7 @@ public class LocalClusterSpec implements ClusterSpec {
             this.keystorePassword = keystorePassword;
             this.extraConfigFiles = extraConfigFiles;
             this.systemProperties = systemProperties;
+            this.jvmArgs = jvmArgs;
             this.secrets = secrets;
         }
 
@@ -182,12 +185,20 @@ public class LocalClusterSpec implements ClusterSpec {
             return systemProperties;
         }
 
+        public List<String> getJvmArgs() {
+            return jvmArgs;
+        }
+
         public Map<String, String> getSecrets() {
             return secrets;
         }
 
         public boolean isSecurityEnabled() {
             return Boolean.parseBoolean(getSetting("xpack.security.enabled", getVersion().onOrAfter("8.0.0") ? "true" : "false"));
+        }
+
+        public boolean isRemoteClusterServerEnabled() {
+            return Boolean.parseBoolean(getSetting("remote_cluster_server.enabled", "false"));
         }
 
         public boolean isMasterEligible() {
@@ -299,6 +310,7 @@ public class LocalClusterSpec implements ClusterSpec {
                         n.keystorePassword,
                         n.extraConfigFiles,
                         n.systemProperties,
+                        n.jvmArgs,
                         n.secrets
                     )
                 )

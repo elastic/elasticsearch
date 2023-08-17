@@ -46,7 +46,7 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
 
         final RestoreSnapshotRequest req = new RestoreSnapshotRequest(repoName, snapshotName).indices(indexName).waitForCompletion(true);
 
-        final RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().restoreSnapshot(req).get();
+        final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().restoreSnapshot(req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(indexName);
 
@@ -66,7 +66,7 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
         final RestoreSnapshotRequest req = new RestoreSnapshotRequest(repoName, snapshotName).indices(indexName).waitForCompletion(true);
         ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> client().admin().cluster().restoreSnapshot(req).actionGet()
+            () -> clusterAdmin().restoreSnapshot(req).actionGet()
         );
         assertThat(e.getMessage(), containsString("current license is non-compliant for [archive]"));
     }
@@ -78,15 +78,10 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
             Settings.builder().put(getRepositoryOnMaster(repoName).getMetadata().settings()).put("version", Version.fromString("2.0.0").id)
         );
         final RestoreSnapshotRequest req = new RestoreSnapshotRequest(repoName, snapshotName).indices(indexName).waitForCompletion(true);
-        SnapshotRestoreException e = expectThrows(
-            SnapshotRestoreException.class,
-            () -> client().admin().cluster().restoreSnapshot(req).actionGet()
-        );
+        SnapshotRestoreException e = expectThrows(SnapshotRestoreException.class, () -> clusterAdmin().restoreSnapshot(req).actionGet());
         assertThat(
             e.getMessage(),
-            containsString(
-                "the snapshot was created with Elasticsearch version [2.0.0] " + "which isn't supported by the archive functionality"
-            )
+            containsString("the snapshot has indices of version [2000099] which isn't supported by the archive functionality")
         );
     }
 
@@ -94,7 +89,7 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
     public void testShardAllocationOnInvalidLicense() throws Exception {
         final RestoreSnapshotRequest req = new RestoreSnapshotRequest(repoName, snapshotName).indices(indexName).waitForCompletion(true);
 
-        final RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().restoreSnapshot(req).get();
+        final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().restoreSnapshot(req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(indexName);
 
@@ -108,7 +103,7 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
         assertBusy(
             () -> assertEquals(
                 ClusterHealthStatus.RED,
-                client().admin().cluster().prepareHealth(indexName).get().getIndices().get(indexName).getStatus()
+                clusterAdmin().prepareHealth(indexName).get().getIndices().get(indexName).getStatus()
             )
         );
 

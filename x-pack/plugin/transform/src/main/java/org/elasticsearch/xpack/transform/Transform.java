@@ -37,6 +37,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
@@ -116,7 +118,6 @@ import java.io.UncheckedIOException;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -240,7 +241,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(
             clusterService,
@@ -276,13 +278,14 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         // the transform services should have been created
         assert transformServices.get() != null;
 
-        return Collections.singletonList(
+        return List.of(
             new TransformPersistentTasksExecutor(
                 client,
                 transformServices.get(),
                 threadPool,
                 clusterService,
                 settingsModule.getSettings(),
+                getTransformInternalIndexAdditionalSettings(),
                 expressionResolver
             )
         );
@@ -291,6 +294,32 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(NUM_FAILURE_RETRIES_SETTING, SCHEDULER_FREQUENCY);
+    }
+
+    @Override
+    public Settings additionalSettings() {
+
+        String transformConfigVersionAttrName = "node.attr." + TransformConfigVersion.TRANSFORM_CONFIG_VERSION_NODE_ATTR;
+
+        Settings.Builder additionalSettings = Settings.builder();
+
+        addTransformNodeAttribute(additionalSettings, transformConfigVersionAttrName, TransformConfigVersion.CURRENT.toString());
+        return additionalSettings.build();
+    }
+
+    private void addTransformNodeAttribute(Settings.Builder additionalSettings, String attrName, String value) {
+        String oldValue = settings.get(attrName);
+        if (oldValue == null) {
+            additionalSettings.put(attrName, value);
+        } else {
+            reportClashingNodeAttribute(attrName);
+        }
+    }
+
+    private void reportClashingNodeAttribute(String attrName) {
+        throw new IllegalArgumentException(
+            "Directly setting [" + attrName + "] is not permitted - it is reserved for the transform plugin."
+        );
     }
 
     @Override
@@ -325,7 +354,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         try {
-            return Collections.singletonList(TransformInternalIndex.getSystemIndexDescriptor());
+            return List.of(TransformInternalIndex.getSystemIndexDescriptor(getTransformInternalIndexAdditionalSettings()));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -440,5 +469,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     public boolean includeNodeInfo() {
         return true;
+    }
+
+    public Settings getTransformInternalIndexAdditionalSettings() {
+        return Settings.EMPTY;
     }
 }

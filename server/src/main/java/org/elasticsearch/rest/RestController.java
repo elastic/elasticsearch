@@ -57,6 +57,7 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
 import static org.elasticsearch.rest.RestStatus.NOT_ACCEPTABLE;
+import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestController implements HttpServerTransport.Dispatcher {
@@ -70,7 +71,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
     static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of("application/x-www-form-urlencoded", "multipart/form-data", "text/plain");
 
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
-    static final String ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER = "X-elastic-internal-origin";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
     static final Set<String> RESERVED_PATHS = Set.of("/__elb_health__", "/__elb_health__/zk", "/_health", "/_health/zk");
     private static final BytesReference FAVICON_RESPONSE;
@@ -96,15 +96,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final UsageService usageService;
     private final Tracer tracer;
     // If true, the ServerlessScope annotations will be enforced
-    private final boolean serverlessEnabled;
+    private final ServerlessApiProtections apiProtections;
 
     public RestController(
         UnaryOperator<RestHandler> handlerWrapper,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        Tracer tracer,
-        boolean serverlessEnabled
+        Tracer tracer
     ) {
         this.usageService = usageService;
         this.tracer = tracer;
@@ -115,7 +114,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
         registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", RestApiVersion.current(), new RestFavIconHandler());
-        this.serverlessEnabled = serverlessEnabled;
+        this.apiProtections = new ServerlessApiProtections(false);
+    }
+
+    public ServerlessApiProtections getApiProtections() {
+        return apiProtections;
     }
 
     /**
@@ -374,16 +377,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
         RestChannel responseChannel = channel;
-        if (serverlessEnabled) {
+        if (apiProtections.isEnabled()) {
             Scope scope = handler.getServerlessScope();
-            if (Scope.INTERNAL.equals(scope)) {
-                final String internalOrigin = request.header(ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER);
-                boolean internalRequest = internalOrigin != null;
-                if (internalRequest == false) {
-                    handleServerlessRequestToProtectedResource(request.uri(), request.method(), responseChannel);
-                    return;
-                }
-            } else if (Scope.PUBLIC.equals(scope) == false) {
+            if (scope == null) {
                 handleServerlessRequestToProtectedResource(request.uri(), request.method(), responseChannel);
                 return;
             }
@@ -677,7 +673,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 );
             }
             builder.endObject();
-            channel.sendResponse(new RestResponse(BAD_REQUEST, builder));
+            channel.sendResponse(new RestResponse(NOT_FOUND, builder));
         }
     }
 

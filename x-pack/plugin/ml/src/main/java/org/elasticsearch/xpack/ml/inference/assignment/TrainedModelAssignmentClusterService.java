@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -67,8 +67,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     private static final Logger logger = LogManager.getLogger(TrainedModelAssignmentClusterService.class);
 
-    private static final Version RENAME_ALLOCATION_TO_ASSIGNMENT_VERSION = Version.V_8_3_0;
-    public static final Version DISTRIBUTED_MODEL_ALLOCATION_VERSION = Version.V_8_4_0;
+    private static final TransportVersion RENAME_ALLOCATION_TO_ASSIGNMENT_TRANSPORT_VERSION = TransportVersion.V_8_3_0;
+    public static final TransportVersion DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION = TransportVersion.V_8_4_0;
 
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -80,6 +80,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private volatile int maxOpenJobs;
     protected volatile int maxLazyMLNodes;
     protected volatile long maxMLNodeSize;
+    protected volatile int allocatedProcessorsScale;
 
     public TrainedModelAssignmentClusterService(
         Settings settings,
@@ -99,6 +100,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         this.maxOpenJobs = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
         this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
         this.maxMLNodeSize = MachineLearning.MAX_ML_NODE_SIZE.get(settings).getBytes();
+        this.allocatedProcessorsScale = MachineLearning.ALLOCATED_PROCESSORS_SCALE.get(settings);
         // Only nodes that can possibly be master nodes really need this service running
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(this);
@@ -109,6 +111,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_ML_NODE_SIZE, this::setMaxMLNodeSize);
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(MachineLearning.ALLOCATED_PROCESSORS_SCALE, this::setAllocatedProcessorsScale);
         }
     }
 
@@ -132,6 +136,10 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         this.maxMLNodeSize = value.getBytes();
     }
 
+    private void setAllocatedProcessorsScale(int scale) {
+        this.allocatedProcessorsScale = scale;
+    }
+
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
     private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
@@ -146,7 +154,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             return;
         }
 
-        if (event.state().nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
+        if (event.state().getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
             // we should not try to rebalance assignments while there may be nodes running on a version
             // prior to introducing distributed model allocation.
             // But we should remove routing to removed or shutting down nodes.
@@ -276,14 +284,13 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         StartTrainedModelDeploymentAction.TaskParams params,
         ActionListener<TrainedModelAssignment> listener
     ) {
-        if (clusterService.state().nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
+        if (clusterService.state().getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "cannot create new assignment [{}] for model [{}] while there are nodes older than version [{}]",
+                    "cannot create new assignment [{}] for model [{}] while cluster upgrade is in progress",
                     RestStatus.CONFLICT,
                     params.getDeploymentId(),
-                    params.getModelId(),
-                    DISTRIBUTED_MODEL_ALLOCATION_VERSION
+                    params.getModelId()
                 )
             );
             return;
@@ -400,7 +407,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private static ClusterState forceUpdate(ClusterState currentState, TrainedModelAssignmentMetadata.Builder modelAssignments) {
         logger.debug(() -> format("updated assignments: %s", modelAssignments.build()));
         Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-        if (currentState.getNodes().getMinNodeVersion().onOrAfter(RENAME_ALLOCATION_TO_ASSIGNMENT_VERSION)) {
+        if (currentState.getMinTransportVersion().onOrAfter(RENAME_ALLOCATION_TO_ASSIGNMENT_TRANSPORT_VERSION)) {
             metadata.putCustom(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
                 .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME);
         } else {
@@ -487,7 +494,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             TrainedModelAssignmentMetadata.fromState(currentState),
             nodeLoads,
             nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(currentState),
-            modelToAdd
+            modelToAdd,
+            allocatedProcessorsScale
         );
         TrainedModelAssignmentMetadata.Builder rebalanced = rebalancer.rebalance();
         if (modelToAdd.isPresent()) {
@@ -589,13 +597,12 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             );
             return;
         }
-        if (clusterState.nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
+        if (clusterState.getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "cannot update number_of_allocations for deployment with model id [{}] while there are nodes older than version [{}]",
+                    "cannot update number_of_allocations for deployment with model id [{}] while cluster upgrade is in progress.",
                     RestStatus.CONFLICT,
-                    deploymentId,
-                    DISTRIBUTED_MODEL_ALLOCATION_VERSION
+                    deploymentId
                 )
             );
             return;

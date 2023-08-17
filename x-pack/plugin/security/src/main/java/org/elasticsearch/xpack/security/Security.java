@@ -61,6 +61,7 @@ import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
@@ -78,7 +79,7 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
+import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
@@ -93,7 +94,6 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -157,6 +157,8 @@ import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.settings.GetSecuritySettingsAction;
+import org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
@@ -245,6 +247,8 @@ import org.elasticsearch.xpack.security.action.service.TransportDeleteServiceAcc
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.security.action.settings.TransportGetSecuritySettingsAction;
+import org.elasticsearch.xpack.security.action.settings.TransportUpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.security.action.token.TransportCreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportInvalidateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportRefreshTokenAction;
@@ -351,6 +355,8 @@ import org.elasticsearch.xpack.security.rest.action.service.RestCreateServiceAcc
 import org.elasticsearch.xpack.security.rest.action.service.RestDeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestGetServiceAccountAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestGetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.security.rest.action.settings.RestGetSecuritySettingsAction;
+import org.elasticsearch.xpack.security.rest.action.settings.RestUpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestChangePasswordAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUserPrivilegesAction;
@@ -398,6 +404,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.INCLUDED_RESERVED_ROLES_SETTING;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 import static org.elasticsearch.xpack.security.transport.SSLEngineUtils.extractClientCertificates;
 
@@ -411,7 +418,7 @@ public class Security extends Plugin
         MapperPlugin,
         ExtensiblePlugin,
         SearchPlugin,
-        RestInterceptorActionPlugin {
+        RestServerActionPlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
 
@@ -559,7 +566,7 @@ public class Security extends Plugin
         this.settings = settings;
         // TODO this is wrong, we should only use the environment that is provided to createComponents
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        this.systemIndices = new SecuritySystemIndices();
+        this.systemIndices = new SecuritySystemIndices(settings);
         this.nodeStartedListenable = new ListenableFuture<>();
         if (enabled) {
             runStartupChecks(settings);
@@ -622,7 +629,8 @@ public class Security extends Plugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         try {
             return createComponents(
@@ -771,6 +779,9 @@ public class Security extends Plugin
         );
         components.add(privilegeStore);
 
+        final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(
+            Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(environment.settings()))
+        );
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
         final FileRolesStore fileRolesStore = new FileRolesStore(
@@ -787,7 +798,6 @@ public class Security extends Plugin
             systemIndices.getMainIndexManager(),
             clusterService
         );
-        final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
@@ -856,7 +866,8 @@ public class Security extends Plugin
             serviceAccountService,
             dlsBitsetCache.get(),
             restrictedIndices,
-            new DeprecationRoleDescriptorConsumer(clusterService, threadPool)
+            new DeprecationRoleDescriptorConsumer(clusterService, threadPool),
+            workflowService.get()
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
@@ -893,7 +904,7 @@ public class Security extends Plugin
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms, extensionComponents);
 
         // operator privileges are enabled either explicitly via the setting or if running serverless
-        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings) || DiscoveryNode.isServerless();
+        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(environment.settings()) || DiscoveryNode.isServerless();
 
         if (operatorPrivilegesEnabled) {
             logger.info("operator privileges are enabled");
@@ -1043,15 +1054,13 @@ public class Security extends Plugin
             logger.debug("Using default authentication failure handler");
             Supplier<Map<String, List<String>>> headersSupplier = () -> {
                 final Map<String, List<String>> defaultFailureResponseHeaders = new HashMap<>();
-                realms.getActiveRealms().stream().forEach((realm) -> {
+                realms.getActiveRealms().forEach((realm) -> {
                     Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
-                    realmFailureHeaders.entrySet().stream().forEach((e) -> {
-                        String key = e.getKey();
-                        e.getValue()
-                            .stream()
+                    realmFailureHeaders.forEach(
+                        (key, value) -> value.stream()
                             .filter(v -> defaultFailureResponseHeaders.computeIfAbsent(key, x -> new ArrayList<>()).contains(v) == false)
-                            .forEach(v -> defaultFailureResponseHeaders.get(key).add(v));
-                    });
+                            .forEach(v -> defaultFailureResponseHeaders.get(key).add(v))
+                    );
                 });
 
                 if (TokenService.isTokenServiceEnabled(settings)) {
@@ -1328,18 +1337,14 @@ public class Security extends Plugin
             new ActionHandler<>(PutPrivilegesAction.INSTANCE, TransportPutPrivilegesAction.class),
             new ActionHandler<>(DeletePrivilegesAction.INSTANCE, TransportDeletePrivilegesAction.class),
             new ActionHandler<>(CreateApiKeyAction.INSTANCE, TransportCreateApiKeyAction.class),
-            TcpTransport.isUntrustedRemoteClusterEnabled()
-                ? new ActionHandler<>(CreateCrossClusterApiKeyAction.INSTANCE, TransportCreateCrossClusterApiKeyAction.class)
-                : null,
+            new ActionHandler<>(CreateCrossClusterApiKeyAction.INSTANCE, TransportCreateCrossClusterApiKeyAction.class),
             new ActionHandler<>(GrantApiKeyAction.INSTANCE, TransportGrantApiKeyAction.class),
             new ActionHandler<>(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
             new ActionHandler<>(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
             new ActionHandler<>(QueryApiKeyAction.INSTANCE, TransportQueryApiKeyAction.class),
             new ActionHandler<>(UpdateApiKeyAction.INSTANCE, TransportUpdateApiKeyAction.class),
             new ActionHandler<>(BulkUpdateApiKeyAction.INSTANCE, TransportBulkUpdateApiKeyAction.class),
-            TcpTransport.isUntrustedRemoteClusterEnabled()
-                ? new ActionHandler<>(UpdateCrossClusterApiKeyAction.INSTANCE, TransportUpdateCrossClusterApiKeyAction.class)
-                : null,
+            new ActionHandler<>(UpdateCrossClusterApiKeyAction.INSTANCE, TransportUpdateCrossClusterApiKeyAction.class),
             new ActionHandler<>(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
             new ActionHandler<>(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
             new ActionHandler<>(DeleteServiceAccountTokenAction.INSTANCE, TransportDeleteServiceAccountTokenAction.class),
@@ -1354,6 +1359,8 @@ public class Security extends Plugin
             new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
             new ActionHandler<>(SuggestProfilesAction.INSTANCE, TransportSuggestProfilesAction.class),
             new ActionHandler<>(SetProfileEnabledAction.INSTANCE, TransportSetProfileEnabledAction.class),
+            new ActionHandler<>(GetSecuritySettingsAction.INSTANCE, TransportGetSecuritySettingsAction.class),
+            new ActionHandler<>(UpdateSecuritySettingsAction.INSTANCE, TransportUpdateSecuritySettingsAction.class),
             usageAction,
             infoAction
         ).filter(Objects::nonNull).toList();
@@ -1417,10 +1424,10 @@ public class Security extends Plugin
             new RestPutPrivilegesAction(settings, getLicenseState()),
             new RestDeletePrivilegesAction(settings, getLicenseState()),
             new RestCreateApiKeyAction(settings, getLicenseState()),
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? new RestCreateCrossClusterApiKeyAction(settings, getLicenseState()) : null,
+            new RestCreateCrossClusterApiKeyAction(settings, getLicenseState()),
             new RestUpdateApiKeyAction(settings, getLicenseState()),
             new RestBulkUpdateApiKeyAction(settings, getLicenseState()),
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? new RestUpdateCrossClusterApiKeyAction(settings, getLicenseState()) : null,
+            new RestUpdateCrossClusterApiKeyAction(settings, getLicenseState()),
             new RestGrantApiKeyAction(settings, getLicenseState()),
             new RestInvalidateApiKeyAction(settings, getLicenseState()),
             new RestGetApiKeyAction(settings, getLicenseState()),
@@ -1438,7 +1445,9 @@ public class Security extends Plugin
             new RestUpdateProfileDataAction(settings, getLicenseState()),
             new RestSuggestProfilesAction(settings, getLicenseState()),
             new RestEnableProfileAction(settings, getLicenseState()),
-            new RestDisableProfileAction(settings, getLicenseState())
+            new RestDisableProfileAction(settings, getLicenseState()),
+            new RestGetSecuritySettingsAction(settings, getLicenseState()),
+            new RestUpdateSecuritySettingsAction(settings, getLicenseState())
         ).filter(Objects::nonNull).toList();
     }
 
@@ -1604,7 +1613,7 @@ public class Security extends Plugin
                 transportReference.set(
                     new SecurityNetty4ServerTransport(
                         settings,
-                        TransportVersion.CURRENT,
+                        TransportVersion.current(),
                         threadPool,
                         networkService,
                         pageCacheRecycler,
@@ -1819,14 +1828,21 @@ public class Security extends Plugin
         if (enabled) {
             final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
             return List.of(
-                new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool", false),
+                new FixedExecutorBuilder(
+                    settings,
+                    TokenService.THREAD_POOL_NAME,
+                    1,
+                    1000,
+                    "xpack.security.authc.token.thread_pool",
+                    EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+                ),
                 new FixedExecutorBuilder(
                     settings,
                     SECURITY_CRYPTO_THREAD_POOL_NAME,
                     (allocatedProcessors + 1) / 2,
                     1000,
                     "xpack.security.crypto.thread_pool",
-                    false
+                    EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
                 )
             );
         }

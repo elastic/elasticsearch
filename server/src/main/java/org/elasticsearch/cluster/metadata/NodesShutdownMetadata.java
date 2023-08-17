@@ -74,7 +74,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     }
 
     public NodesShutdownMetadata(StreamInput in) throws IOException {
-        this(in.readImmutableMap(StreamInput::readString, SingleNodeShutdownMetadata::new));
+        this(in.readImmutableMap(SingleNodeShutdownMetadata::new));
     }
 
     @Override

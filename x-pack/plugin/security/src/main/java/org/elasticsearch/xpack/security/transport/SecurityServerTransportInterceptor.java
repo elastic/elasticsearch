@@ -24,7 +24,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.SendRequestTransportException;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -61,7 +60,7 @@ import java.util.function.Function;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.security.transport.RemoteClusterCredentialsResolver.RemoteClusterCredentials;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
@@ -144,11 +143,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
     @Override
     public AsyncSender interceptSender(AsyncSender sender) {
-        return interceptForAllRequests(
-            // Branching based on the feature flag is not strictly necessary here, but it makes it more obvious we are not interfering with
-            // non-feature-flagged deployments
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? interceptForCrossClusterAccessRequests(sender) : sender
-        );
+        return interceptForAllRequests(interceptForCrossClusterAccessRequests(sender));
     }
 
     private AsyncSender interceptForAllRequests(AsyncSender sender) {
@@ -200,7 +195,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     ) {
         // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
         // ourselves otherwise we wind up using a version newer than what we can actually send
-        final TransportVersion minVersion = TransportVersion.min(connection.getTransportVersion(), TransportVersion.CURRENT);
+        final TransportVersion minVersion = TransportVersion.min(connection.getTransportVersion(), TransportVersion.current());
 
         // Sometimes a system action gets executed like a internal create index request or update mappings request
         // which means that the user is copied over to system actions so we need to change the user
@@ -312,7 +307,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 }
                 final String remoteClusterAlias = remoteClusterCredentials.clusterAlias();
 
-                if (connection.getTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR)) {
+                if (connection.getTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
                     throw illegalArgumentExceptionWithDebugLog(
                         "Settings for remote cluster ["
                             + remoteClusterAlias

@@ -19,17 +19,18 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.Before;
@@ -43,7 +44,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -88,6 +88,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     /**
      * test the queries are correct if from/to are adjacent and the range is exclusive of those values
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86284")
     public void testRangeQueryIntersectsAdjacentValues() throws Exception {
         SearchExecutionContext context = createContext();
         ShapeRelation relation = randomFrom(ShapeRelation.values());
@@ -201,29 +202,9 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     private SearchExecutionContext createContext() {
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
-        return new SearchExecutionContext(
-            0,
-            0,
-            idxSettings,
-            null,
-            null,
-            null,
-            MappingLookup.EMPTY,
-            null,
-            null,
-            parserConfig(),
-            writableRegistry(),
-            null,
-            null,
-            () -> nowInMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
-        );
+        return SearchExecutionContextHelper.createSimple(idxSettings, parserConfig(), writableRegistry());
     }
 
     public void testDateRangeQueryUsingMappingFormat() {

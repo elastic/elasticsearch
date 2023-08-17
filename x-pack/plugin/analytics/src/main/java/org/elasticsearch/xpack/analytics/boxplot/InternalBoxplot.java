@@ -13,6 +13,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -176,8 +177,14 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         return results;
     }
 
-    static InternalBoxplot empty(String name, double compression, DocValueFormat format, Map<String, Object> metadata) {
-        return new InternalBoxplot(name, new TDigestState(compression), format, metadata);
+    static InternalBoxplot empty(
+        String name,
+        double compression,
+        TDigestExecutionHint executionHint,
+        DocValueFormat format,
+        Map<String, Object> metadata
+    ) {
+        return new InternalBoxplot(name, TDigestState.create(compression, executionHint), format, metadata);
     }
 
     static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
@@ -288,7 +295,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         for (InternalAggregation aggregation : aggregations) {
             final InternalBoxplot percentiles = (InternalBoxplot) aggregation;
             if (merged == null) {
-                merged = new TDigestState(percentiles.state.compression());
+                merged = TDigestState.createUsingParamsFrom(percentiles.state);
             }
             merged.add(percentiles.state);
         }

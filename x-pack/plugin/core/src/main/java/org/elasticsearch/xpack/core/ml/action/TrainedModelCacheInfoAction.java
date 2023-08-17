@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -47,11 +46,6 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

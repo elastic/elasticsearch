@@ -1,0 +1,6 @@
+pr: 96678
+summary: Add repo throttle metrics to node stats api response
+area: Snapshot/Restore
+type: feature
+issues:
+ - 89385

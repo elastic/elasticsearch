@@ -37,7 +37,8 @@ public class XLMRobertaTokenizerTests extends ESTestCase {
         "▁little",
         "▁red",
         "▁car",
-        "<mask>"
+        "<mask>",
+        "."
     );
     private static final List<Double> TEST_CASE_SCORES = List.of(
         0.0,
@@ -56,7 +57,8 @@ public class XLMRobertaTokenizerTests extends ESTestCase {
         -11.451579093933105,
         -10.858806610107422,
         -10.214239120483398,
-        0.0
+        0.0,
+        -3.0
     );
 
     private List<String> tokenStrings(List<? extends DelimitedToken> tokens) {
@@ -75,6 +77,19 @@ public class XLMRobertaTokenizerTests extends ESTestCase {
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁Ela", "stic", "search", "▁fun"));
             assertArrayEquals(new int[] { 4, 5, 6, 8 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { 0, 1, 2, 3 }, tokenization.tokenMap());
+        }
+    }
+
+    public void testTokenizeWithNeverSplit() throws IOException {
+        try (
+            XLMRobertaTokenizer tokenizer = XLMRobertaTokenizer.builder(
+                TEST_CASE_VOCAB,
+                TEST_CASE_SCORES,
+                new XLMRobertaTokenization(false, null, Tokenization.Truncate.NONE, -1)
+            ).build()
+        ) {
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch .<mask>.", Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁Ela", "stic", "search", "▁", ".", "<mask>", "▁", "."));
         }
     }
 

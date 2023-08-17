@@ -2217,14 +2217,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         searchResponse = client().search(new SearchRequest("test").source(source)).actionGet();
 
-        assertHighlight(
-            searchResponse,
-            0,
-            "field2",
-            0,
-            1,
-            equalTo("The <xxx>quick</xxx> <xxx>brown</xxx> fox jumps over the lazy quick dog")
-        );
+        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <xxx>quick brown</xxx> fox jumps over the lazy quick dog"));
 
         // lets fall back to the standard highlighter then, what people would do to highlight query matches
         logger.info("--> searching on field2, highlighting on field2, falling back to the plain highlighter");
@@ -2975,7 +2968,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .endObject()
             .endObject();
         assertAcked(prepareCreate("test").setMapping(mapping));
-        assertAcked(client().admin().indices().prepareAliases().addAlias("test", "filtered_alias", matchQuery("foo", "japanese")));
+        assertAcked(indicesAdmin().prepareAliases().addAlias("test", "filtered_alias", matchQuery("foo", "japanese")));
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test").setSource("foo", "test japanese"));

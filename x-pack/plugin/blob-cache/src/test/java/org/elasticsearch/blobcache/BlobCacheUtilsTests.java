@@ -17,6 +17,6 @@ public class BlobCacheUtilsTests extends ESTestCase {
     public void testReadSafeThrows() {
         final ByteBuffer buffer = ByteBuffer.allocate(randomIntBetween(1, 1025));
         final int remaining = randomIntBetween(1, 1025);
-        expectThrows(EOFException.class, () -> BlobCacheUtils.readSafe(BytesArray.EMPTY.streamInput(), buffer, 0, remaining, null));
+        expectThrows(EOFException.class, () -> BlobCacheUtils.readSafe(BytesArray.EMPTY.streamInput(), buffer, 0, remaining));
     }
 }

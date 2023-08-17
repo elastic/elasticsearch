@@ -18,7 +18,7 @@ public class MainRequest extends ActionRequest {
 
     public MainRequest() {}
 
-    MainRequest(StreamInput in) throws IOException {
+    public MainRequest(StreamInput in) throws IOException {
         super(in);
     }
 

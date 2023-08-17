@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
@@ -45,7 +45,7 @@ public class RuleConfigTests extends ESTestCase {
     public void testStepRuleConfig() {
         var stepName = randomAlphaOfLength(30);
         var maxTimeOn = TimeValue.parseTimeValue(randomTimeValue(), "");
-        var maxRetries = randomIntBetween(11, 100);
+        var maxRetries = randomLongBetween(11, 100);
         var rule = new IlmHealthIndicatorService.StepRule(stepName, maxTimeOn, maxRetries);
         var now = System.currentTimeMillis();
 
@@ -98,13 +98,14 @@ public class RuleConfigTests extends ESTestCase {
         var now = System.currentTimeMillis();
         var lastExecutionTime = System.currentTimeMillis() - TimeValue.timeValueDays(2).millis();
         var maxTimeOnStep = TimeValue.timeValueDays(1);
+        var maxRetries = randomLongBetween(10, 1000);
         var expectedAction = "some-action";
         var rules = IlmHealthIndicatorService.RuleConfig.Builder.actionRule(expectedAction)
             .maxTimeOnAction(TimeValue.timeValueDays(1))
             .stepRules(
-                IlmHealthIndicatorService.StepRule.stepRule("step-1", maxTimeOnStep),
-                IlmHealthIndicatorService.StepRule.stepRule("step-2", maxTimeOnStep),
-                IlmHealthIndicatorService.StepRule.stepRule("step-3", maxTimeOnStep)
+                IlmHealthIndicatorService.StepRule.stepRuleFullChecks("step-1", maxTimeOnStep, maxRetries),
+                IlmHealthIndicatorService.StepRule.stepRuleFullChecks("step-2", maxTimeOnStep, maxRetries),
+                IlmHealthIndicatorService.StepRule.stepRuleFullChecks("step-3", maxTimeOnStep, maxRetries)
             );
 
         // An unknown action should not satisfy the conditions
@@ -161,7 +162,7 @@ public class RuleConfigTests extends ESTestCase {
 
     private IndexMetadata.Builder baseBuilder() {
         return IndexMetadata.builder("some-index")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
     }

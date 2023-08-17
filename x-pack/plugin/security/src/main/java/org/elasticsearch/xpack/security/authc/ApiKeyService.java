@@ -36,6 +36,7 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -138,8 +139,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -311,24 +311,24 @@ public class ApiKeyService {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
             final TransportVersion transportVersion = getMinTransportVersion();
-            if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)
+            if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
                 && hasRemoteIndices(request.getRoleDescriptors())) {
                 // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
                 listener.onFailure(
                     new IllegalArgumentException(
                         "all nodes must have transport version ["
-                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                             + "] or higher to support remote indices privileges for API keys"
                     )
                 );
                 return;
             }
-            if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR)
+            if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
                 && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
                 listener.onFailure(
                     new IllegalArgumentException(
                         "all nodes must have transport version ["
-                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR
+                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                             + "] or higher to support creating cross cluster API keys"
                     )
                 );
@@ -481,13 +481,12 @@ public class ApiKeyService {
         }
 
         final TransportVersion transportVersion = getMinTransportVersion();
-        if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)
-            && hasRemoteIndices(request.getRoleDescriptors())) {
+        if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY) && hasRemoteIndices(request.getRoleDescriptors())) {
             // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
                 new IllegalArgumentException(
                     "all nodes must have transport version ["
-                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                         + "] or higher to support remote indices privileges for API keys"
                 )
             );
@@ -563,7 +562,7 @@ public class ApiKeyService {
         }
 
         logger.trace("Executing bulk request to update [{}] API keys", bulkRequestBuilder.numberOfActions());
-        bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+        bulkRequestBuilder.setRefreshPolicy(defaultCreateDocRefreshPolicy(settings));
         securityIndex.prepareIndexIfNeededThenExecute(
             ex -> listener.onFailure(traceLog("prepare security index before update", ex)),
             () -> executeAsyncWithOrigin(
@@ -613,14 +612,14 @@ public class ApiKeyService {
      * when we are in a mixed cluster in which some of the nodes do not support remote indices.
      * Storing these roles would cause parsing issues on old nodes
      * (i.e. nodes running with transport version before
-     * {@link org.elasticsearch.transport.RemoteClusterPortSettings#TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS}).
+     * {@link org.elasticsearch.transport.RemoteClusterPortSettings#TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY}).
      */
     static Set<RoleDescriptor> maybeRemoveRemoteIndicesPrivileges(
         final Set<RoleDescriptor> userRoleDescriptors,
         final TransportVersion transportVersion,
         final String... apiKeyIds
     ) {
-        if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+        if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
             final Set<String> affectedRoles = new TreeSet<>();
             final Set<RoleDescriptor> result = userRoleDescriptors.stream().map(roleDescriptor -> {
                 if (roleDescriptor.hasRemoteIndicesPrivileges()) {
@@ -1677,7 +1676,7 @@ public class ApiKeyService {
                     .request();
                 bulkRequestBuilder.add(request);
             }
-            bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+            bulkRequestBuilder.setRefreshPolicy(defaultCreateDocRefreshPolicy(settings));
             securityIndex.prepareIndexIfNeededThenExecute(
                 ex -> listener.onFailure(traceLog("prepare security index", ex)),
                 () -> executeAsyncWithOrigin(
@@ -1893,6 +1892,7 @@ public class ApiKeyService {
         String apiKeyName,
         String[] apiKeyIds,
         boolean withLimitedBy,
+        boolean activeOnly,
         ActionListener<GetApiKeyResponse> listener
     ) {
         ensureEnabled();
@@ -1901,17 +1901,18 @@ public class ApiKeyService {
             username,
             apiKeyName,
             apiKeyIds,
-            false,
-            false,
+            activeOnly,
+            activeOnly,
             hit -> convertSearchHitToApiKeyInfo(hit, withLimitedBy),
             ActionListener.wrap(apiKeyInfos -> {
                 if (apiKeyInfos.isEmpty()) {
                     logger.debug(
-                        "No active api keys found for realms {}, user [{}], api key name [{}] and api key ids {}",
+                        "No API keys found for realms {}, user [{}], API key name [{}], API key IDs {}, and active_only flag [{}]",
                         Arrays.toString(realmNames),
                         username,
                         apiKeyName,
-                        Arrays.toString(apiKeyIds)
+                        Arrays.toString(apiKeyIds),
+                        activeOnly
                     );
                     listener.onResponse(GetApiKeyResponse.emptyResponse());
                 } else {
@@ -2320,6 +2321,18 @@ public class ApiKeyService {
                 metadataFlattened
             );
         }
+    }
+
+    /**
+     * API Key documents are refreshed after creation, such that the API Key docs are visible in searches after the create-API-key
+     * endpoint returns.
+     * In stateful deployments, the automatic refresh interval is short (hard-coded to 1 sec), so the {@code RefreshPolicy#WAIT_UNTIL}
+     * is an acceptable tradeoff for the superior doc creation throughput compared to {@code RefreshPolicy#IMMEDIATE}.
+     * But in stateless the automatic refresh interval is too long (at least 10 sec), which translates to long create-API-key endpoint
+     * latency, so in this case we opt for {@code RefreshPolicy#IMMEDIATE} and acknowledge the lower maximum doc creation throughput.
+     */
+    public static RefreshPolicy defaultCreateDocRefreshPolicy(Settings settings) {
+        return DiscoveryNode.isStateless(settings) ? RefreshPolicy.IMMEDIATE : RefreshPolicy.WAIT_UNTIL;
     }
 
     private static final class ApiKeyDocCache {

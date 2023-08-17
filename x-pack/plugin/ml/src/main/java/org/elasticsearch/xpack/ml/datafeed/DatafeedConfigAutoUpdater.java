@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.core.Strings.format;
@@ -42,8 +41,8 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
     }
 
     @Override
-    public boolean isMinNodeVersionSupported(Version minNodeVersion) {
-        return minNodeVersion.onOrAfter(Version.V_8_0_0);
+    public boolean isMinTransportVersionSupported(TransportVersion minNodeVersion) {
+        return minNodeVersion.onOrAfter(TransportVersion.V_8_0_0);
     }
 
     @Override
@@ -83,7 +82,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
                     .setId(datafeedConfig.getId())
                     .build()
             )
-            .collect(Collectors.toList());
+            .toList();
         if (updates.isEmpty()) {
             return;
         }

@@ -14,9 +14,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -42,6 +42,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
@@ -154,9 +155,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                             r.content(),
                             r.lastChunk(),
                             r.totalTranslogOps(),
-                            ActionListener.wrap(ignored -> {}, e -> {
-                                throw new AssertionError(e);
-                            })
+                            ActionTestUtils.assertNoFailureListener(ignored -> {})
                         );
                     }
                 } catch (Exception e) {
@@ -338,6 +337,35 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         assertThat(request.startingSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
         assertThat(request.metadataSnapshot().size(), equalTo(0));
         recoveryTarget.decRef();
+        closeShards(shard);
+    }
+
+    public void testMarkDoneFailureIsPropagated() throws Exception {
+        IndexShard shard = newStartedShard(false);
+        populateRandomData(shard);
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
+        shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
+        shard.prepareForIndexRecovery();
+
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, null, null, new PeerRecoveryTargetService.RecoveryListener() {
+            @Override
+            public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+                future.onResponse(null);
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                future.onFailure(e);
+            }
+        });
+        recoveryTarget.markAsDone();
+
+        // The recovery fails because the post recovery step attempts to refresh the engine, but it is not open.
+        expectThrows(RecoveryFailedException.class, future::actionGet);
+
         closeShards(shard);
     }
 

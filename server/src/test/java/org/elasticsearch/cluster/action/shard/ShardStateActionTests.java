@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -187,9 +186,8 @@ public class ShardStateActionTests extends ESTestCase {
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
-        DiscoveryNodes.Builder noMasterBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-        noMasterBuilder.masterNodeId(null);
-        setState(clusterService, ClusterState.builder(clusterService.state()).nodes(noMasterBuilder));
+        var state = clusterService.state();
+        setState(clusterService, ClusterState.builder(state).nodes(state.nodes().withMasterNodeId(null)));
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger retries = new AtomicInteger();
@@ -510,9 +508,12 @@ public class ShardStateActionTests extends ESTestCase {
 
     private void setUpMasterRetryVerification(int numberOfRetries, AtomicInteger retries, CountDownLatch latch, LongConsumer retryLoop) {
         shardStateAction.setOnBeforeWaitForNewMasterAndRetry(() -> {
-            DiscoveryNodes.Builder masterBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-            masterBuilder.masterNodeId(clusterService.state().nodes().getMasterNodes().values().iterator().next().getId());
-            setState(clusterService, ClusterState.builder(clusterService.state()).nodes(masterBuilder));
+            var state = clusterService.state();
+            setState(
+                clusterService,
+                ClusterState.builder(state)
+                    .nodes(state.nodes().withMasterNodeId(state.nodes().getMasterNodes().values().iterator().next().getId()))
+            );
         });
 
         shardStateAction.setOnAfterWaitForNewMasterAndRetry(() -> verifyRetry(numberOfRetries, retries, latch, retryLoop));

@@ -13,7 +13,6 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tdigest.Centroid;
-import org.elasticsearch.tdigest.TDigest;
 
 import java.io.IOException;
 
@@ -23,7 +22,7 @@ public final class AnalyticsTestsUtils {
      * Generates an index fields for histogram fields. Used in tests of aggregations that work on histogram fields.
      */
     public static BinaryDocValuesField histogramFieldDocValues(String fieldName, double[] values) throws IOException {
-        TDigest histogram = new TDigestState(100.0); // default
+        TDigestState histogram = TDigestState.create(100.0); // default
         for (double value : values) {
             histogram.add(value);
         }

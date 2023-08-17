@@ -71,7 +71,7 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
                     }"""));
                 return (String) API_KEY_MAP_REF.get().get("encoded");
             })
-            .user("ccr_user", PASS.toString(), "ccr_user_role")
+            .user("ccr_user", PASS.toString(), "ccr_user_role", false)
             .build();
     }
 

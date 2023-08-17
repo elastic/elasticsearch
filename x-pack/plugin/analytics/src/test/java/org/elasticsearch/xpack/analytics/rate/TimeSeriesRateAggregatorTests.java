@@ -40,6 +40,8 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
 
+    private static final int MILLIS_IN_SECOND = 1_000;
+
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
         return List.of(new AggregationsPlugin(), new AnalyticsPlugin());
@@ -51,8 +53,14 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
         tsBuilder.subAggregation(builder);
         Consumer<InternalTimeSeries> verifier = r -> {
             assertThat(r.getBuckets(), hasSize(2));
-            assertThat(((Rate) r.getBucketByKey("{dim=1}").getAggregations().asList().get(0)).getValue(), closeTo(59.0 / 3000.0, 0.00001));
-            assertThat(((Rate) r.getBucketByKey("{dim=2}").getAggregations().asList().get(0)).getValue(), closeTo(206.0 / 4000.0, 0.00001));
+            assertThat(
+                ((Rate) r.getBucketByKey("{dim=1}").getAggregations().asList().get(0)).getValue(),
+                closeTo(59.0 / 3000.0 * MILLIS_IN_SECOND, 0.00001)
+            );
+            assertThat(
+                ((Rate) r.getBucketByKey("{dim=2}").getAggregations().asList().get(0)).getValue(),
+                closeTo(206.0 / 4000.0 * MILLIS_IN_SECOND, 0.00001)
+            );
         };
         AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"))
             .withSplitLeavesIntoSeperateAggregators(false);
@@ -77,20 +85,20 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             InternalDateHistogram hb = r.getBucketByKey("{dim=1}").getAggregations().get("date");
             {
                 Rate rate = hb.getBuckets().get(1).getAggregations().get("counter_field");
-                assertThat(rate.getValue(), closeTo((60 - 37 + 14) / 2000.0, 0.00001));
+                assertThat(rate.getValue(), closeTo((60 - 37 + 14) / 2000.0 * MILLIS_IN_SECOND, 0.00001));
             }
             {
                 Rate rate = hb.getBuckets().get(0).getAggregations().get("counter_field");
-                assertThat(rate.getValue(), closeTo((37 - 15) / 1000.0, 0.00001));
+                assertThat(rate.getValue(), closeTo((37 - 15) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
             }
             hb = r.getBucketByKey("{dim=2}").getAggregations().get("date");
             {
                 Rate rate = hb.getBuckets().get(0).getAggregations().get("counter_field");
-                assertThat(rate.getValue(), closeTo((150 - 74) / 1000.0, 0.00001));
+                assertThat(rate.getValue(), closeTo((150 - 74) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
             }
             {
                 Rate rate = hb.getBuckets().get(1).getAggregations().get("counter_field");
-                assertThat(rate.getValue(), closeTo(90 / 2000.0, 0.00001));
+                assertThat(rate.getValue(), closeTo(90 / 2000.0 * MILLIS_IN_SECOND, 0.00001));
             }
         };
 

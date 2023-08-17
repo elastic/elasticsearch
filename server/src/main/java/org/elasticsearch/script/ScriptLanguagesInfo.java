@@ -82,8 +82,8 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     }
 
     public ScriptLanguagesInfo(StreamInput in) throws IOException {
-        typesAllowed = in.readSet(StreamInput::readString);
-        languageContexts = in.readMap(StreamInput::readString, sin -> sin.readSet(StreamInput::readString));
+        typesAllowed = in.readImmutableSet(StreamInput::readString);
+        languageContexts = in.readImmutableMap(sin -> sin.readImmutableSet(StreamInput::readString));
     }
 
     @SuppressWarnings("unchecked")

@@ -34,7 +34,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -46,6 +45,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -571,7 +571,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     }
 
     static PercolateQuery.QueryStore createStore(MappedFieldType queryBuilderFieldType, SearchExecutionContext context) {
-        Version indexVersion = context.indexVersionCreated();
+        IndexVersion indexVersion = context.indexVersionCreated();
         NamedWriteableRegistry registry = context.getWriteableRegistry();
         return ctx -> {
             LeafReader leafReader = ctx.reader();
@@ -596,8 +596,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         assert valueLength > 0;
 
                         TransportVersion transportVersion;
-                        if (indexVersion.before(Version.V_8_8_0)) {
-                            transportVersion = TransportVersion.fromId(indexVersion.id);
+                        if (indexVersion.before(IndexVersion.V_8_8_0)) {
+                            transportVersion = TransportVersion.fromId(indexVersion.id());
                         } else {
                             transportVersion = TransportVersion.readVersion(input);
                         }

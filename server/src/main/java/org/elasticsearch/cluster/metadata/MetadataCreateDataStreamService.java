@@ -264,7 +264,7 @@ public class MetadataCreateDataStreamService {
         dsBackingIndices.add(writeIndex.getIndex());
         boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
         final IndexMode indexMode = metadata.isTimeSeriesTemplate(template) ? IndexMode.TIME_SERIES : null;
-        final DataLifecycle lifecycle = isSystem
+        final DataStreamLifecycle lifecycle = isSystem
             ? MetadataIndexTemplateService.resolveLifecycle(template, systemDataStreamDescriptor.getComponentTemplates())
             : MetadataIndexTemplateService.resolveLifecycle(template, metadata.componentTemplates());
         DataStream newDataStream = new DataStream(
@@ -277,7 +277,7 @@ public class MetadataCreateDataStreamService {
             isSystem,
             template.getDataStreamTemplate().isAllowCustomRouting(),
             indexMode,
-            lifecycle
+            lifecycle == null && DataStreamLifecycle.isFeatureEnabled() ? DataStreamLifecycle.DEFAULT : lifecycle
         );
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
 

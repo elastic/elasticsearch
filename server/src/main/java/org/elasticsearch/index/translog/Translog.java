@@ -60,7 +60,6 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
@@ -384,7 +383,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     return false;
                 }
             }). // find all inner callers including Translog subclasses
-            collect(Collectors.toList());
+            toList();
         // the list of inner callers should be either empty or should contain closeOnTragicEvent method
         return frames.isEmpty() || frames.stream().anyMatch(f -> f.getMethodName().equals("closeOnTragicEvent"));
     }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -19,6 +18,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.SearchHit;
@@ -645,7 +646,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         IndexMetadata indexMetadata1 = new IndexMetadata.Builder("index1").settings(
             Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         ).putMapping(new MappingMetadata("type1", Collections.singletonMap("properties", mapping))).build();
@@ -661,7 +662,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         IndexMetadata indexMetadata2 = new IndexMetadata.Builder("index1").settings(
             Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         ).putMapping(new MappingMetadata("type1", Collections.singletonMap("properties", mapping))).build();
@@ -693,9 +694,11 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getBasicMockedClient();
 
         JobResultsProvider provider = createProvider(client);
-        provider.datafeedTimingStats(List.of(), null, ActionListener.wrap(statsByJobId -> assertThat(statsByJobId, anEmptyMap()), e -> {
-            throw new AssertionError("Failure getting datafeed timing stats", e);
-        }));
+        provider.datafeedTimingStats(
+            List.of(),
+            null,
+            ActionTestUtils.assertNoFailureListener(statsByJobId -> assertThat(statsByJobId, anEmptyMap()))
+        );
 
         verifyNoMoreInteractions(client);
     }
@@ -785,7 +788,7 @@ public class JobResultsProviderTests extends ESTestCase {
         provider.datafeedTimingStats(
             List.of("foo", "bar"),
             null,
-            ActionListener.wrap(
+            ActionTestUtils.assertNoFailureListener(
                 statsByJobId -> assertThat(
                     statsByJobId,
                     equalTo(
@@ -796,8 +799,7 @@ public class JobResultsProviderTests extends ESTestCase {
                             new DatafeedTimingStats("bar", 7, 77, 777.0, contextBar)
                         )
                     )
-                ),
-                e -> fail(e.getMessage())
+                )
             )
         );
 

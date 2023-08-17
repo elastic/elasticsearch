@@ -24,6 +24,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
@@ -976,16 +977,16 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.pendingInSync = new HashSet<>();
         this.routingTable = null;
         this.replicationGroup = null;
-        this.hasAllPeerRecoveryRetentionLeases = indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_6_0)
+        this.hasAllPeerRecoveryRetentionLeases = indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_7_6_0)
             || (indexSettings.isSoftDeleteEnabled()
-                && indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_4_0)
+                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_7_4_0)
                 && indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN);
 
         this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;
         this.onReplicationGroupUpdated = onReplicationGroupUpdated;
         this.useFsync = IndexModule.NODE_STORE_USE_FSYNC.get(indexSettings.getNodeSettings());
-        assert Version.V_EMPTY.equals(indexSettings.getIndexVersionCreated()) == false;
+        assert IndexVersion.ZERO.equals(indexSettings.getIndexVersionCreated()) == false;
         assert invariant();
     }
 
@@ -1391,13 +1392,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     public synchronized PrimaryContext startRelocationHandoff(String targetAllocationId) {
         assert invariant();
-        assert primaryMode;
         assert handoffInProgress == false;
         assert pendingInSync.isEmpty() : "relocation handoff started while there are still shard copies pending in-sync: " + pendingInSync;
         if (checkpoints.containsKey(targetAllocationId) == false) {
             // can happen if the relocation target was removed from cluster but the recovery process isn't aware of that.
             throw new IllegalStateException("relocation target [" + targetAllocationId + "] is no longer part of the replication group");
         }
+        assert primaryMode;
         handoffInProgress = true;
         // copy clusterStateVersion and checkpoints and return
         // all the entries from checkpoints that are inSync: the reason we don't need to care about initializing non-insync entries
@@ -1485,9 +1486,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     public synchronized void createMissingPeerRecoveryRetentionLeases(ActionListener<Void> listener) {
         if (hasAllPeerRecoveryRetentionLeases == false) {
-            try (var listeners = new RefCountingListener(listener.delegateFailure((l, ignored) -> {
+            try (var listeners = new RefCountingListener(listener.safeMap(ignored -> {
                 setHasAllPeerRecoveryRetentionLeases();
-                l.onResponse(null);
+                return null;
             }))) {
                 for (ShardRouting shardRouting : routingTable.assignedShards()) {
                     if (shardRouting.isPromotableToPrimary() == false) {
@@ -1586,7 +1587,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
         public PrimaryContext(StreamInput in) throws IOException {
             clusterStateVersion = in.readVLong();
-            checkpoints = in.readMap(StreamInput::readString, CheckpointState::new);
+            checkpoints = in.readMap(CheckpointState::new);
             routingTable = IndexShardRoutingTable.Builder.readFrom(in).build();
         }
 

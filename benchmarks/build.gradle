@@ -10,12 +10,18 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.java'
 apply plugin: 'application'
-mainClassName = 'org.openjdk.jmh.Main'
+
+application {
+  mainClass = 'org.openjdk.jmh.Main'
+}
 
 tasks.named("assemble").configure { enabled = false }
-archivesBaseName = 'elasticsearch-benchmarks'
+base {
+  archivesName = 'elasticsearch-benchmarks'
+}
 
 tasks.named("test").configure { enabled = false }
+tasks.named("javadoc").configure { enabled = false }
 
 configurations {
   expression
@@ -42,6 +48,9 @@ dependencies {
 // needs to be added separately otherwise Gradle will quote it and javac will fail
 tasks.named("compileJava").configure {
   options.compilerArgs.addAll(["-processor", "org.openjdk.jmh.generators.BenchmarkProcessor"])
+  // org.elasticsearch.plugins.internal is used in signatures classes used in benchmarks but we don't want to expose it publicly
+  // adding an export to allow compilation with gradle. This does not solve a problem in intellij as it does not use compileJava task
+  options.compilerArgs.addAll(["--add-exports", "org.elasticsearch.server/org.elasticsearch.plugins.internal=ALL-UNNAMED"])
 }
 
 tasks.register('copyExpression', Copy) {

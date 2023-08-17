@@ -15,12 +15,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -62,7 +64,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         String nodeNameAndId,
         Settings settings,
         TransportVersion transportVersion,
-        Version nodeVersion,
+        VersionInformation nodeVersion,
         TransportInterceptor transportInterceptor
     ) {
         TcpTransport transport = new Netty4Transport(
@@ -118,15 +120,19 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceA = startServices(
             "TS_A",
             settings,
-            TransportVersion.CURRENT,
-            Version.CURRENT,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
         TransportService transportServiceB = startServices(
             "TS_B",
             settings,
             TransportVersionUtils.randomCompatibleVersion(random()),
-            VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT),
+            new VersionInformation(
+                VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT),
+                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersion.current()
+            ),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
@@ -155,15 +161,15 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceA = startServices(
             "TS_A",
             Settings.builder().put("cluster.name", "a").build(),
-            TransportVersion.CURRENT,
-            Version.CURRENT,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
         TransportService transportServiceB = startServices(
             "TS_B",
             Settings.builder().put("cluster.name", "b").build(),
-            TransportVersion.CURRENT,
-            Version.CURRENT,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
@@ -194,15 +200,19 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceA = startServices(
             "TS_A",
             settings,
-            TransportVersion.CURRENT,
-            Version.CURRENT,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
         TransportService transportServiceB = startServices(
             "TS_B",
             settings,
             TransportVersion.MINIMUM_COMPATIBLE,
-            VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()),
+            new VersionInformation(
+                VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()),
+                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersion.current()
+            ),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
@@ -241,15 +251,15 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceA = startServices(
             "TS_A",
             settings,
-            TransportVersion.CURRENT,
-            Version.CURRENT,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
         TransportService transportServiceB = startServices(
             "TS_B",
             settings,
             TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE),
-            Version.CURRENT.minimumCompatibilityVersion(),
+            new VersionInformation(Version.CURRENT.minimumCompatibilityVersion(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current()),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
@@ -277,15 +287,15 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceA = startServices(
             "TS_A",
             settings,
-            TransportVersion.CURRENT,
-            Version.CURRENT,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
         TransportService transportServiceB = startServices(
             "TS_B",
             settings,
-            TransportVersion.CURRENT,
-            Version.CURRENT,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder(randomAlphaOfLength(10))
@@ -313,15 +323,15 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         final TransportService transportServiceA = startServices(
             "TS_A",
             settings,
-            TransportVersion.CURRENT,
-            Version.CURRENT,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
             transportInterceptorA
         );
         final TransportService transportServiceB = startServices(
             "TS_B",
             settings,
-            TransportVersion.CURRENT,
-            Version.CURRENT,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
             transportInterceptorB
         );
         final DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
@@ -349,7 +359,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
 
     @SuppressForbidden(reason = "Sets property for testing")
     public void testAcceptsMismatchedServerlessBuildHash() {
-        assumeTrue("Current build needs to be a snapshot", Build.CURRENT.isSnapshot());
+        assumeTrue("Current build needs to be a snapshot", Build.current().isSnapshot());
         assumeTrue("Security manager needs to be disabled", System.getSecurityManager() == null);
         System.setProperty("es.serverless", Boolean.TRUE.toString());   // security manager blocks this
         try {
@@ -364,15 +374,15 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             final TransportService transportServiceA = startServices(
                 "TS_A",
                 settings,
-                TransportVersion.CURRENT,
-                Version.CURRENT,
+                TransportVersion.current(),
+                VersionInformation.CURRENT,
                 transportInterceptorA
             );
             final TransportService transportServiceB = startServices(
                 "TS_B",
                 settings,
-                TransportVersion.CURRENT,
-                Version.CURRENT,
+                TransportVersion.current(),
+                VersionInformation.CURRENT,
                 transportInterceptorB
             );
             AbstractSimpleTransportTestCase.connectToNode(transportServiceA, transportServiceB.getLocalNode(), TestProfiles.LIGHT_PROFILE);
@@ -390,15 +400,15 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         final TransportService transportServiceA = startServices(
             "TS_A",
             Settings.builder().put("cluster.name", "a").build(),
-            TransportVersion.CURRENT,
-            Version.CURRENT,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
             transportInterceptorA
         );
         final TransportService transportServiceB = startServices(
             "TS_B",
             Settings.builder().put("cluster.name", "a").build(),
             TransportVersion.MINIMUM_COMPATIBLE,
-            Version.CURRENT.minimumCompatibilityVersion(),
+            new VersionInformation(Version.CURRENT.minimumCompatibilityVersion(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current()),
             transportInterceptorB
         );
         AbstractSimpleTransportTestCase.connectToNode(transportServiceA, transportServiceB.getLocalNode(), TestProfiles.LIGHT_PROFILE);

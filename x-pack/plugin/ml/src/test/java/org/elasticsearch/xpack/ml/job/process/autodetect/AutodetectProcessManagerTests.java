@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -575,7 +576,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         );
 
         FlushJobParams params = FlushJobParams.builder().build();
-        manager.flushJob(jobTask, params, ActionListener.wrap(flushAcknowledgement -> {}, e -> fail(e.getMessage())));
+        manager.flushJob(jobTask, params, ActionTestUtils.assertNoFailureListener(flushAcknowledgement -> {}));
 
         verify(autodetectCommunicator).flushJob(same(params), any());
     }

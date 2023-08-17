@@ -220,15 +220,19 @@ public abstract class AggregationBuilder
     }
 
     /**
-     * Return false if this aggregation or any of the child aggregations does not support concurrent search
+     * Return false if this aggregation or any of the child aggregations does not support parallel collection.
+     * As a result, a request including such aggregation is always executed sequentially despite concurrency is enabled for the query phase.
      */
-    public boolean supportsConcurrentExecution() {
+    public boolean supportsParallelCollection() {
+        if (isInSortOrderExecutionRequired()) {
+            return false;
+        }
         for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
-            if (builder.supportsConcurrentExecution() == false) {
+            if (builder.supportsParallelCollection() == false) {
                 return false;
             }
         }
-        return isInSortOrderExecutionRequired() == false;
+        return true;
     }
 
     /**

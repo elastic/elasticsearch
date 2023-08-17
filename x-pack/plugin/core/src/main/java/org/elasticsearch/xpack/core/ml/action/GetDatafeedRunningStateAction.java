@@ -161,7 +161,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            datafeedRunningState = in.readMap(StreamInput::readString, RunningState::new);
+            datafeedRunningState = in.readMap(RunningState::new);
         }
 
         public Response(Map<String, RunningState> runtimeStateMap) {

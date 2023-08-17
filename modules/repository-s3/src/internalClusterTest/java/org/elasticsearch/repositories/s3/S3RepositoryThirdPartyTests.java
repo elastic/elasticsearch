@@ -61,9 +61,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 settings.put("storage_class", storageClass);
             }
         }
-        AcknowledgedResponse putRepositoryResponse = client().admin()
-            .cluster()
-            .preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository("test-repo")
             .setType("s3")
             .setSettings(settings)
             .get();

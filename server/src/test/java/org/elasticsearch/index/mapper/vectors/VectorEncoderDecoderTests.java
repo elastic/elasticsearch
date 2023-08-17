@@ -9,9 +9,9 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -24,11 +24,11 @@ public class VectorEncoderDecoderTests extends ESTestCase {
         float[] inputFloats = new float[] { 1f, 2f, 3f, 4f };
         float[] expected = new float[] { 2f, 3f, 4f };
         int dims = 3;
-        for (Version version : List.of(
-            VersionUtils.randomVersionBetween(
+        for (IndexVersion version : List.of(
+            IndexVersionUtils.randomVersionBetween(
                 random(),
                 DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION,
-                VersionUtils.getPreviousVersion(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)
+                IndexVersionUtils.getPreviousVersion(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)
             ),
             DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION
         )) {

@@ -137,7 +137,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         @Override
         public SourceFieldMapper build() {
             if (enabled.getValue().explicit() && mode.get() != null) {
-                throw new MapperParsingException("Cannot set both [mode] and [enabled] parameters");
+                if (indexMode == IndexMode.TIME_SERIES) {
+                    throw new MapperParsingException("Time series indices only support synthetic source");
+                } else {
+                    throw new MapperParsingException("Cannot set both [mode] and [enabled] parameters");
+                }
             }
             if (isDefault()) {
                 return indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT : DEFAULT;

@@ -303,7 +303,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
                 new BytesArray(Base64.getDecoder().decode(BASE_64_ENCODED_MODEL)),
                 0,
                 memoryUse,
-                1
+                1,
+                false
             )
         ).actionGet();
         client().execute(
@@ -312,7 +313,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
                 modelId,
                 List.of("these", "are", "my", "words", BertTokenizer.UNKNOWN_TOKEN, BertTokenizer.PAD_TOKEN),
                 List.of(),
-                List.of()
+                List.of(),
+                false
             )
         ).actionGet();
         client().execute(

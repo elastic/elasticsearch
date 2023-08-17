@@ -45,6 +45,7 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardCountStats;
@@ -64,6 +65,7 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
 import org.elasticsearch.node.ResponseCollectorService;
+import org.elasticsearch.repositories.RepositoriesStats;
 import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptContextStats;
 import org.elasticsearch.script.ScriptStats;
@@ -457,6 +459,12 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(scriptCacheStats, deserializedScriptCacheStats);
                     assertNotSame(scriptCacheStats, deserializedScriptCacheStats);
                 }
+
+                RepositoriesStats repoThrottlingStats = deserializedNodeStats.getRepositoriesStats();
+                assertTrue(repoThrottlingStats.getRepositoryThrottlingStats().containsKey("test-repository"));
+                assertEquals(100, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").totalReadThrottledNanos());
+                assertEquals(200, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").totalWriteThrottledNanos());
+
             }
         }
     }
@@ -480,8 +488,8 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static int expectedChunks(NodeStats nodeStats, NodeStatsLevel level) {
-        return 7 // one per each chunkeable object
-            + expectedChunks(nodeStats.getHttp()) //
+        // expectedChunks = number of static chunks (8 at the moment, see NodeStats#toXContentChunked) + number of variable chunks
+        return 8 + expectedChunks(nodeStats.getHttp()) //
             + expectedChunks(nodeStats.getIndices(), level) //
             + expectedChunks(nodeStats.getTransport()) //
             + expectedChunks(nodeStats.getIngestStats()) //
@@ -629,6 +637,8 @@ public class NodeStatsTests extends ESTestCase {
 
         indicesCommonStats.getBulk().add(new BulkStats(++iota, ++iota, ++iota, ++iota, ++iota));
         indicesCommonStats.getShards().add(new ShardCountStats(++iota));
+
+        indicesCommonStats.getDenseVectorStats().add(new DenseVectorStats(++iota));
 
         return indicesCommonStats;
     }
@@ -1022,6 +1032,10 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue)
             );
         }
+        RepositoriesStats repositoriesStats = new RepositoriesStats(
+            Map.of("test-repository", new RepositoriesStats.ThrottlingStats(100, 200))
+        );
+
         return new NodeStats(
             node,
             randomNonNegativeLong(),
@@ -1039,7 +1053,8 @@ public class NodeStatsTests extends ESTestCase {
             ingestStats,
             adaptiveSelectionStats,
             scriptCacheStats,
-            indexingPressureStats
+            indexingPressureStats,
+            repositoriesStats
         );
     }
 

@@ -51,7 +51,7 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         settingsBuilder = Settings.builder();
         settingsBuilder.put("some.bad.dynamic.property", "someValue1");
         Settings dynamicSettings = settingsBuilder.build();
-        ThreadPool threadPool = null;
+        ThreadPool threadPool = Mockito.mock(ThreadPool.class);
         final XPackLicenseState licenseState = null;
         Metadata metadata = Metadata.builder().transientSettings(dynamicSettings).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();

@@ -12,20 +12,22 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
@@ -65,8 +67,8 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
 public class DenseVectorFieldMapper extends FieldMapper {
-    public static final Version MAGNITUDE_STORED_INDEX_VERSION = Version.V_7_5_0;
-    public static final Version LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = Version.V_8_9_0;
+    public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersion.V_7_5_0;
+    public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersion.V_8_9_0;
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; // maximum allowed number of dimensions
@@ -128,9 +130,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        final Version indexVersionCreated;
+        final IndexVersion indexVersionCreated;
 
-        public Builder(String name, Version indexVersionCreated) {
+        public Builder(String name, IndexVersion indexVersionCreated) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
 
@@ -171,6 +173,40 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
+    private static FieldType getDenseVectorFieldType(
+        int dimension,
+        VectorEncoding vectorEncoding,
+        VectorSimilarityFunction similarityFunction
+    ) {
+        if (dimension == 0) {
+            throw new IllegalArgumentException("cannot index an empty vector");
+        }
+        if (dimension > DenseVectorFieldMapper.MAX_DIMS_COUNT) {
+            throw new IllegalArgumentException("cannot index vectors with dimension greater than " + DenseVectorFieldMapper.MAX_DIMS_COUNT);
+        }
+        if (similarityFunction == null) {
+            throw new IllegalArgumentException("similarity function must not be null");
+        }
+        FieldType fieldType = new FieldType() {
+            @Override
+            public int vectorDimension() {
+                return dimension;
+            }
+
+            @Override
+            public VectorEncoding vectorEncoding() {
+                return vectorEncoding;
+            }
+
+            @Override
+            public VectorSimilarityFunction vectorSimilarityFunction() {
+                return similarityFunction;
+            }
+        };
+        fieldType.freeze();
+        return fieldType;
+    }
+
     public enum ElementType {
 
         BYTE(1) {
@@ -192,7 +228,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             KnnByteVectorField createKnnVectorField(String name, byte[] vector, VectorSimilarityFunction function) {
-                return new XKnnByteVectorField(name, vector, function);
+                if (vector == null) {
+                    throw new IllegalArgumentException("vector value must not be null");
+                }
+                FieldType denseVectorFieldType = getDenseVectorFieldType(vector.length, VectorEncoding.BYTE, function);
+                return new KnnByteVectorField(name, vector, denseVectorFieldType);
             }
 
             @Override
@@ -358,7 +398,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            ByteBuffer createByteBuffer(Version indexVersion, int numBytes) {
+            ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
                 return ByteBuffer.wrap(new byte[numBytes]);
             }
         },
@@ -382,7 +422,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             KnnFloatVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function) {
-                return new XKnnFloatVectorField(name, vector, function);
+                if (vector == null) {
+                    throw new IllegalArgumentException("vector value must not be null");
+                }
+                FieldType denseVectorFieldType = getDenseVectorFieldType(vector.length, VectorEncoding.FLOAT32, function);
+                return new KnnFloatVectorField(name, vector, denseVectorFieldType);
             }
 
             @Override
@@ -470,7 +514,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            ByteBuffer createByteBuffer(Version indexVersion, int numBytes) {
+            ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
                 return indexVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)
                     ? ByteBuffer.wrap(new byte[numBytes]).order(ByteOrder.LITTLE_ENDIAN)
                     : ByteBuffer.wrap(new byte[numBytes]);
@@ -498,7 +542,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         abstract double parseKnnVectorToByteBuffer(DocumentParserContext context, DenseVectorFieldMapper fieldMapper, ByteBuffer byteBuffer)
             throws IOException;
 
-        abstract ByteBuffer createByteBuffer(Version indexVersion, int numBytes);
+        abstract ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes);
 
         public abstract void checkVectorBounds(float[] vector);
 
@@ -701,11 +745,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final int dims;
         private final boolean indexed;
         private final VectorSimilarity similarity;
-        private final Version indexVersionCreated;
+        private final IndexVersion indexVersionCreated;
 
         public DenseVectorFieldType(
             String name,
-            Version indexVersionCreated,
+            IndexVersion indexVersionCreated,
             ElementType elementType,
             int dims,
             boolean indexed,
@@ -861,7 +905,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private final boolean indexed;
     private final VectorSimilarity similarity;
     private final IndexOptions indexOptions;
-    private final Version indexCreatedVersion;
+    private final IndexVersion indexCreatedVersion;
 
     private DenseVectorFieldMapper(
         String simpleName,
@@ -871,7 +915,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         boolean indexed,
         VectorSimilarity similarity,
         IndexOptions indexOptions,
-        Version indexCreatedVersion,
+        IndexVersion indexCreatedVersion,
         MultiFields multiFields,
         CopyTo copyTo
     ) {
@@ -1089,9 +1133,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private class DocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private BinaryDocValues values;
         private boolean hasValue;
-        private final Version indexCreatedVersion;
+        private final IndexVersion indexCreatedVersion;
 
-        private DocValuesSyntheticFieldLoader(Version indexCreatedVersion) {
+        private DocValuesSyntheticFieldLoader(IndexVersion indexCreatedVersion) {
             this.indexCreatedVersion = indexCreatedVersion;
         }
 

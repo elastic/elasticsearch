@@ -144,6 +144,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     assertThat(names, not(hasItem("GeoLite2-ASN.mmdb")));
                     assertThat(names, not(hasItem("GeoLite2-City.mmdb")));
                     assertThat(names, not(hasItem("GeoLite2-Country.mmdb")));
+                    assertThat(names, not(hasItem("MyCustomGeoLite2-City.mmdb")));
                 }
             }
         });
@@ -157,7 +158,10 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
-            assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
+            assertEquals(
+                Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb"),
+                state.getDatabases().keySet()
+            );
         }, 2, TimeUnit.MINUTES);
 
         putGeoIpPipeline();
@@ -175,6 +179,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     assertThat(names, not(hasItem("GeoLite2-ASN.mmdb")));
                     assertThat(names, not(hasItem("GeoLite2-City.mmdb")));
                     assertThat(names, not(hasItem("GeoLite2-Country.mmdb")));
+                    assertThat(names, not(hasItem("MyCustomGeoLite2-City.mmdb")));
                 }
             }
         });
@@ -185,7 +190,13 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertTrue(result.getIngestDocument().hasField("tags"));
             @SuppressWarnings("unchecked")
             List<String> tags = result.getIngestDocument().getFieldValue("tags", List.class);
-            assertThat(tags, contains("_geoip_expired_database"));
+            // We are provided 4 databases from the download service fixture. 3 of those db files are "stock" in that we provide them
+            // via the elastic download service. We also have those 3 db files set in this test as locally configured db files which are
+            // "expired". The 4th is only present when the downloader has executed. When we mark all db's as expired, the downloaded copies
+            // are purged, but the 3 local files remain. Processors using the local db files will tag documents with the expired database
+            // tag. The processor that expects the custom database cannot find one anywhere, so it tags documents with the unavailable
+            // database tag.
+            assertThat(tags, contains("_geoip_expired_database", "_geoip_database_unavailable_MyCustomGeoLite2-City.mmdb"));
             assertFalse(result.getIngestDocument().hasField("ip-city"));
             assertFalse(result.getIngestDocument().hasField("ip-asn"));
             assertFalse(result.getIngestDocument().hasField("ip-country"));
@@ -195,7 +206,10 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             for (Path geoIpTmpDir : geoIpTmpDirs) {
                 try (Stream<Path> files = Files.list(geoIpTmpDir)) {
                     Set<String> names = files.map(f -> f.getFileName().toString()).collect(Collectors.toSet());
-                    assertThat(names, hasItems("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"));
+                    assertThat(
+                        names,
+                        hasItems("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
+                    );
                 }
             }
         });
@@ -217,15 +231,21 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
-            assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
+            assertEquals(
+                Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb"),
+                state.getDatabases().keySet()
+            );
             putGeoIpPipeline(); // This is to work around the race condition described in #92888
         }, 2, TimeUnit.MINUTES);
 
-        for (String id : List.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb")) {
+        for (String id : List.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")) {
             assertBusy(() -> {
                 try {
                     GeoIpTaskState state = (GeoIpTaskState) getTask().getState();
-                    assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
+                    assertEquals(
+                        Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb"),
+                        state.getDatabases().keySet()
+                    );
                     GeoIpTaskState.Metadata metadata = state.get(id);
                     BoolQueryBuilder queryBuilder = new BoolQueryBuilder().filter(new MatchQueryBuilder("name", id))
                         .filter(new RangeQueryBuilder("chunk").from(metadata.firstChunk()).to(metadata.lastChunk(), true));
@@ -272,17 +292,18 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> task = getTask();
             assertNotNull(task);
-            assertNull(task.getState());
-            putGeoIpPipeline(); // This is to work around the race condition described in #92888
+            assertNotNull(task.getState());
+            putGeoIpPipeline(pipelineId); // This is to work around the race condition described in #92888
         });
         putNonGeoipPipeline(pipelineId);
-        assertBusy(() -> { assertNull(getTask().getState()); });
-        putNonGeoipPipeline(pipelineId);
-        assertNull(getTask().getState());
+        assertNotNull(getTask().getState()); // removing all geoip processors should not result in the task being stopped
         putGeoIpPipeline();
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
-            assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
+            assertEquals(
+                Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb"),
+                state.getDatabases().keySet()
+            );
         }, 2, TimeUnit.MINUTES);
     }
 
@@ -315,7 +336,10 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertAcked(indicesAdmin().prepareUpdateSettings(indexIdentifier).setSettings(indexSettings).get());
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
-            assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
+            assertEquals(
+                Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb"),
+                state.getDatabases().keySet()
+            );
         }, 2, TimeUnit.MINUTES);
 
         // Remove the created index.
@@ -361,13 +385,16 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                             "GeoLite2-City.mmdb",
                             "GeoLite2-Country.mmdb",
                             "GeoLite2-ASN.mmdb",
+                            "MyCustomGeoLite2-City.mmdb",
                             "GeoLite2-City.mmdb_COPYRIGHT.txt",
                             "GeoLite2-Country.mmdb_COPYRIGHT.txt",
                             "GeoLite2-ASN.mmdb_COPYRIGHT.txt",
+                            "MyCustomGeoLite2-City.mmdb_COPYRIGHT.txt",
                             "GeoLite2-City.mmdb_LICENSE.txt",
                             "GeoLite2-Country.mmdb_LICENSE.txt",
                             "GeoLite2-ASN.mmdb_LICENSE.txt",
-                            "GeoLite2-ASN.mmdb_README.txt"
+                            "GeoLite2-ASN.mmdb_README.txt",
+                            "MyCustomGeoLite2-City.mmdb_LICENSE.txt"
                         )
                     );
                 }
@@ -407,7 +434,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     List.of(
                         "_geoip_database_unavailable_GeoLite2-City.mmdb",
                         "_geoip_database_unavailable_GeoLite2-Country.mmdb",
-                        "_geoip_database_unavailable_GeoLite2-ASN.mmdb"
+                        "_geoip_database_unavailable_GeoLite2-ASN.mmdb",
+                        "_geoip_database_unavailable_MyCustomGeoLite2-City.mmdb"
                     )
                 )
             );
@@ -541,6 +569,20 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                             builder.field("field", "ip");
                             builder.field("target_field", "ip-asn");
                             builder.field("database_file", "GeoLite2-ASN.mmdb");
+                            if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
+                                builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
+                            }
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                    builder.startObject();
+                    {
+                        builder.startObject("geoip");
+                        {
+                            builder.field("field", "ip");
+                            builder.field("target_field", "ip-city");
+                            builder.field("database_file", "MyCustomGeoLite2-City.mmdb");
                             if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
                                 builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
                             }

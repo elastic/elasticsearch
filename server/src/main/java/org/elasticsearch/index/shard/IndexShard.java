@@ -1374,6 +1374,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().completionStats(fields);
     }
 
+    public DenseVectorStats denseVectorStats() {
+        readAllowed();
+        return getEngine().denseVectorStats();
+    }
+
     public BulkStats bulkStats() {
         return bulkOperationListener.stats();
     }
@@ -2169,21 +2174,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 );
             }
         } else {
-            if (origin == Engine.Operation.Origin.PRIMARY) {
-                assert assertPrimaryMode();
-                // We only do indexing into primaries that are started since:
-                // * TransportReplicationAction.ReroutePhase only allows to index into active primaries.
-                // * A relocation will retry the reroute phase.
-                // * Allocation ids protect against spurious requests towards old allocations.
-                // * We apply the cluster state on IndexShard instances before making it available for routing
-                assert assertStartedForPrimaryIndexing();
-            } else if (origin == Engine.Operation.Origin.REPLICA) {
-                assert assertReplicationTarget();
-            } else {
-                assert origin == Engine.Operation.Origin.LOCAL_RESET;
-                assert getActiveOperationsCount() == OPERATIONS_BLOCKED
-                    : "locally resetting without blocking operations, active operations [" + getActiveOperationsCount() + "]";
-            }
+            assert assertWriteOriginInvariants(origin);
             if (writeAllowedStates.contains(state) == false) {
                 throw new IllegalIndexShardStateException(
                     shardId,
@@ -2194,10 +2185,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private boolean assertStartedForPrimaryIndexing() {
-        final var state = this.state;
-        assert state == IndexShardState.STARTED : "primary indexing unexpected in state [" + state + "]";
+    private boolean assertWriteOriginInvariants(Engine.Operation.Origin origin) {
+        switch (origin) {
+            case PRIMARY -> {
+                assertPrimaryMode();
+                assertExpectedStateForPrimaryIndexing(state);
+            }
+            case REPLICA -> {
+                assert assertReplicationTarget();
+            }
+            case LOCAL_RESET -> {
+                final var activeOperationsCount = getActiveOperationsCount();
+                assert activeOperationsCount == OPERATIONS_BLOCKED
+                    : "locally resetting without blocking operations, active operations [" + activeOperationsCount + "]";
+            }
+            default -> {
+                assert false : "unexpected origin: " + origin;
+            }
+        }
         return true;
+    }
+
+    private void assertExpectedStateForPrimaryIndexing(IndexShardState state) {
+        // We do not do indexing into primaries that have not reached state STARTED since:
+        // * TransportReplicationAction.ReroutePhase only allows to index into active primaries.
+        // * A relocation will retry the reroute phase.
+        // * Allocation ids protect against spurious requests towards old allocations.
+        // * We apply the cluster state on IndexShard instances before making it available for routing
+        assert state == IndexShardState.STARTED || state == IndexShardState.CLOSED : "primary indexing unexpected in state [" + state + "]";
     }
 
     private boolean assertPrimaryMode() {

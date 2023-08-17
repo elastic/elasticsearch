@@ -188,6 +188,7 @@ public class InferenceRescorerIT extends InferenceTestCase {
         adminClient().performRequest(new Request("POST", INDEX_NAME + "/_refresh"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98372")
     public void testInferenceRescore() throws Exception {
         Request request = new Request("GET", "store/_search?size=3&error_trace");
         request.setJsonEntity("""
@@ -227,6 +228,7 @@ public class InferenceRescorerIT extends InferenceTestCase {
         assertHitScores(client().performRequest(request), List.of(9.0, 9.0, 6.0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98372")
     public void testInferenceRescoreSmallWindow() throws Exception {
         Request request = new Request("GET", "store/_search?size=5");
         request.setJsonEntity("""
@@ -239,6 +241,7 @@ public class InferenceRescorerIT extends InferenceTestCase {
         assertHitScores(client().performRequest(request), List.of(20.0, 20.0, 1.0, 1.0, 1.0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98372")
     public void testInferenceRescorerWithChainedRescorers() throws IOException {
         Request request = new Request("GET", "store/_search?size=5");
         request.setJsonEntity("""

@@ -142,11 +142,11 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field(ERRORS, hasFailures());
         builder.field(TOOK, tookInMillis);
         if (ingestTookInMillis != BulkResponse.NO_INGEST_TOOK) {
             builder.field(INGEST_TOOK, ingestTookInMillis);
         }
-        builder.field(ERRORS, hasFailures());
         builder.startArray(ITEMS);
         for (BulkItemResponse item : this) {
             item.toXContent(builder, params);

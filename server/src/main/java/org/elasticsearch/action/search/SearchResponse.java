@@ -398,27 +398,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                         }
                     }
                 } else if (Clusters._CLUSTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    int successful = -1;
-                    int total = -1;
-                    int skipped = -1;
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token.isValue()) {
-                            if (Clusters.SUCCESSFUL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                successful = parser.intValue();
-                            } else if (Clusters.TOTAL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                total = parser.intValue();
-                            } else if (Clusters.SKIPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                skipped = parser.intValue();
-                            } else {
-                                parser.skipChildren();
-                            }
-                        } else {
-                            parser.skipChildren();
-                        }
-                    }
-                    clusters = new Clusters(total, successful, skipped);
+                    clusters = Clusters.fromXContent(parser);
                 } else {
                     parser.skipChildren();
                 }
@@ -483,6 +463,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         static final ParseField SUCCESSFUL_FIELD = new ParseField("successful");
         static final ParseField SKIPPED_FIELD = new ParseField("skipped");
         static final ParseField TOTAL_FIELD = new ParseField("total");
+        static final ParseField DETAILS_FIELD = new ParseField("details");
 
         private final int total;
         private final int successful; // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
@@ -569,6 +550,16 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 : "successful + skipped is larger than total. total: " + total + " successful: " + successful + " skipped: " + skipped;
         }
 
+        private Clusters(Map<String, AtomicReference<Cluster>> clusterInfoMap) {
+            assert clusterInfoMap.size() > 0 : "this constructor should not be called with an empty Cluster info map";
+            this.total = clusterInfoMap.size();
+            this.clusterInfo = clusterInfoMap;
+            this.successful = 0; // calculated from clusterInfo map for minimize_roundtrips
+            this.skipped = 0;    // calculated from clusterInfo map for minimize_roundtrips
+            // should only be called if "details" section of fromXContent is present (for ccsMinimizeRoundtrips)
+            this.ccsMinimizeRoundtrips = true;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(total);
@@ -602,6 +593,54 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 builder.endObject();
             }
             return builder;
+        }
+
+        public static Clusters fromXContent(XContentParser parser) throws IOException {
+            XContentParser.Token token = parser.currentToken();
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+            int successful = -1;
+            int total = -1;
+            int skipped = -1;
+            Map<String, AtomicReference<Cluster>> clusterInfoMap = new HashMap<>();
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token.isValue()) {
+                    if (Clusters.SUCCESSFUL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        successful = parser.intValue();
+                    } else if (Clusters.TOTAL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        total = parser.intValue();
+                    } else if (Clusters.SKIPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        skipped = parser.intValue();
+                    } else {
+                        parser.skipChildren();
+                    }
+                } else if (token == Token.START_OBJECT) {
+                    if (Clusters.DETAILS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        String currentDetailsFieldName = null;
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentDetailsFieldName = parser.currentName();  // cluster alias
+                            } else if (token == Token.START_OBJECT) {
+                                Cluster c = Cluster.fromXContent(currentDetailsFieldName, parser);
+                                clusterInfoMap.put(currentDetailsFieldName, new AtomicReference<>(c));
+                            } else {
+                                parser.skipChildren();
+                            }
+                        }
+                    } else {
+                        parser.skipChildren();
+                    }
+                } else {
+                    parser.skipChildren();
+                }
+            }
+            if (clusterInfoMap.isEmpty()) {
+                return new Clusters(total, successful, skipped);
+            } else {
+                return new Clusters(clusterInfoMap);
+            }
         }
 
         /**
@@ -698,6 +737,15 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             }
             return false;
         }
+
+        /**
+         * @return true if this Clusters object was initialized with underlying Cluster objects
+         * for tracking search Cluster details.
+         */
+        public boolean hasClusterObjects() {
+            return clusterInfo.keySet().size() > 0;
+        }
+
     }
 
     /**
@@ -710,6 +758,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * See the Clusters clusterInfo Map for details.
      */
     public static class Cluster implements ToXContentFragment, Writeable {
+        static final ParseField INDICES_FIELD = new ParseField("indices");
+        static final ParseField STATUS_FIELD = new ParseField("status");
+
         private final String clusterAlias;
         private final String indexExpression; // original index expression from the user for this cluster
         private final Status status;
@@ -829,28 +880,28 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             }
             builder.startObject(name);
             {
-                builder.field("status", getStatus().toString());
-                builder.field("indices", indexExpression);
+                builder.field(STATUS_FIELD.getPreferredName(), getStatus().toString());
+                builder.field(INDICES_FIELD.getPreferredName(), indexExpression);
                 if (took != null) {
-                    builder.field("took", took.millis());
+                    builder.field(TOOK.getPreferredName(), took.millis());
                 }
-                builder.field("timed_out", timedOut);
+                builder.field(TIMED_OUT.getPreferredName(), timedOut);
                 if (totalShards != null) {
-                    builder.startObject("_shards");
-                    builder.field("total", totalShards);
+                    builder.startObject(RestActions._SHARDS_FIELD.getPreferredName());
+                    builder.field(RestActions.TOTAL_FIELD.getPreferredName(), totalShards);
                     if (successfulShards != null) {
-                        builder.field("successful", successfulShards);
+                        builder.field(RestActions.SUCCESSFUL_FIELD.getPreferredName(), successfulShards);
                     }
                     if (skippedShards != null) {
-                        builder.field("skipped", skippedShards);
+                        builder.field(RestActions.SKIPPED_FIELD.getPreferredName(), skippedShards);
                     }
                     if (failedShards != null) {
-                        builder.field("failed", failedShards);
+                        builder.field(RestActions.FAILED_FIELD.getPreferredName(), failedShards);
                     }
                     builder.endObject();
                 }
                 if (failures != null && failures.size() > 0) {
-                    builder.startArray("failures");
+                    builder.startArray(RestActions.FAILURES_FIELD.getPreferredName());
                     for (ShardSearchFailure failure : failures) {
                         failure.toXContent(builder, params);
                     }
@@ -859,6 +910,94 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             }
             builder.endObject();
             return builder;
+        }
+
+        public static Cluster fromXContent(String clusterAlias, XContentParser parser) throws IOException {
+            XContentParser.Token token = parser.currentToken();
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+
+            String clusterName = clusterAlias;
+            if (clusterAlias.equals("(local)")) {
+                clusterName = "";
+            }
+            String indexExpression = null;
+            String status = "running";
+            boolean timedOut = false;
+            long took = -1L;
+            // these are all from the _shards section
+            int totalShards = -1;
+            int successfulShards = -1;
+            int skippedShards = -1;
+            int failedShards = -1;
+            List<ShardSearchFailure> failures = new ArrayList<>();
+
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token.isValue()) {
+                    if (Cluster.INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        indexExpression = parser.text();
+                    } else if (Cluster.STATUS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        status = parser.text();
+                    } else if (TIMED_OUT.match(currentFieldName, parser.getDeprecationHandler())) {
+                        timedOut = parser.booleanValue();
+                    } else if (TOOK.match(currentFieldName, parser.getDeprecationHandler())) {
+                        took = parser.longValue();
+                    } else {
+                        parser.skipChildren();
+                    }
+                } else if (RestActions._SHARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    while ((token = parser.nextToken()) != Token.END_OBJECT) {
+                        if (token == Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (token.isValue()) {
+                            if (RestActions.FAILED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                failedShards = parser.intValue();
+                            } else if (RestActions.SUCCESSFUL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                successfulShards = parser.intValue();
+                            } else if (RestActions.TOTAL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                totalShards = parser.intValue();
+                            } else if (RestActions.SKIPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                skippedShards = parser.intValue();
+                            } else {
+                                parser.skipChildren();
+                            }
+                        } else {
+                            parser.skipChildren();
+                        }
+                    }
+                } else if (token == Token.START_ARRAY) {
+                    if (RestActions.FAILURES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                            failures.add(ShardSearchFailure.fromXContent(parser));
+                        }
+                    } else {
+                        parser.skipChildren();
+                    }
+                } else {
+                    parser.skipChildren();
+                }
+            }
+
+            Integer totalShardsFinal = totalShards == -1 ? null : totalShards;
+            Integer successfulShardsFinal = successfulShards == -1 ? null : successfulShards;
+            Integer skippedShardsFinal = skippedShards == -1 ? null : skippedShards;
+            Integer failedShardsFinal = failedShards == -1 ? null : failedShards;
+            TimeValue tookTimeValue = took == -1L ? null : new TimeValue(took);
+
+            return new Cluster(
+                clusterName,
+                indexExpression,
+                SearchResponse.Cluster.Status.valueOf(status.toUpperCase(Locale.ROOT)),
+                totalShardsFinal,
+                successfulShardsFinal,
+                skippedShardsFinal,
+                failedShardsFinal,
+                failures,
+                tookTimeValue,
+                timedOut
+            );
         }
 
         public String getClusterAlias() {

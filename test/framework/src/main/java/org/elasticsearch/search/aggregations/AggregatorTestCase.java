@@ -159,7 +159,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -491,15 +490,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             } catch (CircuitBreakingException e) {
                 // Circuit breaks from the cranky breaker are expected - it randomly fails, after all
                 assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-            } catch (RuntimeException e) {
-                if (e.getCause() instanceof ExecutionException executionException) {
-                    if (executionException.getCause() instanceof CircuitBreakingException circuitBreakingException) {
-                        // Circuit breaks from the cranky breaker are expected - it randomly fails, after all
-                        assertThat(circuitBreakingException.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-                        return;
-                    }
-                }
-                throw e;
             }
         }
     }
@@ -594,7 +584,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                             return null;
                         }
                     };
-                    if (aggTestConfig.builder().supportsConcurrentExecution()) {
+                    if (aggTestConfig.builder().supportsParallelCollection()) {
                         searcher.search(rewritten, collectorManager);
                     } else {
                         searcher.search(rewritten, collectorManager.newCollector());
@@ -928,9 +918,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 IndexSearcher.getDefaultSimilarity(),
                 IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(),
-                1, // forces multiple slices
                 randomBoolean(),
-                this.threadPoolExecutor
+                this.threadPoolExecutor,
+                this.threadPoolExecutor.getMaximumPoolSize(),
+                1 // forces multiple slices
             );
         }
     }

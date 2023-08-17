@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.shutdown;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -90,7 +92,11 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.warn(() -> "failed to reroute after registering node [" + request.getNodeId() + "] for shutdown", e);
+                    logger.log(
+                        MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
+                        () -> "failed to reroute after registering node [" + request.getNodeId() + "] for shutdown",
+                        e
+                    );
                 }
             });
         } else {

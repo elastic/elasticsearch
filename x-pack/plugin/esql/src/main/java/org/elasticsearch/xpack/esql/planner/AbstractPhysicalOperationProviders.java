@@ -162,7 +162,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
         if (operatorFactory != null) {
             return source.with(operatorFactory, layout.build());
         }
-        throw new UnsupportedOperationException();
+        throw new EsqlIllegalArgumentException("no operator factory");
     }
 
     /***
@@ -244,7 +244,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                             sourceAttr = aggregateMapper.mapNonGrouping(aggregateFunction);
                         }
                     } else {
-                        throw new UnsupportedOperationException();
+                        throw new EsqlIllegalArgumentException("illegal aggregation mode");
                     }
                     var aggParams = aggregateFunction.parameters();
                     Object[] params = new Object[aggParams.size()];
@@ -257,7 +257,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                     if (aggregateFunction instanceof ToAggregator agg) {
                         consumer.accept(new AggFunctionSupplierContext(agg.supplier(bigArrays, inputChannels), aggMode));
                     } else {
-                        throw new UnsupportedOperationException("aggregate functions must extend ToAggregator");
+                        throw new EsqlIllegalArgumentException("aggregate functions must extend ToAggregator");
                     }
                 }
             }
@@ -267,7 +267,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
     private record GroupSpec(Integer channel, Attribute attribute) {
         HashAggregationOperator.GroupSpec toHashGroupSpec() {
             if (channel == null) {
-                throw new UnsupportedOperationException("planned to use ordinals but tried to use the hash instead");
+                throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
             }
             return new HashAggregationOperator.GroupSpec(channel, elementType());
         }

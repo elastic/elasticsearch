@@ -111,7 +111,7 @@ public class AggregateMapper {
             // This condition is a little pedantic, but do we expected other expressions here? if so, then add them
             return List.of();
         } else {
-            throw new UnsupportedOperationException("unknown: " + aggregate.getClass() + ": " + aggregate);
+            throw new EsqlIllegalArgumentException("unknown: " + aggregate.getClass() + ": " + aggregate);
         }
     }
 
@@ -201,7 +201,7 @@ public class AggregateMapper {
             case INT -> DataTypes.INTEGER;
             case LONG -> DataTypes.LONG;
             case DOUBLE -> DataTypes.DOUBLE;
-            default -> throw new UnsupportedOperationException("unsupported agg type: " + elementType);
+            default -> throw new EsqlIllegalArgumentException("unsupported agg type: " + elementType);
         };
     }
 
@@ -221,7 +221,7 @@ public class AggregateMapper {
         } else if (type.equals(DataTypes.KEYWORD) || type.equals(DataTypes.IP)) {
             return "BytesRef";
         } else {
-            throw new UnsupportedOperationException("unsupported agg type: " + type);
+            throw new EsqlIllegalArgumentException("unsupported agg type: " + type);
         }
     }
 

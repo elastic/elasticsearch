@@ -199,7 +199,7 @@ public class LocalExecutionPlanner {
             return planExchangeSink(exchangeSink, context);
         }
 
-        throw new UnsupportedOperationException(node.nodeName());
+        throw new EsqlIllegalArgumentException("unknown physical plan node [" + node.nodeName() + "]");
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
@@ -253,7 +253,7 @@ public class LocalExecutionPlanner {
         if (dataType == DataTypes.BOOLEAN) {
             return ElementType.BOOLEAN;
         }
-        throw new UnsupportedOperationException("unsupported data type [" + dataType + "]");
+        throw new EsqlIllegalArgumentException("unsupported data type [" + dataType + "]");
     }
 
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
@@ -329,7 +329,7 @@ public class LocalExecutionPlanner {
             if (order.child() instanceof Attribute a) {
                 sortByChannel = source.layout.getChannel(a.id());
             } else {
-                throw new UnsupportedOperationException();
+                throw new EsqlIllegalArgumentException("order by expression must be an attribute");
             }
 
             return new TopNOperator.SortOrder(
@@ -343,7 +343,7 @@ public class LocalExecutionPlanner {
         if (topNExec.limit() instanceof Literal literal) {
             limit = Integer.parseInt(literal.value().toString());
         } else {
-            throw new UnsupportedOperationException();
+            throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
 
         // TODO Replace page size with passing estimatedRowSize down
@@ -366,7 +366,7 @@ public class LocalExecutionPlanner {
             if (namedExpression instanceof Alias alias) {
                 evaluatorSupplier = EvalMapper.toEvaluator(alias.child(), source.layout);
             } else {
-                throw new UnsupportedOperationException();
+                throw new EsqlIllegalArgumentException("source fields for eval nodes have to be aliases");
             }
             Layout.Builder layout = source.layout.builder();
             layout.appendChannel(namedExpression.toAttribute().id());

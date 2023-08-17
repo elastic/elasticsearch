@@ -103,7 +103,7 @@ public class DateExtract extends ConfigurationFunction implements Mappable {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException();
+        throw new EsqlIllegalArgumentException("date_extract does not support scripting");
     }
 
     @Override

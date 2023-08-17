@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
@@ -81,6 +82,6 @@ public class Now extends ConfigurationFunction implements Mappable {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException();
+        throw new EsqlIllegalArgumentException("now does not support scripting");
     }
 }

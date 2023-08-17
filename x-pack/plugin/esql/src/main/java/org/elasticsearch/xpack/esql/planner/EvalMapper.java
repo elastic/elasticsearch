@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -227,7 +228,7 @@ public final class EvalMapper {
                     yield positions -> LongBlock.newConstantBlockWith(v, positions);
                 }
                 case NULL -> Block::constantNullBlock;
-                case DOC, UNKNOWN -> throw new UnsupportedOperationException("can't eval to doc or unknown");
+                case DOC, UNKNOWN -> throw new EsqlIllegalArgumentException("can't eval to doc or unknown");
             };
         }
     }

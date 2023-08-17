@@ -134,6 +134,6 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Mappa
 
     @Override
     public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException();
+        throw new EsqlIllegalArgumentException("date_parse does not support scripting");
     }
 }

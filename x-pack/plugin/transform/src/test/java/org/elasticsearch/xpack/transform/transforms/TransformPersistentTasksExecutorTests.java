@@ -58,6 +58,7 @@ import static org.mockito.Mockito.when;
 
 public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98564")
     public void testNodeVersionAssignment() {
         DiscoveryNodes.Builder nodes = buildNodes(false, true, true, true, true);
         ClusterState cs = buildClusterState(nodes);
@@ -89,6 +90,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98564")
     public void testNodeAssignmentProblems() {
         // no data nodes
         DiscoveryNodes.Builder nodes = buildNodes(false, false, false, false, true);

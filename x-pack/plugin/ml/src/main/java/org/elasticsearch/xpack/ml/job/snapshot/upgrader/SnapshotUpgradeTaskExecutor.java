@@ -198,7 +198,8 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                 client,
                 clusterState,
                 MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
-                resultsMappingUpdateHandler
+                resultsMappingUpdateHandler,
+                AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
             ),
             e -> {
                 // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
@@ -210,7 +211,8 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                     client,
                     clusterState,
                     MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
-                    resultsMappingUpdateHandler
+                    resultsMappingUpdateHandler,
+                    AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
                 );
             }
         );

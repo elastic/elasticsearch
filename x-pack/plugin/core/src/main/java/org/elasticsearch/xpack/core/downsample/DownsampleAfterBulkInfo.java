@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.rollup.action;
+package org.elasticsearch.xpack.core.downsample;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,7 +22,7 @@ import java.io.IOException;
  * This class includes statistics collected by the downsampling task after
  * a bulk indexing operation ends.
  */
-public record RollupAfterBulkInfo(
+public record DownsampleAfterBulkInfo(
     long currentTimeMillis,
     long executionId,
     long lastIngestTookInMillis,
@@ -40,11 +40,11 @@ public record RollupAfterBulkInfo(
     private static final ParseField HAS_FAILURES = new ParseField("has_failures");
     private static final ParseField REST_STATUS_CODE = new ParseField("rest_status_code");
 
-    private static final ConstructingObjectParser<RollupAfterBulkInfo, Void> PARSER;
+    private static final ConstructingObjectParser<DownsampleAfterBulkInfo, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(
             NAME,
-            args -> new RollupAfterBulkInfo(
+            args -> new DownsampleAfterBulkInfo(
                 (Long) args[0],
                 (Long) args[1],
                 (Long) args[2],
@@ -62,7 +62,7 @@ public record RollupAfterBulkInfo(
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), REST_STATUS_CODE);
     }
 
-    public RollupAfterBulkInfo(final StreamInput in) throws IOException {
+    public DownsampleAfterBulkInfo(final StreamInput in) throws IOException {
         this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readBoolean(), in.readVInt());
     }
 
@@ -93,7 +93,7 @@ public record RollupAfterBulkInfo(
         return builder.endObject();
     }
 
-    public static RollupAfterBulkInfo fromXContent(XContentParser parser) throws IOException {
+    public static DownsampleAfterBulkInfo fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 }

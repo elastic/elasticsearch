@@ -28,7 +28,6 @@ these functions:
 * <<esql-is_finite>>
 * <<esql-is_infinite>>
 * <<esql-is_nan>>
-* <<esql-is_null>>
 * <<esql-length>>
 * <<esql-log10>>
 * <<esql-mv_avg>>
@@ -84,7 +83,6 @@ include::functions/floor.asciidoc[]
 include::functions/is_finite.asciidoc[]
 include::functions/is_infinite.asciidoc[]
 include::functions/is_nan.asciidoc[]
-include::functions/is_null.asciidoc[]
 include::functions/length.asciidoc[]
 include::functions/log10.asciidoc[]
 include::functions/mv_avg.asciidoc[]
@@ -102,6 +100,7 @@ include::functions/round.asciidoc[]
 include::functions/sin.asciidoc[]
 include::functions/sinh.asciidoc[]
 include::functions/split.asciidoc[]
+include::functions/sqrt.asciidoc[]
 include::functions/starts_with.asciidoc[]
 include::functions/substring.asciidoc[]
 include::functions/tan.asciidoc[]

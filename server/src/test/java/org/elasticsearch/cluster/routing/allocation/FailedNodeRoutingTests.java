@@ -36,6 +36,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -224,7 +225,11 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         return DiscoveryNodeUtils.builder(id)
             .name(id)
             .roles(roles)
-            .version(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT))
+            .version(
+                VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
+                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersionUtils.randomCompatibleVersion(random())
+            )
             .build();
     }
 

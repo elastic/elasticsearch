@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -41,10 +42,9 @@ import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 
 import java.util.Collection;
 import java.util.List;
@@ -100,7 +100,12 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
         IndexNameExpressionResolver expressionResolver
     ) {
         return List.of(
-            new RollupShardPersistentTaskExecutor(client, this.indicesService, RollupShardTask.TASK_NAME, DOWSAMPLE_TASK_THREAD_POOL_NAME)
+            new DownsampleShardPersistentTaskExecutor(
+                client,
+                this.indicesService,
+                DownsampleShardTask.TASK_NAME,
+                DOWSAMPLE_TASK_THREAD_POOL_NAME
+            )
         );
     }
 
@@ -109,8 +114,8 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
         return List.of(
             new NamedXContentRegistry.Entry(
                 PersistentTaskState.class,
-                new ParseField(RollupShardPersistentTaskState.NAME),
-                RollupShardPersistentTaskState::fromXContent
+                new ParseField(DownsampleShardPersistentTaskState.NAME),
+                DownsampleShardPersistentTaskState::fromXContent
             ),
             new NamedXContentRegistry.Entry(
                 PersistentTaskParams.class,
@@ -125,8 +130,8 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
         return List.of(
             new NamedWriteableRegistry.Entry(
                 PersistentTaskState.class,
-                RollupShardPersistentTaskState.NAME,
-                RollupShardPersistentTaskState::readFromStream
+                DownsampleShardPersistentTaskState.NAME,
+                DownsampleShardPersistentTaskState::readFromStream
             ),
             new NamedWriteableRegistry.Entry(
                 PersistentTaskParams.class,

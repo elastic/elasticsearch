@@ -194,7 +194,7 @@ c:l |maxid:i  |version:v
 ;
 
 groupOrderLimit
-FROM apps | WHERE not is_null(version) | STATS c = COUNT(version) BY version | SORT version DESC | DROP c | LIMIT 3;
+FROM apps | WHERE version is not null | STATS c = COUNT(version) BY version | SORT version DESC | DROP c | LIMIT 3;
 
 version:v
 bad
@@ -289,14 +289,14 @@ idx:i  |version:v
 case
 FROM apps
 | EVAL version_text = TO_STR(version)
-| WHERE IS_NULL(version) OR version_text LIKE "1*"
+| WHERE version IS NULL OR version_text LIKE "1*"
 | EVAL v = TO_VER(CONCAT("123", TO_STR(version)))
 | EVAL m = CASE(version > TO_VER("1.1"), 1, 0)
 | EVAL g = CASE(version > TO_VER("1.3.0"), version, TO_VER("1.3.0"))
-| EVAL i = CASE(IS_NULL(version), TO_VER("0.1"), version)
+| EVAL i = CASE(version IS NULL, TO_VER("0.1"), version)
 | EVAL c = CASE(
     version > TO_VER("1.1"), "high",
-    IS_NULL(version), "none",
+    version IS NULL, "none",
     "low")
 | SORT version DESC NULLS LAST, id DESC
 | KEEP v, version, version_text, id, m, g, i, c;

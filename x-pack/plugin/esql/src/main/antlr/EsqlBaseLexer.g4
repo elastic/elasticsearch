@@ -93,6 +93,7 @@ FIRST : 'first';
 LAST : 'last';
 LP : '(';
 IN: 'in';
+IS: 'is';
 LIKE: 'like';
 NOT : 'not';
 NULL : 'null';

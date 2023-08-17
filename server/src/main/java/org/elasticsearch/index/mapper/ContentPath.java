@@ -24,7 +24,7 @@ public final class ContentPath {
         this.sb = new StringBuilder();
     }
 
-    protected String[] getPath() {
+    String[] getPath() {
         // used for testing
         return path;
     }

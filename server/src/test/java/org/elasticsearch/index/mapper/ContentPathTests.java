@@ -16,30 +16,30 @@ public class ContentPathTests extends ESTestCase {
         ContentPath contentPath = new ContentPath();
         contentPath.add("foo");
         contentPath.add("bar");
-        contentPath.add("baz");
-        String[] path = contentPath.getPath();
-        assertEquals(path[0], "foo");
-        assertEquals(path[1], "bar");
-        assertEquals(path[2], "baz");
+        String pathAsText = contentPath.pathAsText("baz");
+        assertEquals("foo.bar.baz", pathAsText);
     }
 
     public void testRemovePath() {
         ContentPath contentPath = new ContentPath();
         contentPath.add("foo");
         String[] path = contentPath.getPath();
-        assertEquals(path[0], "foo");
+        assertEquals("foo", path[0]);
         contentPath.remove();
         assertNull(path[0]);
+        assertEquals(0, contentPath.length());
+        String pathAsText = contentPath.pathAsText("bar");
+        assertEquals("bar", pathAsText);
     }
 
     public void testRemovePathException() {
         ContentPath contentPath = new ContentPath();
         contentPath.add("foo");
         contentPath.remove();
-        expectThrows(IndexOutOfBoundsException.class, () -> contentPath.remove());
+        expectThrows(IndexOutOfBoundsException.class, contentPath::remove);
     }
 
-    public void testExpandpath() {
+    public void testExpandPath() {
         ContentPath contentPath = new ContentPath();
         contentPath.add("1");
         contentPath.add("2");
@@ -50,12 +50,10 @@ public class ContentPathTests extends ESTestCase {
         contentPath.add("7");
         contentPath.add("8");
         contentPath.add("9");
-        String[] path = contentPath.getPath();
-        assertEquals(path.length, 10);
         contentPath.add("10");
-        // retrieve new path array
-        path = contentPath.getPath();
-        assertEquals(path.length, 20);
+        assertEquals(10, contentPath.length());
+        String pathAsText = contentPath.pathAsText("11");
+        assertEquals("1.2.3.4.5.6.7.8.9.10.11", pathAsText);
     }
 
     public void testLenghtOfPath() {
@@ -63,7 +61,7 @@ public class ContentPathTests extends ESTestCase {
         contentPath.add("foo");
         contentPath.add("bar");
         contentPath.add("baz");
-        assertEquals(contentPath.length(), 3);
+        assertEquals(3, contentPath.length());
     }
 
     public void testLenghtOfPathAfterRemove() {
@@ -71,17 +69,17 @@ public class ContentPathTests extends ESTestCase {
         contentPath.add("foo");
         contentPath.add("bar");
         contentPath.add("baz");
-        assertEquals(contentPath.length(), 3);
+        assertEquals(3, contentPath.length());
         contentPath.remove();
         contentPath.remove();
-        assertEquals(contentPath.length(), 1);
+        assertEquals(1, contentPath.length());
     }
 
     public void testPathAsText() {
         ContentPath contentPath = new ContentPath();
         contentPath.add("foo");
         contentPath.add("bar");
-        assertEquals(contentPath.pathAsText("baz"), "foo.bar.baz");
+        assertEquals("foo.bar.baz", contentPath.pathAsText("baz"));
     }
 
     public void testPathAsTextAfterRemove() {
@@ -91,7 +89,7 @@ public class ContentPathTests extends ESTestCase {
         contentPath.add("baz");
         contentPath.remove();
         contentPath.remove();
-        assertEquals(contentPath.pathAsText("qux"), "foo.qux");
+        assertEquals("foo.qux", contentPath.pathAsText("qux"));
     }
 
     public void testPathAsTextAfterRemoveAndMoreAdd() {
@@ -100,6 +98,6 @@ public class ContentPathTests extends ESTestCase {
         contentPath.add("bar");
         contentPath.remove();
         contentPath.add("baz");
-        assertEquals(contentPath.pathAsText("qux"), "foo.baz.qux");
+        assertEquals("foo.baz.qux", contentPath.pathAsText("qux"));
     }
 }

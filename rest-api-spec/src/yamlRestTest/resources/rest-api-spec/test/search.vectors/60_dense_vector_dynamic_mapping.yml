@@ -18,14 +18,14 @@ setup:
       indices.get_mapping:
         index: test-too-short-still-float
 
-  - match: { test-to-short-still-float.mappings.my_field: float }
+  - match: { test-too-short-still-float.mappings.properties.my_field.type: float }
 
 ---
 "Fields with float arrays above the threshold still map as float":
 
   - do:
       index:
-        index: test-too-short-still-float
+        index: test-too-big-still-float
         id: "1"
         refresh: true
         body:
@@ -57,9 +57,9 @@ setup:
           ]
   - do:
       indices.get_mapping:
-        index: test-too-short-still-float
+        index: test-too-big-still-float
 
-  - match: { test-to-short-still-float.mappings.my_field: float }
+  - match: { test-too-big-still-float.mappings.properties.my_field.type: float }
 
 
 ---
@@ -87,5 +87,5 @@ setup:
       indices.get_mapping:
         index: test-map-dense-vector
 
-  - match: { test-to-short-still-float.mappings.my_field: float }
+  - match: { test-map-dense-vector.mappings.properties.my_field.type: float }
 

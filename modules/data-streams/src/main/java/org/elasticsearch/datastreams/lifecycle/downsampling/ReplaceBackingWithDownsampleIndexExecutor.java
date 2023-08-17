@@ -1,0 +1,85 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.datastreams.lifecycle.downsampling;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
+
+public class ReplaceBackingWithDownsampleIndexExecutor extends SimpleBatchedExecutor<ReplaceSourceWithDownsampleIndexTask, Void> {
+    private static final Logger LOGGER = LogManager.getLogger(ReplaceSourceWithDownsampleIndexTask.class);
+    private final Client client;
+
+    public ReplaceBackingWithDownsampleIndexExecutor(Client client) {
+        this.client = client;
+    }
+
+    @Override
+    public Tuple<ClusterState, Void> executeTask(ReplaceSourceWithDownsampleIndexTask task, ClusterState clusterState) throws Exception {
+        return Tuple.tuple(task.execute(clusterState), null);
+    }
+
+    @Override
+    public void taskSucceeded(ReplaceSourceWithDownsampleIndexTask task, Void unused) {
+        LOGGER.trace(
+            "Updated cluster state and replaced index [{}] with index [{}] in data stream [{}]",
+            task.getSourceBackingIndex(),
+            task.getDownsampleIndex(),
+            task.getDataStreamName()
+        );
+        task.getListener().onResponse(null);
+
+        // chain an optimistic delete of the source index call here (if it fails it'll be retried by the data stream lifecycle loop)
+        client.admin().indices().delete(new DeleteIndexRequest(task.getSourceBackingIndex()), new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                LOGGER.info(
+                    "Data stream lifecycle successfully deleted index [{}] due to being replaced by the downsampled index [{}] in"
+                        + " data stream [{}]",
+                    task.getSourceBackingIndex(),
+                    task.getDownsampleIndex(),
+                    task.getDataStreamName()
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof IndexNotFoundException) {
+                    // index was already deleted, treat this as a success
+                    return;
+                }
+
+                if (e instanceof SnapshotInProgressException) {
+                    LOGGER.info(
+                        "Data stream lifecycle was unable to delete index [{}] because it's currently being snapshot. Retrying on "
+                            + "the next data stream lifecycle run",
+                        task.getSourceBackingIndex()
+                    );
+                } else {
+                    LOGGER.error(
+                        () -> Strings.format(
+                            "Data stream lifecycle encountered an error trying to delete index [%s]",
+                            task.getSourceBackingIndex()
+                        ),
+                        e
+                    );
+                }
+            }
+        });
+    }
+}

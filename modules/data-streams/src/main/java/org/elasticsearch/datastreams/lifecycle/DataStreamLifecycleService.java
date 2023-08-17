@@ -12,15 +12,19 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -29,6 +33,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -46,10 +51,13 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.datastreams.lifecycle.downsampling.ReplaceBackingWithDownsampleIndexExecutor;
+import org.elasticsearch.datastreams.lifecycle.downsampling.ReplaceSourceWithDownsampleIndexTask;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -66,6 +74,14 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.STARTED;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.SUCCESS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.UNKNOWN;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DOWNSAMPLE_STATUS;
+import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
+import static org.elasticsearch.datastreams.lifecycle.downsampling.ReplaceSourceWithDownsampleIndexTask.REPLACEMENT_SOURCE_INDEX;
 
 /**
  * This service will implement the needed actions (e.g. rollover, retention) to manage the data streams with a data stream lifecycle
@@ -100,6 +116,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final String DOWNSAMPLED_INDEX_PREFIX = "downsample-";
 
     private static final Logger logger = LogManager.getLogger(DataStreamLifecycleService.class);
     /**
@@ -109,13 +126,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     /*
      * This is the key for data stream lifecycle related custom index metadata.
      */
-    static final String LIFECYCLE_CUSTOM_INDEX_METADATA_KEY = "data_stream_lifecycle";
     static final String FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY = "force_merge_completed_timestamp";
     private final Settings settings;
     private final Client client;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     final ResultDeduplicator<TransportRequest, Void> transportActionsDeduplicator;
+    final ResultDeduplicator<ClusterStateTaskListener, Void> clusterStateChangesDeduplicator;
     private final LongSupplier nowSupplier;
     private final Clock clock;
     private final DataStreamLifecycleErrorStore errorStore;
@@ -125,6 +142,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private SchedulerEngine.Job scheduledJob;
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private final MasterServiceTaskQueue<UpdateForceMergeCompleteTask> forceMergeClusterStateUpdateTaskQueue;
+    private final MasterServiceTaskQueue<ReplaceSourceWithDownsampleIndexTask> swapSourceWithDownsampleIndexQueue;
     private volatile ByteSizeValue targetMergePolicyFloorSegment;
     private volatile int targetMergePolicyFactor;
 
@@ -157,6 +175,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         this.clock = clock;
         this.threadPool = threadPool;
         this.transportActionsDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
+        this.clusterStateChangesDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
         this.nowSupplier = nowSupplier;
         this.errorStore = errorStore;
         this.scheduledJob = null;
@@ -169,6 +188,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             "data-stream-lifecycle-forcemerge-state-update",
             Priority.LOW,
             FORCE_MERGE_STATE_UPDATE_TASK_EXECUTOR
+        );
+        this.swapSourceWithDownsampleIndexQueue = clusterService.createTaskQueue(
+            "data-stream-lifecycle-swap-source-with-downsample",
+            Priority.NORMAL,
+            new ReplaceBackingWithDownsampleIndexExecutor(client)
         );
     }
 
@@ -285,21 +309,17 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 );
             }
 
+            // the following indices should not be considered for the remainder of this service run:
+            // 1) the write index as it's still getting writes and we'll have to roll it over when the conditions are met
+            // 2) we exclude any indices that we're in the process of deleting because they'll be gone soon anyway
+            Set<Index> indicesToExcludeForRemainingRun = new HashSet<>();
+            indicesToExcludeForRemainingRun.add(currentRunWriteIndex);
+            indicesToExcludeForRemainingRun.addAll(indicesBeingRemoved);
+
             try {
-                /*
-                 * When considering indices for force merge, we want to exclude several indices: (1) We exclude the current write index
-                 * because obviously it is still likely to get writes, (2) we exclude the most recent previous write index because since
-                 * we just switched over it might still be getting some writes, and (3) we exclude any indices that we're in the process
-                 * of deleting because they'll be gone soon anyway.
-                 */
-                Set<Index> indicesToExclude = new HashSet<>();
-                indicesToExclude.add(currentRunWriteIndex);
-                indicesToExclude.addAll(indicesBeingRemoved);
-                List<Index> potentialForceMergeIndices = dataStream.getIndices()
-                    .stream()
-                    .filter(index -> indicesToExclude.contains(index) == false)
-                    .toList();
-                maybeExecuteForceMerge(state, dataStream, potentialForceMergeIndices);
+                indicesToExcludeForRemainingRun.addAll(
+                    maybeExecuteForceMerge(state, dataStream, getTargetIndices(dataStream, indicesToExcludeForRemainingRun))
+                );
             } catch (Exception e) {
                 logger.error(
                     () -> String.format(
@@ -310,7 +330,163 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     e
                 );
             }
+
+            try {
+                maybeExecuteDownsampling(state, dataStream, getTargetIndices(dataStream, indicesToExcludeForRemainingRun));
+            } catch (Exception e) {
+                logger.error(
+                    () -> String.format(
+                        Locale.ROOT,
+                        "Data stream lifecycle failed to execute downsampling for data stream [%s]",
+                        dataStream.getName()
+                    ),
+                    e
+                );
+            }
         }
+    }
+
+    private Set<Index> maybeExecuteDownsampling(ClusterState state, DataStream dataStream, List<Index> targetIndices) {
+        Set<Index> affectedIndices = new HashSet<>();
+        Metadata metadata = state.metadata();
+        for (Index index : targetIndices) {
+            if (dataStream.isIndexManagedByDataStreamLifecycle(index, metadata::index)) {
+                IndexMetadata backingIndex = metadata.index(index);
+                assert backingIndex != null : "the data stream backing indices must exist";
+                List<DataStreamLifecycle.Downsampling.Round> downsamplingRounds = dataStream.getDownsamplingRoundsFor(
+                    index,
+                    metadata::index,
+                    nowSupplier
+                );
+                if (downsamplingRounds.isEmpty()) {
+                    continue;
+                }
+
+                String indexName = index.getName();
+                if (state.blocks().indexBlocked(ClusterBlockLevel.WRITE, indexName) == false) {
+                    // time to downsample, but first we have to mark the index as read-only
+                    affectedIndices.add(index);
+                    AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(
+                        TimeValue.MAX_VALUE
+                    );
+                    transportActionsDeduplicator.executeOnce(
+                        addIndexBlockRequest,
+                        new ErrorRecordingActionListener(indexName, errorStore),
+                        (req, reqListener) -> addIndexBlock(addIndexBlockRequest, reqListener)
+                    );
+                    continue;
+                }
+
+                IndexMetadata.DownsampleTaskStatus backingIndexDownsamplingStatus = INDEX_DOWNSAMPLE_STATUS.get(backingIndex.getSettings());
+                String backingIndexDownsamplingSource = backingIndex.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
+                if (org.elasticsearch.common.Strings.hasText(backingIndexDownsamplingSource)
+                    && backingIndexDownsamplingStatus.equals(SUCCESS)) {
+                    // if the backing index is a downsample index itself, let's check if its source index still exists as we must delete it
+                    Map<String, String> lifecycleMetadata = backingIndex.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
+                    if (lifecycleMetadata == null || lifecycleMetadata.containsKey(REPLACEMENT_SOURCE_INDEX) == false) {
+                        // this is a downsampling index that was not added by data stream lifecycle in this data stream
+                        continue;
+                    }
+                    String actualDownsamplingSource = lifecycleMetadata.get(REPLACEMENT_SOURCE_INDEX);
+                    IndexMetadata downsampleSourceIndex = metadata.index(actualDownsamplingSource);
+                    if (downsampleSourceIndex != null) {
+                        // delete downsampling source index (that's not part of the data stream anymore) before doing any more
+                        // downsampling
+                        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(backingIndexDownsamplingSource).masterNodeTimeout(
+                            TimeValue.MAX_VALUE
+                        );
+                        transportActionsDeduplicator.executeOnce(
+                            deleteIndexRequest,
+                            new ErrorRecordingActionListener(backingIndexDownsamplingSource, errorStore),
+                            (req, reqListener) -> deleteIndex(
+                                deleteIndexRequest,
+                                "replacement with its downsampled index in the data stream",
+                                reqListener
+                            )
+                        );
+                        continue;
+                    }
+                }
+
+                // this index has matching downsample rounds and is read-only, so let's wait for an in-progress downsampling operation to
+                // succeed or trigger the corresponding one
+                // TODO add support for cancelling a current in-progress operation if another, later, round matches
+                DataStreamLifecycle.Downsampling.Round lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
+
+                for (DataStreamLifecycle.Downsampling.Round round : downsamplingRounds) {
+                    String downsampleIndexName = getDownsampleIndexName(backingIndex, round.config().getFixedInterval());
+                    IndexMetadata downsampleIndexMeta = metadata.index(downsampleIndexName);
+                    if (downsampleIndexMeta != null) {
+                        IndexMetadata.DownsampleTaskStatus downsampleStatus = INDEX_DOWNSAMPLE_STATUS.get(
+                            downsampleIndexMeta.getSettings()
+                        );
+                        if (downsampleStatus.equals(UNKNOWN) && round.equals(lastRound)) {
+                            // target downsampling index exists and it's not a downsampling index (name clash?)
+                            // we fail now but perhaps we should just randomise the name?
+                            errorStore.recordError(
+                                backingIndex.getIndex().getName(),
+                                new ResourceAlreadyExistsException(downsampleIndexMeta.getIndex().getName())
+                            );
+                        } else if (downsampleStatus.equals(STARTED)) {
+                            // we'll wait for this round to complete
+                            // TODO when cancelling support is added it'll go here, if there's a further round that can be started for
+                            // this index
+                            break;
+                        } else if (downsampleStatus.equals(SUCCESS)) {
+                            // at this point the source index is part of the data stream and the downsample index is complete but not
+                            // part of the data stream. we need to replace the source index with the downsample index in the data stream
+                            // and delete the source index.
+                            if (dataStream.getIndices().contains(downsampleIndexMeta.getIndex()) == false) {
+                                affectedIndices.add(backingIndex.getIndex());
+                                ReplaceSourceWithDownsampleIndexTask task = new ReplaceSourceWithDownsampleIndexTask(
+                                    dataStream.getName(),
+                                    index.getName(),
+                                    downsampleIndexName,
+                                    null
+                                );
+                                clusterStateChangesDeduplicator.executeOnce(
+                                    task,
+                                    new ErrorRecordingActionListener(indexName, errorStore),
+                                    (req, reqListener) -> replaceSourceWithDownsampleIndexAndDeleteSource(task, reqListener)
+                                );
+                                break;
+                            }
+                        }
+                    } else if (round.equals(lastRound)) {
+                        // no maintenance needed for previously started downsampling actions, so kick off the last matching round
+                        affectedIndices.add(index);
+                        // call the downsampling API through dedup
+                        DownsampleAction.Request request = new DownsampleAction.Request(
+                            indexName,
+                            downsampleIndexName,
+                            null,
+                            round.config()
+                        );
+                        transportActionsDeduplicator.executeOnce(
+                            request,
+                            new ErrorRecordingActionListener(indexName, errorStore),
+                            (req, reqListener) -> downsampleIndex(request, reqListener)
+                        );
+                    }
+                }
+            }
+        }
+        return affectedIndices;
+    }
+
+    private static List<Index> getTargetIndices(DataStream dataStream, Set<Index> indicesToExcludeForRemainingRun) {
+        return dataStream.getIndices().stream().filter(index -> indicesToExcludeForRemainingRun.contains(index) == false).toList();
+    }
+
+    static String getDownsampleIndexName(IndexMetadata sourceIndexMetadata, DateHistogramInterval fixedInterval) {
+        String downsampleSourceName = sourceIndexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
+        String sourceIndexName;
+        if (downsampleSourceName != null) {
+            sourceIndexName = downsampleSourceName;
+        } else {
+            sourceIndexName = sourceIndexMetadata.getIndex().getName();
+        }
+        return DOWNSAMPLED_INDEX_PREFIX + fixedInterval + "-" + sourceIndexName;
     }
 
     /**
@@ -373,7 +549,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 transportActionsDeduplicator.executeOnce(
                     deleteRequest,
                     new ErrorRecordingActionListener(indexName, errorStore),
-                    (req, reqListener) -> deleteIndex(deleteRequest, retention, reqListener)
+                    (req, reqListener) -> deleteIndex(deleteRequest, "the lapsed [" + retention + "] retention period", reqListener)
                 );
             }
         }
@@ -384,8 +560,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * This method force merges the given indices in the datastream. It writes a timestamp in the cluster state upon completion of the
      * force merge.
      */
-    private void maybeExecuteForceMerge(ClusterState state, DataStream dataStream, List<Index> indices) {
+    private Set<Index> maybeExecuteForceMerge(ClusterState state, DataStream dataStream, List<Index> indices) {
         Metadata metadata = state.metadata();
+        Set<Index> affectedIndices = new HashSet<>();
         for (Index index : indices) {
             if (dataStream.isIndexManagedByDataStreamLifecycle(index, state.metadata()::index)) {
                 IndexMetadata backingIndex = metadata.index(index);
@@ -411,12 +588,14 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), targetMergePolicyFactor)
                     );
                     updateMergePolicySettingsRequest.masterNodeTimeout(TimeValue.MAX_VALUE);
+                    affectedIndices.add(index);
                     transportActionsDeduplicator.executeOnce(
                         updateMergePolicySettingsRequest,
                         new ErrorRecordingActionListener(indexName, errorStore),
                         (req, reqListener) -> updateIndexSetting(updateMergePolicySettingsRequest, reqListener)
                     );
                 } else {
+                    affectedIndices.add(index);
                     ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indexName);
                     // time to force merge the index
                     transportActionsDeduplicator.executeOnce(
@@ -427,6 +606,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 }
             }
         }
+        return affectedIndices;
     }
 
     private void rolloverDataStream(String writeIndexName, RolloverRequest rolloverRequest, ActionListener<Void> listener) {
@@ -512,7 +692,54 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         });
     }
 
-    private void deleteIndex(DeleteIndexRequest deleteIndexRequest, TimeValue retention, ActionListener<Void> listener) {
+    private void addIndexBlock(AddIndexBlockRequest addIndexBlockRequest, ActionListener<Void> listener) {
+        assert addIndexBlockRequest.indices() != null && addIndexBlockRequest.indices().length == 1
+            : "Data stream lifecycle service updates the index block for one index at a time";
+        // "saving" the index name here so we don't capture the entire request
+        String targetIndex = addIndexBlockRequest.indices()[0];
+        logger.trace(
+            "Data stream lifecycle service issues request to add block [{}] for index [{}]",
+            addIndexBlockRequest.getBlock(),
+            targetIndex
+        );
+        client.admin().indices().addBlock(addIndexBlockRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(AddIndexBlockResponse addIndexBlockResponse) {
+                logger.info(
+                    "Data stream lifecycle service successfully added block [{}] for index index [{}]",
+                    addIndexBlockRequest.getBlock(),
+                    targetIndex
+                );
+                listener.onResponse(null);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof IndexNotFoundException) {
+                    // index was already deleted, treat this as a success
+                    errorStore.clearRecordedError(targetIndex);
+                    listener.onResponse(null);
+                    return;
+                }
+
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    private void replaceSourceWithDownsampleIndexAndDeleteSource(ReplaceSourceWithDownsampleIndexTask task, ActionListener<Void> listener) {
+        logger.trace(
+            "Data stream lifecycle issues request to replace index [{}] with index [{}] in data stream [{}]",
+            task.getSourceBackingIndex(),
+            task.getDownsampleIndex(),
+            task.getDataStreamName()
+        );
+        // TODO this is not nice but will make it nicer
+        task.setListener(listener);
+        swapSourceWithDownsampleIndexQueue.submitTask("data-stream-lifecycle-replace-source-with-downsample", task, null);
+    }
+
+    private void deleteIndex(DeleteIndexRequest deleteIndexRequest, String reason, ActionListener<Void> listener) {
         assert deleteIndexRequest.indices() != null && deleteIndexRequest.indices().length == 1
             : "Data stream lifecycle deletes one index at a time";
         // "saving" the index name here so we don't capture the entire request
@@ -521,11 +748,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         client.admin().indices().delete(deleteIndexRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                logger.info(
-                    "Data stream lifecycle successfully deleted index [{}] due to the lapsed [{}] retention period",
-                    targetIndex,
-                    retention
-                );
+                logger.info("Data stream lifecycle successfully deleted index [{}] due to {}", targetIndex, reason);
                 listener.onResponse(null);
             }
 
@@ -555,6 +778,30 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         });
     }
 
+    private void downsampleIndex(DownsampleAction.Request request, ActionListener<Void> listener) {
+        logger.trace(
+            "Data stream lifecycle issues request to downsample index [{}] to index [{}]",
+            request.getSourceIndex(),
+            request.getTargetIndex()
+        );
+        client.execute(DownsampleAction.INSTANCE, request, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                logger.info(
+                    "Data stream lifecycle successfully downsampled index [{}] to index [{}]",
+                    request.getSourceIndex(),
+                    request.getTargetIndex()
+                );
+                listener.onResponse(null);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
     /*
      * This method executes the given force merge request. Once the request has completed successfully it writes a timestamp as custom
      * metadata in the cluster state indicating when the force merge has completed. The listener is notified after the cluster state
@@ -564,7 +811,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         assert forceMergeRequest.indices() != null && forceMergeRequest.indices().length == 1
             : "Data stream lifecycle force merges one index at a time";
         final String targetIndex = forceMergeRequest.indices()[0];
-        logger.info("Data stream lifecycle is issuing a request to force merge index [{}]", targetIndex);
+        logger.trace("Data stream lifecycle is issuing a request to force merge index [{}]", targetIndex);
         client.admin().indices().forceMerge(forceMergeRequest, new ActionListener<>() {
             @Override
             public void onResponse(ForceMergeResponse forceMergeResponse) {

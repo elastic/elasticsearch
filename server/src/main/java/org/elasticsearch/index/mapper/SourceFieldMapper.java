@@ -86,10 +86,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             .setMergeValidator(
                 (previous, current, conflicts) -> (previous.value() == current.value()) || (previous.value() && current.value() == false)
             );
+
+        /*
+         * The default mode for TimeSeries is left empty on purpose, so that mapping printings include the synthetic
+         * source mode.
+         */
         private final Parameter<Mode> mode = new Parameter<>(
             "mode",
             true,
-            () -> getIndexMode() == IndexMode.TIME_SERIES ? Mode.SYNTHETIC : null,
+            () -> null,
             (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
             m -> toType(m).enabled.explicit() ? null : toType(m).mode,
             (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),

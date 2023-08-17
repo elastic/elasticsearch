@@ -5,7 +5,7 @@ Returns the first non-null value.
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/nulls.csv-spec[tag=coalesce]
+include::{esql-specs}/null.csv-spec[tag=coalesce]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===

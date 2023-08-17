@@ -199,11 +199,11 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      *
      * You can use git to find the transport versions known by a particular release ...
      *
-     *     git show v8.9.1:server/src/main/java/org/elasticsearch/TransportVersion.java | grep 'final TransportVersion'
+     *     git show v8.9.1:server/src/main/java/org/elasticsearch/TransportVersion.java | grep registerTransportVersion
      *
      * ... or by a particular branch ...
      *
-     *     git show 8.10:server/src/main/java/org/elasticsearch/TransportVersion.java | grep 'final TransportVersion'
+     *     git show 8.10:server/src/main/java/org/elasticsearch/TransportVersion.java | grep registerTransportVersion
      *
      * ... and you can see which versions were added in between two versions too ...
      *

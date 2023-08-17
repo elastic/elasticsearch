@@ -49,7 +49,7 @@ public class Header {
         return requestId;
     }
 
-    boolean isRequest() {
+    public boolean isRequest() {
         return TransportStatus.isRequest(status);
     }
 
@@ -61,7 +61,7 @@ public class Header {
         return TransportStatus.isError(status);
     }
 
-    boolean isHandshake() {
+    public boolean isHandshake() {
         return TransportStatus.isHandshake(status);
     }
 
@@ -81,7 +81,7 @@ public class Header {
         return headers == null;
     }
 
-    Tuple<Map<String, String>, Map<String, Set<String>>> getHeaders() {
+    public Tuple<Map<String, String>, Map<String, Set<String>>> getHeaders() {
         return headers;
     }
 

@@ -67,7 +67,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private final SslConfiguration defaultSslConfiguration;
     private final Map<String, SslConfiguration> profileConfigurations;
     private final boolean transportSslEnabled;
-    private final boolean remoteClusterPortEnabled;
+    protected final boolean remoteClusterPortEnabled;
     private final boolean remoteClusterServerSslEnabled;
     private final SslConfiguration remoteClusterClientSslConfiguration;
     private final RemoteClusterClientBootstrapOptions remoteClusterClientBootstrapOptions;

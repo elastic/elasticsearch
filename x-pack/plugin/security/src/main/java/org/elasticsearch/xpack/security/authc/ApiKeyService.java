@@ -867,7 +867,7 @@ public class ApiKeyService {
             && userRoleDescriptors.containsAll(currentLimitedByRoleDescriptors));
     }
 
-    void tryAuthenticate(ThreadContext ctx, ApiKeyCredentials credentials, ActionListener<AuthenticationResult<User>> listener) {
+    public void tryAuthenticate(ThreadContext ctx, ApiKeyCredentials credentials, ActionListener<AuthenticationResult<User>> listener) {
         if (false == isEnabled()) {
             listener.onResponse(AuthenticationResult.notHandled());
         }
@@ -1220,7 +1220,7 @@ public class ApiKeyService {
         return getCredentialsFromHeader(threadContext.getHeader("Authorization"), ApiKey.Type.REST);
     }
 
-    static ApiKeyCredentials getCredentialsFromHeader(final String header, ApiKey.Type expectedType) {
+    public static ApiKeyCredentials getCredentialsFromHeader(final String header, ApiKey.Type expectedType) {
         return parseApiKey(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"), expectedType);
     }
 

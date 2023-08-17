@@ -537,6 +537,7 @@ public class Security extends Plugin
     private final SetOnce<TransportInterceptor> securityInterceptor = new SetOnce<>();
     private final SetOnce<IPFilter> ipFilter = new SetOnce<>();
     private final SetOnce<AuthenticationService> authcService = new SetOnce<>();
+    private final SetOnce<ApiKeyService> apiKeyServiceRef = new SetOnce<>();
     private final SetOnce<SecondaryAuthenticator> secondayAuthc = new SetOnce<>();
     private final SetOnce<AuditTrailService> auditTrailService = new SetOnce<>();
     private final SetOnce<SecurityContext> securityContext = new SetOnce<>();
@@ -819,6 +820,7 @@ public class Security extends Plugin
             cacheInvalidatorRegistry,
             threadPool
         );
+        apiKeyServiceRef.set(apiKeyService);
         components.add(apiKeyService);
 
         final IndexServiceAccountTokenStore indexServiceAccountTokenStore = new IndexServiceAccountTokenStore(
@@ -1621,7 +1623,8 @@ public class Security extends Plugin
                         circuitBreakerService,
                         ipFilter,
                         getSslService(),
-                        getNettySharedGroupFactory(settings)
+                        getNettySharedGroupFactory(settings),
+                        apiKeyServiceRef.get()
                     )
                 );
                 return transportReference.get();

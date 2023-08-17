@@ -331,7 +331,7 @@ public class Netty4Transport extends TcpTransport {
             addClosedExceptionLogger(ch);
             assert ch instanceof Netty4NioSocketChannel;
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
-            setupPipeline(ch);
+            setupPipeline(ch, null);
         }
 
         @Override
@@ -356,7 +356,7 @@ public class Netty4Transport extends TcpTransport {
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, rstOnClose, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
-            setupPipeline(ch);
+            setupPipeline(ch, name);
             serverAcceptedChannel(nettyTcpChannel);
         }
 
@@ -367,14 +367,18 @@ public class Netty4Transport extends TcpTransport {
         }
     }
 
-    private void setupPipeline(Channel ch) {
+    private void setupPipeline(Channel ch, String name) {
         final var pipeline = ch.pipeline();
         pipeline.addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
         if (NetworkTraceFlag.TRACE_ENABLED) {
             pipeline.addLast("logging", ESLoggingHandler.INSTANCE);
         }
         pipeline.addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()));
-        pipeline.addLast("dispatcher", new Netty4MessageInboundHandler(this, recycler));
+        pipeline.addLast("dispatcher", getNetty4MessageInboundHandler(name));
+    }
+
+    protected Netty4MessageInboundHandler getNetty4MessageInboundHandler(String name) {
+        return new Netty4MessageInboundHandler(this, recycler);
     }
 
     private static void addClosedExceptionLogger(Channel channel) {

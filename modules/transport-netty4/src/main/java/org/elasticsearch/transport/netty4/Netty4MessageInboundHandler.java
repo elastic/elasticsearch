@@ -49,6 +49,11 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
         );
     }
 
+    public Netty4MessageInboundHandler(Netty4Transport transport, InboundPipeline pipeline) {
+        this.transport = transport;
+        this.pipeline = pipeline;
+    }
+
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());

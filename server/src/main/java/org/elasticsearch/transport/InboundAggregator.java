@@ -139,7 +139,7 @@ public class InboundAggregator implements Releasable {
         return currentHeader != null;
     }
 
-    private void shortCircuit(Exception exception) {
+    public void shortCircuit(Exception exception) {
         this.aggregationException = exception;
     }
 

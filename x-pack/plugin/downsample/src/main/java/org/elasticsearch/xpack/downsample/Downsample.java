@@ -119,11 +119,7 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
                 DownsampleShardPersistentTaskState.NAME,
                 DownsampleShardPersistentTaskState::readFromStream
             ),
-            new NamedWriteableRegistry.Entry(
-                PersistentTaskParams.class,
-                DownsampleShardTaskParams.NAME,
-                DownsampleShardTaskParams::new
-            )
+            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, DownsampleShardTaskParams.NAME, DownsampleShardTaskParams::new)
         );
     }
 }

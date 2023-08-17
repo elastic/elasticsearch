@@ -971,7 +971,7 @@ public final class PlanNamedTypes {
     // -- RegexMatch
 
     static WildcardLike readWildcardLike(PlanStreamInput in, String name) throws IOException {
-        return new WildcardLike(Source.EMPTY, in.readExpression(), new WildcardPattern(in.readString()), false);
+        return new WildcardLike(Source.EMPTY, in.readExpression(), new WildcardPattern(in.readString()));
     }
 
     static void writeWildcardLike(PlanStreamOutput out, WildcardLike like) throws IOException {

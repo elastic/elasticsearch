@@ -53,7 +53,7 @@ public class LessThanOrEqual extends org.elasticsearch.xpack.ql.expression.predi
 
     @Override
     public BinaryComparison reverse() {
-        return super.reverse();
+        return new GreaterThanOrEqual(source(), left(), right(), zoneId());
     }
 
     @Evaluator(extraName = "Ints")

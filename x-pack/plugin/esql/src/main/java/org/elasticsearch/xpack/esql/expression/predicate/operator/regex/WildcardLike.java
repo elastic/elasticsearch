@@ -16,18 +16,18 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 public class WildcardLike extends org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike {
-    public WildcardLike(Source source, Expression left, WildcardPattern pattern, boolean caseInsensitive) {
-        super(source, left, pattern, caseInsensitive);
+    public WildcardLike(Source source, Expression left, WildcardPattern pattern) {
+        super(source, left, pattern, false);
     }
 
     @Override
     protected NodeInfo<org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike> info() {
-        return NodeInfo.create(this, WildcardLike::new, field(), pattern(), caseInsensitive());
+        return NodeInfo.create(this, WildcardLike::new, field(), pattern());
     }
 
     @Override
     protected WildcardLike replaceChild(Expression newLeft) {
-        return new WildcardLike(source(), newLeft, pattern(), caseInsensitive());
+        return new WildcardLike(source(), newLeft, pattern());
     }
 
     @Override

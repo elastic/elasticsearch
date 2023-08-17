@@ -74,7 +74,18 @@ public class Coalesce extends ScalarFunction implements Mappable {
 
     @Override
     public Nullability nullable() {
-        return children().get(children().size() - 1).nullable();
+        // If any of the children aren't nullable then this isn't.
+        for (Expression c : children()) {
+            if (c.nullable() == Nullability.FALSE) {
+                return Nullability.FALSE;
+            }
+        }
+        /*
+         * Otherwise let's call this one "unknown". If we returned TRUE here
+         * an optimizer rule would replace this with null if any of our children
+         * fold to null. We don't want that at all.
+         */
+        return Nullability.UNKNOWN;
     }
 
     @Override

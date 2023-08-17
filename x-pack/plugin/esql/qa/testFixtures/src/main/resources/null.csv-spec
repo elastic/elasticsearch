@@ -109,3 +109,29 @@ emp_no:integer | first_name:keyword
          10010 | X
 ;
 
+coalesceEndsInNull
+# ending in null is sill because it'll noop but it shouldn't break things.
+FROM employees
+| EVAL first_name = COALESCE(first_name, last_name, null)
+| SORT first_name DESC, emp_no ASC
+| KEEP emp_no, first_name
+| limit 3;
+
+emp_no:integer | first_name:keyword
+         10047 | Zvonko
+         10081 | Zhongwei
+         10026 | Yongqiao
+;
+
+coalesceFolding
+FROM employees
+| EVAL foo=COALESCE(true, false, null)
+| SORT emp_no ASC
+| KEEP emp_no, first_name, foo
+| limit 3;
+
+emp_no:integer | first_name:keyword | foo:boolean
+         10001 | Georgi             | true
+         10002 | Bezalel            | true
+         10003 | Parto              | true
+;

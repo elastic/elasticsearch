@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.planner.EvalMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -150,5 +152,25 @@ public class CoalesceTests extends AbstractFunctionTestCase {
             }
             return EvalMapper.toEvaluator(child, layout);
         }).get().eval(row(testCase.getDataValues())), 0), testCase.getMatcher());
+    }
+
+    public void testCoalesceNullabilityIsUnknown() {
+        assertThat(buildFieldExpression(testCase).nullable(), equalTo(Nullability.UNKNOWN));
+    }
+
+    public void testCoalesceKnownNullable() {
+        List<Expression> sub = new ArrayList<>(testCase.getDataAsFields());
+        sub.add(between(0, sub.size()), new Literal(Source.EMPTY, null, sub.get(0).dataType()));
+        Coalesce exp = build(Source.EMPTY, sub);
+        // Still UNKNOWN - if it were TRUE then an optimizer would replace it with null
+        assertThat(exp.nullable(), equalTo(Nullability.UNKNOWN));
+    }
+
+    public void testCoalesceNotNullable() {
+        List<Expression> sub = new ArrayList<>(testCase.getDataAsFields());
+        sub.add(between(0, sub.size()), randomLiteral(sub.get(0).dataType()));
+        Coalesce exp = build(Source.EMPTY, sub);
+        // Known not to be nullable because it contains a non-null literal
+        assertThat(exp.nullable(), equalTo(Nullability.FALSE));
     }
 }

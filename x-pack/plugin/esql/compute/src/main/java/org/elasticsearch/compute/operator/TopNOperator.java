@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -28,38 +27,35 @@ import java.util.BitSet;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.function.BiConsumer;
 
+/**
+ * An operator that sorts "rows" of values by encoding the values to sort on, as bytes (using BytesRef). Each data type is encoded
+ * in a specific way, defined by methods of a TopNEncoder. All the values used to sort a specific row (think of column/block 3
+ * and column/block 6) are converted/encoded in a byte array and the concatenated bytes are all compared in bulk.
+ * For now, the only values that have a special "treatment" when it comes to encoding are the text-based ones (text, keyword, ip, version).
+ * For each "special" encoding there is should be new TopNEncoder implementation. See {@link UTF8TopNEncoder} for encoding regular
+ * "text" and "keyword" data types. See LocalExecutionPlanner for which data type uses which encoder.
+ */
 public class TopNOperator implements Operator {
 
     private static final byte SEPARATOR = 0x0; // separator for values inside the BytesRef sorting key
     private static final byte SMALL_NULL = 0x01; // "null" representation for "nulls first"
     private static final byte BIG_NULL = 0x02; // "null" representation for "nulls last"
-
-    public enum Encoder {
-        IP_BYTES_REF_ENCODER((rowValue, bytesRefBuilder) -> bytesRefBuilder.append(rowValue)),
-        BYTES_REF_ENCODER((rowValue, bytesRefBuilder) -> {
-            // add one bit to every byte so that there are no "0" bytes in the provided bytes. The only "0" bytes are
-            // those defined as separators
-            int end = rowValue.offset + rowValue.length;
-            for (int i = rowValue.offset; i < end; i++) {
-                byte b = rowValue.bytes[i];
-                if ((b & 0b1000_0000) == 0) {
-                    b++;
-                }
-                bytesRefBuilder.append(b);
-            }
-        }),
-        NON_BYTES_REF_ENCODER((rowValue, bytesRefBuilder) -> {});
-
-        BiConsumer<BytesRef, BytesRefBuilder> encoder;
-
-        Encoder(BiConsumer<BytesRef, BytesRefBuilder> encoder) {
-            this.encoder = encoder;
+    public static final TopNEncoder BYTESREF_FIXED_LENGTH_ENCODER = new FixedLengthTopNEncoder();
+    public static final TopNEncoder BYTESREF_UTF8_ENCODER = new UTF8TopNEncoder();
+    public static final TopNEncoder DEFAULT_ENCODER = new TopNEncoder() {
+        @Override
+        public void encodeBytesRef(BytesRef value, BytesRefBuilder bytesRefBuilder) {
+            throw new IllegalStateException("Cannot find encoder for BytesRef value");
         }
-    }
 
-    // enum to be extended in the future with other sorting modes
+        @Override
+        public String toString() {
+            return "DefaultEncoder";
+        }
+    };
+
+    // enum to be extended in the future with other sorting modes (AVG average, for example)
     private enum MvSortMode {
         MIN,
         MAX
@@ -332,18 +328,14 @@ public class TopNOperator implements Operator {
                                 rowValue = result.getLong(so.channel, 0);
                                 for (int j = 1; j < result.numberOfValues[so.channel]; j++) {
                                     long value = result.getLong(so.channel, j);
-                                    if (sortMode == MvSortMode.MIN && value < rowValue || sortMode == MvSortMode.MAX && value > rowValue) {
-                                        rowValue = value;
+                                    if (sortMode == MvSortMode.MIN) {
+                                        rowValue = Math.min(value, rowValue);
+                                    } else if (sortMode == MvSortMode.MAX) {
+                                        rowValue = Math.max(value, rowValue);
                                     }
                                 }
                             }
-                            result.orderByCompositeKey.grow(result.orderByCompositeKey.length() + Long.BYTES);
-                            NumericUtils.longToSortableBytes(
-                                rowValue,
-                                result.orderByCompositeKey.bytes(),
-                                result.orderByCompositeKey.length()
-                            );
-                            result.orderByCompositeKey.setLength(result.orderByCompositeKey.length() + Long.BYTES);
+                            so.encoder.encodeLong(rowValue, result.orderByCompositeKey);
                             valueAsBytesSize = Long.BYTES;
                         }
                         case INT -> {
@@ -354,18 +346,14 @@ public class TopNOperator implements Operator {
                                 rowValue = result.getInt(so.channel, 0);
                                 for (int j = 1; j < result.numberOfValues[so.channel]; j++) {
                                     int value = result.getInt(so.channel, j);
-                                    if (sortMode == MvSortMode.MIN && value < rowValue || sortMode == MvSortMode.MAX && value > rowValue) {
-                                        rowValue = value;
+                                    if (sortMode == MvSortMode.MIN) {
+                                        rowValue = Math.min(value, rowValue);
+                                    } else if (sortMode == MvSortMode.MAX) {
+                                        rowValue = Math.max(value, rowValue);
                                     }
                                 }
                             }
-                            result.orderByCompositeKey.grow(result.orderByCompositeKey.length() + Integer.BYTES);
-                            NumericUtils.intToSortableBytes(
-                                rowValue,
-                                result.orderByCompositeKey.bytes(),
-                                result.orderByCompositeKey.length()
-                            );
-                            result.orderByCompositeKey.setLength(result.orderByCompositeKey.length() + Integer.BYTES);
+                            so.encoder.encodeInteger(rowValue, result.orderByCompositeKey);
                             valueAsBytesSize = Integer.BYTES;
                         }
                         case DOUBLE -> {
@@ -383,13 +371,7 @@ public class TopNOperator implements Operator {
                                     }
                                 }
                             }
-                            result.orderByCompositeKey.grow(result.orderByCompositeKey.length() + Long.BYTES);
-                            NumericUtils.longToSortableBytes(
-                                NumericUtils.doubleToSortableLong(rowValue),
-                                result.orderByCompositeKey.bytes(),
-                                result.orderByCompositeKey.length()
-                            );
-                            result.orderByCompositeKey.setLength(result.orderByCompositeKey.length() + Long.BYTES);
+                            so.encoder.encodeDouble(rowValue, result.orderByCompositeKey);
                             valueAsBytesSize = Long.BYTES;
                         }
                         case BYTES_REF -> {
@@ -406,7 +388,7 @@ public class TopNOperator implements Operator {
                                     }
                                 }
                             }
-                            so.bytesRefEncoder().encoder.accept(rowValue, result.orderByCompositeKey);
+                            so.encoder.encodeBytesRef(rowValue, result.orderByCompositeKey);
                             valueAsBytesSize = rowValue.length;
                         }
                         case BOOLEAN -> {
@@ -425,8 +407,7 @@ public class TopNOperator implements Operator {
                                     }
                                 }
                             }
-                            var bytes = new byte[] { rowValue ? (byte) 1 : (byte) 0 };
-                            result.orderByCompositeKey.append(bytes, 0, 1);
+                            so.encoder.encodeBoolean(rowValue, result.orderByCompositeKey);
                             valueAsBytesSize = 1;
                         }
                         default -> {
@@ -449,9 +430,10 @@ public class TopNOperator implements Operator {
     }
 
     // the encoder is, for now, specific to BytesRef blocks/data (text, keyword, IP fields)
-    public record SortOrder(int channel, boolean asc, boolean nullsFirst, Encoder bytesRefEncoder) {
+    public record SortOrder(int channel, boolean asc, boolean nullsFirst, TopNEncoder encoder) {
+
         public SortOrder(int channel, boolean asc, boolean nullsFirst) {
-            this(channel, asc, nullsFirst, Encoder.NON_BYTES_REF_ENCODER);
+            this(channel, asc, nullsFirst, DEFAULT_ENCODER);
         }
 
         @Override
@@ -462,8 +444,8 @@ public class TopNOperator implements Operator {
                 + this.asc
                 + ", nullsFirst="
                 + this.nullsFirst
-                + ", bytesRefEncoder="
-                + this.bytesRefEncoder.name()
+                + ", encoder="
+                + this.encoder
                 + "]";
         }
     }

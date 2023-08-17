@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockBuilder;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -52,9 +53,9 @@ import static org.elasticsearch.compute.data.ElementType.BYTES_REF;
 import static org.elasticsearch.compute.data.ElementType.DOUBLE;
 import static org.elasticsearch.compute.data.ElementType.INT;
 import static org.elasticsearch.compute.data.ElementType.LONG;
-import static org.elasticsearch.compute.operator.TopNOperator.Encoder.BYTES_REF_ENCODER;
-import static org.elasticsearch.compute.operator.TopNOperator.Encoder.IP_BYTES_REF_ENCODER;
-import static org.elasticsearch.compute.operator.TopNOperator.Encoder.NON_BYTES_REF_ENCODER;
+import static org.elasticsearch.compute.operator.TopNOperator.DEFAULT_ENCODER;
+import static org.elasticsearch.compute.operator.TopNOperator.BYTESREF_FIXED_LENGTH_ENCODER;
+import static org.elasticsearch.compute.operator.TopNOperator.BYTESREF_UTF8_ENCODER;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -67,6 +68,45 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class TopNOperatorTests extends OperatorTestCase {
 
     private final int pageSize = randomPageSize();
+    // versions taken from org.elasticsearch.xpack.versionfield.VersionTests
+    private static final List<String> VERSIONS = List.of(
+        "1",
+        "1.0",
+        "1.0.0.0.0.0.0.0.0.1",
+        "1.0.0",
+        "2.0.0",
+        "11.0.0",
+        "2.1.0",
+        "2.1.1",
+        "2.1.1.0",
+        "2.0.0",
+        "11.0.0",
+        "2.0",
+        "1.0.0-a",
+        "1.0.0-b",
+        "1.0.0-1.0.0",
+        "1.0.0-2.0",
+        "1.0.0-alpha",
+        "1.0.0-alpha.1",
+        "1.0.0-alpha.beta",
+        "1.0.0-beta",
+        "1.0.0-beta.2",
+        "1.0.0-beta.11",
+        "1.0.0-beta11",
+        "1.0.0-beta2",
+        "1.0.0-rc.1",
+        "2.0.0-pre127",
+        "2.0.0-pre128",
+        "2.0.0-pre128-somethingelse",
+        "2.0.0-pre20201231z110026",
+        "2.0.0-pre227",
+        "99999.99999.99999",
+        "1.invalid",
+        "",
+        "a",
+        "lkjlaskdjf",
+        "1.2.3-rc1"
+    );
 
     @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
@@ -75,14 +115,12 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "TopNOperator[count = 4, sortOrders = [SortOrder[channel=0, asc=true, nullsFirst=false, "
-            + "bytesRefEncoder=NON_BYTES_REF_ENCODER]]]";
+        return "TopNOperator[count = 4, sortOrders = [SortOrder[channel=0, asc=true, nullsFirst=false, " + "encoder=DefaultEncoder]]]";
     }
 
     @Override
     protected String expectedToStringOfSimple() {
-        return "TopNOperator[count = 0/4, sortOrder = SortOrder[channel=0, asc=true, nullsFirst=false, "
-            + "bytesRefEncoder=NON_BYTES_REF_ENCODER]]";
+        return "TopNOperator[count = 0/4, sortOrder = SortOrder[channel=0, asc=true, nullsFirst=false, " + "encoder=DefaultEncoder]]";
     }
 
     @Override
@@ -259,7 +297,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         Function<List<TopNOperator.SortOrder>, TopNOperator.Row> row2,
         int position
     ) {
-        return rows(asc, nullsFirst, row1, row2, position, NON_BYTES_REF_ENCODER);
+        return rows(asc, nullsFirst, row1, row2, position, DEFAULT_ENCODER);
     }
 
     private Tuple<TopNOperator.Row, TopNOperator.Row> bytesRefRows(
@@ -269,7 +307,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         Function<List<TopNOperator.SortOrder>, TopNOperator.Row> row2,
         int position
     ) {
-        return rows(asc, nullsFirst, row1, row2, position, BYTES_REF_ENCODER);
+        return rows(asc, nullsFirst, row1, row2, position, BYTESREF_UTF8_ENCODER);
     }
 
     private Tuple<TopNOperator.Row, TopNOperator.Row> rows(
@@ -278,7 +316,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         Function<List<TopNOperator.SortOrder>, TopNOperator.Row> row1,
         Function<List<TopNOperator.SortOrder>, TopNOperator.Row> row2,
         int position,
-        TopNOperator.Encoder encoder
+        TopNEncoder encoder
     ) {
         List<TopNOperator.SortOrder> so = List.of(new TopNOperator.SortOrder(position, asc, nullsFirst, encoder));
         return new Tuple<>(row1 == null ? null : row1.apply(so), row2 == null ? null : row2.apply(so));
@@ -485,7 +523,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             Driver driver = new Driver(
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
-                List.of(new TopNOperator(topCount, List.of(new TopNOperator.SortOrder(0, false, false)), randomPageSize())),
+                List.of(new TopNOperator(topCount, List.of(new TopNOperator.SortOrder(0, false, false, BYTESREF_UTF8_ENCODER)), randomPageSize())),
                 new PageConsumerOperator(page -> readInto(actualTop, page)),
                 () -> {}
             )
@@ -553,7 +591,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             Driver driver = new Driver(
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
-                List.of(new TopNOperator(topCount, List.of(new TopNOperator.SortOrder(0, false, false)), randomPageSize())),
+                List.of(new TopNOperator(topCount, List.of(new TopNOperator.SortOrder(0, false, false, BYTESREF_UTF8_ENCODER)), randomPageSize())),
                 new PageConsumerOperator(page -> readInto(actualTop, page)),
                 () -> {}
             )
@@ -597,12 +635,15 @@ public class TopNOperatorTests extends OperatorTestCase {
     public void testTopNManyDescriptionAndToString() {
         TopNOperator.TopNOperatorFactory factory = new TopNOperator.TopNOperatorFactory(
             10,
-            List.of(new TopNOperator.SortOrder(1, false, false), new TopNOperator.SortOrder(3, false, true)),
+            List.of(
+                new TopNOperator.SortOrder(1, false, false, BYTESREF_UTF8_ENCODER),
+                new TopNOperator.SortOrder(3, false, true, BYTESREF_FIXED_LENGTH_ENCODER)
+            ),
             randomPageSize()
         );
         String sorts = List.of(
-            "SortOrder[channel=1, asc=false, nullsFirst=false, bytesRefEncoder=NON_BYTES_REF_ENCODER]",
-            "SortOrder[channel=3, asc=false, nullsFirst=true, bytesRefEncoder=NON_BYTES_REF_ENCODER]"
+            "SortOrder[channel=1, asc=false, nullsFirst=false, encoder=UTF8TopNEncoder]",
+            "SortOrder[channel=3, asc=false, nullsFirst=true, encoder=FixedLengthTopNEncoder]"
         ).stream().collect(Collectors.joining(", "));
         assertThat(factory.describe(), equalTo("TopNOperator[count = 10, sortOrders = [" + sorts + "]]"));
         try (Operator operator = factory.get(new DriverContext())) {
@@ -724,8 +765,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 new BytesRef("100")
             ),
             BYTES_REF,
-            new TopNOperator.SortOrder(0, false, false, BYTES_REF_ENCODER),
-            new TopNOperator.SortOrder(0, true, false, BYTES_REF_ENCODER)
+            new TopNOperator.SortOrder(0, false, false, BYTESREF_UTF8_ENCODER),
+            new TopNOperator.SortOrder(0, true, false, BYTESREF_UTF8_ENCODER)
         );
     }
 
@@ -796,8 +837,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 List.of(new BytesRef("63"), new BytesRef("61"), new BytesRef("62"))
             ),
             BYTES_REF,
-            new TopNOperator.SortOrder(0, true, false, BYTES_REF_ENCODER),
-            new TopNOperator.SortOrder(0, false, false, BYTES_REF_ENCODER)
+            new TopNOperator.SortOrder(0, true, false, BYTESREF_UTF8_ENCODER),
+            new TopNOperator.SortOrder(0, false, false, BYTESREF_UTF8_ENCODER)
         );
     }
 
@@ -835,9 +876,8 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         Set<TopNOperator.SortOrder> uniqueOrders = new LinkedHashSet<>(sortingByColumns);
         List<List<List<Object>>> expectedValues = new ArrayList<>(rows);
-        List<ElementType> channelToBlockType = new ArrayList<>(blocksCount);
         List<Block> blocks = new ArrayList<>(blocksCount);
-        Map<Integer, TopNOperator.Encoder> columnBytesRefEncoder = new HashMap<>(blocksCount);
+        Map<Integer, TopNEncoder> columnBytesRefEncoder = new HashMap<>(blocksCount);
 
         for (int i = 0; i < rows; i++) {
             expectedValues.add(new ArrayList<>(blocksCount));
@@ -850,19 +890,23 @@ public class TopNOperatorTests extends OperatorTestCase {
             );
             Block.Builder builder = e.newBlockBuilder(rows);
             List<Object> previousValue = null;
-            channelToBlockType.add(e);
             Function<ElementType, Object> randomValueSupplier = (blockType) -> randomValue(blockType);
             if (e == BYTES_REF) {
                 if (rarely()) {
-                    // deal with IP fields (BytesRef block) like ES does and properly encode the ip addresses
-                    randomValueSupplier = (blockType) -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-                    // use the right BytesRef encoder
-                    columnBytesRefEncoder.put(type, IP_BYTES_REF_ENCODER);
+                    if (randomBoolean()) {
+                        // deal with IP fields (BytesRef block) like ES does and properly encode the ip addresses
+                        randomValueSupplier = (blockType) -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+                    } else {
+                        // create a valid Version
+                        randomValueSupplier = (blockType) -> randomVersion().toBytesRef();
+                    }
+                    // use the right BytesRef encoder (don't touch the bytes)
+                    columnBytesRefEncoder.put(type, BYTESREF_FIXED_LENGTH_ENCODER);
                 } else {
-                    columnBytesRefEncoder.put(type, BYTES_REF_ENCODER);
+                    columnBytesRefEncoder.put(type, BYTESREF_UTF8_ENCODER);
                 }
             } else {
-                columnBytesRefEncoder.put(type, NON_BYTES_REF_ENCODER);
+                columnBytesRefEncoder.put(type, DEFAULT_ENCODER);
             }
 
             for (int i = 0; i < rows; i++) {
@@ -920,7 +964,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
 
         List<List<List<Object>>> topNExpectedValues = expectedValues.stream()
-            .sorted(new NaiveTopNComparator(uniqueOrders, channelToBlockType))
+            .sorted(new NaiveTopNComparator(uniqueOrders))
             .limit(topCount)
             .toList();
         List<List<Object>> actualReducedValues = extractAndReduceSortedValues(actualValues, uniqueOrders);
@@ -944,7 +988,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
 
         Set<TopNOperator.SortOrder> orders = new HashSet<>(1);
-        orders.add(new TopNOperator.SortOrder(0, asc, randomBoolean(), IP_BYTES_REF_ENCODER));
+        orders.add(new TopNOperator.SortOrder(0, asc, randomBoolean(), BYTESREF_FIXED_LENGTH_ENCODER));
 
         List<List<Object>> actual = new ArrayList<>();
         try (
@@ -1062,7 +1106,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
 
         Set<TopNOperator.SortOrder> orders = new HashSet<>(1);
-        orders.add(new TopNOperator.SortOrder(0, asc, nullsFirst, IP_BYTES_REF_ENCODER));
+        orders.add(new TopNOperator.SortOrder(0, asc, nullsFirst, BYTESREF_FIXED_LENGTH_ENCODER));
 
         List<List<Object>> actual = new ArrayList<>();
         try (
@@ -1137,8 +1181,8 @@ public class TopNOperatorTests extends OperatorTestCase {
         blocks.add(builderText.build());
         blocks.add(builderInt.build());
         Set<TopNOperator.SortOrder> orders = new HashSet<>(2);
-        orders.add(new TopNOperator.SortOrder(0, true, randomBoolean(), BYTES_REF_ENCODER));
-        orders.add(new TopNOperator.SortOrder(1, randomBoolean(), randomBoolean(), NON_BYTES_REF_ENCODER));
+        orders.add(new TopNOperator.SortOrder(0, true, randomBoolean(), BYTESREF_UTF8_ENCODER));
+        orders.add(new TopNOperator.SortOrder(1, randomBoolean(), randomBoolean(), DEFAULT_ENCODER));
 
         List<List<Object>> actual = new ArrayList<>();
         try (
@@ -1225,23 +1269,15 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     private class NaiveTopNComparator implements Comparator<List<List<Object>>> {
         private final Set<TopNOperator.SortOrder> orders;
-        private final List<ElementType> channelToBlockType;
 
-        NaiveTopNComparator(Set<TopNOperator.SortOrder> orders, List<ElementType> channelToBlockType) {
+        NaiveTopNComparator(Set<TopNOperator.SortOrder> orders) {
             this.orders = orders;
-            this.channelToBlockType = channelToBlockType;
         }
 
         @Override
         public int compare(List<List<Object>> row1, List<List<Object>> row2) {
             for (TopNOperator.SortOrder order : orders) {
-                int cmp = comparePositions(
-                    order.asc(),
-                    order.nullsFirst(),
-                    row1.get(order.channel()),
-                    row2.get(order.channel()),
-                    channelToBlockType.get(order.channel())
-                );
+                int cmp = comparePositions(order.asc(), order.nullsFirst(), row1.get(order.channel()), row2.get(order.channel()));
                 if (cmp != 0) {
                     return cmp;
                 }
@@ -1250,7 +1286,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
 
         @SuppressWarnings({ "unchecked", "rawtypes" })
-        private int comparePositions(boolean asc, boolean nullsFirst, List<Object> value1, List<Object> value2, ElementType type) {
+        private int comparePositions(boolean asc, boolean nullsFirst, List<Object> value1, List<Object> value2) {
             boolean firstIsNull = value1.size() == 1 && value1.get(0) == null;
             boolean secondIsNull = value2.size() == 1 && value2.get(0) == null;
 
@@ -1268,5 +1304,9 @@ public class TopNOperatorTests extends OperatorTestCase {
 
             return (asc ? 1 : -1) * minMax1.compareTo(minMax2);
         }
+    }
+
+    private Version randomVersion() {
+        return new Version(randomFrom(VERSIONS));
     }
 }

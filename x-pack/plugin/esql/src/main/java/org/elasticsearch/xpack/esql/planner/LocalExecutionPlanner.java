@@ -33,6 +33,7 @@ import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.StringExtractOperator;
+import org.elasticsearch.compute.operator.TopNEncoder;
 import org.elasticsearch.compute.operator.TopNOperator;
 import org.elasticsearch.compute.operator.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -332,9 +333,23 @@ public class LocalExecutionPlanner {
                 throw new UnsupportedOperationException();
             }
 
-            TopNOperator.Encoder encoder = a.dataType() != DataTypes.IP
-                ? TopNOperator.Encoder.BYTES_REF_ENCODER
-                : TopNOperator.Encoder.IP_BYTES_REF_ENCODER;
+            TopNEncoder encoder = switch (a.dataType().typeName()) {
+                case "ip": {
+                    yield TopNOperator.BYTESREF_FIXED_LENGTH_ENCODER;
+                }
+                case "text", "keyword": {
+                    yield TopNOperator.BYTESREF_UTF8_ENCODER;
+                }
+                case "version": {
+                    yield TopNOperator.BYTESREF_FIXED_LENGTH_ENCODER;
+                }
+                case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
+                    "time_duration", "object", "nested", "scaled_float", "unsigned_long": {
+                    yield TopNOperator.DEFAULT_ENCODER;
+                }
+                default:
+                    throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + a.dataType().typeName());
+            };
             return new TopNOperator.SortOrder(
                 sortByChannel,
                 order.direction().equals(Order.OrderDirection.ASC),

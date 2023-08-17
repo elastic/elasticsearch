@@ -339,6 +339,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         assertThat(updatedConfig.getMetadata(), equalTo(Map.of("bar", 789, "baz", 1000)));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98577")
     public void testApplyWithSyncChange() {
         TransformConfig batchConfig = new TransformConfig(
             "batch-transform",

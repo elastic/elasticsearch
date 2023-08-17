@@ -131,7 +131,6 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         startMasterOnlyNode();
         startIndexNode();
         startSearchNode();
-        String refreshIntervalSetting = IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey();
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 0).build());
@@ -189,7 +188,6 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
     public void testScheduledRefreshBypassesSearchIdleness() throws Exception {
         startMasterOnlyNode();
         startIndexNodes(1);
-        String refreshIntervalSetting = IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey();
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(

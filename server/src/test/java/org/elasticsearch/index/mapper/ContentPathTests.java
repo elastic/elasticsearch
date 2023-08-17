@@ -39,7 +39,7 @@ public class ContentPathTests extends ESTestCase {
         expectThrows(IndexOutOfBoundsException.class, contentPath::remove);
     }
 
-    public void testExpandPath() {
+    public void testBehaviourWithLongerPath() {
         ContentPath contentPath = new ContentPath();
         contentPath.add("1");
         contentPath.add("2");
@@ -56,7 +56,7 @@ public class ContentPathTests extends ESTestCase {
         assertEquals("1.2.3.4.5.6.7.8.9.10.11", pathAsText);
     }
 
-    public void testLenghtOfPath() {
+    public void testLengthOfPath() {
         ContentPath contentPath = new ContentPath();
         contentPath.add("foo");
         contentPath.add("bar");
@@ -64,7 +64,7 @@ public class ContentPathTests extends ESTestCase {
         assertEquals(3, contentPath.length());
     }
 
-    public void testLenghtOfPathAfterRemove() {
+    public void testLengthOfPathAfterRemove() {
         ContentPath contentPath = new ContentPath();
         contentPath.add("foo");
         contentPath.add("bar");

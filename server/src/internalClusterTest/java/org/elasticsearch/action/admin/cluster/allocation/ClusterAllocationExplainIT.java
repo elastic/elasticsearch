@@ -1156,7 +1156,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> starting 1 node with 'roles' setting specified");
         Settings roleSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data_hot", "ingest")).build();
         internalCluster().startNode(Settings.builder().put(roleSettings).build());
-        ensureStableCluster(1);
         prepareIndex(1, 0);
 
         boolean includeYesDecisions = randomBoolean();

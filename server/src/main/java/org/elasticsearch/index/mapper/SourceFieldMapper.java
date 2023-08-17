@@ -141,10 +141,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         public SourceFieldMapper build() {
-            if (enabled.getValue().explicit() && mode.get() != null) {
+            if (enabled.getValue().explicit()) {
                 if (indexMode == IndexMode.TIME_SERIES) {
                     throw new MapperParsingException("Time series indices only support synthetic source");
-                } else {
+                }
+                if (mode.get() != null) {
                     throw new MapperParsingException("Cannot set both [mode] and [enabled] parameters");
                 }
             }
@@ -222,7 +223,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.sourceFilter = buildSourceFilter(includes, excludes);
         this.includes = includes;
         this.excludes = excludes;
-        if (this.sourceFilter != null && mode == Mode.SYNTHETIC) {
+        if (this.sourceFilter != null && (mode == Mode.SYNTHETIC || indexMode == IndexMode.TIME_SERIES)) {
             throw new IllegalArgumentException("filtering the stored _source is incompatible with synthetic source");
         }
         this.complete = stored() && sourceFilter == null;

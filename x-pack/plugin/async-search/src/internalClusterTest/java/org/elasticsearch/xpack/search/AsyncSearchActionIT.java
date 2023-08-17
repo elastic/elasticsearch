@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
@@ -527,12 +528,11 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         updateClusterSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98557")
     public void testCCSCheckCompatibility() throws Exception {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(new SearchSourceBuilder().query(new DummyQueryBuilder() {
             @Override
             public TransportVersion getMinimalSupportedVersion() {
-                return TransportVersion.current();
+                return TransportVersionUtils.getNextVersion(TransportVersion.MINIMUM_CCS_VERSION, true);
             }
         }), indexName);
 

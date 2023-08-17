@@ -24,7 +24,6 @@ import static org.hamcrest.Matchers.is;
 public class FeatureUpgradeIT extends AbstractRollingTestCase {
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98562")
     public void testGetFeatureUpgradeStatus() throws Exception {
 
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "

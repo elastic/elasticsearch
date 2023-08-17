@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
@@ -325,6 +326,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, AutoBucket.class, PlanNamedTypes::writeAutoBucket, PlanNamedTypes::readAutoBucket),
             of(ScalarFunction.class, Case.class, PlanNamedTypes::writeCase, PlanNamedTypes::readCase),
             of(ScalarFunction.class, CIDRMatch.class, PlanNamedTypes::writeCIDRMatch, PlanNamedTypes::readCIDRMatch),
+            of(ScalarFunction.class, Coalesce.class, PlanNamedTypes::writeCoalesce, PlanNamedTypes::readCoalesce),
             of(ScalarFunction.class, Concat.class, PlanNamedTypes::writeConcat, PlanNamedTypes::readConcat),
             of(ScalarFunction.class, DateExtract.class, PlanNamedTypes::writeDateExtract, PlanNamedTypes::readDateExtract),
             of(ScalarFunction.class, DateFormat.class, PlanNamedTypes::writeDateFormat, PlanNamedTypes::readDateFormat),
@@ -1130,6 +1132,14 @@ public final class PlanNamedTypes {
 
     static void writeCase(PlanStreamOutput out, Case caseValue) throws IOException {
         out.writeCollection(caseValue.children(), writerFromPlanWriter(PlanStreamOutput::writeExpression));
+    }
+
+    static Coalesce readCoalesce(PlanStreamInput in) throws IOException {
+        return new Coalesce(Source.EMPTY, in.readList(readerFromPlanReader(PlanStreamInput::readExpression)));
+    }
+
+    static void writeCoalesce(PlanStreamOutput out, Coalesce coalesce) throws IOException {
+        out.writeCollection(coalesce.children(), writerFromPlanWriter(PlanStreamOutput::writeExpression));
     }
 
     static Concat readConcat(PlanStreamInput in) throws IOException {

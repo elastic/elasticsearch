@@ -43,6 +43,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -512,7 +513,16 @@ public class ResolveIndexTests extends ESTestCase {
                             .setAllowedElasticProductOrigins(List.of("test-net-new-system"))
                             .setNetNew()
                             .setSettings(Settings.EMPTY)
-                            .setMappings("{ \"_doc\": { \"_meta\": { \"version\": \"8.0.0\" } } }")
+                            .setMappings(String.format(Locale.ROOT, """
+                                {
+                                  "_doc": {
+                                    "_meta": {
+                                      "version": "8.0.0",
+                                      "%s": 1
+                                    }
+                                  }
+                                }
+                                """, SystemIndexDescriptor.VERSION_META_KEY))
                             .setPrimaryIndex(".test-net-new-system-1")
                             .setVersionMetaKey("version")
                             .setOrigin("system")

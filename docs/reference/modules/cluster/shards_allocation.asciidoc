@@ -123,6 +123,9 @@ the balance of the cluster, and when those shard movements complete it runs
 again and selects another few shards to move. Since this allocator makes its
 decisions based only on the current state of the cluster, it will sometimes
 move a shard several times while balancing the cluster.
+
+NOTE: the legacy `balanced` allocator is deprecated as of `8.8.0` ({es-pull}94066[#94066]) and is no longer recommended.  
+
 --
 
 [[shards-rebalancing-heuristics]]

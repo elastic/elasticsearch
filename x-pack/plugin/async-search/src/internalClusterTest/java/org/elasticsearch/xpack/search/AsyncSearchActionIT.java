@@ -527,6 +527,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         updateClusterSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98557")
     public void testCCSCheckCompatibility() throws Exception {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(new SearchSourceBuilder().query(new DummyQueryBuilder() {
             @Override

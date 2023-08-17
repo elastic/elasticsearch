@@ -1064,6 +1064,26 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return true;
     }
 
+    public final void testSupportsParsingObject() throws IOException {
+        DocumentMapper mapper = createMapperService(fieldMapping(this::minimalMapping)).documentMapper();
+
+        try {
+            mapper.parse(source(b -> {
+                b.startObject("field");
+                b.endObject();
+            }));
+            assertTrue(false);
+        } catch (DocumentParsingException exception) {
+            StringBuilder expectedException = new StringBuilder("failed to parse field [field] of type [");
+            expectedException.append(mapper.mappers().getMapper("field").typeName());
+            expectedException.append("]");
+            if (mapper.sourceMapper().supportsParsingObject() == false) {
+                expectedException.append(" in document with id '1'. Preview of field's value: 'null'");
+            }
+            assertTrue(exception.getMessage().contains(expectedException.toString()));
+        }
+    }
+
     public final void testSyntheticSourceMany() throws IOException {
         boolean ignoreMalformed = supportsIgnoreMalformed() ? rarely() : false;
         int maxValues = randomBoolean() ? 1 : 5;

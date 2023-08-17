@@ -66,8 +66,11 @@ import co.elastic.elasticsearch.stateless.xpack.DummyILMInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyILMUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyMonitoringInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyMonitoringUsageTransportAction;
+import co.elastic.elasticsearch.stateless.xpack.DummyRollupInfoTransportAction;
+import co.elastic.elasticsearch.stateless.xpack.DummyRollupUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummySearchableSnapshotsInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummySearchableSnapshotsUsageTransportAction;
+import co.elastic.elasticsearch.stateless.xpack.DummyTransportGetRollupIndexCapsAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyVotingOnlyInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyVotingOnlyUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyWatcherInfoTransportAction;
@@ -146,6 +149,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -224,6 +228,9 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             new ActionHandler<>(XPackUsageFeatureAction.INDEX_LIFECYCLE, DummyILMUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.MONITORING, DummyMonitoringInfoTransportAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.MONITORING, DummyMonitoringUsageTransportAction.class),
+            new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, DummyRollupInfoTransportAction.class),
+            new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, DummyRollupUsageTransportAction.class),
+            new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, DummyTransportGetRollupIndexCapsAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsInfoTransportAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.WATCHER, DummyWatcherInfoTransportAction.class),

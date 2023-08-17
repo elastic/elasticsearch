@@ -350,9 +350,8 @@ public class DownsampleActionIT extends ESRestTestCase {
         String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
         index(client(), dataStream, true, null, "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
-        var getDataStreamResponse = client().performRequest(new Request("GET", "/_data_stream/" + dataStream));
-        String firstBackingIndex = ObjectPath.eval("data_streams.0.indices.0.index_name", responseAsMap(getDataStreamResponse));
-        logger.info("firstBackingIndex: {}", firstBackingIndex);
+        String firstBackingIndex = DataStream.getDefaultBackingIndexName(dataStream, 1 );
+        logger.info("--> firstBackingIndex: {}", firstBackingIndex);
         assertBusy(
             () -> assertThat(
                 "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
@@ -366,8 +365,8 @@ public class DownsampleActionIT extends ESRestTestCase {
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String downsampleIndexName = "downsample-" + firstBackingIndex + "-1m";
-        String downsampleOfDownsampleIndexName = "downsample-" + firstBackingIndex + "-1h";
+        String downsampleIndexName = "downsample-1m-" + firstBackingIndex;
+        String downsampleOfDownsampleIndexName = "downsample-1h-" + firstBackingIndex;
         try {
             assertBusy(() -> {
                 assertThat(indexExists(downsampleOfDownsampleIndexName), is(true));

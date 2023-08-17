@@ -87,5 +87,6 @@ setup:
       indices.get_mapping:
         index: test-map-dense-vector
 
-  - match: { test-map-dense-vector.mappings.properties.my_field.type: float }
+  - match: { test-map-dense-vector.mappings.properties.my_field.type: dense_vector }
+  - match: { test-map-dense-vector.mappings.properties.my_field.dims: 128 }
 

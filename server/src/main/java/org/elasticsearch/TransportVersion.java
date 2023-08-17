@@ -196,7 +196,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      * change. DO NOT let the transport version go backwards, it must ALWAYS be incremented.
      */
     public static final TransportVersion V_8_500_062 = registerTransportVersion(8_500_062, "3a795175-5e6f-40ff-90fe-5571ea8ab04e");
-    
+
     private static class CurrentHolder {
         private static final TransportVersion CURRENT = findCurrent(V_8_500_062);
 

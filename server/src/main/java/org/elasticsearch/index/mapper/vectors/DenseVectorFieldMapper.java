@@ -1020,7 +1020,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return similarity;
         }
 
-        int getVectorDimensions() {
+        public int getVectorDimensions() {
             return dims;
         }
 

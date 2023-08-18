@@ -32,8 +32,15 @@ public class InboundDecoder implements Releasable {
     private boolean isCompressed = false;
     private boolean isClosed = false;
 
+    private final int maxVariableHeaderSize;
+
     public InboundDecoder(Recycler<BytesRef> recycler) {
+        this(recycler, Integer.MAX_VALUE);
+    }
+
+    public InboundDecoder(Recycler<BytesRef> recycler, int maxVariableHeaderSize) {
         this.recycler = recycler;
+        this.maxVariableHeaderSize = maxVariableHeaderSize;
     }
 
     public int decode(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
@@ -55,7 +62,7 @@ public class InboundDecoder implements Releasable {
                 fragmentConsumer.accept(PING);
                 return 6;
             } else {
-                int headerBytesToRead = headerBytesToRead(reference);
+                int headerBytesToRead = headerBytesToRead(reference, maxVariableHeaderSize);
                 if (headerBytesToRead == 0) {
                     return 0;
                 } else {
@@ -147,7 +154,7 @@ public class InboundDecoder implements Releasable {
         return bytesConsumed == totalNetworkSize;
     }
 
-    private static int headerBytesToRead(BytesReference reference) {
+    private static int headerBytesToRead(BytesReference reference, int maxVariableHeaderSize) {
         if (reference.length() < TcpHeader.BYTES_REQUIRED_FOR_VERSION) {
             return 0;
         }
@@ -160,6 +167,11 @@ public class InboundDecoder implements Releasable {
             return fixedHeaderSize;
         } else {
             int variableHeaderSize = reference.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
+            if (variableHeaderSize > maxVariableHeaderSize) {
+                throw new IllegalArgumentException(
+                    "variable header size [" + variableHeaderSize + "] exceeds limit of [" + maxVariableHeaderSize + "]"
+                );
+            }
             int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
             if (totalHeaderSize > reference.length()) {
                 return 0;

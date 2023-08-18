@@ -186,7 +186,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
             new InboundPipeline(
                 getStatsTracker(),
                 threadPool::relativeTimeInMillis,
-                new InboundDecoder(recycler),
+                new InboundDecoder(recycler, 16 * 1024 * 1024),
                 aggregator,
                 this::inboundMessage
             )

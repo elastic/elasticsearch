@@ -340,4 +340,20 @@ public class JsonProcessorTests extends ESTestCase {
             assertThat(result, equalTo(1268));
         }
     }
+
+    public void testJsonInNonRootField() throws Exception {
+        String processorTag = randomAlphaOfLength(3);
+        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "event.original", null, true, REPLACE, false);
+
+        Map<String, Object> document = new HashMap<>();
+        Map<String, Object> event = new HashMap<>();
+        event.put("original", "{\"foo\": \"bar\"}");
+        document.put("event", event);
+
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        jsonProcessor.execute(ingestDocument);
+
+        assertEquals("bar", ingestDocument.getFieldValue("foo", String.class));
+        assertEquals("{\"foo\": \"bar\"}", ingestDocument.getFieldValue("event.original", String.class));
+    }
 }

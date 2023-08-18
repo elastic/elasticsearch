@@ -150,7 +150,7 @@ public final class JsonProcessor extends AbstractProcessor {
         ConflictStrategy conflictStrategy,
         boolean strictJsonParsing
     ) {
-        Object value = apply(ctx.get(fieldName), allowDuplicateKeys, strictJsonParsing);
+        Object value = apply(new WriteField(fieldName, () -> ctx).get(null), allowDuplicateKeys, strictJsonParsing);
         if (value instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) value;

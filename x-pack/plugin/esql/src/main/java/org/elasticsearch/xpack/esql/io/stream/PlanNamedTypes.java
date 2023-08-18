@@ -76,8 +76,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
@@ -299,6 +302,8 @@ public final class PlanNamedTypes {
             of(ESQL_UNARY_SCLR_CLS, IsNaN.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Length.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Log10.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
+            of(ESQL_UNARY_SCLR_CLS, LTrim.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
+            of(ESQL_UNARY_SCLR_CLS, RTrim.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Sin.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Sinh.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Sqrt.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
@@ -321,6 +326,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, AutoBucket.class, PlanNamedTypes::writeAutoBucket, PlanNamedTypes::readAutoBucket),
             of(ScalarFunction.class, Case.class, PlanNamedTypes::writeCase, PlanNamedTypes::readCase),
             of(ScalarFunction.class, CIDRMatch.class, PlanNamedTypes::writeCIDRMatch, PlanNamedTypes::readCIDRMatch),
+            of(ScalarFunction.class, Coalesce.class, PlanNamedTypes::writeCoalesce, PlanNamedTypes::readCoalesce),
             of(ScalarFunction.class, Concat.class, PlanNamedTypes::writeConcat, PlanNamedTypes::readConcat),
             of(ScalarFunction.class, DateExtract.class, PlanNamedTypes::writeDateExtract, PlanNamedTypes::readDateExtract),
             of(ScalarFunction.class, DateFormat.class, PlanNamedTypes::writeDateFormat, PlanNamedTypes::readDateFormat),
@@ -1025,6 +1031,8 @@ public final class PlanNamedTypes {
         entry(name(IsNaN.class), IsNaN::new),
         entry(name(Length.class), Length::new),
         entry(name(Log10.class), Log10::new),
+        entry(name(LTrim.class), LTrim::new),
+        entry(name(RTrim.class), RTrim::new),
         entry(name(Sin.class), Sin::new),
         entry(name(Sinh.class), Sinh::new),
         entry(name(Sqrt.class), Sqrt::new),
@@ -1124,6 +1132,14 @@ public final class PlanNamedTypes {
 
     static void writeCase(PlanStreamOutput out, Case caseValue) throws IOException {
         out.writeCollection(caseValue.children(), writerFromPlanWriter(PlanStreamOutput::writeExpression));
+    }
+
+    static Coalesce readCoalesce(PlanStreamInput in) throws IOException {
+        return new Coalesce(Source.EMPTY, in.readList(readerFromPlanReader(PlanStreamInput::readExpression)));
+    }
+
+    static void writeCoalesce(PlanStreamOutput out, Coalesce coalesce) throws IOException {
+        out.writeCollection(coalesce.children(), writerFromPlanWriter(PlanStreamOutput::writeExpression));
     }
 
     static Concat readConcat(PlanStreamInput in) throws IOException {

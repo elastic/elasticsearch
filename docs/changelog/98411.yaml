@@ -1,0 +1,5 @@
+pr: 98411
+summary: "ESQL: Load `keyword` fields missing `doc_values`"
+area: ES|QL
+type: enhancement
+issues: []

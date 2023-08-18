@@ -84,7 +84,9 @@ public class IndexSettingsTests extends ESTestCase {
         IndexMetadata metadata = newIndexMeta("index", theSettings);
         IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), Settings.EMPTY, integerSetting);
         settings.getScopedSettings().addSettingsUpdateConsumer(integerSetting, integer::set, (i) -> {
-            if (i == 42) throw new AssertionError("boom");
+            if (i == 42) {
+                throw randomBoolean() ? new RuntimeException("anything") : new IllegalArgumentException("illegal");
+            }
         });
 
         assertEquals(version, settings.getIndexVersionCreated());

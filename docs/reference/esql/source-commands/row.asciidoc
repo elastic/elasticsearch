@@ -1,0 +1,28 @@
+[[esql-row]]
+=== `ROW`
+
+The `ROW` source command produces a row with one or more columns with values
+that you specify. This can be useful for testing.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/row.csv-spec[tag=example]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/row.csv-spec[tag=example-result]
+|===
+
+Use square brackets to create multi-value columns:
+
+[source,esql]
+----
+include::{esql-specs}/row.csv-spec[tag=multivalue]
+----
+
+`ROW` supports the use of <<esql-functions,functions>>:
+
+[source,esql]
+----
+include::{esql-specs}/row.csv-spec[tag=function]
+----

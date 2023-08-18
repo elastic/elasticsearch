@@ -55,7 +55,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     //
 
     public PlanType transformExpressionsOnly(Function<Expression, ? extends Expression> rule) {
-        return transformPropertiesOnly(Expression.class, rule);
+        return transformPropertiesOnly(Object.class, e -> doTransformExpression(e, exp -> exp.transformDown(rule)));
     }
 
     public <E extends Expression> PlanType transformExpressionsOnly(Class<E> typeToken, Function<E, ? extends Expression> rule) {

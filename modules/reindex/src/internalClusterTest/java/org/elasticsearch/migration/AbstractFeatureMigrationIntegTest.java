@@ -209,6 +209,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             {
                 builder.startObject("_meta");
                 builder.field(VERSION_META_KEY, META_VERSION);
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, 1);
                 builder.field(DESCRIPTOR_MANAGED_META_KEY, descriptorManaged);
                 builder.field(DESCRIPTOR_INTERNAL_META_KEY, descriptorInternal);
                 builder.endObject();

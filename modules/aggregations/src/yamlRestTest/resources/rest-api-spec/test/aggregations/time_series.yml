@@ -311,8 +311,8 @@ setup:
 ---
 "Number for keyword routing field":
   - skip:
-      version: " - 8.8.99"
-      reason: "Fix in 8.9"
+      version: " - 8.9.99"
+      reason: "Fix in 8.10"
 
   - do:
       bulk:

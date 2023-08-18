@@ -1,5 +1,0 @@
-pr: 97111
-summary: Fix cluster settings update task acknowledgment
-area: Cluster Coordination
-type: bug
-issues: []

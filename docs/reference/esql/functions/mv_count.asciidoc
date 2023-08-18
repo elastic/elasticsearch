@@ -1,0 +1,15 @@
+[[esql-mv_count]]
+=== `MV_COUNT`
+Converts a multivalued field into a single valued field containing a count of the number
+of values:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=mv_count]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=mv_count-result]
+|===
+
+NOTE: This function accepts all types and always returns an `integer`.

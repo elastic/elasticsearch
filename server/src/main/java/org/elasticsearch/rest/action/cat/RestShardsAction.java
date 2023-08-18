@@ -35,6 +35,7 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
@@ -242,6 +243,10 @@ public class RestShardsAction extends AbstractCatAction {
             "bulk.avg_size_in_bytes",
             "alias:basi,bulkAvgSizeInBytes;default:false;text-align:right;desc:avg size in bytes of shard bulk"
         );
+        table.addCell(
+            "dense_vector.value_count",
+            "alias:dvc,denseVectorCount;default:false;text-align:right;desc:total count of indexed dense vector"
+        );
 
         table.endHeaders();
         return table;
@@ -402,6 +407,8 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotalSizeInBytes));
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getAvgTime));
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getAvgSizeInBytes));
+
+            table.addCell(getOrNull(commonStats, CommonStats::getDenseVectorStats, DenseVectorStats::getValueCount));
 
             table.endRow();
         }

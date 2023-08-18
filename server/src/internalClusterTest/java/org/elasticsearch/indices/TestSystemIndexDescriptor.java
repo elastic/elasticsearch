@@ -97,6 +97,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             builder.startObject();
             {
                 builder.startObject("_meta");
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, 0);
                 builder.field("version", Version.CURRENT.previousMajor().toString());
                 builder.endObject();
 
@@ -123,6 +124,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             builder.startObject();
             {
                 builder.startObject("_meta");
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, 1);
                 builder.field("version", Version.CURRENT.toString());
                 builder.endObject();
 

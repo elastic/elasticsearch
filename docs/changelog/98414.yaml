@@ -1,0 +1,5 @@
+pr: 98414
+summary: '`TimeSeriesIndexSearcher` to offload to the provided executor'
+area: TSDB
+type: enhancement
+issues: []

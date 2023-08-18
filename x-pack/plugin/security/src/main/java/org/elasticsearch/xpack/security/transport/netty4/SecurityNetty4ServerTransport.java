@@ -139,42 +139,44 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
             @Override
             public void headerReceived(Header header) {
                 super.headerReceived(header);
+
                 if (false == header.isRequest() || header.isHandshake()) {
                     return;
                 }
+
+                final String credentials = header.getHeaders().v1().get(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
+                final ApiKeyService.ApiKeyCredentials apiKeyCredentials;
+                if (credentials != null) {
+                    apiKeyCredentials = ApiKeyService.getCredentialsFromHeader(credentials, ApiKey.Type.CROSS_CLUSTER);
+                } else {
+                    apiKeyCredentials = null;
+                }
+
+                if (apiKeyCredentials == null) {
+                    logger.warn("No credential is found");
+                    shortCircuit(new ElasticsearchSecurityException("No credential is found", RestStatus.UNAUTHORIZED));
+                    return;
+                }
+
                 final ThreadContext threadContext = threadPool.getThreadContext();
-                ContextPreservingActionListener<AuthenticationResult<User>> contextPreservingActionListener =
-                    new ContextPreservingActionListener<>(
-                        threadContext.wrapRestorable(threadContext.newStoredContext()),
-                        ActionListener.wrap(authenticationResult -> {
-                            if (false == authenticationResult.isAuthenticated()) {
-                                logger.warn("authentication failed [{}]", authenticationResult.getMessage());
-                                shortCircuit(
-                                    authenticationResult.getException() != null
-                                        ? authenticationResult.getException()
-                                        : new ElasticsearchSecurityException(authenticationResult.getMessage(), RestStatus.UNAUTHORIZED)
-                                );
-                                return;
-                            }
-                            logger.warn("authentication successful");
-                        }, this::shortCircuit)
-                    );
+                final var contextPreservingActionListener = new ContextPreservingActionListener<AuthenticationResult<User>>(
+                    threadContext.wrapRestorable(threadContext.newStoredContext()),
+                    ActionListener.wrap(authenticationResult -> {
+                        if (false == authenticationResult.isAuthenticated()) {
+                            logger.warn("authentication failed [{}]", authenticationResult.getMessage());
+                            shortCircuit(
+                                authenticationResult.getException() != null
+                                    ? authenticationResult.getException()
+                                    : new ElasticsearchSecurityException(authenticationResult.getMessage(), RestStatus.UNAUTHORIZED)
+                            );
+                        } else {
+                            logger.info("authentication successful");
+                        }
+                    }, this::shortCircuit)
+                );
 
                 try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
-                    final String credentials = header.getHeaders().v1().get(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
-                    final ApiKeyService.ApiKeyCredentials apiKeyCredentials;
-                    if (credentials != null) {
-                        apiKeyCredentials = ApiKeyService.getCredentialsFromHeader(credentials, ApiKey.Type.CROSS_CLUSTER);
-                    } else {
-                        apiKeyCredentials = null;
-                    }
-
-                    if (apiKeyCredentials == null) {
-                        logger.warn("No credential is found");
-                        contextPreservingActionListener.onResponse(AuthenticationResult.notHandled());
-                    } else {
-                        apiKeyService.tryAuthenticate(threadContext, apiKeyCredentials, contextPreservingActionListener);
-                    }
+                    apiKeyService.tryAuthenticate(threadContext, apiKeyCredentials, contextPreservingActionListener);
                 }
             }
         };

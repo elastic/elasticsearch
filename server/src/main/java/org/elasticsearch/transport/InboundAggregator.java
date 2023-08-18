@@ -31,7 +31,7 @@ public class InboundAggregator implements Releasable {
     private ReleasableBytesReference firstContent;
     private ArrayList<ReleasableBytesReference> contentAggregation;
     private Header currentHeader;
-    private Exception aggregationException;
+    private volatile Exception aggregationException;
     private boolean canTripBreaker = true;
     private boolean isClosed = false;
 

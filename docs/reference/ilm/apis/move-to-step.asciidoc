@@ -96,11 +96,11 @@ The name of the phase that contains the action you want to perform or resume.
 
 `action`::
 (Optional, string)
-The name action you want to perform or resume. 
+The name action you want to perform or resume. Required if `name` used.
 
 `name`::
 (Optional, string)
-The name of the step to move to and execute. 
+The name of the step to move to and execute. Required if `action` used.
 
 ====
 
@@ -176,6 +176,26 @@ If the request succeeds, you receive the following result:
   "acknowledged": true
 }
 --------------------------------------------------
+// TEST[continued]
 
 The request will fail if the index is not in the `new` phase as specified
 by the `current_step`.
+
+The following example pushes `my-index-000001` from the end of hot phase into
+the start of warm:
+
+[source,console]
+--------------------------------------------------
+POST _ilm/move/my-index-000001
+{
+  "current_step": {
+    "phase": "hot",
+    "action": "complete",
+    "name": "complete"
+  },
+  "next_step": {
+    "phase": "warm"
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[skip: can't consistently get ILM in a completed hot phase during CI checks]

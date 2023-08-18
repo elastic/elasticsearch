@@ -220,6 +220,22 @@ public abstract class AggregationBuilder
     }
 
     /**
+     * Return false if this aggregation or any of the child aggregations does not support parallel collection.
+     * As a result, a request including such aggregation is always executed sequentially despite concurrency is enabled for the query phase.
+     */
+    public boolean supportsParallelCollection() {
+        if (isInSortOrderExecutionRequired()) {
+            return false;
+        }
+        for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
+            if (builder.supportsParallelCollection() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Called by aggregations whose parents must be sequentially ordered.
      * @param type the type of the aggregation being validated
      * @param name the name of the aggregation being validated

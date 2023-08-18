@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ssl.cert;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -94,12 +94,12 @@ public class CertificateInfoTests extends ESTestCase {
         // send from old
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        out.setVersion(Version.V_8_3_0);
+        out.setTransportVersion(TransportVersion.V_8_3_0);
         certInfo.writeTo(out);
         // receive from old
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         StreamInput in = new InputStreamStreamInput(inBuffer);
-        in.setVersion(Version.V_8_3_0);
+        in.setTransportVersion(TransportVersion.V_8_3_0);
         CertificateInfo certInfoFromOld = new CertificateInfo(in);
         // convert to a JSON string
         String toXContentString = Strings.toString(certInfoFromOld.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));

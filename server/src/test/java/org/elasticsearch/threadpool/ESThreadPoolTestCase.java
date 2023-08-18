@@ -26,7 +26,7 @@ public abstract class ESThreadPoolTestCase extends ESTestCase {
 
     protected final ThreadPoolStats.Stats stats(final ThreadPool threadPool, final String name) {
         for (final ThreadPoolStats.Stats stats : threadPool.stats()) {
-            if (name.equals(stats.getName())) {
+            if (name.equals(stats.name())) {
                 return stats;
             }
         }

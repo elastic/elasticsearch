@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -148,8 +148,8 @@ public class PassThroughConfigUpdate extends NlpConfigUpdate implements NamedXCo
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_0_0;
     }
 
     public static class Builder implements InferenceConfigUpdate.Builder<PassThroughConfigUpdate.Builder, PassThroughConfigUpdate> {

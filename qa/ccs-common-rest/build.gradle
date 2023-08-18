@@ -11,11 +11,11 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 restResources {
   restApi {
     include '_common', 'bulk', 'count', 'cluster', 'field_caps', 'knn_search', 'index', 'indices', 'msearch',
-      'search', 'async_search', 'graph', '*_point_in_time', 'info', 'scroll', 'clear_scroll'
+      'search', 'async_search', 'graph', '*_point_in_time', 'info', 'scroll', 'clear_scroll', 'search_mvt', 'eql', 'sql'
   }
   restTests {
     includeCore 'field_caps', 'msearch', 'search', 'suggest', 'scroll', "indices.resolve_index"
-    includeXpack 'async_search'
+    includeXpack 'async_search', 'vector-tile', 'sql'
   }
 }
 
@@ -23,6 +23,12 @@ dependencies {
   clusterModules project(':x-pack:plugin:async-search')
   clusterModules project(':modules:mapper-extras')
   clusterModules project(':modules:aggregations')
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(':x-pack:plugin:analytics')
+  clusterModules project(':x-pack:plugin:vector-tile')
+  clusterModules project(':modules:legacy-geo')
+  clusterModules project(':x-pack:plugin:eql')
+  clusterModules project(':x-pack:plugin:sql')
 }
 
 tasks.named("yamlRestTest") {
@@ -30,16 +36,11 @@ tasks.named("yamlRestTest") {
     [
       'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', // terms lookup query with index
       'search/170_terms_query/Terms Query with No.of terms exceeding index.max_terms_count should FAIL', // terms lookup query with index
-      'search/350_point_in_time/basic', // [indices] cannot be used with point in time
-      'search/350_point_in_time/point-in-time with slicing', // [indices] cannot be used with point in time
-      'search/350_point_in_time/msearch', // [indices] cannot be used with point in time
-      'search/350_point_in_time/wildcard', // [indices] cannot be used with point in time
       'search.aggregation/220_filters_bucket/cache busting', // node_selector?
       'search.aggregation/220_filters_bucket/cache hits', // node_selector?
       'search.aggregation/50_filter/Standard queries get cached',
       'search.aggregation/50_filter/Terms lookup gets cached', // terms lookup by "index" doesn't seem to work correctly
       'search.aggregation/70_adjacency_matrix/Terms lookup', // terms lookup by "index" doesn't seem to work correctly
-      'async_search/20-with-poin-in-time/Async search with point in time' // [indices] cannot be used with point in time
     ].join(',')
 }
 

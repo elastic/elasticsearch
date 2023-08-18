@@ -135,6 +135,11 @@ reduced. If the bucket contains fewer samples than expected, the score is reduce
 `lower_confidence_bound`::::
 (Optional, double) Lower bound of the 95% confidence interval.
 
+`multimodal_distribution`::::
+(Optional, boolean) Indicates whether the bucket values' probability distribution has 
+several modes. When there are multiple modes, the typical value may not be the most 
+likely.
+
 `multi_bucket_impact`::::
 (Optional, integer) Impact of the deviation between actual and typical values in the 
 past 12 buckets.

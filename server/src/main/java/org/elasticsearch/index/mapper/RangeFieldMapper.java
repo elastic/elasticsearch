@@ -414,7 +414,8 @@ public class RangeFieldMapper extends FieldMapper {
                             to = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
                         }
                     } else {
-                        throw new MapperParsingException(
+                        throw new DocumentParsingException(
+                            parser.getTokenLocation(),
                             "error parsing field [" + name() + "], with unknown parameter [" + fieldName + "]"
                         );
                     }
@@ -424,7 +425,10 @@ public class RangeFieldMapper extends FieldMapper {
         } else if (fieldType().rangeType == RangeType.IP && start == XContentParser.Token.VALUE_STRING) {
             range = parseIpRangeFromCidr(parser);
         } else {
-            throw new MapperParsingException("error parsing field [" + name() + "], expected an object but got " + parser.currentName());
+            throw new DocumentParsingException(
+                parser.getTokenLocation(),
+                "error parsing field [" + name() + "], expected an object but got " + parser.currentName()
+            );
         }
         context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, index, hasDocValues, store));
 
@@ -440,8 +444,8 @@ public class RangeFieldMapper extends FieldMapper {
         byte[] upper = lower.clone();
         for (int i = cidr.v2(); i < 8 * lower.length; i++) {
             int m = 1 << 7 - (i & 7);
-            lower[i >> 3] &= ~m;
-            upper[i >> 3] |= m;
+            lower[i >> 3] &= (byte) ~m;
+            upper[i >> 3] |= (byte) m;
         }
         try {
             return new Range(RangeType.IP, InetAddress.getByAddress(lower), InetAddress.getByAddress(upper), true, true);

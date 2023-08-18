@@ -9,11 +9,11 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAlloc
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 
 import java.util.Collections;
 import java.util.List;
@@ -41,9 +42,11 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
     public void setUp() throws Exception {
         super.setUp();
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder(INDEX_NAME).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder(INDEX_NAME).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index(INDEX_NAME)).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index(INDEX_NAME))
+            .build();
         clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)

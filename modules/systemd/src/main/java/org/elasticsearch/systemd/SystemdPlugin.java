@@ -14,12 +14,13 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -46,7 +47,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
 
     @SuppressWarnings("unused")
     public SystemdPlugin() {
-        this(true, Build.CURRENT.type(), System.getenv("ES_SD_NOTIFY"));
+        this(true, Build.current().type(), System.getenv("ES_SD_NOTIFY"));
     }
 
     SystemdPlugin(final boolean assertIsPackageDistribution, final Build.Type buildType, final String esSDNotify) {
@@ -91,7 +92,8 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         final IndexNameExpressionResolver expressionResolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         if (enabled == false) {
             extender.set(null);

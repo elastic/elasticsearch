@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
@@ -24,6 +25,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NodeDisconnectedException;
@@ -34,13 +36,13 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -160,7 +162,8 @@ public class LeaderChecker {
      * publication targets, and also called if a leader becomes a non-leader.
      */
     void setCurrentNodes(DiscoveryNodes discoveryNodes) {
-        logger.trace("setCurrentNodes: {}", discoveryNodes);
+        // Sorting the nodes for deterministic logging until https://github.com/elastic/elasticsearch/issues/94946 is fixed
+        logger.trace(() -> Strings.format("setCurrentNodes: {}", discoveryNodes.mastersFirstStream().toList()));
         this.discoveryNodes = discoveryNodes;
     }
 
@@ -234,9 +237,13 @@ public class LeaderChecker {
                 new LeaderCheckRequest(transportService.getLocalNode()),
                 TransportRequestOptions.of(leaderCheckTimeout, Type.PING),
                 new TransportResponseHandler.Empty() {
+                    @Override
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
 
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public void handleResponse() {
                         if (isClosed.get()) {
                             logger.debug("closed check scheduler received a response, doing nothing");
                             return;

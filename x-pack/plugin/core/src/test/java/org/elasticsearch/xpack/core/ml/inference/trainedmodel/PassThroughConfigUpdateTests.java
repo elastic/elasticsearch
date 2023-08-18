@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -37,8 +34,8 @@ public class PassThroughConfigUpdateTests extends AbstractNlpConfigUpdateTestCas
         return builder.build();
     }
 
-    public static PassThroughConfigUpdate mutateForVersion(PassThroughConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
+    public static PassThroughConfigUpdate mutateForVersion(PassThroughConfigUpdate instance, TransportVersion version) {
+        if (version.before(TransportVersion.V_8_1_0)) {
             return new PassThroughConfigUpdate(instance.getResultsField(), null);
         }
         return instance;
@@ -98,17 +95,12 @@ public class PassThroughConfigUpdateTests extends AbstractNlpConfigUpdateTestCas
     }
 
     @Override
-    protected PassThroughConfigUpdate mutateInstanceForVersion(PassThroughConfigUpdate instance, Version version) {
+    protected PassThroughConfigUpdate mutateInstance(PassThroughConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected PassThroughConfigUpdate mutateInstanceForVersion(PassThroughConfigUpdate instance, TransportVersion version) {
         return mutateForVersion(instance, version);
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
     }
 }

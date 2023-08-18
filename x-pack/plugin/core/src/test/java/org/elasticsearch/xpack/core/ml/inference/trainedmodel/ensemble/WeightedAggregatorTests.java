@@ -46,4 +46,9 @@ public abstract class WeightedAggregatorTests<T extends OutputAggregator> extend
     }
 
     abstract T createTestInstance(int numberOfWeights);
+
+    @Override
+    protected T mutateInstance(T instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

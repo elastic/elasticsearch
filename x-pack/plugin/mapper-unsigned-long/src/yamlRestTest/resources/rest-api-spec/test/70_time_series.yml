@@ -72,6 +72,32 @@ fetch the _tsid:
   - match: {hits.hits.1.fields.ul: [9223372036854775808]}
 
 ---
+fetch the _source:
+  - skip:
+      version: " - 8.6.99"
+      reason: synthetic source support to unsigned long added in 8.7.0
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [_tsid, metricset, ul]
+          query:
+            query_string:
+              query: '+@timestamp:"2021-04-28T18:35:24.467Z" +metricset:aa'
+          sort:   [ _tsid ]
+
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._source.voltage: 7.2}
+  - match: {hits.hits.0._source.metricset: aa}
+  - match: {hits.hits.0._source.@timestamp: 2021-04-28T18:35:24.467Z}
+  - match: {hits.hits.0._source.ul: 9223372036854775807}
+  - match: {hits.hits.1._source.voltage: 3.2}
+  - match: {hits.hits.1._source.metricset: aa}
+  - match: {hits.hits.1._source.@timestamp: 2021-04-28T18:35:24.467Z}
+  - match: {hits.hits.1._source.ul: 9223372036854775808}
+
+---
 # Sort order is of unsigned_long fields is not the one we would expect.
 # This is caused by the encoding of unsigned_long as a signed long before
 # being serialized in _tsid

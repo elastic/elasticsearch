@@ -1,5 +1,0 @@
-pr: 92643
-summary: Fix NPE when evaluating the disk health for non-data nodes
-area: Health
-type: bug
-issues: []

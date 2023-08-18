@@ -11,14 +11,35 @@ Also see <<breaking-changes-8.4,Breaking changes in 8.4>>.
 * {ml-cap} {dfeeds} cannot be listed if any are not modified since version 6.x
 +
 If you have a {dfeed} that was created in version 5.x or 6.x and has not
-been updated since 7.0, it is not possible to list {dfeeds} in 
+been updated since 7.0, it is not possible to list {dfeeds} in
 8.4 and 8.5. This means that {anomaly-jobs} cannot be managed using
-{kib}. This issue is fixed in 8.6.
+{kib}. This issue is fixed in 8.6.0.
 +
 If you upgrade to 8.4 or 8.5 with such a {dfeed}, you need to
 work around the problem by updating each {dfeed}'s authorization information
 using https://support.elastic.dev/knowledge/view/b5a879db[these steps].
 // end::ml-pre-7-datafeeds-known-issue[]
+
+// tag::file-based-settings-deadlock-known-issue[]
+* Orchestrators which use a `settings.json` file to configure Elasticsearch may
+encounter deadlocks during master elections (issue: {es-issue}92812[#92812])
++
+To resolve the deadlock, remove the `settings.json` file and restart the
+affected node.
+// end::file-based-settings-deadlock-known-issue[]
+
+include::8.0.0.asciidoc[tag=jackson-filtering-bug]
+
+// tag::ingest-processor-log4j-cluster-instability-known-issue[]
+* When the {ref}/attachment.html[ingest attachment processor] is used, the
+interaction of https://tika.apache.org/[Tika] with log4j 2.18.0 and higher
+(introduced in {es} 8.4.0) results in excessive logging. This logging is so
+excessive that it can lead to cluster instability, to the point where the
+cluster is unusable and nodes must be restarted. (issue: {es-issue}91964[#91964]).
+This issue is fixed in {es} 8.7.0 ({es-pull}93878[#93878])
++
+To resolve the issue, upgrade to 8.7.0 or higher.
+// end::ingest-processor-log4j-cluster-instability-known-issue[]
 
 [[bug-8.4.0]]
 [float]

@@ -42,6 +42,11 @@ public class GeoResultsTests extends AbstractXContentSerializingTestCase<GeoResu
     }
 
     @Override
+    protected GeoResults mutateInstance(GeoResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<GeoResults> instanceReader() {
         return GeoResults::new;
     }

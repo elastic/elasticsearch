@@ -4,8 +4,6 @@
 <titleabbrev>Run downsampling with ILM</titleabbrev>
 ++++
 
-preview::[]
-
 This is a simplified example that allows you to see quickly how
 <<downsampling,downsampling>> works as part of an ILM policy to reduce the
 storage size of a sampled set of metrics. The example uses typical Kubernetes
@@ -38,7 +36,7 @@ To enable downsampling, add a <<ilm-downsample,Downsample action>> and set
 <<ilm-downsample-options,`fixed_interval`>> to the downsampling interval at
 which you want to aggregate the original time series data.
 
-In this example, an ILM policy is configired for the `hot` phase. The downsample
+In this example, an ILM policy is configured for the `hot` phase. The downsample
 takes place after the initial index rollover, which for demonstration
 purposes is set to run after five minutes.
 
@@ -292,7 +290,8 @@ GET _data_stream
 If the ILM policy has not yet been applied, your results will be like the
 following. Note the original `index_name`: `.ds-datastream-<timestamp>-000001`.
 
-```
+[source,console-result]
+----
 {
   "data_streams": [
     {
@@ -329,7 +328,9 @@ following. Note the original `index_name`: `.ds-datastream-<timestamp>-000001`.
     }
   ]
 }
-```
+----
+// TEST[skip:todo]
+// TEST[continued]
 
 Next, run a search query:
 
@@ -341,7 +342,8 @@ GET datastream/_search
 
 The query returns your ten newly added documents.
 
-```
+[source,console-result]
+----
 {
   "took": 17,
   "timed_out": false,
@@ -357,7 +359,9 @@ The query returns your ten newly added documents.
       "relation": "eq"
     },
 ...
-```
+----
+// TEST[skip:todo]
+// TEST[continued]
 
 By default, index lifecycle management checks every ten minutes for indices that
 meet policy criteria. Wait for about ten minutes (maybe brew up a quick coffee
@@ -373,7 +377,8 @@ After the ILM policy has taken effect, the original
 `.ds-datastream-2022.08.26-000001` index is replaced with a new, downsampled
 index, in this case `downsample-6tkn-.ds-datastream-2022.08.26-000001`.
 
-```
+[source,console-result]
+----
 {
   "data_streams": [
     {
@@ -392,21 +397,24 @@ index, in this case `downsample-6tkn-.ds-datastream-2022.08.26-000001`.
         }
       ],
 ...
-```
+----
+// TEST[skip:todo]
+// TEST[continued]
 
-Run a search query on the datastream.
+Run a search query on the datastream (note that when querying downsampled indices there are <<querying-downsampled-indices-notes,a few nuances to be aware of>>).
 
 [source,console]
 ----
 GET datastream/_search
 ----
-// TEST[skip: The @timestamp value won't match an accepted range in the TSDS]
+// TEST[continued]
 
 The new downsampled index contains just one document that includes the `min`,
 `max`, `sum`, and `value_count` statistics based off of the original sampled
 metrics.
 
-```
+[source,console-result]
+----
 {
   "took": 6,
   "timed_out": false,
@@ -483,7 +491,9 @@ metrics.
     ]
   }
 }
-```
+----
+// TEST[skip:todo]
+// TEST[continued]
 
 Use the <<data-stream-stats-api,data stream stats API>> to get statistics for
 the data stream, including the storage size.
@@ -492,9 +502,10 @@ the data stream, including the storage size.
 ----
 GET /_data_stream/datastream/_stats?human=true
 ----
-// TEST[skip: The @timestamp value won't match an accepted range in the TSDS]
+// TEST[continued]
 
-```
+[source,console-result]
+----
 {
   "_shards": {
     "total": 4,
@@ -515,7 +526,9 @@ GET /_data_stream/datastream/_stats?human=true
     }
   ]
 }
-```
+----
+// TEST[skip:todo]
+// TEST[continued]
 
 This example demonstrates how downsampling works as part of an ILM policy to
 reduce the storage size of metrics data as it becomes less current and less

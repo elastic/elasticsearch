@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -74,6 +75,7 @@ class MutableSearchResponse {
     MutableSearchResponse(int totalShards, int skippedShards, Clusters clusters, ThreadContext threadContext) {
         this.totalShards = totalShards;
         this.skippedShards = skippedShards;
+
         this.clusters = clusters;
         this.queryFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards - skippedShards);
         this.isPartial = true;
@@ -109,16 +111,23 @@ class MutableSearchResponse {
      * Updates the response with the final {@link SearchResponse} once the
      * search is complete.
      */
-    synchronized void updateFinalResponse(SearchResponse response) {
+    synchronized void updateFinalResponse(SearchResponse response, boolean ccsMinimizeRoundtrips) {
         failIfFrozen();
-        assert response.getTotalShards() == totalShards
-            : "received number of total shards differs from the one " + "notified through onListShards";
-        assert response.getSkippedShards() == skippedShards
-            : "received number of skipped shards differs from the one " + "notified through onListShards";
+
+        assert shardsInResponseMatchExpected(response, ccsMinimizeRoundtrips)
+            : getShardsInResponseMismatchInfo(response, ccsMinimizeRoundtrips);
+
         this.responseHeaders = threadContext.getResponseHeaders();
         this.finalResponse = response;
-        this.isPartial = false;
+        this.isPartial = isPartialResponse(response);
         this.frozen = true;
+    }
+
+    private boolean isPartialResponse(SearchResponse response) {
+        if (response.getClusters() == null) {
+            return true;
+        }
+        return response.getClusters().hasPartialResults();
     }
 
     /**
@@ -189,7 +198,7 @@ class MutableSearchResponse {
         } else {
             /*
              * Build the response, reducing aggs if we haven't already and
-             * storing the result of the reduction so we won't have to reduce
+             * storing the result of the reduction, so we won't have to reduce
              * the same aggregation results a second time if nothing has changed.
              * This does cost memory because we have a reference to the finally
              * reduced aggs sitting around which can't be GCed until we get an update.
@@ -218,6 +227,11 @@ class MutableSearchResponse {
      * @return response representing the status of async search
      */
     synchronized AsyncStatusResponse toStatusResponse(String asyncExecutionId, long startTime, long expirationTime) {
+        SearchResponse.Clusters clustersInStatus = null;
+        if (clusters != null && clusters.getTotal() > 0) {
+            // include clusters in the status if present and not Clusters.EMPTY (the case for local searches only)
+            clustersInStatus = clusters;
+        }
         if (finalResponse != null) {
             return new AsyncStatusResponse(
                 asyncExecutionId,
@@ -225,11 +239,13 @@ class MutableSearchResponse {
                 false,
                 startTime,
                 expirationTime,
+                startTime + finalResponse.getTook().millis(),
                 finalResponse.getTotalShards(),
                 finalResponse.getSuccessfulShards(),
                 finalResponse.getSkippedShards(),
                 finalResponse.getShardFailures() != null ? finalResponse.getShardFailures().length : 0,
-                finalResponse.status()
+                finalResponse.status(),
+                clustersInStatus
             );
         }
         if (failure != null) {
@@ -239,11 +255,13 @@ class MutableSearchResponse {
                 true,
                 startTime,
                 expirationTime,
+                null,
                 totalShards,
                 successfulShards,
                 skippedShards,
                 queryFailures == null ? 0 : queryFailures.nonNullLength(),
-                ExceptionsHelper.status(ExceptionsHelper.unwrapCause(failure))
+                ExceptionsHelper.status(ExceptionsHelper.unwrapCause(failure)),
+                clustersInStatus
             );
         }
         return new AsyncStatusResponse(
@@ -252,11 +270,13 @@ class MutableSearchResponse {
             true,
             startTime,
             expirationTime,
+            null,
             totalShards,
             successfulShards,
             skippedShards,
             queryFailures == null ? 0 : queryFailures.nonNullLength(),
-            null  // for a still running search, completion status is null
+            null,  // for a still running search, completion status is null
+            clustersInStatus
         );
     }
 
@@ -297,5 +317,49 @@ class MutableSearchResponse {
             }
         }
         return failures.toArray(ShardSearchFailure[]::new);
+    }
+
+    private boolean shardsInResponseMatchExpected(SearchResponse response, boolean ccsMinimizeRoundtrips) {
+        if (ccsMinimizeRoundtrips) {
+            return response.getTotalShards() >= totalShards && response.getSkippedShards() >= skippedShards;
+        } else {
+            return response.getTotalShards() == totalShards && response.getSkippedShards() == skippedShards;
+        }
+    }
+
+    private String getShardsInResponseMismatchInfo(SearchResponse response, boolean ccsMinimizeRoundtrips) {
+        if (ccsMinimizeRoundtrips) {
+            if (response.getTotalShards() < totalShards) {
+                return Strings.format(
+                    "received number of shards (%d) is less than the value notified via onListShards (%d)",
+                    response.getTotalShards(),
+                    totalShards
+                );
+            }
+            if (response.getSkippedShards() < skippedShards) {
+                return Strings.format(
+                    "received number of skipped shards (%d) is less than the value notified via onListShards (%d)",
+                    response.getSkippedShards(),
+                    skippedShards
+                );
+            }
+            throw new IllegalStateException("assert method hit unexpected case for ccsMinimizeRoundtrips=true");
+        } else {
+            if (response.getTotalShards() != totalShards) {
+                return Strings.format(
+                    "received number of shards (%d) differs from the one notified via onListShards (%d)",
+                    response.getTotalShards(),
+                    totalShards
+                );
+            }
+            if (response.getSkippedShards() != skippedShards) {
+                return Strings.format(
+                    "received number of skipped shards (%d) differs from the one notified via onListShards (%d)",
+                    response.getSkippedShards(),
+                    skippedShards
+                );
+            }
+            throw new IllegalStateException("assert method hit unexpected case for ccsMinimizeRoundtrips=false");
+        }
     }
 }

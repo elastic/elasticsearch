@@ -1,6 +1,0 @@
-pr: 91234
-summary: Low priority trained model deployments
-area: Machine Learning
-type: enhancement
-issues:
- - 91024

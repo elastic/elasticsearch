@@ -8,18 +8,17 @@
 
 package org.elasticsearch.health.node.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -85,20 +84,12 @@ public class TransportHealthNodeActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
-        localNode = new DiscoveryNode(
-            "local_node",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
-        remoteNode = new DiscoveryNode(
-            "remote_node",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
+        localNode = DiscoveryNodeUtils.builder("local_node")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+            .build();
+        remoteNode = DiscoveryNodeUtils.builder("remote_node")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+            .build();
         allNodes = new DiscoveryNode[] { localNode, remoteNode };
     }
 
@@ -185,12 +176,6 @@ public class TransportHealthNodeActionTests extends ESTestCase {
                 Response::new,
                 executor
             );
-        }
-
-        @Override
-        protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
-            // remove unneeded threading by wrapping listener with SAME to prevent super.doExecute from wrapping it with LISTENER
-            super.doExecute(task, request, new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SAME, listener, false));
         }
 
         @Override

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -55,7 +55,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     }
 
     public IndexDiskUsageStats(StreamInput in) throws IOException {
-        this.fields = new HashMap<>(in.readMap(StreamInput::readString, PerFieldDiskUsage::new));
+        this.fields = new HashMap<>(in.readMap(PerFieldDiskUsage::new));
         this.indexSizeInBytes = in.readVLong();
     }
 
@@ -189,7 +189,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             pointsBytes = in.readVLong();
             normsBytes = in.readVLong();
             termVectorsBytes = in.readVLong();
-            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 knnVectorsBytes = in.readVLong();
             }
         }
@@ -202,7 +202,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             out.writeVLong(pointsBytes);
             out.writeVLong(normsBytes);
             out.writeVLong(termVectorsBytes);
-            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 out.writeVLong(knnVectorsBytes);
             }
         }

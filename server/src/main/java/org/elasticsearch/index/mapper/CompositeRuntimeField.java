@@ -47,7 +47,10 @@ public class CompositeRuntimeField implements RuntimeField {
             }
         });
 
-        private final FieldMapper.Parameter<String> onScriptError = FieldMapper.Parameter.onScriptErrorParam(m -> m.onScriptError, script);
+        private final FieldMapper.Parameter<OnScriptError> onScriptError = FieldMapper.Parameter.onScriptErrorParam(
+            m -> m.onScriptError,
+            script
+        );
 
         private final FieldMapper.Parameter<Map<String, Object>> fields = new FieldMapper.Parameter<Map<String, Object>>(
             "fields",
@@ -85,15 +88,12 @@ public class CompositeRuntimeField implements RuntimeField {
         @Override
         protected RuntimeField createRuntimeField(MappingParserContext parserContext) {
             CompositeFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.get(), CompositeFieldScript.CONTEXT);
-            Function<RuntimeField.Builder, RuntimeField> builder = b -> {
-                OnScriptError onScriptError = OnScriptError.fromString(this.onScriptError.get());
-                return b.createChildRuntimeField(
-                    parserContext,
-                    name,
-                    lookup -> factory.newFactory(name, script.get().getParams(), lookup, onScriptError),
-                    onScriptError
-                );
-            };
+            Function<RuntimeField.Builder, RuntimeField> builder = b -> b.createChildRuntimeField(
+                parserContext,
+                name,
+                lookup -> factory.newFactory(name, script.get().getParams(), lookup, onScriptError.get()),
+                onScriptError.get()
+            );
             Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(
                 new HashMap<>(fields.getValue()),
                 parserContext,

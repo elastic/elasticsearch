@@ -149,4 +149,14 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         request.includeSegmentFileSizes(includeSegmentFileSizes);
         return this;
     }
+
+    public IndicesStatsRequestBuilder setIncludeUnloadedSegments(boolean includeUnloadedSegments) {
+        request.includeUnloadedSegments(includeUnloadedSegments);
+        return this;
+    }
+
+    public IndicesStatsRequestBuilder setDenseVector(boolean denseVector) {
+        request.denseVector(denseVector);
+        return this;
+    }
 }

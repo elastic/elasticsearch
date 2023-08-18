@@ -37,9 +37,11 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.plugins.JavaBasePlugin;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Specs;
 import org.gradle.api.tasks.Copy;
+import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.initialization.layout.BuildLayout;
@@ -127,7 +129,10 @@ public class DistroTestPlugin implements Plugin<Project> {
             depsTask.configure(t -> t.dependsOn(examplePlugin.getDependencies()));
             depsTasks.put(taskname, depsTask);
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
-                t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable());
+                t.onlyIf(
+                    "Docker is not available",
+                    t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable()
+                );
                 addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
                 addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
                 t.exclude("**/PackageUpgradeTests.class");
@@ -196,13 +201,9 @@ public class DistroTestPlugin implements Plugin<Project> {
 
             // windows boxes get windows distributions, and linux boxes get linux distributions
             if (isWindows(vmProject)) {
-                configureVMWrapperTasks(
-                    vmProject,
-                    windowsTestTasks,
-                    depsTasks,
-                    wrapperTask -> { vmLifecyleTasks.get(ARCHIVE).configure(t -> t.dependsOn(wrapperTask)); },
-                    vmDependencies
-                );
+                configureVMWrapperTasks(vmProject, windowsTestTasks, depsTasks, wrapperTask -> {
+                    vmLifecyleTasks.get(ARCHIVE).configure(t -> t.dependsOn(wrapperTask));
+                }, vmDependencies);
             } else {
                 for (var entry : linuxTestTasks.entrySet()) {
                     ElasticsearchDistributionType type = entry.getKey();
@@ -372,6 +373,9 @@ public class DistroTestPlugin implements Plugin<Project> {
             t.onlyIf(t3 -> distribution.getArchitecture() == Architecture.current());
             t.getOutputs().doNotCacheIf("Build cache is disabled for packaging tests", Specs.satisfyAll());
             t.setMaxParallelForks(1);
+            SourceSet testSourceSet = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().getByName("test");
+            t.setClasspath(testSourceSet.getRuntimeClasspath());
+            t.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
             t.setWorkingDir(project.getProjectDir());
             if (System.getProperty(IN_VM_SYSPROP) == null) {
                 t.dependsOn(deps);
@@ -385,12 +389,11 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
 
         for (Architecture architecture : Architecture.values()) {
-            ALL_INTERNAL.stream()
-                .forEach(
-                    type -> currentDistros.add(
-                        createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
-                    )
-                );
+            ALL_INTERNAL.forEach(
+                type -> currentDistros.add(
+                    createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
+                )
+            );
         }
 
         for (Architecture architecture : Architecture.values()) {

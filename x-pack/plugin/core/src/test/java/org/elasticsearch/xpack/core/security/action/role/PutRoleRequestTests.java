@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
@@ -18,13 +18,15 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -40,6 +42,13 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PutRoleRequestTests extends ESTestCase {
+
+    @BeforeClass
+    public static void setUpClass() {
+        // Initialize the reserved roles store so that static fields are populated.
+        // In production code, this is guaranteed by how components are initialized by the Security plugin
+        new ReservedRolesStore();
+    }
 
     public void testValidationErrorWithUnknownClusterPrivilegeName() {
         final PutRoleRequest request = new PutRoleRequest();
@@ -160,17 +169,17 @@ public class PutRoleRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
         if (randomBoolean()) {
-            final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
             logger.info("Serializing with version {}", version);
-            out.setVersion(version);
+            out.setTransportVersion(version);
         }
-        final boolean mayIncludeRemoteIndices = out.getVersion().onOrAfter(Version.V_8_6_0);
+        final boolean mayIncludeRemoteIndices = out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0);
         final PutRoleRequest original = buildRandomRequest(mayIncludeRemoteIndices);
         original.writeTo(out);
 
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-        in.setVersion(out.getVersion());
+        in.setTransportVersion(out.getTransportVersion());
         final PutRoleRequest copy = new PutRoleRequest(in);
 
         final RoleDescriptor actual = copy.roleDescriptor();
@@ -180,13 +189,15 @@ public class PutRoleRequestTests extends ESTestCase {
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
-        final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(Version.V_8_6_0);
-        final Version version = VersionUtils.randomVersionBetween(
-            random(),
-            versionBeforeRemoteIndices.minimumCompatibilityVersion(),
-            versionBeforeRemoteIndices
+        final TransportVersion versionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.V_8_8_0
         );
-        out.setVersion(version);
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_7_17_0,
+            versionBeforeAdvancedRemoteClusterSecurity
+        );
+        out.setTransportVersion(version);
 
         final PutRoleRequest original = buildRandomRequest(randomBoolean());
         if (original.hasRemoteIndicesPrivileges()) {
@@ -194,7 +205,9 @@ public class PutRoleRequestTests extends ESTestCase {
             assertThat(
                 ex.getMessage(),
                 containsString(
-                    "versions of Elasticsearch before [8.6.0] can't handle remote indices privileges and attempted to send to ["
+                    "versions of Elasticsearch before ["
+                        + TransportVersion.V_8_8_0
+                        + "] can't handle remote indices privileges and attempted to send to ["
                         + version
                         + "]"
                 )
@@ -203,7 +216,7 @@ public class PutRoleRequestTests extends ESTestCase {
             original.writeTo(out);
             final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
             StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-            in.setVersion(out.getVersion());
+            in.setTransportVersion(out.getTransportVersion());
             final PutRoleRequest copy = new PutRoleRequest(in);
             assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
         }
@@ -228,7 +241,7 @@ public class PutRoleRequestTests extends ESTestCase {
             .privileges(privileges)
             .resources(resources)
             .build();
-        request.addApplicationPrivileges(new ApplicationResourcePrivileges[] { privilege });
+        request.addApplicationPrivileges(privilege);
         return request;
     }
 

@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.Arrays;
 
 public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCase<ExplainLifecycleRequest> {
@@ -45,7 +44,7 @@ public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCas
     }
 
     @Override
-    protected ExplainLifecycleRequest mutateInstance(ExplainLifecycleRequest instance) throws IOException {
+    protected ExplainLifecycleRequest mutateInstance(ExplainLifecycleRequest instance) {
         String[] indices = instance.indices();
         IndicesOptions indicesOptions = instance.indicesOptions();
         boolean onlyErrors = instance.onlyErrors();

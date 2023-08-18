@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.get.shard;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -56,7 +56,7 @@ public class GetShardSnapshotResponseSerializationTests extends ESTestCase {
             new NamedWriteableRegistry(Collections.emptyList()),
             (out, value) -> value.writeTo(out),
             GetShardSnapshotResponse::new,
-            Version.CURRENT
+            TransportVersion.current()
         );
     }
 

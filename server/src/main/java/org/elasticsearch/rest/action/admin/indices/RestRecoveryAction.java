@@ -14,6 +14,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
@@ -25,6 +27,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * REST handler to report on index recoveries.
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestRecoveryAction extends BaseRestHandler {
 
     @Override

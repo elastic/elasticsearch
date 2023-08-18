@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -67,7 +68,7 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
     }
 
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_15_0)) {
             this.specificShard = in.readBoolean();
         } else {
             this.specificShard = true; // suppress "this is a random shard" warning in BwC situations
@@ -81,7 +82,7 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_15_0)) {
             out.writeBoolean(specificShard);
         } // else suppress "this is a random shard" warning in BwC situations
         shardRouting.writeTo(out);
@@ -182,7 +183,8 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
             if (this.clusterInfo != null) {
                 builder.startObject("cluster_info");
                 {
-                    this.clusterInfo.toXContent(builder, params);
+                    // This field might be huge, TODO add chunking support here
+                    ChunkedToXContent.wrapAsToXContent(clusterInfo).toXContent(builder, params);
                 }
                 builder.endObject(); // end "cluster_info"
             }

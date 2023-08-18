@@ -405,4 +405,24 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             assertTrue(config.alignesWithSearchIndex());
         });
     }
+
+    public void testFlattened() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "flattened")));
+        withAggregationContext(mapperService, List.of(source(b -> b.startObject("field").field("key", "abc").endObject())), context -> {
+            ValuesSourceConfig config;
+            config = ValuesSourceConfig.resolve(context, null, "field.key", null, null, null, null, CoreValuesSourceType.KEYWORD);
+
+            ValuesSource.Bytes valuesSource = (ValuesSource.Bytes) config.getValuesSource();
+            LeafReaderContext ctx = context.searcher().getIndexReader().leaves().get(0);
+            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(new BytesRef("abc"), values.nextValue());
+
+            // flattened supports ordinals, but _not_ global ordinals
+            assertTrue(config.hasOrdinals());
+            ValuesSource.Bytes.WithOrdinals valuesSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+            assertFalse(valuesSourceWithOrdinals.supportsGlobalOrdinalsMapping());
+        });
+    }
 }

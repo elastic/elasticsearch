@@ -11,6 +11,7 @@ package org.elasticsearch.index.cache.bitset;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -20,6 +21,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.ByteBuffersDirectory;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.lucene.util.MatchAllBitSet;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -39,6 +42,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 public class BitSetFilterCacheTests extends ESTestCase {
 
@@ -166,6 +173,48 @@ public class BitSetFilterCacheTests extends ESTestCase {
         IOUtils.close(reader, writer);
         assertEquals(1, onRemoveCalls.get());
         assertEquals(0, stats.get());
+    }
+
+    public void testStats() throws IOException {
+        Directory directory = newDirectory();
+        IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig());
+        int numDocs = randomIntBetween(2000, 5000);
+        for (int i = 0; i < numDocs; i++) {
+            Document d = new Document();
+            d.add(new LongPoint("f", i));
+            writer.addDocument(d);
+        }
+        writer.commit();
+        writer.forceMerge(1);
+        IndexReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("test", "_na_", 0));
+        assertThat(reader.leaves(), hasSize(1));
+        assertThat(reader.numDocs(), equalTo(numDocs));
+
+        final AtomicLong stats = new AtomicLong();
+        final BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+                stats.addAndGet(accountable.ramBytesUsed());
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+                stats.addAndGet(-accountable.ramBytesUsed());
+            }
+        });
+        // match all
+        Query matchAll = randomBoolean() ? LongPoint.newRangeQuery("f", 0, numDocs + between(0, 1000)) : new MatchAllDocsQuery();
+        BitSetProducer bitSetProducer = cache.getBitSetProducer(matchAll);
+        BitSet bitset = bitSetProducer.getBitSet(reader.leaves().get(0));
+        assertThat(bitset, instanceOf(MatchAllBitSet.class));
+        long usedBytes = stats.get();
+        assertThat(usedBytes, lessThan(32L));
+        // range
+        bitSetProducer = cache.getBitSetProducer(LongPoint.newRangeQuery("f", 0, between(1000, 2000)));
+        bitSetProducer.getBitSet(reader.leaves().get(0));
+        usedBytes = stats.get() - usedBytes;
+        assertThat(usedBytes, greaterThan(256L));
+        IOUtils.close(cache, reader, writer, directory);
     }
 
     public void testSetNullListener() {

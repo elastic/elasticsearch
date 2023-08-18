@@ -31,6 +31,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -87,7 +88,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "test index"));
+            return Collections.singletonList(SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_NAME + "*", "test index"));
         }
 
         @Override
@@ -661,7 +662,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertAcked(leaderClient().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get());
         leaderClient().prepareIndex(datastream)
             .setCreate(true)
-            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD.getName(), randomNonNegativeLong())
+            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD_NAME, randomNonNegativeLong())
             .get();
 
         PutAutoFollowPatternAction.Request followRequest = new PutAutoFollowPatternAction.Request();
@@ -697,7 +698,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         );
         leaderClient().prepareIndex(indexInDatastream)
             .setCreate(true)
-            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD.getName(), randomNonNegativeLong())
+            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD_NAME, randomNonNegativeLong())
             .get();
         leaderClient().execute(
             ModifyDataStreamsAction.INSTANCE,

@@ -11,10 +11,11 @@ package org.elasticsearch.search.profile.dfs;
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
-import org.elasticsearch.search.profile.query.InternalProfileCollector;
+import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -28,12 +29,10 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
     private long startTime;
     private long totalTime;
 
-    private final QueryProfiler queryProfiler;
-    private boolean collectorSet = false;
+    private final List<QueryProfiler> knnQueryProfilers = new ArrayList<>();
 
-    public DfsProfiler(QueryProfiler queryProfiler) {
+    public DfsProfiler() {
         super(DfsTimingType.class);
-        this.queryProfiler = queryProfiler;
     }
 
     public void start() {
@@ -44,17 +43,16 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
         totalTime = System.nanoTime() - startTime;
     }
 
-    public void startTimer(DfsTimingType dfsTimingType) {
-        getTimer(dfsTimingType).start();
+    public Timer startTimer(DfsTimingType dfsTimingType) {
+        Timer newTimer = getNewTimer(dfsTimingType);
+        newTimer.start();
+        return newTimer;
     }
 
-    public void stopTimer(DfsTimingType dfsTimingType) {
-        getTimer(dfsTimingType).stop();
-    }
-
-    public void setCollector(InternalProfileCollector collector) {
-        queryProfiler.setCollector(collector);
-        collectorSet = true;
+    public QueryProfiler addQueryProfiler() {
+        QueryProfiler queryProfiler = new QueryProfiler();
+        knnQueryProfilers.add(queryProfiler);
+        return queryProfiler;
     }
 
     public SearchProfileDfsPhaseResult buildDfsPhaseResults() {
@@ -66,9 +64,15 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
             totalTime,
             List.of()
         );
-        QueryProfileShardResult queryProfileShardResult = collectorSet
-            ? new QueryProfileShardResult(queryProfiler.getTree(), queryProfiler.getRewriteTime(), queryProfiler.getCollector())
-            : null;
-        return new SearchProfileDfsPhaseResult(dfsProfileResult, queryProfileShardResult);
+        if (knnQueryProfilers.size() > 0) {
+            final List<QueryProfileShardResult> queryProfileShardResult = new ArrayList<>(knnQueryProfilers.size());
+            for (QueryProfiler queryProfiler : knnQueryProfilers) {
+                queryProfileShardResult.add(
+                    new QueryProfileShardResult(queryProfiler.getTree(), queryProfiler.getRewriteTime(), queryProfiler.getCollectorResult())
+                );
+            }
+            return new SearchProfileDfsPhaseResult(dfsProfileResult, queryProfileShardResult);
+        }
+        return new SearchProfileDfsPhaseResult(dfsProfileResult, null);
     }
 }

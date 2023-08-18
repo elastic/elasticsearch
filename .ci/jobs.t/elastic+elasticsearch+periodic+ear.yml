@@ -9,14 +9,13 @@
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             JAVA11_HOME=$HOME/.java/java11
             JAVA16_HOME=$HOME/.java/openjdk16
       - shell: |
           #!/bin/bash
           # Configure a dm-crypt volume backed by a file
           set -e
-          dd if=/dev/zero of=dm-crypt.img bs=1 count=0 seek=60GB
+          dd if=/dev/zero of=dm-crypt.img bs=1 count=0 seek=80GB
           dd if=/dev/urandom of=key.secret bs=2k count=1
           LOOP=$(losetup -f)
           sudo losetup $LOOP dm-crypt.img

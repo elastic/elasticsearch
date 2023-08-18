@@ -89,10 +89,6 @@ public final class SingleResultDeduplicator<T> {
                 }
             });
         });
-        try {
-            executeAction.accept(wrappedListener);
-        } catch (Exception e) {
-            wrappedListener.onFailure(e);
-        }
+        ActionListener.run(wrappedListener, executeAction::accept);
     }
 }

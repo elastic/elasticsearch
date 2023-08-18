@@ -27,20 +27,20 @@ import java.util.Objects;
 public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown, Query> {
 
     /**
-     * The root Collector used in the search
+     * The root CollectorResult used in the search
      */
-    private InternalProfileCollector collector;
+    private CollectorResult collectorResult;
 
     public QueryProfiler() {
         super(new InternalQueryProfileTree());
     }
 
-    /** Set the collector that is associated with this profiler. */
-    public void setCollector(InternalProfileCollector collector) {
-        if (this.collector != null) {
-            throw new IllegalStateException("The collector can only be set once.");
+    /** Set the collector result that is associated with this profiler. */
+    public void setCollectorResult(CollectorResult collectorResult) {
+        if (this.collectorResult != null) {
+            throw new IllegalStateException("The collector result can only be set once.");
         }
-        this.collector = Objects.requireNonNull(collector);
+        this.collectorResult = Objects.requireNonNull(collectorResult);
     }
 
     /**
@@ -71,8 +71,8 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
     /**
      * Return the current root Collector for this search
      */
-    public CollectorResult getCollector() {
-        return collector.getCollectorTree();
+    public CollectorResult getCollectorResult() {
+        return this.collectorResult;
     }
 
 }

@@ -33,4 +33,9 @@ public class PointInTimeBuilderTests extends AbstractXContentSerializingTestCase
         }
         return pointInTime;
     }
+
+    @Override
+    protected PointInTimeBuilder mutateInstance(PointInTimeBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

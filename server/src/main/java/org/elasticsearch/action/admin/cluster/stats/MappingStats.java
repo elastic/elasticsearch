@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -207,7 +207,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
     }
 
     MappingStats(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             totalFieldCount = in.readOptionalVLong();
             totalDeduplicatedFieldCount = in.readOptionalVLong();
             totalMappingSizeBytes = in.readOptionalVLong();
@@ -222,7 +222,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             out.writeOptionalVLong(totalFieldCount);
             out.writeOptionalVLong(totalDeduplicatedFieldCount);
             out.writeOptionalVLong(totalMappingSizeBytes);

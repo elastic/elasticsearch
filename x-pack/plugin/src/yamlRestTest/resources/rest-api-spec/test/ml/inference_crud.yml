@@ -1113,6 +1113,10 @@ setup:
 
 ---
 "Test put with defer_definition_decompression with invalid definition and no memory estimate":
+  - skip:
+       version: all
+       reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/94854"
+
   - do:
       catch: /Model \[my-regression-model\] inference config type \[classification\] does not support definition target type \[regression\]/
       ml.put_trained_model:
@@ -1174,3 +1178,39 @@ setup:
               }
             }
           }
+
+---
+"Test include model definition status":
+  - do:
+      ml.put_trained_model:
+        model_id: model-without-definition
+        body: >
+          {
+            "model_type": "pytorch",
+            "inference_config": {
+              "ner": {
+              }
+            }
+          }
+
+  - do:
+      ml.get_trained_models:
+        model_id: model-without-definition
+        include: definition_status
+  - match: { count: 1 }
+  - match: { trained_model_configs.0.fully_defined: false }
+  - do:
+      ml.get_trained_models:
+        model_id: model-without-definition
+  - match: { count: 1 }
+  - match: { trained_model_configs.0.fully_defined: null }
+  - do:
+      catch: /Getting the model download status is not supported when getting more than one model/
+      ml.get_trained_models:
+        model_id: _all
+        include: definition_status
+  - do:
+      catch: /Definition status is only relevant to PyTorch model types/
+      ml.get_trained_models:
+        model_id: a-regression-model-0
+        include: definition_status

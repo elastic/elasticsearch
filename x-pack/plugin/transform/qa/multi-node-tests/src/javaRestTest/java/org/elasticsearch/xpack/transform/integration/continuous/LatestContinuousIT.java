@@ -58,7 +58,7 @@ public class LatestContinuousIT extends ContinuousTestCase {
     public TransformConfig createConfig() {
         TransformConfig.Builder transformConfigBuilder = new TransformConfig.Builder().setId(NAME)
             .setSource(new SourceConfig(new String[] { CONTINUOUS_EVENTS_SOURCE_INDEX }, QueryConfig.matchAll(), RUNTIME_MAPPINGS))
-            .setDest(new DestConfig(NAME, INGEST_PIPELINE))
+            .setDest(new DestConfig(NAME, null, INGEST_PIPELINE))
             .setLatestConfig(new LatestConfig(List.of(eventField), timestampField));
         addCommonBuilderParameters(transformConfigBuilder);
         return transformConfigBuilder.build();

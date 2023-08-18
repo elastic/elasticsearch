@@ -58,7 +58,7 @@ public class MetadataTests extends ESTestCase {
         for (String key : keys) {
             validators.put(key, Metadata.FieldProperty.ALLOW_ALL);
         }
-        return validators;
+        return Map.copyOf(validators);
     }
 
     public void testValidateMetadata() {
@@ -263,5 +263,19 @@ public class MetadataTests extends ESTestCase {
             any.check(op, key, value);
             odd.check(op, key, value);
         }
+    }
+
+    public void testImmutablePropertiesMap() {
+        // a mutable metadata properties map is not permitted
+        AssertionError e1 = expectThrows(AssertionError.class, () -> new Metadata(Map.of(), new HashMap<>()));
+        assertEquals("properties map must be constructed via Map.of(...) or Map.copyOf(...)", e1.getMessage());
+
+        // furthermore, for optimization reasons, just calling Collections.unmodifiableMap() is not sufficient
+        AssertionError e2 = expectThrows(AssertionError.class, () -> new Metadata(Map.of(), Collections.unmodifiableMap(new HashMap<>())));
+        assertEquals("properties map must be constructed via Map.of(...) or Map.copyOf(...)", e1.getMessage());
+
+        // Map.of and Map.copyOf are permissible (the former for code that should be fast, and the latter for e.g. tests)
+        new Metadata(Map.of(), Map.of());
+        new Metadata(Map.of(), Map.copyOf(new HashMap<>()));
     }
 }

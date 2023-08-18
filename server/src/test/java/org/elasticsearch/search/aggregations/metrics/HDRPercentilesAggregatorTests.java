@@ -84,16 +84,9 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, RangeType.DOUBLE);
         RangeFieldMapper.Range range = new RangeFieldMapper.Range(RangeType.DOUBLE, 1.0D, 5.0D, true, true);
         BytesRef encodedRange = RangeType.DOUBLE.encodeRanges(Collections.singleton(range));
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> testCase(
-                new FieldExistsQuery(fieldName),
-                iw -> { iw.addDocument(singleton(new BinaryDocValuesField(fieldName, encodedRange))); },
-                hdr -> {},
-                fieldType,
-                fieldName
-            )
-        );
+        expectThrows(IllegalArgumentException.class, () -> testCase(new FieldExistsQuery(fieldName), iw -> {
+            iw.addDocument(singleton(new BinaryDocValuesField(fieldName, encodedRange)));
+        }, hdr -> {}, fieldType, fieldName));
     }
 
     public void testNoMatchingField() throws IOException {

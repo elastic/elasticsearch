@@ -89,7 +89,7 @@ public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
             builder.endObject();
             bytes = BytesReference.bytes(builder);
         }
-        assertAcked(client().admin().cluster().putPipeline(new PutPipelineRequest("geoip", bytes, XContentType.JSON)).actionGet());
+        assertAcked(clusterAdmin().putPipeline(new PutPipelineRequest("geoip", bytes, XContentType.JSON)).actionGet());
         // the geo-IP databases should not be loaded on any nodes as they are all non-ingest nodes
         Arrays.stream(internalCluster().getNodeNames()).forEach(node -> assertDatabaseLoadStatus(node, false));
 
@@ -112,9 +112,8 @@ public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
     }
 
     private void assertDatabaseLoadStatus(final String node, final boolean loaded) {
-        final IngestService ingestService = internalCluster().getInstance(IngestService.class, node);
-        final GeoIpProcessor.Factory factory = (GeoIpProcessor.Factory) ingestService.getProcessorFactories().get("geoip");
-        for (final DatabaseReaderLazyLoader loader : factory.getAllDatabases()) {
+        final DatabaseNodeService databaseNodeService = internalCluster().getInstance(DatabaseNodeService.class, node);
+        for (final DatabaseReaderLazyLoader loader : databaseNodeService.getAllDatabases()) {
             if (loaded) {
                 assertNotNull(loader.databaseReader.get());
             } else {

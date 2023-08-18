@@ -15,7 +15,7 @@ import org.elasticsearch.core.TimeValue;
 /**
  * A task that can update the cluster state.
  */
-public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, ClusterStateTaskListener {
+public abstract class ClusterStateUpdateTask implements ClusterStateTaskListener {
 
     private final Priority priority;
 
@@ -66,7 +66,6 @@ public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, 
         return timeout;
     }
 
-    @Override
     public final Priority priority() {
         return priority;
     }

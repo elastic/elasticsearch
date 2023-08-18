@@ -14,19 +14,26 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.stream.Stream;
 
 class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final MetricAggregatorSupplier aggregatorSupplier;
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(ValueCountAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, ValueCountAggregator::new, true);
+        builder.register(
+            ValueCountAggregationBuilder.REGISTRY_KEY,
+            Stream.concat(CoreValuesSourceType.ALL_CORE.stream(), Stream.of(TimeSeriesValuesSourceType.COUNTER)).toList(),
+            ValueCountAggregator::new,
+            true
+        );
     }
 
     ValueCountAggregatorFactory(
@@ -45,7 +52,8 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new ValueCountAggregator(name, config, context, parent, metadata);
+        final InternalValueCount empty = InternalValueCount.empty(name, metadata);
+        return new NonCollectingSingleMetricAggregator(name, context, parent, empty, metadata);
     }
 
     @Override

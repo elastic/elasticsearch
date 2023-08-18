@@ -35,11 +35,14 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
@@ -50,6 +53,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestShardsAction extends AbstractCatAction {
 
     @Override
@@ -239,6 +243,10 @@ public class RestShardsAction extends AbstractCatAction {
             "bulk.avg_size_in_bytes",
             "alias:basi,bulkAvgSizeInBytes;default:false;text-align:right;desc:avg size in bytes of shard bulk"
         );
+        table.addCell(
+            "dense_vector.value_count",
+            "alias:dvc,denseVectorCount;default:false;text-align:right;desc:total count of indexed dense vector"
+        );
 
         table.endHeaders();
         return table;
@@ -257,8 +265,7 @@ public class RestShardsAction extends AbstractCatAction {
     // package private for testing
     Table buildTable(RestRequest request, ClusterStateResponse state, IndicesStatsResponse stats) {
         Table table = getTableWithHeader(request);
-
-        for (ShardRouting shard : state.getState().routingTable().allShards()) {
+        for (ShardRouting shard : state.getState().routingTable().allShardsIterator()) {
             ShardStats shardStats = stats.asMap().get(shard);
             CommonStats commonStats = null;
             CommitStats commitStats = null;
@@ -400,6 +407,8 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotalSizeInBytes));
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getAvgTime));
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getAvgSizeInBytes));
+
+            table.addCell(getOrNull(commonStats, CommonStats::getDenseVectorStats, DenseVectorStats::getValueCount));
 
             table.endRow();
         }

@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
@@ -19,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemDataStreamDescriptor.Type;
@@ -67,6 +67,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isSystem(), is(false));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isHidden(), is(false));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isReplicated(), is(false));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).getLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
         assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
         assertThat(
             newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
@@ -109,7 +110,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             var actualAlias = newState.metadata().dataStreamAliases().get(aliasName);
             assertThat(actualAlias, is(notNullValue()));
             assertThat(actualAlias.getName(), equalTo(expectedAlias.alias()));
-            assertThat(actualAlias.getFilter(), equalTo(expectedAlias.filter()));
+            assertThat(actualAlias.getFilter(dataStreamName), equalTo(expectedAlias.filter()));
             assertThat(actualAlias.getWriteDataStream(), equalTo(expectedAlias.writeIndex() ? dataStreamName : null));
         }
 
@@ -183,7 +184,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 var actualAlias = newState.metadata().dataStreamAliases().get(alias.alias());
                 assertThat(actualAlias, is(notNullValue()));
                 assertThat(actualAlias.getName(), equalTo(alias.alias()));
-                assertThat(actualAlias.getFilter(), equalTo(alias.filter()));
+                assertThat(actualAlias.getFilter(dataStreamName), equalTo(alias.filter()));
                 assertThat(actualAlias.getWriteDataStream(), equalTo(alias.writeIndex() ? dataStreamName : null));
             }
         }
@@ -345,7 +346,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                         IndexMetadata.builder(request.index())
                             .settings(
                                 Settings.builder()
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                     .put(request.settings())
                                     .build()
                             )

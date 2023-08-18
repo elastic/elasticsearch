@@ -47,6 +47,11 @@ public class SearchableSnapshotShardStatsTests extends AbstractWireSerializingTe
         return new SearchableSnapshotShardStats(shardRouting, snapshotId, indexId, inputStats);
     }
 
+    @Override
+    protected SearchableSnapshotShardStats mutateInstance(SearchableSnapshotShardStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     private CacheIndexInputStats randomCacheIndexInputStats() {
         return new CacheIndexInputStats(
             randomAlphaOfLength(10),

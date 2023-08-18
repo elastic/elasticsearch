@@ -54,7 +54,7 @@ public class PhaseExecutionInfoTests extends AbstractXContentSerializingTestCase
     }
 
     @Override
-    protected PhaseExecutionInfo mutateInstance(PhaseExecutionInfo instance) throws IOException {
+    protected PhaseExecutionInfo mutateInstance(PhaseExecutionInfo instance) {
         String policyName = instance.getPolicyName();
         Phase phase = instance.getPhase();
         long version = instance.getVersion();

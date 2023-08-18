@@ -8,11 +8,11 @@
 
 package org.elasticsearch.cluster.structure;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Collections;
@@ -83,9 +84,11 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
     public void testIterator1() {
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
+            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(2))
             .build();
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test1")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test1"))
+            .build();
 
         ShardIterator shardIterator = routingTable.index("test1").shard(0).shardsIt(0);
         assertThat(shardIterator.size(), equalTo(3));
@@ -108,11 +111,14 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
     public void testIterator2() {
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test1")).addAsNew(metadata.index("test2")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test1"))
+            .addAsNew(metadata.index("test2"))
+            .build();
 
         ShardIterator shardIterator = routingTable.index("test1").shard(0).shardsIt(0);
         assertThat(shardIterator.size(), equalTo(2));
@@ -185,11 +191,14 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
     public void testRandomRouting() {
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test1")).addAsNew(metadata.index("test2")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test1"))
+            .addAsNew(metadata.index("test2"))
+            .build();
 
         ShardIterator shardIterator = routingTable.index("test1").shard(0).shardsRandomIt();
         ShardRouting shardRouting1 = shardIterator.nextOrNull();
@@ -216,12 +225,14 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         );
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(
@@ -323,15 +334,14 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         );
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(5).numberOfReplicas(1))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
-
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
             .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1"))
@@ -396,12 +406,14 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         );
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(2))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(2))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
 
-        final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).localNodeId("node1"))

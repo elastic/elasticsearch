@@ -12,12 +12,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * A script to produce dynamic values for return fields.
@@ -27,6 +28,8 @@ public abstract class FieldScript extends DocBasedScript {
     public static final String[] PARAMETERS = {};
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
+
+    @SuppressWarnings("unchecked")
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> {
         deprecationLogger.warn(
             DeprecationCategory.SCRIPTING,
@@ -42,15 +45,19 @@ public abstract class FieldScript extends DocBasedScript {
                 + "is deprecated in favor of directly accessing [doc]."
         );
         return value;
-    }, "_source", value -> ((SourceLookup) value).source());
+    }, "_source", value -> ((Supplier<Source>) value).get().source());
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
     public FieldScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
-        super(new DocValuesDocReader(lookup, leafContext));
+        this(params, new DocValuesDocReader(lookup, leafContext));
+    }
+
+    private FieldScript(Map<String, Object> params, DocReader docReader) {
+        super(docReader);
         params = new HashMap<>(params);
-        params.putAll(docAsMap());
+        params.putAll(docReader.docAsMap());
         this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
     }
 

@@ -24,7 +24,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
@@ -83,7 +85,10 @@ public class AnalysisRegistryTests extends ESTestCase {
     }
 
     private static IndexSettings indexSettingsOfCurrentVersion(Settings.Builder settings) {
-        return IndexSettingsModule.newIndexSettings("index", settings.put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        return IndexSettingsModule.newIndexSettings(
+            "index",
+            settings.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
+        );
     }
 
     @Override
@@ -107,16 +112,18 @@ public class AnalysisRegistryTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        IndexAnalyzers indexAnalyzers = emptyRegistry.build(idxSettings);
+        IndexAnalyzers indexAnalyzers = emptyRegistry.build(IndexCreationContext.CREATE_INDEX, idxSettings);
         assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
+        assertThat(indexAnalyzers.get(AnalysisRegistry.DEFAULT_ANALYZER_NAME).name(), equalTo("default"));
     }
 
     public void testOverrideDefaultAnalyzer() throws IOException {
         Version version = VersionUtils.randomVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexAnalyzers indexAnalyzers = AnalysisRegistry.build(
+            IndexCreationContext.CREATE_INDEX,
             IndexSettingsModule.newIndexSettings("index", settings),
             singletonMap("default", analyzerProvider("default")),
             emptyMap(),
@@ -154,6 +161,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         MapperException ex = expectThrows(
             MapperException.class,
             () -> AnalysisRegistry.build(
+                IndexCreationContext.CREATE_INDEX,
                 IndexSettingsModule.newIndexSettings("index", settings),
                 singletonMap("default", new PreBuiltAnalyzerProvider("default", AnalyzerScope.INDEX, analyzer)),
                 emptyMap(),
@@ -168,7 +176,10 @@ public class AnalysisRegistryTests extends ESTestCase {
     public void testNameClashNormalizer() throws IOException {
 
         // Test out-of-the-box normalizer works OK.
-        IndexAnalyzers indexAnalyzers = nonEmptyRegistry.build(IndexSettingsModule.newIndexSettings("index", Settings.EMPTY));
+        IndexAnalyzers indexAnalyzers = nonEmptyRegistry.build(
+            IndexCreationContext.CREATE_INDEX,
+            IndexSettingsModule.newIndexSettings("index", Settings.EMPTY)
+        );
         assertNotNull(indexAnalyzers.getNormalizer("lowercase"));
         assertThat(indexAnalyzers.getNormalizer("lowercase").normalize("field", "AbC").utf8ToString(), equalTo("abc"));
 
@@ -180,7 +191,7 @@ public class AnalysisRegistryTests extends ESTestCase {
             .putList("index.analysis.normalizer.lowercase.filter", "reverse")
             .build();
 
-        indexAnalyzers = nonEmptyRegistry.build(IndexSettingsModule.newIndexSettings("index", settings));
+        indexAnalyzers = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", settings));
         assertNotNull(indexAnalyzers.getNormalizer("lowercase"));
         assertThat(indexAnalyzers.getNormalizer("lowercase").normalize("field", "AbC").utf8ToString(), equalTo("CbA"));
     }
@@ -192,6 +203,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> AnalysisRegistry.build(
+                IndexCreationContext.CREATE_INDEX,
                 IndexSettingsModule.newIndexSettings("index", settings),
                 singletonMap("default_index", defaultIndex),
                 emptyMap(),
@@ -207,6 +219,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         Version version = VersionUtils.randomVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexAnalyzers indexAnalyzers = AnalysisRegistry.build(
+            IndexCreationContext.CREATE_INDEX,
             IndexSettingsModule.newIndexSettings("index", settings),
             singletonMap("default_search", analyzerProvider("default_search")),
             emptyMap(),
@@ -225,7 +238,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     public void testConfigureCamelCaseTokenFilter() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.analysis.filter.testFilter.type", "mock")
             .put("index.analysis.filter.test_filter.type", "mock")
             .put("index.analysis.analyzer.custom_analyzer_with_camel_case.tokenizer", "standard")
@@ -262,7 +275,7 @@ public class AnalysisRegistryTests extends ESTestCase {
             TestEnvironment.newEnvironment(settings),
             singletonList(plugin),
             new StablePluginsRegistry()
-        ).getAnalysisRegistry().build(idxSettings);
+        ).getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
 
         // This shouldn't contain English stopwords
         try (NamedAnalyzer custom_analyser = indexAnalyzers.get("custom_analyzer_with_camel_case")) {
@@ -295,10 +308,10 @@ public class AnalysisRegistryTests extends ESTestCase {
 
     public void testBuiltInAnalyzersAreCached() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
-        IndexAnalyzers indexAnalyzers = emptyAnalysisRegistry(settings).build(idxSettings);
-        IndexAnalyzers otherIndexAnalyzers = emptyAnalysisRegistry(settings).build(idxSettings);
+        IndexAnalyzers indexAnalyzers = emptyAnalysisRegistry(settings).build(IndexCreationContext.CREATE_INDEX, idxSettings);
+        IndexAnalyzers otherIndexAnalyzers = emptyAnalysisRegistry(settings).build(IndexCreationContext.CREATE_INDEX, idxSettings);
         final int numIters = randomIntBetween(5, 20);
         for (int i = 0; i < numIters; i++) {
             PreBuiltAnalyzers preBuiltAnalyzers = RandomPicks.randomFrom(random(), PreBuiltAnalyzers.values());
@@ -316,12 +329,18 @@ public class AnalysisRegistryTests extends ESTestCase {
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> emptyAnalysisRegistry(settings).build(idxSettings));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> emptyAnalysisRegistry(settings).build(IndexCreationContext.CREATE_INDEX, idxSettings)
+        );
         assertThat(e.getMessage(), equalTo("analyzer [test_analyzer] must specify either an analyzer type, or a tokenizer"));
     }
 
     public void testCloseIndexAnalyzersMultipleTimes() throws IOException {
-        IndexAnalyzers indexAnalyzers = emptyRegistry.build(indexSettingsOfCurrentVersion(Settings.builder()));
+        IndexAnalyzers indexAnalyzers = emptyRegistry.build(
+            IndexCreationContext.CREATE_INDEX,
+            indexSettingsOfCurrentVersion(Settings.builder())
+        );
         indexAnalyzers.close();
         indexAnalyzers.close();
     }

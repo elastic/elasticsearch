@@ -6,8 +6,10 @@
   - do:
       indices.analyze:
         body:
-          text: x_y_z
-          tokenizer: example_tokenizer_factory
+          text: x y_z
+          tokenizer:
+            type: example_tokenizer_factory
+            tokenizer_list_of_chars: ["_", " "]
   - length: { tokens: 3 }
   - match:  { tokens.0.token: "x" }
   - match:  { tokens.1.token: "y" }
@@ -18,7 +20,9 @@
         body:
           text: x_y_z
           explain: true
-          tokenizer: example_tokenizer_factory
+          tokenizer:
+            type: example_tokenizer_factory
+            tokenizer_list_of_chars: ["_", " "]
   - match:  { detail.custom_analyzer: true }
   - length: { detail.tokenizer.tokens: 3 }
   - match:  { detail.tokenizer.tokens.0.token: "x" }

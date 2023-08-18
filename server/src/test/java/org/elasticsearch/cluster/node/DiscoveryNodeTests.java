@@ -8,20 +8,19 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -30,12 +29,10 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -44,13 +41,12 @@ public class DiscoveryNodeTests extends ESTestCase {
 
     public void testRolesAreSorted() {
         final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
-        final DiscoveryNode node = new DiscoveryNode(
+        final DiscoveryNode node = DiscoveryNodeUtils.create(
             "name",
             "id",
             new TransportAddress(TransportAddress.META_ADDRESS, 9200),
             emptyMap(),
-            roles,
-            Version.CURRENT
+            roles
         );
         DiscoveryNodeRole previous = null;
         for (final DiscoveryNodeRole current : node.getRoles()) {
@@ -67,7 +63,7 @@ public class DiscoveryNodeTests extends ESTestCase {
             ? InetAddress.getByName("192.0.2.1")
             : InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 });
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("name1", "id1", transportAddress, emptyMap(), emptySet());
         assertEquals(transportAddress.address().getHostString(), node.getHostName());
         assertEquals(transportAddress.getAddress(), node.getHostAddress());
     }
@@ -75,10 +71,10 @@ public class DiscoveryNodeTests extends ESTestCase {
     public void testDiscoveryNodeSerializationKeepsHost() throws Exception {
         InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 });
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("name1", "id1", transportAddress, emptyMap(), emptySet());
 
         BytesStreamOutput streamOutput = new BytesStreamOutput();
-        streamOutput.setVersion(Version.CURRENT);
+        streamOutput.setTransportVersion(TransportVersion.current());
         node.writeTo(streamOutput);
 
         StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
@@ -96,22 +92,15 @@ public class DiscoveryNodeTests extends ESTestCase {
 
         DiscoveryNodeRole customRole = new DiscoveryNodeRole("data_custom_role", "z", true);
 
-        DiscoveryNode node = new DiscoveryNode(
-            "name1",
-            "id1",
-            transportAddress,
-            emptyMap(),
-            Collections.singleton(customRole),
-            Version.CURRENT
-        );
+        DiscoveryNode node = DiscoveryNodeUtils.create("name1", "id1", transportAddress, emptyMap(), Collections.singleton(customRole));
 
         {
             BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.setVersion(Version.CURRENT);
+            streamOutput.setTransportVersion(TransportVersion.current());
             node.writeTo(streamOutput);
 
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
-            in.setVersion(Version.CURRENT);
+            in.setTransportVersion(TransportVersion.current());
             DiscoveryNode serialized = new DiscoveryNode(in);
             final Set<DiscoveryNodeRole> roles = serialized.getRoles();
             assertThat(roles, hasSize(1));
@@ -124,11 +113,11 @@ public class DiscoveryNodeTests extends ESTestCase {
 
         {
             BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.setVersion(Version.V_7_11_0);
+            streamOutput.setTransportVersion(TransportVersion.V_7_11_0);
             node.writeTo(streamOutput);
 
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
-            in.setVersion(Version.V_7_11_0);
+            in.setTransportVersion(TransportVersion.V_7_11_0);
             DiscoveryNode serialized = new DiscoveryNode(in);
             final Set<DiscoveryNodeRole> roles = serialized.getRoles();
             assertThat(roles, hasSize(1));
@@ -164,12 +153,11 @@ public class DiscoveryNodeTests extends ESTestCase {
     }
 
     public void testDiscoveryNodeDescriptionWithoutAttributes() {
-        final DiscoveryNode node = new DiscoveryNode(
+        final DiscoveryNode node = DiscoveryNodeUtils.create(
             "test-id",
             buildNewFakeTransportAddress(),
-            Collections.singletonMap("test-attr", "val"),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
+            Map.of("test-attr", "val"),
+            DiscoveryNodeRole.roles()
         );
         final StringBuilder stringBuilder = new StringBuilder();
         node.appendDescriptionWithoutAttributes(stringBuilder);
@@ -189,39 +177,71 @@ public class DiscoveryNodeTests extends ESTestCase {
             "test-hostname",
             "test-hostaddr",
             transportAddress,
-            Collections.singletonMap("test-attr", "val"),
+            Map.of("test-attr", "val"),
             DiscoveryNodeRole.roles(),
-            Version.CURRENT,
+            null,
             withExternalId ? "test-external-id" : null
         );
 
-        final String jsonString = Strings.toString(node, randomBoolean(), randomBoolean());
-        final Map<String, Object> topLevelMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), jsonString, randomBoolean());
-
-        assertThat(topLevelMap.toString(), topLevelMap.size(), equalTo(1));
-        assertTrue(topLevelMap.toString(), topLevelMap.containsKey("test-id"));
-
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> detailsMap = (Map<String, Object>) topLevelMap.get("test-id");
-
-        assertThat(topLevelMap.toString(), detailsMap.remove("name"), equalTo("test-name"));
-        assertThat(topLevelMap.toString(), detailsMap.remove("ephemeral_id"), equalTo("test-ephemeral-id"));
-        assertThat(topLevelMap.toString(), detailsMap.remove("transport_address"), equalTo(transportAddress.toString()));
         assertThat(
-            topLevelMap.toString(),
-            detailsMap.remove("external_id"),
-            withExternalId ? equalTo("test-external-id") : equalTo("test-name")
+            Strings.toString(node, true, false),
+            equalTo(
+                Strings.format(
+                    """
+                        {
+                          "test-id" : {
+                            "name" : "test-name",
+                            "ephemeral_id" : "test-ephemeral-id",
+                            "transport_address" : "%s",
+                            "external_id" : "%s",
+                            "attributes" : {
+                              "test-attr" : "val"
+                            },
+                            "roles" : [
+                              "data",
+                              "data_cold",
+                              "data_content",
+                              "data_frozen",
+                              "data_hot",
+                              "data_warm",
+                              "index",
+                              "ingest",
+                              "master",
+                              "ml",
+                              "remote_cluster_client",
+                              "search",
+                              "transform",
+                              "voting_only"
+                            ],
+                            "version" : "%s",
+                            "min_index_version" : %s,
+                            "max_index_version" : %s
+                          }
+                        }""",
+                    transportAddress,
+                    withExternalId ? "test-external-id" : "test-name",
+                    Version.CURRENT,
+                    IndexVersion.MINIMUM_COMPATIBLE,
+                    IndexVersion.current()
+                )
+            )
         );
-
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> attributes = (Map<String, Object>) detailsMap.remove("attributes");
-        assertThat(topLevelMap.toString(), attributes.get("test-attr"), equalTo("val"));
-
-        @SuppressWarnings("unchecked")
-        final List<String> roles = (List<String>) detailsMap.remove("roles");
-        assertThat(roles, hasItems("master", "data_content", "remote_cluster_client"));
-
-        assertThat(detailsMap.toString(), detailsMap, anEmptyMap());
     }
 
+    public void testDiscoveryNodeToString() {
+        var node = DiscoveryNodeUtils.create(
+            "test-id",
+            buildNewFakeTransportAddress(),
+            Map.of("test-attr", "val"),
+            DiscoveryNodeRole.roles()
+        );
+        var toString = node.toString();
+
+        assertThat(toString, containsString("{" + node.getId() + "}"));
+        assertThat(toString, containsString("{" + node.getEphemeralId() + "}"));
+        assertThat(toString, containsString("{" + node.getAddress() + "}"));
+        assertThat(toString, containsString("{IScdfhilmrstvw}"));// roles
+        assertThat(toString, containsString("{" + node.getVersion() + "}"));
+        assertThat(toString, containsString("{test-attr=val}"));// attributes
+    }
 }

@@ -8,7 +8,9 @@
 
 package org.elasticsearch.common.blobstore;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 
@@ -194,4 +196,53 @@ public interface BlobContainer {
      * @throws  IOException if there were any failures in reading from the blob container.
      */
     Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException;
+
+    /**
+     * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
+     * Keys not yet used start at initial value 0. Returns the current value (before it was updated).
+     *
+     * @param key      key of the value to update
+     * @param expected the expected value
+     * @param updated  the new value
+     * @param listener a listener, completed with the value read from the register (before it was updated) or
+     *                 {@link OptionalBytesReference#MISSING} if the value could not be read due to concurrent activity.
+     */
+    void compareAndExchangeRegister(
+        String key,
+        BytesReference expected,
+        BytesReference updated,
+        ActionListener<OptionalBytesReference> listener
+    );
+
+    /**
+     * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
+     * Keys not yet used start at initial value 0.
+     *
+     * @param key      key of the value to update
+     * @param expected the expected value
+     * @param updated  the new value
+     * @param listener a listener which is completed with {@link Boolean#TRUE} if successful, {@link Boolean#FALSE} if the expected value
+     *                 did not match the updated value or the value could not be read due to concurrent activity
+     */
+    default void compareAndSetRegister(String key, BytesReference expected, BytesReference updated, ActionListener<Boolean> listener) {
+        compareAndExchangeRegister(
+            key,
+            expected,
+            updated,
+            listener.map(witness -> witness.isPresent() && witness.bytesReference().equals(expected))
+        );
+    }
+
+    /**
+     * Gets the value set by {@link #compareAndSetRegister} or {@link #compareAndExchangeRegister} for a given key.
+     * If a key has not yet been used, the initial value is an empty {@link BytesReference}.
+     *
+     * @param key      key of the value to get
+     * @param listener a listener, completed with the value read from the register or {@code OptionalBytesReference#MISSING} if the value
+     *                 could not be read due to concurrent activity.
+     */
+    default void getRegister(String key, ActionListener<OptionalBytesReference> listener) {
+        compareAndExchangeRegister(key, BytesArray.EMPTY, BytesArray.EMPTY, listener);
+    }
+
 }

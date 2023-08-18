@@ -10,7 +10,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -223,7 +223,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

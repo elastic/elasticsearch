@@ -44,7 +44,7 @@ public class FlushBlocksIT extends ESIntegTestCase {
         )) {
             try {
                 enableIndexBlock("test", blockSetting);
-                FlushResponse response = client().admin().indices().prepareFlush("test").execute().actionGet();
+                FlushResponse response = indicesAdmin().prepareFlush("test").execute().actionGet();
                 assertNoFailures(response);
                 assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
             } finally {

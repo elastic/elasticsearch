@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
@@ -23,7 +23,8 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -148,8 +149,7 @@ public class SecurityContext {
      * Sets the user forcefully to the provided user. There must not be an existing user in the ThreadContext otherwise an exception
      * will be thrown. This method is package private for testing.
      */
-    public void setInternalUser(User internalUser, Version version) {
-        assert User.isInternal(internalUser);
+    public void setInternalUser(InternalUser internalUser, TransportVersion version) {
         setAuthentication(Authentication.newInternalAuthentication(internalUser, version, nodeName));
     }
 
@@ -157,8 +157,7 @@ public class SecurityContext {
      * Runs the consumer in a new context as the provided user. The original context is provided to the consumer. When this method
      * returns, the original context is restored.
      */
-    public void executeAsInternalUser(User internalUser, Version version, Consumer<StoredContext> consumer) {
-        assert User.isInternal(internalUser);
+    public void executeAsInternalUser(InternalUser internalUser, TransportVersion version, Consumer<StoredContext> consumer) {
         final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             setInternalUser(internalUser, version);
@@ -167,11 +166,11 @@ public class SecurityContext {
     }
 
     public void executeAsSystemUser(Consumer<StoredContext> consumer) {
-        executeAsSystemUser(Version.CURRENT, consumer);
+        executeAsSystemUser(TransportVersion.current(), consumer);
     }
 
-    public void executeAsSystemUser(Version version, Consumer<StoredContext> consumer) {
-        executeAsInternalUser(SystemUser.INSTANCE, version, consumer);
+    public void executeAsSystemUser(TransportVersion version, Consumer<StoredContext> consumer) {
+        executeAsInternalUser(InternalUsers.SYSTEM_USER, version, consumer);
     }
 
     /**
@@ -190,7 +189,7 @@ public class SecurityContext {
      * Runs the consumer in a new context after setting a new version of the authentication that is compatible with the version provided.
      * The original context is provided to the consumer. When this method returns, the original context is restored.
      */
-    public void executeAfterRewritingAuthentication(Consumer<StoredContext> consumer, Version version) {
+    public void executeAfterRewritingAuthentication(Consumer<StoredContext> consumer, TransportVersion version) {
         // Preserve request headers other than authentication
         final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();
         final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();

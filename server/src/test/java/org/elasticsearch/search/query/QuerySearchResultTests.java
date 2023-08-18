@@ -11,7 +11,7 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndicesTests;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.UUIDs;
@@ -27,8 +27,15 @@ import org.elasticsearch.search.aggregations.InternalAggregationsTests;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.RankShardResult;
+import org.elasticsearch.search.rank.TestRankBuilder;
+import org.elasticsearch.search.rank.TestRankDoc;
+import org.elasticsearch.search.rank.TestRankShardResult;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.is;
@@ -40,7 +47,9 @@ public class QuerySearchResultTests extends ESTestCase {
 
     public QuerySearchResultTests() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
-        this.namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(searchModule.getNamedWriteables());
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankShardResult.class, TestRankBuilder.NAME, TestRankShardResult::new));
+        this.namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
     }
 
     private static QuerySearchResult createTestInstance() throws Exception {
@@ -70,6 +79,14 @@ public class QuerySearchResultTests extends ESTestCase {
         result.size(randomInt());
         result.from(randomInt());
         if (randomBoolean()) {
+            int queryCount = randomIntBetween(2, 4);
+            TestRankDoc[] docs = new TestRankDoc[randomIntBetween(5, 20)];
+            for (int di = 0; di < docs.length; ++di) {
+                docs[di] = new TestRankDoc(di, -1, queryCount);
+            }
+            result.setRankShardResult(new TestRankShardResult(docs));
+        }
+        if (randomBoolean()) {
             result.suggest(SuggestTests.createTestItem());
         }
         if (randomBoolean()) {
@@ -85,7 +102,7 @@ public class QuerySearchResultTests extends ESTestCase {
             querySearchResult,
             namedWriteableRegistry,
             delayed ? in -> new QuerySearchResult(in, true) : QuerySearchResult::new,
-            Version.CURRENT
+            TransportVersion.current()
         );
         assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
         assertNull(deserialized.getSearchShardTarget());
@@ -106,7 +123,12 @@ public class QuerySearchResultTests extends ESTestCase {
 
     public void testNullResponse() throws Exception {
         QuerySearchResult querySearchResult = QuerySearchResult.nullInstance();
-        QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, Version.CURRENT);
+        QuerySearchResult deserialized = copyWriteable(
+            querySearchResult,
+            namedWriteableRegistry,
+            QuerySearchResult::new,
+            TransportVersion.current()
+        );
         assertEquals(querySearchResult.isNull(), deserialized.isNull());
     }
 }

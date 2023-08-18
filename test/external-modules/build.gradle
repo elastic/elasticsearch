@@ -12,6 +12,6 @@ subprojects {
   }
 
   tasks.named('yamlRestTest').configure {
-    it.onlyIf { BuildParams.isSnapshotBuild() }
+    it.onlyIf("snapshot build") { BuildParams.isSnapshotBuild() }
   }
 }

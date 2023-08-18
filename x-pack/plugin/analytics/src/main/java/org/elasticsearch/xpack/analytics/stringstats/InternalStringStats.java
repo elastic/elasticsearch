@@ -93,7 +93,7 @@ public class InternalStringStats extends InternalAggregation {
         totalLength = in.readVLong();
         minLength = in.readVInt();
         maxLength = in.readVInt();
-        charOccurrences = in.readMap(StreamInput::readString, StreamInput::readLong);
+        charOccurrences = in.readMap(StreamInput::readLong);
     }
 
     @Override

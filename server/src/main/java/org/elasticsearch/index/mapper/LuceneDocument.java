@@ -111,14 +111,14 @@ public class LuceneDocument implements Iterable<IndexableField> {
         return keyedFields == null ? null : keyedFields.get(key);
     }
 
-    public IndexableField[] getFields(String name) {
+    public List<IndexableField> getFields(String name) {
         List<IndexableField> f = new ArrayList<>();
         for (IndexableField field : fields) {
             if (field.name().equals(name)) {
                 f.add(field);
             }
         }
-        return f.toArray(new IndexableField[f.size()]);
+        return f;
     }
 
     public IndexableField getField(String name) {

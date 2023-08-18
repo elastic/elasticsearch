@@ -895,9 +895,7 @@ public class TopHitsIT extends ESIntegTestCase {
         String hlType = randomFrom("plain", "fvh", "unified");
         HighlightBuilder.Field hlField = new HighlightBuilder.Field("comments.message").highlightQuery(
             matchQuery("comments.message", "comment")
-        )
-            .forceSource(randomBoolean()) // randomly from stored field or _source
-            .highlighterType(hlType);
+        ).highlighterType(hlType);
 
         SearchResponse searchResponse = client().prepareSearch("articles")
             .setQuery(nestedQuery("comments", matchQuery("comments.message", "comment").queryName("test"), ScoreMode.Avg))
@@ -993,11 +991,10 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
     public void testUseMaxDocInsteadOfSize() throws Exception {
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("idx")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH),
+            "idx"
+        );
         SearchResponse response = client().prepareSearch("idx")
             .addAggregation(
                 terms("terms").executionHint(randomExecutionHint())
@@ -1008,11 +1005,7 @@ public class TopHitsIT extends ESIntegTestCase {
             )
             .get();
         assertNoFailures(response);
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("idx")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), null))
-            .get();
+        updateIndexSettings(Settings.builder().putNull(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey()), "idx");
     }
 
     public void testTooHighResultWindow() throws Exception {
@@ -1054,11 +1047,7 @@ public class TopHitsIT extends ESIntegTestCase {
             containsString("the top hits aggregator [hits]'s from + size must be less than or equal to: [100] but was [110]")
         );
 
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("idx")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110))
-            .get();
+        updateIndexSettings(Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110), "idx");
         response = client().prepareSearch("idx")
             .addAggregation(
                 terms("terms").executionHint(randomExecutionHint())
@@ -1075,11 +1064,7 @@ public class TopHitsIT extends ESIntegTestCase {
             )
             .get();
         assertNoFailures(response);
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("idx")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), null))
-            .get();
+        updateIndexSettings(Settings.builder().putNull(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey()), "idx");
     }
 
     public void testNoStoredFields() throws Exception {
@@ -1135,25 +1120,11 @@ public class TopHitsIT extends ESIntegTestCase {
 
             // Make sure we are starting with a clear cache
             assertThat(
-                client().admin()
-                    .indices()
-                    .prepareStats("cache_test_idx")
-                    .setRequestCache(true)
-                    .get()
-                    .getTotal()
-                    .getRequestCache()
-                    .getHitCount(),
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
                 equalTo(0L)
             );
             assertThat(
-                client().admin()
-                    .indices()
-                    .prepareStats("cache_test_idx")
-                    .setRequestCache(true)
-                    .get()
-                    .getTotal()
-                    .getRequestCache()
-                    .getMissCount(),
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
                 equalTo(0L)
             );
 
@@ -1170,25 +1141,11 @@ public class TopHitsIT extends ESIntegTestCase {
             assertSearchResponse(r);
 
             assertThat(
-                client().admin()
-                    .indices()
-                    .prepareStats("cache_test_idx")
-                    .setRequestCache(true)
-                    .get()
-                    .getTotal()
-                    .getRequestCache()
-                    .getHitCount(),
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
                 equalTo(0L)
             );
             assertThat(
-                client().admin()
-                    .indices()
-                    .prepareStats("cache_test_idx")
-                    .setRequestCache(true)
-                    .get()
-                    .getTotal()
-                    .getRequestCache()
-                    .getMissCount(),
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
                 equalTo(0L)
             );
 
@@ -1207,25 +1164,11 @@ public class TopHitsIT extends ESIntegTestCase {
             assertSearchResponse(r);
 
             assertThat(
-                client().admin()
-                    .indices()
-                    .prepareStats("cache_test_idx")
-                    .setRequestCache(true)
-                    .get()
-                    .getTotal()
-                    .getRequestCache()
-                    .getHitCount(),
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
                 equalTo(0L)
             );
             assertThat(
-                client().admin()
-                    .indices()
-                    .prepareStats("cache_test_idx")
-                    .setRequestCache(true)
-                    .get()
-                    .getTotal()
-                    .getRequestCache()
-                    .getMissCount(),
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
                 equalTo(0L)
             );
 
@@ -1239,25 +1182,11 @@ public class TopHitsIT extends ESIntegTestCase {
             assertSearchResponse(r);
 
             assertThat(
-                client().admin()
-                    .indices()
-                    .prepareStats("cache_test_idx")
-                    .setRequestCache(true)
-                    .get()
-                    .getTotal()
-                    .getRequestCache()
-                    .getHitCount(),
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
                 equalTo(0L)
             );
             assertThat(
-                client().admin()
-                    .indices()
-                    .prepareStats("cache_test_idx")
-                    .setRequestCache(true)
-                    .get()
-                    .getTotal()
-                    .getRequestCache()
-                    .getMissCount(),
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
                 equalTo(1L)
             );
 
@@ -1276,25 +1205,11 @@ public class TopHitsIT extends ESIntegTestCase {
             assertSearchResponse(r);
 
             assertThat(
-                client().admin()
-                    .indices()
-                    .prepareStats("cache_test_idx")
-                    .setRequestCache(true)
-                    .get()
-                    .getTotal()
-                    .getRequestCache()
-                    .getHitCount(),
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
                 equalTo(0L)
             );
             assertThat(
-                client().admin()
-                    .indices()
-                    .prepareStats("cache_test_idx")
-                    .setRequestCache(true)
-                    .get()
-                    .getTotal()
-                    .getRequestCache()
-                    .getMissCount(),
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
                 equalTo(2L)
             );
 
@@ -1303,29 +1218,15 @@ public class TopHitsIT extends ESIntegTestCase {
             assertSearchResponse(r);
 
             assertThat(
-                client().admin()
-                    .indices()
-                    .prepareStats("cache_test_idx")
-                    .setRequestCache(true)
-                    .get()
-                    .getTotal()
-                    .getRequestCache()
-                    .getHitCount(),
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
                 equalTo(0L)
             );
             assertThat(
-                client().admin()
-                    .indices()
-                    .prepareStats("cache_test_idx")
-                    .setRequestCache(true)
-                    .get()
-                    .getTotal()
-                    .getRequestCache()
-                    .getMissCount(),
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
                 equalTo(3L)
             );
         } finally {
-            assertAcked(client().admin().indices().prepareDelete("cache_test_idx")); // delete this - if we use tests.iters it would fail
+            assertAcked(indicesAdmin().prepareDelete("cache_test_idx")); // delete this - if we use tests.iters it would fail
         }
     }
 

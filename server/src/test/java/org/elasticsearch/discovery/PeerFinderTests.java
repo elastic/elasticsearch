@@ -9,17 +9,15 @@
 package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -51,6 +49,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -59,7 +58,6 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.discovery.PeerFinder.REQUEST_PEERS_ACTION_NAME;
@@ -252,6 +250,7 @@ public class PeerFinderTests extends ESTestCase {
     @After
     public void deactivateAndRunRemainingTasks() {
         peerFinder.deactivate(localNode);
+        peerFinder.closePeers();
         deterministicTaskQueue.runAllRunnableTasks();
         assertThat(connectedNodes, empty());
     }
@@ -332,13 +331,7 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     public void testDoesNotAddNonMasterEligibleNodesFromUnicastHostsList() {
-        final DiscoveryNode nonMasterNode = new DiscoveryNode(
-            "node-from-hosts-list",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
+        final DiscoveryNode nonMasterNode = DiscoveryNodeUtils.builder("node-from-hosts-list").roles(emptySet()).build();
 
         providedAddresses.add(nonMasterNode.getAddress());
         transportAddressConnector.addReachableNode(nonMasterNode);
@@ -366,7 +359,7 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(otherNode);
     }
 
-    public void testDeactivationClearsPastKnowledge() {
+    public void testDeactivationRetainsPastKnowledgeUntilClosed() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());
         transportAddressConnector.addReachableNode(otherNode);
@@ -377,12 +370,40 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(otherNode);
 
         peerFinder.deactivate(localNode);
+        assertFoundPeers();
+        assertEquals(Set.of(otherNode), connectedNodes);
+
+        peerFinder.activate(DiscoveryNodes.EMPTY_NODES);
+        assertFoundPeers(otherNode);
+
+        peerFinder.deactivate(localNode);
+        assertFoundPeers();
+        assertEquals(Set.of(otherNode), connectedNodes);
+        peerFinder.closePeers();
         assertThat(connectedNodes, empty());
 
         providedAddresses.clear();
         peerFinder.activate(lastAcceptedNodes);
         runAllRunnableTasks();
         assertFoundPeers();
+    }
+
+    public void testDeactivationDuringConnectionAttemptReleasesPeer() {
+        final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
+        providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.addReachableNode(otherNode);
+
+        deterministicTaskQueue.setExecutionDelayVariabilityMillis(10000);
+        peerFinder.activate(lastAcceptedNodes);
+        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 1, () -> peerFinder.deactivate(localNode));
+        do {
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks(); // mainly verifying that this doesn't trip an assertion
+        } while (deterministicTaskQueue.hasDeferredTasks());
+        assertFoundPeers();
+
+        peerFinder.closePeers();
+        assertThat(connectedNodes, empty());
     }
 
     public void testAddsReachableNodesFromClusterState() {
@@ -421,13 +442,7 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     public void testDoesNotAddReachableNonMasterEligibleNodesFromIncomingRequests() {
-        final DiscoveryNode sourceNode = new DiscoveryNode(
-            "request-source",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
+        final DiscoveryNode sourceNode = DiscoveryNodeUtils.builder("request-source").roles(emptySet()).build();
         final DiscoveryNode otherKnownNode = newDiscoveryNode("other-known-node");
 
         transportAddressConnector.addReachableNode(otherKnownNode);
@@ -524,6 +539,11 @@ public class PeerFinderTests extends ESTestCase {
                 @Override
                 public PeersResponse read(StreamInput in) throws IOException {
                     return new PeersResponse(in);
+                }
+
+                @Override
+                public Executor executor(ThreadPool threadPool) {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
                 @Override
@@ -789,10 +809,7 @@ public class PeerFinderTests extends ESTestCase {
             .millis();
 
         MockLogAppender appender = new MockLogAppender();
-        try {
-            appender.start();
-            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
-
+        try (var ignored = appender.capturing(PeerFinder.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "discovery result",
@@ -811,10 +828,6 @@ public class PeerFinderTests extends ESTestCase {
                 runAllRunnableTasks();
             }
             appender.assertAllExpectationsMatched();
-
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
-            appender.stop();
         }
     }
 
@@ -830,9 +843,7 @@ public class PeerFinderTests extends ESTestCase {
             .millis();
 
         MockLogAppender appender = new MockLogAppender();
-        try {
-            appender.start();
-            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
+        try (var ignored = appender.capturing(PeerFinder.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "discovery result",
@@ -869,10 +880,6 @@ public class PeerFinderTests extends ESTestCase {
                 runAllRunnableTasks();
             }
             appender.assertAllExpectationsMatched();
-
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
-            appender.stop();
         }
     }
 
@@ -887,7 +894,7 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(otherNode);
 
         transportAddressConnector.reachableNodes.clear();
-        final DiscoveryNode rebootedOtherNode = new DiscoveryNode("rebooted-node", otherNode.getAddress(), Version.CURRENT);
+        final DiscoveryNode rebootedOtherNode = DiscoveryNodeUtils.create("rebooted-node", otherNode.getAddress());
         transportAddressConnector.addReachableNode(rebootedOtherNode);
 
         connectedNodes.remove(otherNode);
@@ -926,7 +933,7 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeId) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), Version.CURRENT);
+        return DiscoveryNodeUtils.create(nodeId);
     }
 
     private void runAllRunnableTasks() {

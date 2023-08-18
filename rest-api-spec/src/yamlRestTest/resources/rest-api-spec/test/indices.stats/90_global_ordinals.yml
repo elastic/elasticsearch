@@ -1,0 +1,242 @@
+---
+setup:
+  - do:
+      indices.create:
+        index:  test1
+        body:
+          settings:
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+          mappings:
+            properties:
+              bar:
+                type: keyword
+              baz:
+                type: keyword
+
+  - do:
+      index:
+        index: test1
+        id:    "1"
+        body:  { "bar": "bar", "baz": "baz" }
+
+  - do:
+      index:
+        index: test1
+        id:    "2"
+        body:  { "bar": "foo", "baz": "foo" }
+
+  - do:
+      indices.refresh: {}
+
+  # Enforce creating an extra segment in at least one shard,
+  # otherwise no global ordinals will be built.
+  - do:
+      index:
+        index: test1
+        id: "2"
+        body: { "bar": "foo", "baz": "foo" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            my_agg_1:
+              terms:
+                field: bar
+            my_agg_2:
+              terms:
+                field: baz
+
+---
+"global_ordinals - blank":
+  - skip:
+      version: " - 8.7.99"
+      reason: "global_ordinals introduced in 8.8.0"
+
+  - do:
+      indices.stats: {}
+
+  - match: { _shards.failed: 0}
+  - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
+  - is_false:   _all.total.fielddata.fields
+  - gte:       { _all.total.fielddata.global_ordinals.build_time_in_millis: 0 }
+  - is_false:   _all.total.fielddata.global_ordinals.fields
+
+---
+"global_ordinals - fields":
+  - skip:
+      version: " - 8.7.99"
+      reason: "global_ordinals introduced in 8.8.0"
+
+  - do:
+      indices.stats: { fields: bar }
+
+  - match: { _shards.failed: 0}
+  - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
+  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.total.fielddata.fields.baz
+  - gte: { _all.total.fielddata.global_ordinals.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
+  - is_false: _all.total.fielddata.global_ordinals.fields.baz
+
+  - do:
+      indices.stats: { fields: "bar,baz" }
+
+  - match: { _shards.failed: 0}
+  - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
+  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - gt:       { _all.total.fielddata.fields.baz.memory_size_in_bytes: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.baz.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.baz.shard_max_value_count: 1 }
+
+  - do:
+      indices.stats: { fields: "*" }
+
+  - match: { _shards.failed: 0}
+  - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
+  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - gt:       { _all.total.fielddata.fields.baz.memory_size_in_bytes: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.baz.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.baz.shard_max_value_count: 1 }
+
+  - do:
+      indices.stats: { fields: "bar*" }
+
+  - match: { _shards.failed: 0}
+  - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
+  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.total.fielddata.fields.baz
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
+  - is_false: _all.total.fielddata.global_ordinals.fields.baz
+
+---
+"global_ordinals - fields and metrics":
+  - skip:
+      version: " - 8.7.99"
+      reason: "global_ordinals introduced in 8.8.0"
+
+  - do:
+      indices.stats: { fields: "bar*", metric: _all }
+
+  - match: { _shards.failed: 0}
+  - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
+  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.total.fielddata.fields.baz
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
+  - is_false: _all.total.fielddata.global_ordinals.fields.baz
+
+  - do:
+      indices.stats: { fields: "bar*", metric: fielddata }
+
+  - match: { _shards.failed: 0}
+  - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
+  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.total.fielddata.fields.baz
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
+  - is_false: _all.total.fielddata.global_ordinals.fields.baz
+
+  - do:
+      indices.stats: { fields: "bar*" , metric: [ fielddata, search ]}
+
+  - match: { _shards.failed: 0}
+  - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
+  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.total.fielddata.fields.baz
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
+  - is_false: _all.total.fielddata.global_ordinals.fields.baz
+
+---
+"global_ordinals - fielddata_fields":
+  - skip:
+      version: " - 8.7.99"
+      reason: "global_ordinals introduced in 8.8.0"
+
+  - do:
+      indices.stats: { fielddata_fields: bar }
+
+  - match: { _shards.failed: 0}
+  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.total.fielddata.fields.baz
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
+  - is_false: _all.total.fielddata.global_ordinals.fields.baz
+
+  - do:
+      indices.stats: { fielddata_fields: "bar,baz" }
+
+  - match: { _shards.failed: 0}
+  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - gt:       { _all.total.fielddata.fields.baz.memory_size_in_bytes: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.baz.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.baz.shard_max_value_count: 1 }
+
+  - do:
+      indices.stats: { fielddata_fields: "*" }
+
+  - match: { _shards.failed: 0}
+  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - gt:       { _all.total.fielddata.fields.baz.memory_size_in_bytes: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.baz.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.baz.shard_max_value_count: 1 }
+
+  - do:
+      indices.stats: { fielddata_fields: "*r" }
+
+  - match: { _shards.failed: 0}
+  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.total.fielddata.fields.baz
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
+  - is_false: _all.total.fielddata.global_ordinals.fields.baz
+
+  - do:
+      indices.stats: { fielddata_fields: "*r", metric: _all }
+
+  - match: { _shards.failed: 0}
+  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.total.fielddata.fields.baz
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
+  - is_false: _all.total.fielddata.global_ordinals.fields.baz
+
+  - do:
+      indices.stats: { fielddata_fields: "*r", metric: fielddata }
+
+  - match: { _shards.failed: 0}
+  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.total.fielddata.fields.baz
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
+  - is_false: _all.total.fielddata.global_ordinals.fields.baz
+
+  - do:
+      indices.stats: { fielddata_fields: "*r", metric: [ fielddata, search] }
+
+  - match: { _shards.failed: 0}
+  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.total.fielddata.fields.baz
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
+  - is_false: _all.total.fielddata.global_ordinals.fields.baz

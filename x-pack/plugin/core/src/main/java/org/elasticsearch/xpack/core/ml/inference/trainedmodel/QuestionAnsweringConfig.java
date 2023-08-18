@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
@@ -187,8 +188,13 @@ public class QuestionAnsweringConfig implements NlpConfig {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_3_0;
+    public MlConfigVersion getMinimalSupportedMlConfigVersion() {
+        return MlConfigVersion.V_8_3_0;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedTransportVersion() {
+        return TransportVersion.V_8_3_0;
     }
 
     @Override

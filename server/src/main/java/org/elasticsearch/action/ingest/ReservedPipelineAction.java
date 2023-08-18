@@ -9,14 +9,12 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
-import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -40,19 +38,11 @@ import java.util.stream.Collectors;
 public class ReservedPipelineAction implements ReservedClusterStateHandler<List<PutPipelineRequest>> {
     public static final String NAME = "ingest_pipelines";
 
-    private final IngestService ingestService;
-    private final FileSettingsService fileSettingsService;
-
     /**
      * Creates a ReservedPipelineAction
      *
-     * @param ingestService requires {@link IngestService} for storing/deleting the pipelines
-     * @param fileSettingsService required for supplying the latest node infos
      */
-    public ReservedPipelineAction(IngestService ingestService, FileSettingsService fileSettingsService) {
-        this.ingestService = ingestService;
-        this.fileSettingsService = fileSettingsService;
-    }
+    public ReservedPipelineAction() {}
 
     @Override
     public String name() {
@@ -61,11 +51,9 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
 
     private Collection<PutPipelineRequest> prepare(List<PutPipelineRequest> requests) {
         var exceptions = new ArrayList<Exception>();
-        NodesInfoResponse nodeInfos = fileSettingsService.nodeInfos();
-        assert nodeInfos != null;
         for (var pipeline : requests) {
             try {
-                ingestService.validatePipelineRequest(pipeline, nodeInfos);
+                validate(pipeline);
             } catch (Exception e) {
                 exceptions.add(e);
             }

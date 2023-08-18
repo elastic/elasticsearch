@@ -63,7 +63,7 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
             NAMED_PIPE_HELPER,
             processConnectTimeout,
             PyTorchBuilder.PROCESS_NAME,
-            task.getModelId(),
+            task.getDeploymentId(),
             null,
             false,
             true,
@@ -75,7 +75,7 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
         executeProcess(processPipes, task);
 
         NativePyTorchProcess process = new NativePyTorchProcess(
-            task.getModelId(),
+            task.getDeploymentId(),
             nativeController,
             processPipes,
             0,
@@ -86,7 +86,7 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
         try {
             process.start(executorService);
         } catch (IOException | EsRejectedExecutionException e) {
-            String msg = "Failed to connect to pytorch process for job " + task.getModelId();
+            String msg = "Failed to connect to pytorch process for job " + task.getDeploymentId();
             logger.error(msg);
             try {
                 IOUtils.close(process);

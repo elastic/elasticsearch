@@ -31,6 +31,7 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
+import static org.elasticsearch.upgrades.UpgradeWithOldIndexSettingsIT.updateIndexSettingsPermittingSlowlogDeprecationWarning;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -40,8 +41,15 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91383")
+
     public void testSnapshotBasedRecovery() throws Exception {
+
+        assumeFalse(
+            "Cancel shard allocation command is broken for initial desired balance versions and might allocate shard "
+                + "on the node where it is not supposed to be. Fixed by https://github.com/elastic/elasticsearch/pull/93635",
+            UPGRADE_FROM_VERSION == Version.V_8_6_0 || UPGRADE_FROM_VERSION == Version.V_8_6_1 || UPGRADE_FROM_VERSION == Version.V_8_7_0
+        );
+
         final String indexName = "snapshot_based_recovery";
         final String repositoryName = "snapshot_based_recovery_repo";
         final int numDocs = 200;
@@ -77,8 +85,12 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                     if (upgradedNodeIds.isEmpty() == false) {
                         assertThat(upgradedNodeIds.size(), is(equalTo(1)));
                         String upgradedNodeId = upgradedNodeIds.get(0);
+                        logger.info("--> excluding [{}] from node [{}]", indexName, upgradedNodeId);
                         updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.exclude._id", upgradedNodeId));
                         ensureGreen(indexName);
+                        logger.info("--> finished excluding [{}] from node [{}]", indexName, upgradedNodeId);
+                    } else {
+                        logger.info("--> no upgrading nodes, not adding any exclusions for [{}]", indexName);
                     }
 
                     String primaryNodeId = getPrimaryNodeIdOfShard(indexName, 0);
@@ -91,43 +103,38 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                     // the primary to a node in the old version, this allows adding replicas in the first mixed round.
                     logger.info("--> Primary node in first mixed round {} / {}", primaryNodeId, primaryNodeVersion);
                     if (primaryNodeVersion.after(UPGRADE_FROM_VERSION)) {
+                        logger.info("--> cancelling primary shard on node [{}]", primaryNodeId);
                         cancelShard(indexName, 0, primaryNodeId);
+                        logger.info("--> done cancelling primary shard on node [{}]", primaryNodeId);
 
                         String currentPrimaryNodeId = getPrimaryNodeIdOfShard(indexName, 0);
                         assertThat(getNodeVersion(currentPrimaryNodeId), is(equalTo(UPGRADE_FROM_VERSION)));
                     }
                 } else {
+                    logger.info("--> not in first upgrade round, removing exclusions for [{}]", indexName);
                     updateIndexSettings(indexName, Settings.builder().putNull("index.routing.allocation.exclude._id"));
+                    logger.info("--> done removing exclusions for [{}]", indexName);
                 }
 
                 // Drop replicas
-                updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0));
-                updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1));
-                try {
-                    ensureGreen(indexName);
-                } catch (AssertionError e) {
-                    logAllocationExplain();
-                    throw e;
-                }
+                logger.info("--> dropping replicas from [{}]", indexName);
+                updateIndexSettingsPermittingSlowlogDeprecationWarning(
+                    indexName,
+                    Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                );
+                logger.info("--> finished dropping replicas from [{}], adding them back", indexName);
+                updateIndexSettingsPermittingSlowlogDeprecationWarning(
+                    indexName,
+                    Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                );
+                logger.info("--> finished adding replicas from [{}]", indexName);
+                ensureGreen(indexName);
+
                 assertMatchAllReturnsAllDocuments(indexName, numDocs);
                 assertMatchQueryReturnsAllDocuments(indexName, numDocs);
             }
             default -> throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
-    }
-
-    private void logAllocationExplain() throws Exception {
-        // Used to debug #91383
-        var request = new Request(HttpGet.METHOD_NAME, "_cluster/allocation/explain?include_disk_info=true&include_yes_decisions=true");
-        request.setJsonEntity("""
-                    {
-                      "index": "snapshot_based_recovery",
-                      "shard": 0,
-                      "primary": false
-                    }
-            """);
-        var response = client().performRequest(request);
-        logger.info("--> allocation explain {}", EntityUtils.toString(response.getEntity()));
     }
 
     private List<String> getUpgradedNodeIds() throws IOException {
@@ -198,7 +205,7 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
             }
             builder.endObject();
 
-            Request request = new Request(HttpPost.METHOD_NAME, "/_cluster/reroute?pretty");
+            Request request = new Request(HttpPost.METHOD_NAME, "/_cluster/reroute?pretty&metric=none");
             request.setJsonEntity(Strings.toString(builder));
             Response response = client().performRequest(request);
             logger.info("--> Relocated primary to an older version {}", EntityUtils.toString(response.getEntity()));

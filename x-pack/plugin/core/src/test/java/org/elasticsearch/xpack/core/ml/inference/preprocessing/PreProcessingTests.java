@@ -39,6 +39,11 @@ public abstract class PreProcessingTests<T extends PreProcessor> extends Abstrac
     }
 
     @Override
+    protected T mutateInstance(T instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -58,7 +58,7 @@ public class SearchServiceCleanupOnLostMasterIT extends ESIntegTestCase {
             assertBusy(() -> {
                 final ClusterHealthStatus indexHealthStatus = client(master).admin()
                     .cluster()
-                    .health(Requests.clusterHealthRequest("test"))
+                    .health(new ClusterHealthRequest("test"))
                     .actionGet()
                     .getStatus();
                 assertThat(indexHealthStatus, Matchers.is(ClusterHealthStatus.RED));

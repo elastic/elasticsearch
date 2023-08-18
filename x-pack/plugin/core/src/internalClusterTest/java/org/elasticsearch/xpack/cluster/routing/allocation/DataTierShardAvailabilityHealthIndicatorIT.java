@@ -109,9 +109,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
             GetHealthAction.INSTANCE,
             new GetHealthAction.Request(ShardsAvailabilityHealthIndicatorService.NAME, true, 1000)
         ).get();
-        ClusterAllocationExplanation explain = client().admin()
-            .cluster()
-            .prepareAllocationExplain()
+        ClusterAllocationExplanation explain = clusterAdmin().prepareAllocationExplain()
             .setIndex("test")
             .setShard(0)
             .setPrimary(false)
@@ -189,7 +187,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
     }
 
     private String findNodeWithShard(final String indexName, final int shard, final boolean primary) {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         List<ShardRouting> startedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
         startedShards = startedShards.stream()
             .filter(shardRouting -> shardRouting.getIndexName().equals(indexName))

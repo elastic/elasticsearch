@@ -8,22 +8,29 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Request;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedAlias;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedDataStream;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIndex;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.TransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
-import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -36,12 +43,20 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.indices.SystemIndices.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
+import static org.elasticsearch.indices.SystemIndices.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -62,8 +77,10 @@ public class ResolveIndexTests extends ESTestCase {
         { "logs-mysql-prod", 4 },
         { "logs-mysql-test", 2 } };
 
-    private Metadata metadata;
-    private final IndexAbstractionResolver resolver = new IndexAbstractionResolver(TestIndexNameExpressionResolver.newInstance());
+    private ClusterState clusterState;
+    private ThreadContext threadContext;
+
+    private IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
 
     private long epochMillis;
     private String dateString;
@@ -71,8 +88,10 @@ public class ResolveIndexTests extends ESTestCase {
     @Before
     public void setup() {
         epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
+        threadContext = createThreadContext();
+        resolver = new IndexNameExpressionResolver(threadContext, EmptySystemIndices.INSTANCE);
         dateString = DataStream.DATE_FORMATTER.formatMillis(epochMillis);
-        metadata = buildMetadata(dataStreams, indices);
+        clusterState = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(dataStreams, indices)).build();
     }
 
     public void testResolveStarWithDefaultOptions() {
@@ -82,7 +101,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
+        TransportAction.resolveIndices(names, indicesOptions, clusterState, resolver, indices, aliases, dataStreams);
 
         validateIndices(
             indices,
@@ -100,13 +119,16 @@ public class ResolveIndexTests extends ESTestCase {
     }
 
     public void testResolveStarWithAllOptions() {
-        String[] names = new String[] { "*" };
-        IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
+        String[] names = randomFrom(new String[] { "*" }, new String[] { "_all" });
+        IndicesOptions indicesOptions = randomFrom(
+            IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN,
+            IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN
+        );
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
+        TransportAction.resolveIndices(names, indicesOptions, clusterState, resolver, indices, aliases, dataStreams);
         validateIndices(
             indices,
             ".ds-logs-mysql-prod-" + dateString + "-000001",
@@ -136,7 +158,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
+        TransportAction.resolveIndices(names, indicesOptions, clusterState, resolver, indices, aliases, dataStreams);
 
         validateIndices(
             indices,
@@ -163,7 +185,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
+        TransportAction.resolveIndices(names, indicesOptions, clusterState, resolver, indices, aliases, dataStreams);
         validateIndices(indices, ".ds-logs-mysql-prod-" + dateString + "-000003", "logs-pgsql-test-20200102");
         validateAliases(aliases, "one-off-alias");
         validateDataStreams(dataStreams, "logs-mysql-test");
@@ -180,21 +202,13 @@ public class ResolveIndexTests extends ESTestCase {
 
         DataStream ds = DataStreamTestHelper.newInstance(dataStreamName, backingIndices.stream().map(IndexMetadata::getIndex).toList());
         builder.put(ds);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(builder.build()).build();
 
         IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
-        TransportAction.resolveIndices(
-            new String[] { "*" },
-            indicesOptions,
-            builder.build(),
-            resolver,
-            indices,
-            aliases,
-            dataStreams,
-            true
-        );
+        TransportAction.resolveIndices(new String[] { "*" }, indicesOptions, clusterState, resolver, indices, aliases, dataStreams);
 
         assertThat(dataStreams.size(), equalTo(1));
         assertThat(dataStreams.get(0).getBackingIndices(), arrayContaining(names));
@@ -210,20 +224,98 @@ public class ResolveIndexTests extends ESTestCase {
             // name, isClosed, isHidden, isFrozen, dataStream, aliases
             { "logs-pgsql-prod-" + todaySuffix, false, true, false, false, null, Strings.EMPTY_ARRAY },
             { "logs-pgsql-prod-" + tomorrowSuffix, false, true, false, false, null, Strings.EMPTY_ARRAY } };
-        Metadata metadata = buildMetadata(new Object[][] {}, indices);
-        Set<String> authorizedIndices = Set.of("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix);
-
-        String requestedIndex = "<logs-pgsql-prod-{now/d}>";
-        List<String> resolvedIndices = resolver.resolveIndexAbstractions(
-            List.of(requestedIndex),
-            IndicesOptions.LENIENT_EXPAND_OPEN,
-            metadata,
-            () -> authorizedIndices,
-            authorizedIndices::contains,
-            randomBoolean()
-        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .metadata(buildMetadata(new Object[][] {}, indices))
+            .build();
+        String[] requestedIndex = new String[] { "<logs-pgsql-prod-{now/d}>" };
+        Set<String> resolvedIndices = resolver.resolveExpressions(clusterState, IndicesOptions.LENIENT_EXPAND_OPEN, true, requestedIndex);
         assertThat(resolvedIndices.size(), is(1));
-        assertThat(resolvedIndices.get(0), oneOf("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix));
+        assertThat(resolvedIndices, contains(oneOf("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix)));
+    }
+
+    public void testSystemIndexAccess() {
+        Metadata.Builder mdBuilder = buildMetadata(dataStreams, indices);
+        SystemIndices systemIndices = addSystemIndex(mdBuilder);
+        clusterState = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        {
+            threadContext = createThreadContext();
+            if (randomBoolean()) {
+                threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "false");
+            }
+            threadContext.putHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "whatever");
+            resolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+            List<ResolvedIndex> indices = new ArrayList<>();
+            List<ResolvedAlias> aliases = new ArrayList<>();
+            List<ResolvedDataStream> dataStreams = new ArrayList<>();
+            TransportAction.resolveIndices(
+                new String[] { ".*" },
+                IndicesOptions.LENIENT_EXPAND_OPEN,
+                clusterState,
+                resolver,
+                indices,
+                aliases,
+                dataStreams
+            );
+            // non net-new system indices are allowed even when no system indices are allowed
+            assertThat(indices.stream().map(ResolvedIndex::getName).collect(Collectors.toList()), hasItem(is(".test-system-1")));
+        }
+        {
+            threadContext = createThreadContext();
+            threadContext.putHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "test-net-new-system");
+            resolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+            List<ResolvedIndex> indices = new ArrayList<>();
+            List<ResolvedAlias> aliases = new ArrayList<>();
+            List<ResolvedDataStream> dataStreams = new ArrayList<>();
+            TransportAction.resolveIndices(
+                new String[] { ".*" },
+                IndicesOptions.STRICT_EXPAND_OPEN,
+                clusterState,
+                resolver,
+                indices,
+                aliases,
+                dataStreams
+            );
+            assertThat(indices.stream().map(ResolvedIndex::getName).collect(Collectors.toList()), hasItem(is(".test-system-1")));
+            assertThat(indices.stream().map(ResolvedIndex::getName).collect(Collectors.toList()), hasItem(is(".test-net-new-system-1")));
+            indices = new ArrayList<>();
+            TransportAction.resolveIndices(
+                new String[] { ".test-net*" },
+                IndicesOptions.STRICT_EXPAND_OPEN,
+                clusterState,
+                resolver,
+                indices,
+                aliases,
+                dataStreams
+            );
+            assertThat(indices.stream().map(ResolvedIndex::getName).collect(Collectors.toList()), not(hasItem(is(".test-system-1"))));
+            assertThat(indices.stream().map(ResolvedIndex::getName).collect(Collectors.toList()), hasItem(is(".test-net-new-system-1")));
+        }
+    }
+
+    public void testIgnoreUnavailableFalse() {
+        String[] names = new String[] { "missing", "logs*" };
+        IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+        List<ResolvedIndex> indices = new ArrayList<>();
+        List<ResolvedAlias> aliases = new ArrayList<>();
+        List<ResolvedDataStream> dataStreams = new ArrayList<>();
+        IndexNotFoundException infe = expectThrows(
+            IndexNotFoundException.class,
+            () -> TransportAction.resolveIndices(names, indicesOptions, clusterState, resolver, indices, aliases, dataStreams)
+        );
+        assertThat(infe.getMessage(), containsString("no such index [missing]"));
+    }
+
+    public void testAllowNoIndicesFalse() {
+        String[] names = new String[] { "missing", "missing*" };
+        IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, false, true, true);
+        List<ResolvedIndex> indices = new ArrayList<>();
+        List<ResolvedAlias> aliases = new ArrayList<>();
+        List<ResolvedDataStream> dataStreams = new ArrayList<>();
+        IndexNotFoundException infe = expectThrows(
+            IndexNotFoundException.class,
+            () -> TransportAction.resolveIndices(names, indicesOptions, clusterState, resolver, indices, aliases, dataStreams)
+        );
+        assertThat(infe.getMessage(), containsString("no such index [missing*]"));
     }
 
     private void validateIndices(List<ResolvedIndex> resolvedIndices, String... expectedIndices) {
@@ -285,7 +377,7 @@ public class ResolveIndexTests extends ESTestCase {
         }
     }
 
-    Metadata buildMetadata(Object[][] dataStreams, Object[][] indices) {
+    Metadata.Builder buildMetadata(Object[][] dataStreams, Object[][] indices) {
         Metadata.Builder builder = Metadata.builder();
 
         List<IndexMetadata> allIndices = new ArrayList<>();
@@ -318,7 +410,7 @@ public class ResolveIndexTests extends ESTestCase {
             builder.put(index, false);
         }
 
-        return builder.build();
+        return builder;
     }
 
     private static IndexMetadata createIndexMetadata(
@@ -330,7 +422,7 @@ public class ResolveIndexTests extends ESTestCase {
         boolean frozen
     ) {
         Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.hidden", hidden)
             .put("index.frozen", frozen);
 
@@ -395,5 +487,58 @@ public class ResolveIndexTests extends ESTestCase {
         }
         attributes.sort(String::compareTo);
         return attributes.toArray(Strings.EMPTY_ARRAY);
+    }
+
+    private SystemIndices addSystemIndex(Metadata.Builder mdBuilder) {
+        mdBuilder.put(indexBuilder(".test-system-1", SystemIndexDescriptor.DEFAULT_SETTINGS).state(IndexMetadata.State.OPEN).system(true))
+            .put(
+                indexBuilder(".test-net-new-system-1", SystemIndexDescriptor.DEFAULT_SETTINGS).state(IndexMetadata.State.OPEN).system(true)
+            );
+        SystemIndices systemIndices = new SystemIndices(
+            List.of(
+                new SystemIndices.Feature(
+                    "test-system-feature",
+                    "test system index",
+                    List.of(
+                        SystemIndexDescriptor.builder()
+                            .setIndexPattern(".test-system*")
+                            .setDescription("test-system-description")
+                            .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
+                            .setAllowedElasticProductOrigins(List.of("test-system"))
+                            .build(),
+                        SystemIndexDescriptor.builder()
+                            .setIndexPattern(".test-net-new-system*")
+                            .setDescription("test-net-new-system-description")
+                            .setType(SystemIndexDescriptor.Type.EXTERNAL_MANAGED)
+                            .setAllowedElasticProductOrigins(List.of("test-net-new-system"))
+                            .setNetNew()
+                            .setSettings(Settings.EMPTY)
+                            .setMappings(String.format(Locale.ROOT, """
+                                {
+                                  "_doc": {
+                                    "_meta": {
+                                      "version": "8.0.0",
+                                      "%s": 1
+                                    }
+                                  }
+                                }
+                                """, SystemIndexDescriptor.VERSION_META_KEY))
+                            .setPrimaryIndex(".test-net-new-system-1")
+                            .setVersionMetaKey("version")
+                            .setOrigin("system")
+                            .build()
+                    )
+                )
+            )
+        );
+        return systemIndices;
+    }
+
+    private static IndexMetadata.Builder indexBuilder(String index, Settings additionalSettings) {
+        return IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0).put(additionalSettings));
+    }
+
+    private ThreadContext createThreadContext() {
+        return new ThreadContext(Settings.EMPTY);
     }
 }

@@ -41,4 +41,9 @@ public class PreviewDataFrameAnalyticsActionRequestTests extends AbstractWireSer
     protected Request createTestInstance() {
         return new Request(DataFrameAnalyticsConfigTests.createRandom(randomAlphaOfLength(10)));
     }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

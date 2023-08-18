@@ -14,7 +14,6 @@ setup:
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
                   end_time: 2021-04-29T00:00:00Z
-                number_of_replicas: 0
                 number_of_shards: 2
             mappings:
               properties:
@@ -338,6 +337,20 @@ delete over _bulk:
   - skip:
       version: " - 8.1.99"
       reason: ids generation changed in 8.2
+
+  # mget call added to investigate test failure: https://github.com/elastic/elasticsearch/issues/93852
+  # (should be removed when test issue is resolved)
+  - do:
+      mget:
+        index: test
+        body:
+          ids: [ cn4exTOUtxytuLkQAAABeRnR_mY, cZZNs4NdV58ePSPIAAABeRnSA5M ]
+  - match: { docs.0._index: "test" }
+  - match: { docs.0._id: "cn4exTOUtxytuLkQAAABeRnR_mY" }
+  - match: { docs.0.found: true }
+  - match: { docs.1._index: "test" }
+  - match: { docs.1._id: "cZZNs4NdV58ePSPIAAABeRnSA5M" }
+  - match: { docs.1.found: true }
 
   - do:
       bulk:

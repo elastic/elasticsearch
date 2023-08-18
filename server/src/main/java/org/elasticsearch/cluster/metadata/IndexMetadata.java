@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -42,6 +43,8 @@ import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -261,10 +264,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
 
     public enum APIBlock implements Writeable {
-        READ_ONLY("read_only", INDEX_READ_ONLY_BLOCK),
-        READ("read", INDEX_READ_BLOCK),
-        WRITE("write", INDEX_WRITE_BLOCK),
-        METADATA("metadata", INDEX_METADATA_BLOCK),
+        READ_ONLY("read_only", INDEX_READ_ONLY_BLOCK, Property.ServerlessPublic),
+        READ("read", INDEX_READ_BLOCK, Property.ServerlessPublic),
+        WRITE("write", INDEX_WRITE_BLOCK, Property.ServerlessPublic),
+        METADATA("metadata", INDEX_METADATA_BLOCK, Property.ServerlessPublic),
         READ_ONLY_ALLOW_DELETE("read_only_allow_delete", INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
 
         final String name;
@@ -276,6 +279,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.name = name;
             this.settingName = "index.blocks." + name;
             this.setting = Setting.boolSetting(settingName, false, Property.Dynamic, Property.IndexScope);
+            this.block = block;
+        }
+
+        APIBlock(String name, ClusterBlock block, Property serverlessProperty) {
+            this.name = name;
+            this.settingName = "index.blocks." + name;
+            this.setting = Setting.boolSetting(settingName, false, Property.Dynamic, Property.IndexScope, serverlessProperty);
             this.block = block;
         }
 
@@ -336,9 +346,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_VERSION_CREATED = "index.version.created";
 
-    public static final Setting<Version> SETTING_INDEX_VERSION_CREATED = Setting.versionSetting(
+    public static final Setting<IndexVersion> SETTING_INDEX_VERSION_CREATED = Setting.versionIdSetting(
         SETTING_VERSION_CREATED,
-        Version.V_EMPTY,
+        IndexVersion.ZERO,
+        IndexVersion::fromId,
         Property.IndexScope,
         Property.PrivateIndex
     );
@@ -360,19 +371,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     /**
      * See {@link #getCompatibilityVersion()}
      */
-    public static final Setting<Version> SETTING_INDEX_VERSION_COMPATIBILITY = Setting.versionSetting(
+    public static final Setting<IndexVersion> SETTING_INDEX_VERSION_COMPATIBILITY = Setting.versionIdSetting(
         SETTING_VERSION_COMPATIBILITY,
         SETTING_INDEX_VERSION_CREATED, // fall back to index.version.created
         new Setting.Validator<>() {
-
             @Override
-            public void validate(final Version compatibilityVersion) {
+            public void validate(final IndexVersion compatibilityVersion) {
 
             }
 
             @Override
-            public void validate(final Version compatibilityVersion, final Map<Setting<?>, Object> settings) {
-                Version createdVersion = (Version) settings.get(SETTING_INDEX_VERSION_CREATED);
+            public void validate(final IndexVersion compatibilityVersion, final Map<Setting<?>, Object> settings) {
+                IndexVersion createdVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
                 if (compatibilityVersion.before(createdVersion)) {
                     throw new IllegalArgumentException(
                         SETTING_VERSION_COMPATIBILITY
@@ -392,7 +402,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 final List<Setting<?>> settings = List.of(SETTING_INDEX_VERSION_CREATED);
                 return settings.iterator();
             }
-
         },
         Property.IndexScope,
         Property.PrivateIndex
@@ -479,10 +488,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Setting.Property.Final
     );
 
-    public static final Setting<List<String>> INDEX_ROUTING_PATH = Setting.listSetting(
+    public static final Setting<List<String>> INDEX_ROUTING_PATH = Setting.stringListSetting(
         "index.routing_path",
-        List.of(),
-        Function.identity(),
         Setting.Property.IndexScope,
         Setting.Property.Final
     );
@@ -512,6 +519,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     public static final String KEY_IN_SYNC_ALLOCATIONS = "in_sync_allocations";
+
+    public static final List<String> PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE = List.of(DataTier.DATA_FROZEN);
+
     static final String KEY_VERSION = "version";
     static final String KEY_MAPPING_VERSION = "mapping_version";
     static final String KEY_SETTINGS_VERSION = "settings_version";
@@ -534,9 +544,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
-    static final Version SYSTEM_INDEX_FLAG_ADDED = Version.V_7_10_0;
+    static final TransportVersion SYSTEM_INDEX_FLAG_ADDED = TransportVersion.V_7_10_0;
 
-    static final Version STATS_AND_FORECAST_ADDED = Version.V_8_6_0;
+    static final TransportVersion STATS_AND_FORECAST_ADDED = TransportVersion.V_8_6_0;
 
     private final int routingNumShards;
     private final int routingFactor;
@@ -577,8 +587,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final DiscoveryNodeFilters excludeFilters;
     private final DiscoveryNodeFilters initialRecoveryFilters;
 
-    private final Version indexCreatedVersion;
-    private final Version indexCompatibilityVersion;
+    private final IndexVersion indexCreatedVersion;
+    private final IndexVersion indexCompatibilityVersion;
 
     private final ActiveShardCount waitForActiveShards;
     private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
@@ -641,7 +651,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final DiscoveryNodeFilters initialRecoveryFilters,
         final DiscoveryNodeFilters includeFilters,
         final DiscoveryNodeFilters excludeFilters,
-        final Version indexCreatedVersion,
+        final IndexVersion indexCreatedVersion,
         final int routingNumShards,
         final int routingPartitionSize,
         final List<String> routingPaths,
@@ -663,7 +673,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         @Nullable final IndexMode indexMode,
         @Nullable final Instant timeSeriesStart,
         @Nullable final Instant timeSeriesEnd,
-        final Version indexCompatibilityVersion,
+        final IndexVersion indexCompatibilityVersion,
         @Nullable final IndexMetadataStats stats,
         @Nullable final Double writeLoadForecast,
         @Nullable Long shardSizeInBytesForecast
@@ -705,7 +715,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.priority = priority;
         this.creationDate = creationDate;
         this.ignoreDiskWatermarks = ignoreDiskWatermarks;
-        this.tierPreference = tierPreference;
+        // always configure the correct (one and only) value for the partially mounted indices tier preference
+        this.tierPreference = isPartialSearchableSnapshot ? PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE : tierPreference;
         this.shardsPerNodeLimit = shardsPerNodeLimit;
         this.lifecyclePolicyName = lifecyclePolicyName;
         this.lifecycleExecutionState = lifecycleExecutionState;
@@ -1033,22 +1044,22 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
-     * Return the {@link Version} on which this index has been created. This
+     * Return the {@link IndexVersion} on which this index has been created. This
      * information is typically useful for backward compatibility.
      * To check index compatibility (e.g. N-1 checks), use {@link #getCompatibilityVersion()} instead.
      */
-    public Version getCreationVersion() {
+    public IndexVersion getCreationVersion() {
         return indexCreatedVersion;
     }
 
     /**
-     * Return the {@link Version} that this index provides compatibility for.
-     * This is typically compared to the {@link Version#minimumIndexCompatibilityVersion()} to figure out whether the index can be handled
+     * Return the {@link IndexVersion} that this index provides compatibility for.
+     * This is typically compared to the {@link IndexVersion#MINIMUM_COMPATIBLE} to figure out whether the index can be handled
      * by the cluster.
      * By default, this is equal to the {@link #getCreationVersion()}, but can also be a newer version if the index has been imported as
      * a legacy index from an older snapshot, and its metadata has been converted to be handled by newer version nodes.
      */
-    public Version getCompatibilityVersion() {
+    public IndexVersion getCompatibilityVersion() {
         return indexCompatibilityVersion;
     }
 
@@ -1298,14 +1309,27 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
+     * @return whether this index has a time series timestamp range
+     */
+    public boolean hasTimeSeriesTimestampRange() {
+        return indexMode != null && indexMode.getTimestampBound(this) != null;
+    }
+
+    /**
+     * @param dateFieldType the date field type of '@timestamp' field which is
+     *                      used to convert the start and end times recorded in index metadata
+     *                      to the right format that is being used by '@timestamp' field.
+     *                      For example, the '@timestamp' can be configured with nanosecond precision.
      * @return the time range this index represents if this index is in time series mode.
      *         Otherwise <code>null</code> is returned.
      */
     @Nullable
-    public IndexLongFieldRange getTimeSeriesTimestampRange() {
+    public IndexLongFieldRange getTimeSeriesTimestampRange(DateFieldMapper.DateFieldType dateFieldType) {
         var bounds = indexMode != null ? indexMode.getTimestampBound(this) : null;
         if (bounds != null) {
-            return IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(bounds.startTime(), bounds.endTime()));
+            long start = dateFieldType.resolution().convert(Instant.ofEpochMilli(bounds.startTime()));
+            long end = dateFieldType.resolution().convert(Instant.ofEpochMilli(bounds.endTime()));
+            return IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(start, end));
         } else {
             return null;
         }
@@ -1406,7 +1430,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return builder;
     }
 
-    private static final Version SETTING_DIFF_VERSION = Version.V_8_5_0;
+    private static final TransportVersion SETTING_DIFF_VERSION = TransportVersion.V_8_5_0;
 
     private static class IndexMetadataDiff implements Diff<IndexMetadata> {
 
@@ -1487,13 +1511,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             version = in.readLong();
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
-            if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
                 aliasesVersion = in.readVLong();
             } else {
                 aliasesVersion = 1;
             }
             state = State.fromId(in.readByte());
-            if (in.getVersion().onOrAfter(SETTING_DIFF_VERSION)) {
+            if (in.getTransportVersion().onOrAfter(SETTING_DIFF_VERSION)) {
                 settings = null;
                 settingsDiff = Settings.readSettingsDiffFromStream(in);
             } else {
@@ -1514,13 +1538,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 DiffableUtils.getStringKeySerializer(),
                 ROLLOVER_INFO_DIFF_VALUE_READER
             );
-            if (in.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
                 isSystem = in.readBoolean();
             } else {
                 isSystem = false;
             }
             timestampRange = IndexLongFieldRange.readFrom(in);
-            if (in.getVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
                 stats = in.readOptionalWriteable(IndexMetadataStats::new);
                 indexWriteLoadForecast = in.readOptionalDouble();
                 shardSizeInBytesForecast = in.readOptionalLong();
@@ -1538,13 +1562,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeLong(version);
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
-            if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
                 out.writeVLong(aliasesVersion);
             }
             out.writeByte(state.id);
             assert settings != null
                 : "settings should always be non-null since this instance is not expected to have been read from another node";
-            if (out.getVersion().onOrAfter(SETTING_DIFF_VERSION)) {
+            if (out.getTransportVersion().onOrAfter(SETTING_DIFF_VERSION)) {
                 settingsDiff.writeTo(out);
             } else {
                 settings.writeTo(out);
@@ -1555,11 +1579,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             customData.writeTo(out);
             inSyncAllocationIds.writeTo(out);
             rolloverInfos.writeTo(out);
-            if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
                 out.writeBoolean(isSystem);
             }
             timestampRange.writeTo(out);
-            if (out.getVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
                 out.writeOptionalWriteable(stats);
                 out.writeOptionalDouble(indexWriteLoadForecast);
                 out.writeOptionalLong(shardSizeInBytesForecast);
@@ -1611,7 +1635,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         builder.version(in.readLong());
         builder.mappingVersion(in.readVLong());
         builder.settingsVersion(in.readVLong());
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
             builder.aliasesVersion(in.readVLong());
         }
         builder.setRoutingNumShards(in.readInt());
@@ -1620,7 +1644,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         builder.primaryTerms(in.readVLongArray());
         int mappingsSize = in.readVInt();
         if (mappingsSize == 1) {
-            if (mappingLookup != null && in.getVersion().onOrAfter(Metadata.MAPPINGS_AS_HASH_VERSION)) {
+            if (mappingLookup != null && in.getTransportVersion().onOrAfter(Metadata.MAPPINGS_AS_HASH_VERSION)) {
                 final String mappingHash = in.readString();
                 final MappingMetadata metadata = mappingLookup.apply(mappingHash);
                 assert metadata != null : "failed to find mapping [" + mappingHash + "] for [" + builder.index + "]";
@@ -1650,12 +1674,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         for (int i = 0; i < rolloverAliasesSize; i++) {
             builder.putRolloverInfo(new RolloverInfo(in));
         }
-        if (in.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             builder.system(in.readBoolean());
         }
         builder.timestampRange(IndexLongFieldRange.readFrom(in));
 
-        if (in.getVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
             builder.stats(in.readOptionalWriteable(IndexMetadataStats::new));
             builder.indexWriteLoadForecast(in.readOptionalDouble());
             builder.shardSizeInBytesForecast(in.readOptionalLong());
@@ -1671,7 +1695,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         out.writeLong(version);
         out.writeVLong(mappingVersion);
         out.writeVLong(settingsVersion);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
             out.writeVLong(aliasesVersion);
         }
         out.writeInt(routingNumShards);
@@ -1683,7 +1707,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeVInt(0);
         } else {
             out.writeVInt(1);
-            if (mappingsAsHash && out.getVersion().onOrAfter(Metadata.MAPPINGS_AS_HASH_VERSION)) {
+            if (mappingsAsHash && out.getTransportVersion().onOrAfter(Metadata.MAPPINGS_AS_HASH_VERSION)) {
                 out.writeString(mapping.getSha256());
             } else {
                 mapping.writeTo(out);
@@ -1697,11 +1721,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             (o, v) -> DiffableUtils.StringSetValueSerializer.getInstance().write(v, o)
         );
         out.writeCollection(rolloverInfos.values());
-        if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             out.writeBoolean(isSystem);
         }
         timestampRange.writeTo(out);
-        if (out.getVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
             out.writeOptionalWriteable(stats);
             out.writeOptionalDouble(writeLoadForecast);
             out.writeOptionalLong(shardSizeInBytesForecast);
@@ -2084,7 +2108,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 initialRecoveryFilters = DiscoveryNodeFilters.buildFromKeyValues(OR, initialRecoveryMap);
             }
-            Version indexCreatedVersion = indexCreatedVersion(settings);
+            IndexVersion indexCreatedVersion = indexCreatedVersion(settings);
 
             if (primaryTerms == null) {
                 initializePrimaryTerms();
@@ -2149,7 +2173,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             var aliasesMap = aliases.build();
             for (AliasMetadata alias : aliasesMap.values()) {
                 if (alias.alias().equals(index)) {
-                    if (repair && indexCreatedVersion.equals(Version.V_8_5_0)) {
+                    if (repair && indexCreatedVersion.equals(IndexVersion.V_8_5_0)) {
                         var updatedBuilder = ImmutableOpenMap.builder(aliasesMap);
                         final var brokenAlias = updatedBuilder.remove(index);
                         final var fixedAlias = AliasMetadata.newAliasMetadata(brokenAlias, index + "-alias-corrupted-by-8-5");
@@ -2233,7 +2257,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             builder.startObject(KEY_SETTINGS);
             if (context != Metadata.XContentContext.API) {
-                indexMetadata.getSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
+                indexMetadata.getSettings().toXContent(builder, Settings.FLAT_SETTINGS_TRUE);
             } else {
                 indexMetadata.getSettings().toXContent(builder, params);
             }
@@ -2479,7 +2503,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
             assert mappingVersion : "mapping version should be present for indices created on or after 6.5.0";
             assert settingsVersion : "settings version should be present for indices created on or after 6.5.0";
-            assert indexCreatedVersion(builder.settings).before(Version.V_7_2_0) || aliasesVersion
+            assert indexCreatedVersion(builder.settings).before(IndexVersion.V_7_2_0) || aliasesVersion
                 : "aliases version should be present for indices created on or after 7.2.0";
             return builder.build(true);
         }
@@ -2614,9 +2638,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * @throws IllegalArgumentException if the given index settings doesn't contain a value for the key
      *                                  {@value IndexMetadata#SETTING_VERSION_CREATED}
      */
-    private static Version indexCreatedVersion(Settings indexSettings) {
-        final Version indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
-        if (indexVersion == Version.V_EMPTY) {
+    private static IndexVersion indexCreatedVersion(Settings indexSettings) {
+        IndexVersion indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
+        if (indexVersion.equals(IndexVersion.ZERO)) {
             final String message = String.format(
                 Locale.ROOT,
                 "[%s] is not present in the index settings for index with UUID [%s]",
@@ -2634,8 +2658,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     public static Settings addHumanReadableSettings(Settings settings) {
         Settings.Builder builder = Settings.builder().put(settings);
-        Version version = SETTING_INDEX_VERSION_CREATED.get(settings);
-        if (version != Version.V_EMPTY) {
+        IndexVersion version = SETTING_INDEX_VERSION_CREATED.get(settings);
+        if (version.equals(IndexVersion.ZERO) == false) {
             builder.put(SETTING_VERSION_CREATED_STRING, version.toString());
         }
         Long creationDate = settings.getAsLong(SETTING_CREATION_DATE, null);

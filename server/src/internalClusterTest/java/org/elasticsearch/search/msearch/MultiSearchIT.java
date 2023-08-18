@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.msearch;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -16,6 +16,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
@@ -86,6 +87,7 @@ public class MultiSearchIT extends ESIntegTestCase {
      * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
      */
     public void testCCSCheckCompatibility() throws Exception {
+        TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersion.MINIMUM_CCS_VERSION, true);
         createIndex("test");
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("field", "xxx").get();
@@ -96,8 +98,8 @@ public class MultiSearchIT extends ESIntegTestCase {
             .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
             .add(client().prepareSearch("test").setQuery(new DummyQueryBuilder() {
                 @Override
-                public Version getMinimalSupportedVersion() {
-                    return Version.CURRENT;
+                public TransportVersion getMinimalSupportedVersion() {
+                    return transportVersion;
                 }
             }))
             .get();

@@ -69,6 +69,11 @@ public class NlpClassificationInferenceResultsTests extends InferenceResultsTest
     }
 
     @Override
+    protected NlpClassificationInferenceResults mutateInstance(NlpClassificationInferenceResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<NlpClassificationInferenceResults> instanceReader() {
         return NlpClassificationInferenceResults::new;
     }

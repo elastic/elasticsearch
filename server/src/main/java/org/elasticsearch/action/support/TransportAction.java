@@ -111,11 +111,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
         @Override
         public void onResponse(Response response) {
-            try {
-                taskManager.storeResult(task, response, delegate);
-            } catch (Exception e) {
-                delegate.onFailure(e);
-            }
+            ActionListener.run(delegate, l -> taskManager.storeResult(task, response, l));
         }
 
         @Override

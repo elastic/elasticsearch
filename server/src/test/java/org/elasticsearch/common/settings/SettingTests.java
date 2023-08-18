@@ -269,13 +269,9 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testValidatorForFilteredStringSetting() {
-        final Setting<String> filteredStringSetting = new Setting<>(
-            "foo.bar",
-            "foobar",
-            Function.identity(),
-            value -> { throw new SettingsException("validate always fails"); },
-            Property.Filtered
-        );
+        final Setting<String> filteredStringSetting = new Setting<>("foo.bar", "foobar", Function.identity(), value -> {
+            throw new SettingsException("validate always fails");
+        }, Property.Filtered);
 
         final Settings settings = Settings.builder().put(filteredStringSetting.getKey(), filteredStringSetting.getKey() + " value").build();
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> filteredStringSetting.get(settings));
@@ -530,7 +526,9 @@ public class SettingTests extends ESTestCase {
         assertTrue(setting.match("foo.bar.baz"));
         assertFalse(setting.match("foo.baz.bar"));
 
-        ClusterSettings.SettingUpdater<Settings> predicateSettingUpdater = setting.newUpdater(ref::set, logger, (s) -> assertFalse(true));
+        ClusterSettings.SettingUpdater<Settings> predicateSettingUpdater = setting.newUpdater(ref::set, logger, (s) -> {
+            throw randomBoolean() ? new RuntimeException("anything") : new IllegalArgumentException("illegal");
+        });
         try {
             predicateSettingUpdater.apply(
                 Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build(),
@@ -546,7 +544,9 @@ public class SettingTests extends ESTestCase {
         AtomicReference<Settings> ref = new AtomicReference<>(null);
         Setting<Settings> setting = Setting.groupSetting("foo.bar.", Property.Filtered, Property.Dynamic);
 
-        ClusterSettings.SettingUpdater<Settings> predicateSettingUpdater = setting.newUpdater(ref::set, logger, (s) -> assertFalse(true));
+        ClusterSettings.SettingUpdater<Settings> predicateSettingUpdater = setting.newUpdater(ref::set, logger, (s) -> {
+            throw randomBoolean() ? new RuntimeException("anything") : new IllegalArgumentException("illegal");
+        });
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> predicateSettingUpdater.apply(
@@ -1227,16 +1227,14 @@ public class SettingTests extends ESTestCase {
             validator
         );
 
-        IllegalArgumentException illegal = expectThrows(
-            IllegalArgumentException.class,
-            () -> { updater.getValue(Settings.builder().put("prefix.foo.suffix", 5).put("abc", 2).build(), Settings.EMPTY); }
-        );
+        IllegalArgumentException illegal = expectThrows(IllegalArgumentException.class, () -> {
+            updater.getValue(Settings.builder().put("prefix.foo.suffix", 5).put("abc", 2).build(), Settings.EMPTY);
+        });
         assertEquals("foo and 2 can't go together", illegal.getMessage());
 
-        illegal = expectThrows(
-            IllegalArgumentException.class,
-            () -> { updater.getValue(Settings.builder().put("prefix.bar.suffix", 6).put("abc", 3).build(), Settings.EMPTY); }
-        );
+        illegal = expectThrows(IllegalArgumentException.class, () -> {
+            updater.getValue(Settings.builder().put("prefix.bar.suffix", 6).put("abc", 3).build(), Settings.EMPTY);
+        });
         assertEquals("no bar", illegal.getMessage());
 
         Settings s = updater.getValue(

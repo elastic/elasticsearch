@@ -8,10 +8,10 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -39,7 +40,13 @@ public class GatewayServiceTests extends ESTestCase {
             null,
             (TaskManager) null
         );
-        return new GatewayService(settings.build(), (reason, priority, listener) -> fail("should not reroute"), clusterService, null);
+        return new GatewayService(
+            settings.build(),
+            (reason, priority, listener) -> fail("should not reroute"),
+            clusterService,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            null
+        );
     }
 
     public void testDefaultRecoverAfterTime() {
@@ -64,7 +71,7 @@ public class GatewayServiceTests extends ESTestCase {
         ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask();
         String nodeId = randomAlphaOfLength(10);
         DiscoveryNode masterNode = DiscoveryNode.createLocal(
-            settings(Version.CURRENT).put(masterNode()).build(),
+            settings(IndexVersion.current()).put(masterNode()).build(),
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
             nodeId
         );

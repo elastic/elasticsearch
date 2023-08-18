@@ -27,7 +27,7 @@ public class DisjunctionIntervalsSourceProviderTests extends AbstractXContentSer
     }
 
     @Override
-    protected Disjunction mutateInstance(Disjunction instance) throws IOException {
+    protected Disjunction mutateInstance(Disjunction instance) {
         List<IntervalsSourceProvider> subSources = instance.getSubSources();
         IntervalsSourceProvider.IntervalFilter filter = instance.getFilter();
         if (randomBoolean()) {

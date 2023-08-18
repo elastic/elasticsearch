@@ -11,8 +11,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
-import java.io.IOException;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
@@ -68,7 +66,7 @@ public class DelayedDataCheckConfigTests extends AbstractXContentSerializingTest
     }
 
     @Override
-    protected DelayedDataCheckConfig mutateInstance(DelayedDataCheckConfig instance) throws IOException {
+    protected DelayedDataCheckConfig mutateInstance(DelayedDataCheckConfig instance) {
         boolean enabled = instance.isEnabled();
         TimeValue timeWindow = instance.getCheckWindow();
         switch (between(0, 1)) {

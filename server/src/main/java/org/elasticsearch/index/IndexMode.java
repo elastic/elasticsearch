@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
@@ -108,6 +109,14 @@ public enum IndexMode {
 
         @Override
         public boolean shouldValidateTimestamp() {
+            return false;
+        }
+
+        @Override
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
+
+        @Override
+        public boolean isSyntheticSourceEnabled() {
             return false;
         }
     },
@@ -196,6 +205,18 @@ public enum IndexMode {
         public boolean shouldValidateTimestamp() {
             return true;
         }
+
+        @Override
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
+            if (sourceFieldMapper.isSynthetic() == false) {
+                throw new IllegalArgumentException("time series indices only support synthetic source");
+            }
+        }
+
+        @Override
+        public boolean isSyntheticSourceEnabled() {
+            return true;
+        }
     };
 
     protected static String tsdbMode() {
@@ -214,6 +235,7 @@ public enum IndexMode {
                     .startObject("properties")
                     .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
                     .field("type", DateFieldMapper.CONTENT_TYPE)
+                    .field("ignore_malformed", "false")
                     .endObject()
                     .endObject()
                     .endObject())
@@ -288,7 +310,7 @@ public enum IndexMode {
 
     /**
      * @return the time range based on the provided index metadata and index mode implementation.
-     *         Otherwise <code>null</code> is returned.
+     * Otherwise <code>null</code> is returned.
      */
     @Nullable
     public abstract TimestampBounds getTimestampBound(IndexMetadata indexMetadata);
@@ -309,6 +331,16 @@ public enum IndexMode {
      * @return Whether timestamps should be validated for being withing the time range of an index.
      */
     public abstract boolean shouldValidateTimestamp();
+
+    /**
+     * Validates the source field mapper
+     */
+    public abstract void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper);
+
+    /**
+     * @return whether synthetic source is the only allowed source mode.
+     */
+    public abstract boolean isSyntheticSourceEnabled();
 
     /**
      * Parse a string into an {@link IndexMode}.

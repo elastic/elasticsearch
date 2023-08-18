@@ -12,7 +12,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PhaseStats;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PolicyStats;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -34,7 +33,7 @@ public class PolicyStatsTests extends AbstractWireSerializingTestCase<PolicyStat
     }
 
     @Override
-    protected PolicyStats mutateInstance(PolicyStats instance) throws IOException {
+    protected PolicyStats mutateInstance(PolicyStats instance) {
         Map<String, PhaseStats> phaseStats = instance.getPhaseStats();
         int numberIndicesManaged = instance.getIndicesManaged();
         switch (between(0, 1)) {

@@ -50,6 +50,11 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
     }
 
     @Override
+    protected MulticlassConfusionMatrix mutateInstance(MulticlassConfusionMatrix instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<MulticlassConfusionMatrix> instanceReader() {
         return MulticlassConfusionMatrix::new;
     }

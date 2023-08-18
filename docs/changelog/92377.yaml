@@ -1,6 +1,0 @@
-pr: 92377
-summary: Force init of Unbox in log4j
-area: Infra/Core
-type: bug
-issues:
- - 91964

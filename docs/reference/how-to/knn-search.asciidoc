@@ -34,7 +34,8 @@ most vector data is held in memory. You should ensure that data nodes have at
 least enough RAM to hold the vector data and index structures. To check the
 size of the vector data, you can use the <<indices-disk-usage>> API. As a
 loose rule of thumb, and assuming the default HNSW options, the bytes used will
-be `num_vectors * 4 * (num_dimensions + 32)` plus a small buffer. Note that
+be `num_vectors * 4 * (num_dimensions + 12)`. When using the `byte` <<dense-vector-element-type,`element_type`>>
+the space required will be closer to  `num_vectors * (num_dimensions + 12)`. Note that
 the required RAM is for the filesystem cache, which is separate from the Java
 heap.
 
@@ -43,9 +44,15 @@ For example your index might also include text fields and numerics, which also
 benefit from using filesystem cache. It's recommended to run benchmarks with
 your specific dataset to ensure there's a sufficient amount of memory to give
 good search performance.
+You can find https://elasticsearch-benchmarks.elastic.co/#tracks/so_vector[here]
+and https://elasticsearch-benchmarks.elastic.co/#tracks/dense_vector[here] some examples
+of datasets and configurations that we use for our nightly benchmarks.
 
 [discrete]
 include::search-speed.asciidoc[tag=warm-fs-cache]
+
+The following file extensions are used for the approximate kNN search:
+"vec" (for vector values), "vex" (for HNSW graph), "vem" (for metadata).
 
 [discrete]
 === Reduce vector dimensionality

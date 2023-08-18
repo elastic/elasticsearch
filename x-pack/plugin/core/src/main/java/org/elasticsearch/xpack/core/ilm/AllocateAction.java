@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
@@ -123,7 +123,7 @@ public class AllocateAction implements LifecycleAction {
     public AllocateAction(StreamInput in) throws IOException {
         this(
             in.readOptionalVInt(),
-            in.getVersion().onOrAfter(Version.V_7_16_0) ? in.readOptionalInt() : null,
+            in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0) ? in.readOptionalInt() : null,
             (Map<String, String>) in.readGenericValue(),
             (Map<String, String>) in.readGenericValue(),
             (Map<String, String>) in.readGenericValue()
@@ -153,7 +153,7 @@ public class AllocateAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalVInt(numberOfReplicas);
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             out.writeOptionalInt(totalShardsPerNode);
         }
         out.writeGenericValue(include);

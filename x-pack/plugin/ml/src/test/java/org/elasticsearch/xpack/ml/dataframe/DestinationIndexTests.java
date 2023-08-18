@@ -24,6 +24,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -31,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
@@ -165,7 +167,7 @@ public class DestinationIndexTests extends ESTestCase {
         );
 
         Settings.Builder index1SettingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.mapping.total_fields.limit", 1000)
@@ -227,7 +229,7 @@ public class DestinationIndexTests extends ESTestCase {
         );
 
         Settings.Builder index2SettingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put("index.mapping.total_fields.limit", 99999999)
@@ -339,7 +341,7 @@ public class DestinationIndexTests extends ESTestCase {
             return null;
         }
 
-        DestinationIndex.createDestinationIndex(client, clock, config, ActionListener.wrap(response -> {}, e -> fail(e.getMessage())));
+        DestinationIndex.createDestinationIndex(client, clock, config, ActionTestUtils.assertNoFailureListener(response -> {}));
 
         GetSettingsRequest capturedGetSettingsRequest = getSettingsRequestCaptor.getValue();
         assertThat(capturedGetSettingsRequest.indices(), equalTo(SOURCE_INDEX));
@@ -622,7 +624,7 @@ public class DestinationIndexTests extends ESTestCase {
             client,
             config,
             getIndexResponse,
-            ActionListener.wrap(response -> assertThat(response.isAcknowledged(), is(true)), e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(response -> assertThat(response.isAcknowledged(), is(true)))
         );
 
         verify(client, atLeastOnce()).threadPool();
@@ -687,7 +689,7 @@ public class DestinationIndexTests extends ESTestCase {
 
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> DestinationIndex.updateMappingsToDestIndex(client, config, getIndexResponse, ActionListener.wrap(Assert::fail))
+            () -> DestinationIndex.updateMappingsToDestIndex(client, config, getIndexResponse, ActionListener.running(Assert::fail))
         );
         assertThat(
             e.getMessage(),

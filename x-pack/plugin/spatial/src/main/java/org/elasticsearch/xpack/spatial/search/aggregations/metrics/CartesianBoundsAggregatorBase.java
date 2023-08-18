@@ -24,35 +24,22 @@ import static java.lang.Math.min;
  * A metric aggregator that computes a cartesian-bounds from a {@code point} type field
  */
 public abstract class CartesianBoundsAggregatorBase extends MetricsAggregator {
-    private final boolean isNoOp;
     private DoubleArray tops;
     private DoubleArray bottoms;
     private DoubleArray lefts;
     private DoubleArray rights;
 
-    public CartesianBoundsAggregatorBase(
-        String name,
-        AggregationContext context,
-        Aggregator parent,
-        boolean isNoOp,
-        Map<String, Object> metadata
-    ) throws IOException {
+    public CartesianBoundsAggregatorBase(String name, AggregationContext context, Aggregator parent, Map<String, Object> metadata)
+        throws IOException {
         super(name, context, parent, metadata);
-        this.isNoOp = isNoOp;
-        if (isNoOp == false) {
-            tops = bigArrays().newDoubleArray(1, false);
-            tops.fill(0, tops.size(), Double.NEGATIVE_INFINITY);
-            bottoms = bigArrays().newDoubleArray(1, false);
-            bottoms.fill(0, bottoms.size(), Double.POSITIVE_INFINITY);
-            lefts = bigArrays().newDoubleArray(1, false);
-            lefts.fill(0, lefts.size(), Double.POSITIVE_INFINITY);
-            rights = bigArrays().newDoubleArray(1, false);
-            rights.fill(0, rights.size(), Double.NEGATIVE_INFINITY);
-        }
-    }
-
-    protected boolean isNoOp() {
-        return isNoOp;
+        tops = bigArrays().newDoubleArray(1, false);
+        tops.fill(0, tops.size(), Double.NEGATIVE_INFINITY);
+        bottoms = bigArrays().newDoubleArray(1, false);
+        bottoms.fill(0, bottoms.size(), Double.POSITIVE_INFINITY);
+        lefts = bigArrays().newDoubleArray(1, false);
+        lefts.fill(0, lefts.size(), Double.POSITIVE_INFINITY);
+        rights = bigArrays().newDoubleArray(1, false);
+        rights.fill(0, rights.size(), Double.NEGATIVE_INFINITY);
     }
 
     protected void addBounds(long bucket, double top, double bottom, double left, double right) {
@@ -78,7 +65,7 @@ public abstract class CartesianBoundsAggregatorBase extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (isNoOp) {
+        if (owningBucketOrdinal >= tops.size()) {
             return buildEmptyAggregation();
         }
         double top = tops.get(owningBucketOrdinal);
@@ -90,14 +77,7 @@ public abstract class CartesianBoundsAggregatorBase extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalCartesianBounds(
-            name,
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            Double.NEGATIVE_INFINITY,
-            metadata()
-        );
+        return InternalCartesianBounds.empty(name, metadata());
     }
 
     @Override

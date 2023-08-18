@@ -111,11 +111,35 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
             String settingKey = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
             Settings proxySettings = Settings.builder().put(settingKey, strategy.name()).build();
-            ConnectionProfile proxyProfile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, proxySettings);
+            ConnectionProfile proxyProfile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, proxySettings, randomBoolean());
             assertEquals(
                 "Incorrect number of channels for " + strategy.name(),
                 strategy.getNumberOfChannels(),
                 proxyProfile.getNumConnections()
+            );
+        }
+    }
+
+    public void testTransportProfile() {
+        String clusterAlias = "cluster-alias";
+
+        // New rcs connection with credentials
+        for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
+            ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, Settings.EMPTY, true);
+            assertEquals(
+                "Incorrect transport profile for " + strategy.name(),
+                RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE,
+                profile.getTransportProfile()
+            );
+        }
+
+        // Legacy ones without credentials
+        for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
+            ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, Settings.EMPTY, false);
+            assertEquals(
+                "Incorrect transport profile for " + strategy.name(),
+                TransportSettings.DEFAULT_PROFILE,
+                profile.getTransportProfile()
             );
         }
     }

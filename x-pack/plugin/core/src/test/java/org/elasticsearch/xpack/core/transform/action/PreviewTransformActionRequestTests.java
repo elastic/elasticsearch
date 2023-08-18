@@ -46,16 +46,11 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Request createTestInstance() {
         TransformConfig config = new TransformConfig(
             "transform-preview",
             randomSourceConfig(),
-            new DestConfig("unused-transform-preview-index", null),
+            new DestConfig("unused-transform-preview-index", null, null),
             null,
             randomBoolean() ? TransformConfigTests.randomSyncConfig() : null,
             null,
@@ -69,6 +64,11 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
             null
         );
         return new Request(config, TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testParsingOverwritesIdField() throws IOException {

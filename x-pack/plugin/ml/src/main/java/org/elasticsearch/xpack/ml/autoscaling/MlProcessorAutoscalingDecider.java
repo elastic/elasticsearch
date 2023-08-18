@@ -41,7 +41,12 @@ class MlProcessorAutoscalingDecider {
         this.scaleTimer = Objects.requireNonNull(scaleTimer);
     }
 
-    public MlProcessorAutoscalingCapacity scale(Settings configuration, AutoscalingDeciderContext context, MlAutoscalingContext mlContext) {
+    public MlProcessorAutoscalingCapacity scale(
+        Settings configuration,
+        AutoscalingDeciderContext context,
+        MlAutoscalingContext mlContext,
+        int allocatedProcessorsScale
+    ) {
         TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(context.state());
 
         if (hasUnsatisfiedDeployments(trainedModelAssignmentMetadata, mlContext.mlNodes)) {
@@ -52,7 +57,7 @@ class MlProcessorAutoscalingDecider {
             ).build();
         }
 
-        final MlProcessorAutoscalingCapacity currentCapacity = computeCurrentCapacity(mlContext.mlNodes);
+        final MlProcessorAutoscalingCapacity currentCapacity = computeCurrentCapacity(mlContext.mlNodes, allocatedProcessorsScale);
 
         final MlProcessorAutoscalingCapacity requiredCapacity = computeRequiredCapacity(trainedModelAssignmentMetadata).build();
 
@@ -63,8 +68,9 @@ class MlProcessorAutoscalingDecider {
         }
 
         if (MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
-            trainedModelAssignmentMetadata.modelAssignments().values(),
-            mlContext.mlNodes
+            trainedModelAssignmentMetadata.allAssignments().values(),
+            mlContext.mlNodes,
+            allocatedProcessorsScale
         )) {
             return MlProcessorAutoscalingCapacity.builder(currentCapacity.nodeProcessors(), currentCapacity.tierProcessors())
                 .setReason("not scaling down as model assignments require more than half of the ML tier's allocated processors")
@@ -104,7 +110,7 @@ class MlProcessorAutoscalingDecider {
 
     private boolean hasUnsatisfiedDeployments(TrainedModelAssignmentMetadata trainedModelAssignmentMetadata, List<DiscoveryNode> mlNodes) {
         final Set<String> mlNodeIds = mlNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
-        return trainedModelAssignmentMetadata.modelAssignments()
+        return trainedModelAssignmentMetadata.allAssignments()
             .values()
             .stream()
             .filter(deployment -> deployment.getTaskParams().getPriority() == Priority.NORMAL)
@@ -115,7 +121,7 @@ class MlProcessorAutoscalingDecider {
         int maxThreadsPerAllocation = 0;
         double processorCount = 0;
         boolean hasLowPriorityDeployments = false;
-        for (TrainedModelAssignment assignment : trainedModelAssignmentMetadata.modelAssignments().values()) {
+        for (TrainedModelAssignment assignment : trainedModelAssignmentMetadata.allAssignments().values()) {
             if (assignment.getTaskParams().getPriority() == Priority.LOW) {
                 hasLowPriorityDeployments = true;
                 continue;
@@ -136,11 +142,11 @@ class MlProcessorAutoscalingDecider {
         );
     }
 
-    MlProcessorAutoscalingCapacity computeCurrentCapacity(List<DiscoveryNode> mlNodes) {
+    MlProcessorAutoscalingCapacity computeCurrentCapacity(List<DiscoveryNode> mlNodes, int allocatedProcessorsScale) {
         Processors maxNodeProcessors = Processors.ZERO;
         Processors tierProcessors = Processors.ZERO;
         for (DiscoveryNode node : mlNodes) {
-            Processors nodeProcessors = MlProcessors.get(node);
+            Processors nodeProcessors = MlProcessors.get(node, allocatedProcessorsScale);
             if (nodeProcessors.compareTo(maxNodeProcessors) > 0) {
                 maxNodeProcessors = nodeProcessors;
             }

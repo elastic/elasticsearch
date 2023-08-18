@@ -10,11 +10,12 @@ package org.elasticsearch.server.cli;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 final class SystemJvmOptions {
 
     static List<String> systemJvmOptions() {
-        return List.of(
+        return Stream.of(
             /*
              * Cache ttl in seconds for positive DNS lookups noting that this overrides the JDK security property networkaddress.cache.ttl;
              * can be set to -1 to cache forever.
@@ -58,12 +59,10 @@ final class SystemJvmOptions {
             /*
              * Temporarily suppress illegal reflective access in searchable snapshots shared cache preallocation; this is temporary while we
              * explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
-             *
-             * TODO: either modularlize Elasticsearch so that we can limit the opening of this module, or find an alternative
              */
-            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
             maybeOverrideDockerCgroup()
-        ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
+        ).filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }
 
     /*

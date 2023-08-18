@@ -45,6 +45,11 @@ public class AccuracyTests extends AbstractXContentSerializingTestCase<Accuracy>
     }
 
     @Override
+    protected Accuracy mutateInstance(Accuracy instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Accuracy> instanceReader() {
         return Accuracy::new;
     }

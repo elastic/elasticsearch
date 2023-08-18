@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -22,6 +22,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.node.DiskHealthInfo;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -136,7 +137,8 @@ public class HealthServiceIT extends ESIntegTestCase {
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            AllocationDeciders allocationDeciders
+            AllocationService allocationService,
+            IndicesService indicesService
         ) {
             healthIndicatorServices.add(new TestHealthIndicatorService());
             return new ArrayList<>(healthIndicatorServices);

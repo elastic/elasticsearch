@@ -208,7 +208,7 @@ public class DesiredNodeTests extends ESTestCase {
         {
             final var desiredNode = new DesiredNode(
                 settings,
-                randomIntBetween(0, 10) + randomDouble(),
+                randomIntBetween(0, 10) + randomDoubleBetween(0.00001, 0.99999, true),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
                 Version.CURRENT

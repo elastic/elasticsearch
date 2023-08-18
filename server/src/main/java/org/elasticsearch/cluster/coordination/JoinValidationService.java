@@ -11,11 +11,12 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -26,14 +27,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -41,9 +47,9 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
@@ -95,19 +101,22 @@ public class JoinValidationService {
     private final Supplier<ClusterState> clusterStateSupplier;
     private final AtomicInteger queueSize = new AtomicInteger();
     private final Queue<AbstractRunnable> queue = new ConcurrentLinkedQueue<>();
-    private final Map<Version, ReleasableBytesReference> statesByVersion = new HashMap<>();
+    private final Map<TransportVersion, ReleasableBytesReference> statesByVersion = new HashMap<>();
     private final RefCounted executeRefs;
+    private final Executor responseExecutor;
 
     public JoinValidationService(
         Settings settings,
         TransportService transportService,
         Supplier<ClusterState> clusterStateSupplier,
+        Supplier<Metadata> metadataSupplier,
         Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators
     ) {
         this.cacheTimeout = JOIN_VALIDATION_CACHE_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
         this.clusterStateSupplier = clusterStateSupplier;
         this.executeRefs = AbstractRefCounted.of(() -> execute(cacheClearer));
+        this.responseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.CLUSTER_COORDINATION);
 
         final var dataPaths = Environment.PATH_DATA_SETTING.get(settings);
         transportService.registerRequestHandler(
@@ -116,14 +125,14 @@ public class JoinValidationService {
             ValidateJoinRequest::new,
             (request, channel, task) -> {
                 final var remoteState = request.getOrReadState();
-                final var localState = clusterStateSupplier.get();
-                if (localState.metadata().clusterUUIDCommitted()
-                    && localState.metadata().clusterUUID().equals(remoteState.metadata().clusterUUID()) == false) {
+                final var remoteMetadata = remoteState.metadata();
+                final var localMetadata = metadataSupplier.get();
+                if (localMetadata.clusterUUIDCommitted() && localMetadata.clusterUUID().equals(remoteMetadata.clusterUUID()) == false) {
                     throw new CoordinationStateRejectedException(
                         "This node previously joined a cluster with UUID ["
-                            + localState.metadata().clusterUUID()
+                            + localMetadata.clusterUUID()
                             + "] and is now trying to join a different cluster with UUID ["
-                            + remoteState.metadata().clusterUUID()
+                            + remoteMetadata.clusterUUID()
                             + "]. This is forbidden and usually indicates an incorrect "
                             + "discovery or cluster bootstrapping configuration. Note that the cluster UUID persists across restarts and "
                             + "can only be changed by deleting the contents of the node's data "
@@ -138,7 +147,7 @@ public class JoinValidationService {
         );
     }
 
-    public void validateJoin(DiscoveryNode discoveryNode, ActionListener<TransportResponse.Empty> listener) {
+    public void validateJoin(DiscoveryNode discoveryNode, ActionListener<Void> listener) {
         if (discoveryNode.getVersion().onOrAfter(Version.V_8_3_0)) {
             if (executeRefs.tryIncRef()) {
                 try {
@@ -150,26 +159,39 @@ public class JoinValidationService {
                 listener.onFailure(new NodeClosedException(transportService.getLocalNode()));
             }
         } else {
-            transportService.sendRequest(
-                discoveryNode,
-                JOIN_VALIDATE_ACTION_NAME,
-                new ValidateJoinRequest(clusterStateSupplier.get()),
-                REQUEST_OPTIONS,
-                new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
-                    logger.warn(() -> "failed to validate incoming join request from node [" + discoveryNode + "]", e);
-                    listener.onFailure(
-                        new IllegalStateException(
-                            String.format(
-                                Locale.ROOT,
-                                "failure when sending a join validation request from [%s] to [%s]",
-                                transportService.getLocalNode().descriptionWithoutAttributes(),
-                                discoveryNode.descriptionWithoutAttributes()
-                            ),
-                            e
-                        )
-                    );
-                }), i -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.CLUSTER_COORDINATION)
-            );
+            final var responseHandler = TransportResponseHandler.empty(responseExecutor, listener.delegateResponse((l, e) -> {
+                logger.warn(() -> "failed to validate incoming join request from node [" + discoveryNode + "]", e);
+                listener.onFailure(
+                    new IllegalStateException(
+                        String.format(
+                            Locale.ROOT,
+                            "failure when sending a join validation request from [%s] to [%s]",
+                            transportService.getLocalNode().descriptionWithoutAttributes(),
+                            discoveryNode.descriptionWithoutAttributes()
+                        ),
+                        e
+                    )
+                );
+            }));
+            final var clusterState = clusterStateSupplier.get();
+            if (clusterState != null) {
+                assert clusterState.nodes().isLocalNodeElectedMaster();
+                transportService.sendRequest(
+                    discoveryNode,
+                    JOIN_VALIDATE_ACTION_NAME,
+                    new ValidateJoinRequest(clusterState),
+                    REQUEST_OPTIONS,
+                    responseHandler
+                );
+            } else {
+                transportService.sendRequest(
+                    discoveryNode,
+                    JoinHelper.JOIN_PING_ACTION_NAME,
+                    TransportRequest.Empty.INSTANCE,
+                    REQUEST_OPTIONS,
+                    responseHandler
+                );
+            }
         }
     }
 
@@ -288,10 +310,10 @@ public class JoinValidationService {
         }
     };
 
-    private class JoinValidation extends ActionRunnable<TransportResponse.Empty> {
+    private class JoinValidation extends ActionRunnable<Void> {
         private final DiscoveryNode discoveryNode;
 
-        JoinValidation(DiscoveryNode discoveryNode, ActionListener<TransportResponse.Empty> listener) {
+        JoinValidation(DiscoveryNode discoveryNode, ActionListener<Void> listener) {
             super(listener);
             this.discoveryNode = discoveryNode;
         }
@@ -301,34 +323,64 @@ public class JoinValidationService {
             assert discoveryNode.getVersion().onOrAfter(Version.V_8_3_0) : discoveryNode.getVersion();
             // NB these things never run concurrently to each other, or to the cache cleaner (see IMPLEMENTATION NOTES above) so it is safe
             // to do these (non-atomic) things to the (unsynchronized) statesByVersion map.
-            final var cachedBytes = statesByVersion.get(discoveryNode.getVersion());
-            final var bytes = Objects.requireNonNullElseGet(cachedBytes, () -> serializeClusterState(discoveryNode));
+            Transport.Connection connection;
+            try {
+                connection = transportService.getConnection(discoveryNode);
+            } catch (NodeNotConnectedException e) {
+                listener.onFailure(e);
+                return;
+            }
+            var version = connection.getTransportVersion();
+            var cachedBytes = statesByVersion.get(version);
+            var bytes = maybeSerializeClusterState(cachedBytes, discoveryNode, version);
+            if (bytes == null) {
+                // Normally if we're not the master then the Coordinator sends a ping message just to validate connectivity instead of
+                // getting here. But if we were the master when the Coordinator checked then we might not be the master any more, so we
+                // get a null and fall back to a ping here too.
+
+                // noinspection ConstantConditions
+                assert cachedBytes == null;
+                transportService.sendRequest(
+                    connection,
+                    JoinHelper.JOIN_PING_ACTION_NAME,
+                    TransportRequest.Empty.INSTANCE,
+                    REQUEST_OPTIONS,
+                    TransportResponseHandler.empty(responseExecutor, listener)
+                );
+                return;
+            }
             assert bytes.hasReferences() : "already closed";
             bytes.incRef();
             transportService.sendRequest(
-                discoveryNode,
+                connection,
                 JOIN_VALIDATE_ACTION_NAME,
-                new BytesTransportRequest(bytes, discoveryNode.getVersion()),
+                new BytesTransportRequest(bytes, version),
                 REQUEST_OPTIONS,
                 new CleanableResponseHandler<>(
-                    listener,
+                    listener.map(ignored -> null),
                     in -> TransportResponse.Empty.INSTANCE,
-                    ThreadPool.Names.CLUSTER_COORDINATION,
+                    responseExecutor,
                     bytes::decRef
                 )
             );
-            if (cachedBytes == null) {
-                transportService.getThreadPool().schedule(new Runnable() {
-                    @Override
-                    public void run() {
-                        execute(cacheClearer);
-                    }
+            try {
+                if (cachedBytes == null) {
+                    transportService.getThreadPool().schedule(new Runnable() {
+                        @Override
+                        public void run() {
+                            execute(cacheClearer);
+                        }
 
-                    @Override
-                    public String toString() {
-                        return cacheClearer + " after timeout";
-                    }
-                }, cacheTimeout, ThreadPool.Names.CLUSTER_COORDINATION);
+                        @Override
+                        public String toString() {
+                            return cacheClearer + " after timeout";
+                        }
+                    }, cacheTimeout, ThreadPool.Names.CLUSTER_COORDINATION);
+                }
+            } catch (Exception e) {
+                assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+                // we're shutting down, so clear the cache (and handle the shutdown) right away
+                execute(cacheClearer);
             }
         }
 
@@ -338,25 +390,38 @@ public class JoinValidationService {
         }
     }
 
-    private ReleasableBytesReference serializeClusterState(DiscoveryNode discoveryNode) {
+    @Nullable // if we are not the master according to the current cluster state
+    private ReleasableBytesReference maybeSerializeClusterState(
+        ReleasableBytesReference cachedBytes,
+        DiscoveryNode discoveryNode,
+        TransportVersion version
+    ) {
+        if (cachedBytes != null) {
+            return cachedBytes;
+        }
+
+        final var clusterState = clusterStateSupplier.get();
+        if (clusterState == null) {
+            return null;
+        }
+        assert clusterState.nodes().isLocalNodeElectedMaster();
+
         final var bytesStream = transportService.newNetworkBytesStream();
         var success = false;
         try {
-            final var clusterState = clusterStateSupplier.get();
-            final var version = discoveryNode.getVersion();
             try (
                 var stream = new OutputStreamStreamOutput(
                     CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))
                 )
             ) {
-                stream.setVersion(version);
+                stream.setTransportVersion(version);
                 clusterState.writeTo(stream);
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state for publishing to node {}", e, discoveryNode);
             }
             final var newBytes = new ReleasableBytesReference(bytesStream.bytes(), bytesStream);
             logger.trace(
-                "serialized join validation cluster state version [{}] for node version [{}] with size [{}]",
+                "serialized join validation cluster state version [{}] for transport version [{}] with size [{}]",
                 clusterState.version(),
                 version,
                 newBytes.length()

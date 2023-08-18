@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
@@ -28,7 +28,7 @@ public class GetUsersRequest extends ActionRequest implements UserRequest {
     public GetUsersRequest(StreamInput in) throws IOException {
         super(in);
         usernames = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             withProfileUid = in.readBoolean();
         } else {
             withProfileUid = false;
@@ -77,7 +77,7 @@ public class GetUsersRequest extends ActionRequest implements UserRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(usernames);
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             out.writeBoolean(withProfileUid);
         }
     }

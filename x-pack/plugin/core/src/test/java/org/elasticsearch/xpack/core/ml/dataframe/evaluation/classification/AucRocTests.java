@@ -25,6 +25,11 @@ public class AucRocTests extends AbstractXContentSerializingTestCase<AucRoc> {
     }
 
     @Override
+    protected AucRoc mutateInstance(AucRoc instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<AucRoc> instanceReader() {
         return AucRoc::new;
     }

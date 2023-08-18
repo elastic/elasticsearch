@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireTestCase;
 
@@ -36,12 +36,12 @@ public class ItemUsageTests extends AbstractWireTestCase<ItemUsage> {
     }
 
     @Override
-    protected ItemUsage copyInstance(ItemUsage instance, Version version) throws IOException {
+    protected ItemUsage copyInstance(ItemUsage instance, TransportVersion version) throws IOException {
         return new ItemUsage(instance.getIndices(), instance.getDataStreams(), instance.getComposableTemplates());
     }
 
     @Override
-    protected ItemUsage mutateInstance(ItemUsage instance) throws IOException {
-        return super.mutateInstance(instance);
+    protected ItemUsage mutateInstance(ItemUsage instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

@@ -13,18 +13,20 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.client.internal.Requests.snapshotsStatusRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
  * Returns status of currently running snapshot
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestSnapshotsStatusAction extends BaseRestHandler {
 
     @Override
@@ -48,7 +50,7 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
         if (snapshots.length == 1 && "_all".equalsIgnoreCase(snapshots[0])) {
             snapshots = Strings.EMPTY_ARRAY;
         }
-        SnapshotsStatusRequest snapshotsStatusRequest = snapshotsStatusRequest(repository).snapshots(snapshots);
+        SnapshotsStatusRequest snapshotsStatusRequest = new SnapshotsStatusRequest(repository).snapshots(snapshots);
         snapshotsStatusRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", snapshotsStatusRequest.ignoreUnavailable()));
 
         snapshotsStatusRequest.masterNodeTimeout(request.paramAsTime("master_timeout", snapshotsStatusRequest.masterNodeTimeout()));

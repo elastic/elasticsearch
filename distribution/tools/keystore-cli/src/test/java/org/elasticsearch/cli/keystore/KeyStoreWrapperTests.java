@@ -14,6 +14,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.IOUtils;
@@ -51,8 +52,10 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -452,6 +455,48 @@ public class KeyStoreWrapperTests extends ESTestCase {
         assertThat(toByteArray(wrapper.getFile("string_setting")), equalTo("string_value".getBytes(StandardCharsets.UTF_8)));
         assertThat(wrapper.getString("file_setting"), equalTo("file_value"));
         assertThat(toByteArray(wrapper.getFile("file_setting")), equalTo("file_value".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    public void testSerializationNewlyCreated() throws Exception {
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.create();
+        wrapper.setString("string_setting", "string_value".toCharArray());
+
+        // testing when dataBytes[] is null
+        final BytesStreamOutput out = new BytesStreamOutput();
+        wrapper.writeTo(out);
+        final KeyStoreWrapper fromStream = new KeyStoreWrapper(out.bytes().streamInput());
+
+        assertThat(fromStream.getSettingNames(), hasSize(2));
+        assertThat(fromStream.getSettingNames(), containsInAnyOrder("string_setting", "keystore.seed"));
+
+        assertEquals(wrapper.getString("string_setting"), fromStream.getString("string_setting"));
+        assertFalse(wrapper.hasPassword());
+    }
+
+    public void testSerializationWhenLoadedFromFile() throws Exception {
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.create();
+        wrapper.setString("string_setting", "string_value".toCharArray());
+
+        // testing with password and raw dataBytes[]
+        final char[] password = getPossibleKeystorePassword();
+        wrapper.save(env.configFile(), password);
+        final KeyStoreWrapper fromFile = KeyStoreWrapper.load(env.configFile());
+        fromFile.decrypt(password);
+
+        assertThat(fromFile.getSettingNames(), hasSize(2));
+        assertThat(fromFile.getSettingNames(), containsInAnyOrder("string_setting", "keystore.seed"));
+
+        assertEquals(wrapper.getString("string_setting"), fromFile.getString("string_setting"));
+
+        final BytesStreamOutput secondOut = new BytesStreamOutput();
+        fromFile.writeTo(secondOut);
+        final KeyStoreWrapper fromStreamSecond = new KeyStoreWrapper(secondOut.bytes().streamInput());
+
+        assertThat(fromStreamSecond.getSettingNames(), hasSize(2));
+        assertThat(fromStreamSecond.getSettingNames(), containsInAnyOrder("string_setting", "keystore.seed"));
+
+        assertEquals(wrapper.getString("string_setting"), fromStreamSecond.getString("string_setting"));
+        assertEquals(fromFile.hasPassword(), fromStreamSecond.hasPassword());
     }
 
     private byte[] toByteArray(final InputStream is) throws IOException {

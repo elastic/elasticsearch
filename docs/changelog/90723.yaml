@@ -1,5 +1,0 @@
-pr: 90723
-summary: Add a regex to the output of the `categorize_text` aggregation
-area: Machine Learning
-type: enhancement
-issues: []

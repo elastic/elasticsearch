@@ -15,14 +15,17 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.QueryStringDecoder;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -53,6 +56,7 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 
@@ -208,6 +212,17 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             assertTrue(promise.isDone());
             assertTrue(promise.cause() instanceof ClosedChannelException);
         }
+    }
+
+    public void testDecoderErrorSurfacedAsNettyInboundError() {
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(getTestHttpHandler());
+        // a request with a decoder error
+        final DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
+        Exception cause = new ElasticsearchException("Boom");
+        request.setDecoderResult(DecoderResult.failure(cause));
+        embeddedChannel.writeInbound(request);
+        final Netty4HttpRequest nettyRequest = embeddedChannel.readInbound();
+        assertThat(nettyRequest.getInboundException(), sameInstance(cause));
     }
 
     public void testResumesChunkedMessage() {

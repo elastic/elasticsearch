@@ -35,7 +35,7 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
         ensureGreen("test");
         try {
             setClusterReadOnly(true);
-            assertBlocked(client().admin().indices().prepareDelete("test"), Metadata.CLUSTER_READ_ONLY_BLOCK);
+            assertBlocked(indicesAdmin().prepareDelete("test"), Metadata.CLUSTER_READ_ONLY_BLOCK);
         } finally {
             setClusterReadOnly(false);
         }
@@ -47,21 +47,18 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
         client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar").get();
         refresh();
         try {
-            Settings settings = Settings.builder().put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, true).build();
-            assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get());
+            updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, true), "test");
             assertSearchHits(client().prepareSearch().get(), "1");
             assertBlocked(
                 client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"),
                 IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
             );
             assertSearchHits(client().prepareSearch().get(), "1");
-            assertAcked(client().admin().indices().prepareDelete("test"));
+            assertAcked(indicesAdmin().prepareDelete("test"));
         } finally {
             Settings settings = Settings.builder().putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE).build();
             assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings("test")
+                indicesAdmin().prepareUpdateSettings("test")
                     .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                     .setSettings(settings)
                     .get()
@@ -73,8 +70,7 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
         try {
             createIndex("test");
             ensureGreen("test");
-            Settings settings = Settings.builder().put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, true).build();
-            client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
+            updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, true), "test");
             ClusterBlockException e = expectThrows(
                 ClusterBlockException.class,
                 () -> client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar").get()
@@ -85,13 +81,7 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
                 e.getMessage()
             );
         } finally {
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE).build())
-                    .get()
-            );
+            updateIndexSettings(Settings.builder().putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), "test");
         }
     }
 
@@ -101,22 +91,20 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
         client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar").get();
         refresh();
         try {
-            Settings settings = Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true).build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
+            updateClusterSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true));
             assertSearchHits(client().prepareSearch().get(), "1");
             assertBlocked(
                 client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"),
                 Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK
             );
             assertBlocked(
-                client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 2)),
+                indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 2)),
                 Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK
             );
             assertSearchHits(client().prepareSearch().get(), "1");
-            assertAcked(client().admin().indices().prepareDelete("test"));
+            assertAcked(indicesAdmin().prepareDelete("test"));
         } finally {
-            Settings settings = Settings.builder().putNull(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey()).build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
+            updateClusterSettings(Settings.builder().putNull(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey()));
         }
     }
 }

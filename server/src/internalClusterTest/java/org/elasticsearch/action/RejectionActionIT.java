@@ -36,8 +36,6 @@ public class RejectionActionIT extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("thread_pool.search.size", 1)
             .put("thread_pool.search.queue_size", 1)
-            .put("thread_pool.write.size", 1)
-            .put("thread_pool.write.queue_size", 1)
             .put("thread_pool.get.size", 1)
             .put("thread_pool.get.queue_size", 1)
             .build();

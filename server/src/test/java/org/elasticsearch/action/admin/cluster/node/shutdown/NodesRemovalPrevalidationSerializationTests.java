@@ -36,7 +36,7 @@ public class NodesRemovalPrevalidationSerializationTests extends AbstractXConten
     }
 
     @Override
-    protected NodesRemovalPrevalidation mutateInstance(NodesRemovalPrevalidation instance) throws IOException {
+    protected NodesRemovalPrevalidation mutateInstance(NodesRemovalPrevalidation instance) {
         return randomBoolean() ? mutateOverallResult(instance) : mutateNodes(instance);
     }
 

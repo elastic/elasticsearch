@@ -14,6 +14,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
@@ -28,6 +30,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Rest action to get one or more API keys information.
  */
+@ServerlessScope(Scope.PUBLIC)
 public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
 
     public RestGetApiKeyAction(Settings settings, XPackLicenseState licenseState) {
@@ -47,6 +50,7 @@ public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
         final String realmName = request.param("realm_name");
         final boolean myApiKeysOnly = request.paramAsBoolean("owner", false);
         final boolean withLimitedBy = request.paramAsBoolean("with_limited_by", false);
+        final boolean activeOnly = request.paramAsBoolean("active_only", false);
         final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder()
             .realmName(realmName)
             .userName(userName)
@@ -54,6 +58,7 @@ public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
             .apiKeyName(apiKeyName)
             .ownedByAuthenticatedUser(myApiKeysOnly)
             .withLimitedBy(withLimitedBy)
+            .activeOnly(activeOnly)
             .build();
         return channel -> client.execute(GetApiKeyAction.INSTANCE, getApiKeyRequest, new RestBuilderListener<>(channel) {
             @Override

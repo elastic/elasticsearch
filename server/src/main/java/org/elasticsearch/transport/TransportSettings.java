@@ -13,17 +13,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.affixKeySetting;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.enumSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.settings.Setting.listSetting;
+import static org.elasticsearch.common.settings.Setting.stringListSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 public final class TransportSettings {
@@ -31,12 +30,7 @@ public final class TransportSettings {
     public static final String DEFAULT_PROFILE = "default";
     public static final String FEATURE_PREFIX = "transport.features";
 
-    public static final Setting<List<String>> HOST = listSetting(
-        "transport.host",
-        emptyList(),
-        Function.identity(),
-        Setting.Property.NodeScope
-    );
+    public static final Setting<List<String>> HOST = stringListSetting("transport.host", Setting.Property.NodeScope);
     public static final Setting<List<String>> PUBLISH_HOST = listSetting(
         "transport.publish_host",
         HOST,
@@ -224,17 +218,14 @@ public final class TransportSettings {
 
     // Tracer settings
 
-    public static final Setting<List<String>> TRACE_LOG_INCLUDE_SETTING = listSetting(
+    public static final Setting<List<String>> TRACE_LOG_INCLUDE_SETTING = stringListSetting(
         "transport.tracer.include",
-        emptyList(),
-        Function.identity(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    public static final Setting<List<String>> TRACE_LOG_EXCLUDE_SETTING = listSetting(
+    public static final Setting<List<String>> TRACE_LOG_EXCLUDE_SETTING = stringListSetting(
         "transport.tracer.exclude",
-        Arrays.asList("internal:coordination/fault_detection/*"),
-        Function.identity(),
+        List.of("internal:coordination/fault_detection/*"),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

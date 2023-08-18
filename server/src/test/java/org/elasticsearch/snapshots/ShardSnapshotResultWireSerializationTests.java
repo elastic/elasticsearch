@@ -14,8 +14,6 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
@@ -32,7 +30,7 @@ public class ShardSnapshotResultWireSerializationTests extends AbstractWireSeria
     }
 
     @Override
-    protected ShardSnapshotResult mutateInstance(ShardSnapshotResult instance) throws IOException {
+    protected ShardSnapshotResult mutateInstance(ShardSnapshotResult instance) {
         return mutateShardSnapshotResult(instance);
     }
 

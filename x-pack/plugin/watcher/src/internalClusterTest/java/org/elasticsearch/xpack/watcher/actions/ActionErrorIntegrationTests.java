@@ -33,7 +33,7 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
      */
     public void testErrorInAction() throws Exception {
         createIndex("foo");
-        client().admin().indices().prepareUpdateSettings("foo").setSettings(Settings.builder().put("index.blocks.write", true)).get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "foo");
 
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(
             watchBuilder().trigger(schedule(interval("10m")))

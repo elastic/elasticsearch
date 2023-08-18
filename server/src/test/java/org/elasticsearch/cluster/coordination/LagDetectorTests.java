@@ -7,11 +7,17 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.logging.ChunkedLoggingStreamTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -243,4 +249,26 @@ public class LagDetectorTests extends ESTestCase {
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(failedNodes, empty()); // nodes added after a lag detector was started are also ignored
     }
+
+    // literal name because it appears in the docs so must not be changed without care
+    private static final String LOGGER_NAME = "org.elasticsearch.cluster.coordination.LagDetector";
+
+    @TestLogging(reason = "testing LagDetector logging", value = LOGGER_NAME + ":DEBUG")
+    public void testHotThreadsChunkedLoggingEncoding() {
+        final var node = DiscoveryNodeUtils.create("test");
+        final var expectedBody = randomUnicodeOfLengthBetween(1, 20000);
+        assertEquals(
+            expectedBody,
+            ChunkedLoggingStreamTests.getDecodedLoggedBody(
+                LogManager.getLogger(LOGGER_NAME),
+                Level.DEBUG,
+                "hot threads from node ["
+                    + node.descriptionWithoutAttributes()
+                    + "] lagging at version [1] despite commit of cluster state version [2]",
+                ReferenceDocs.LAGGING_NODE_TROUBLESHOOTING,
+                new LagDetector.HotThreadsLoggingTask(node, 1, 2, expectedBody)::run
+            ).utf8ToString()
+        );
+    }
+
 }

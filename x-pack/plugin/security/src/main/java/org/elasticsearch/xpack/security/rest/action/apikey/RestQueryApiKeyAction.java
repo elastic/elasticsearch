@@ -14,6 +14,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -35,6 +37,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * Rest action to search for API keys
  */
+@ServerlessScope(Scope.PUBLIC)
 public final class RestQueryApiKeyAction extends ApiKeyBaseRestHandler {
 
     @SuppressWarnings("unchecked")

@@ -9,9 +9,10 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
@@ -24,12 +25,14 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -125,9 +128,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         PutRequest request = new PutRequest("test", "test_replicas");
         request.patterns(singletonList("test_shards_wait*"));
 
-        Settings.Builder settingsBuilder = builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-            .put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "2");
+        Settings.Builder settingsBuilder = indexSettings(1, 1).put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "2");
 
         request.settings(settingsBuilder.build());
 
@@ -140,9 +141,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         PutRequest request = new PutRequest("test", "test_specified_replicas");
         request.patterns(singletonList("test_shards_wait*"));
 
-        Settings.Builder settingsBuilder = builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-            .put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "3");
+        Settings.Builder settingsBuilder = indexSettings(1, 1).put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "3");
 
         request.settings(settingsBuilder.build());
 
@@ -248,7 +247,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors, is(empty()));
 
-        final Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
+        final Metadata metadata = clusterAdmin().prepareState().get().getState().metadata();
         IndexTemplateMetadata template = metadata.templates().get(templateName);
         Map<String, AliasMetadata> aliasMap = template.getAliases();
         assertThat(aliasMap.size(), equalTo(1));
@@ -266,7 +265,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         putTemplateDetail(new PutRequest("test", "foo-1").patterns(singletonList("foo-*")).order(1));
         putTemplateDetail(new PutRequest("test", "foo-2").patterns(singletonList("foo-*")).order(2));
         putTemplateDetail(new PutRequest("test", "bar").patterns(singletonList("bar-*")).order(between(0, 100)));
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "foo-1234", randomBoolean())
                 .stream()
@@ -296,7 +295,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             new PutRequest("testFindTemplatesWithHiddenIndices", "sneaky-hidden").patterns(singletonList("sneaky*"))
                 .settings(Settings.builder().put("index.hidden", true).build())
         );
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
 
         // hidden
         assertThat(
@@ -380,7 +379,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testFindTemplatesWithDateMathIndex() throws Exception {
         client().admin().indices().prepareDeleteTemplate("*").get(); // Delete all existing templates
         putTemplateDetail(new PutRequest("testFindTemplatesWithDateMathIndex", "foo-1").patterns(singletonList("test-*")).order(1));
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
 
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "<test-{now/d}>", false)
@@ -597,6 +596,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", template);
         assertThat(state.metadata().templatesV2().get("foo"), notNullValue());
+
         assertTemplatesEqual(state.metadata().templatesV2().get("foo"), template);
 
         Exception e = expectThrows(
@@ -1249,7 +1249,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
             assertThat(
                 parsedMappings.get(0),
-                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date")))))
+                equalTo(
+                    Map.of(
+                        "_doc",
+                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                    )
+                )
             );
             assertThat(parsedMappings.get(1), equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
             assertThat(parsedMappings.get(2), equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))))));
@@ -1356,7 +1361,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             }).toList();
             assertThat(
                 parsedMappings.get(0),
-                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date")))))
+                equalTo(
+                    Map.of(
+                        "_doc",
+                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                    )
+                )
             );
             assertThat(
                 parsedMappings.get(1),
@@ -1405,7 +1415,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             }).toList();
             assertThat(
                 parsedMappings.get(0),
-                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date")))))
+                equalTo(
+                    Map.of(
+                        "_doc",
+                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                    )
+                )
             );
             assertThat(
                 parsedMappings.get(1),
@@ -1483,6 +1498,171 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(resolvedAliases, equalTo(List.of(a3, a1, a2)));
     }
 
+    public void testResolveLifecycle() throws Exception {
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        DataStreamLifecycle emptyLifecycle = new DataStreamLifecycle();
+
+        DataStreamLifecycle lifecycle30d = DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(30)).build();
+        String ct30d = "ct_30d";
+        state = addComponentTemplate(service, state, ct30d, lifecycle30d);
+
+        DataStreamLifecycle lifecycle45d = DataStreamLifecycle.newBuilder()
+            .dataRetention(TimeValue.timeValueDays(45))
+            .downsampling(
+                new DataStreamLifecycle.Downsampling(
+                    List.of(
+                        new DataStreamLifecycle.Downsampling.Round(
+                            TimeValue.timeValueDays(30),
+                            new DownsampleConfig(new DateHistogramInterval("3h"))
+                        )
+                    )
+                )
+            )
+            .build();
+        String ct45d = "ct_45d";
+        state = addComponentTemplate(service, state, ct45d, lifecycle45d);
+
+        DataStreamLifecycle lifecycleNullRetention = new DataStreamLifecycle.Builder().dataRetention(DataStreamLifecycle.Retention.NULL)
+            .build();
+        String ctNullRetention = "ct_null_retention";
+        state = addComponentTemplate(service, state, ctNullRetention, lifecycleNullRetention);
+
+        String ctEmptyLifecycle = "ct_empty_lifecycle";
+        state = addComponentTemplate(service, state, ctEmptyLifecycle, emptyLifecycle);
+
+        String ctDisabledLifecycle = "ct_disabled_lifecycle";
+        state = addComponentTemplate(service, state, ctDisabledLifecycle, DataStreamLifecycle.newBuilder().enabled(false).build());
+
+        String ctNoLifecycle = "ct_no_lifecycle";
+        state = addComponentTemplate(service, state, ctNoLifecycle, null);
+
+        // Component A: -
+        // Component B: "lifecycle": {"enabled": true}
+        // Composable Z: -
+        // Result: "lifecycle": {"enabled": true}
+        assertLifecycleResolution(service, state, List.of(ctNoLifecycle, ctEmptyLifecycle), null, emptyLifecycle);
+
+        // Component A: "lifecycle": {"enabled": true}
+        // Component B: "lifecycle": {"retention": "30d"}
+        // Composable Z: -
+        // Result: "lifecycle": {"enabled": true, "retention": "30d"}
+        assertLifecycleResolution(service, state, List.of(ctEmptyLifecycle, ct30d), null, lifecycle30d);
+
+        // Component A: "lifecycle": {"retention": "30d"}
+        // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        // Composable Z: "lifecycle": {"enabled": true}
+        // Result: "lifecycle": {"enabled": true, "retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), emptyLifecycle, lifecycle45d);
+
+        // Component A: "lifecycle": {"enabled": true}
+        // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        // Composable Z: "lifecycle": {"retention": "30d"}
+        // Result: "lifecycle": {"enabled": true, "retention": "30d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        assertLifecycleResolution(
+            service,
+            state,
+            List.of(ctEmptyLifecycle, ct45d),
+            lifecycle30d,
+            DataStreamLifecycle.newBuilder()
+                .dataRetention(lifecycle30d.getDataRetention())
+                .downsampling(lifecycle45d.getDownsampling())
+                .build()
+        );
+
+        // Component A: "lifecycle": {"retention": "30d"}
+        // Component B: "lifecycle": {"retention": null}
+        // Composable Z: -
+        // Result: "lifecycle": {"enabled": true, "retention": null}, here the result of the composition is with retention explicitly
+        // nullified, but effectively this is equivalent to infinite retention.
+        assertLifecycleResolution(service, state, List.of(ct30d, ctNullRetention), null, lifecycleNullRetention);
+
+        // Component A: "lifecycle": {"enabled": true}
+        // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        // Composable Z: "lifecycle": {"retention": null}
+        // Result: "lifecycle": {"enabled": true, "retention": null, "downsampling": [{"after": "30d", "fixed_interval": "3h"}]} ,
+        // here the result of the composition is with retention explicitly nullified, but effectively this is equivalent to infinite
+        // retention.
+        assertLifecycleResolution(
+            service,
+            state,
+            List.of(ctEmptyLifecycle, ct45d),
+            lifecycleNullRetention,
+            DataStreamLifecycle.newBuilder()
+                .dataRetention(DataStreamLifecycle.Retention.NULL)
+                .downsampling(lifecycle45d.getDownsampling())
+                .build()
+        );
+
+        // Component A: "lifecycle": {"retention": "30d"}
+        // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        // Composable Z: "lifecycle": {"enabled": false}
+        // Result: "lifecycle": {"enabled": false, "retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        assertLifecycleResolution(
+            service,
+            state,
+            List.of(ct30d, ct45d),
+            DataStreamLifecycle.newBuilder().enabled(false).build(),
+            DataStreamLifecycle.newBuilder()
+                .dataRetention(lifecycle45d.getDataRetention())
+                .downsampling(lifecycle45d.getDownsampling())
+                .enabled(false)
+                .build()
+        );
+
+        // Component A: "lifecycle": {"retention": "30d"}
+        // Component B: "lifecycle": {"enabled": false}
+        // Composable Z:
+        // Result: "lifecycle": {"enabled": false, "retention": "30d"}
+        assertLifecycleResolution(
+            service,
+            state,
+            List.of(ct30d, ctDisabledLifecycle),
+            null,
+            DataStreamLifecycle.newBuilder().dataRetention(lifecycle30d.getDataRetention()).enabled(false).build()
+        );
+
+        // Component A: "lifecycle": {"retention": "30d"}
+        // Component B: "lifecycle": {"enabled": false}
+        // Composable Z: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        // Result: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        assertLifecycleResolution(service, state, List.of(ct30d, ctDisabledLifecycle), lifecycle45d, lifecycle45d);
+    }
+
+    private ClusterState addComponentTemplate(
+        MetadataIndexTemplateService service,
+        ClusterState state,
+        String name,
+        DataStreamLifecycle lifecycle
+    ) throws Exception {
+        ComponentTemplate ct = new ComponentTemplate(new Template(null, null, null, lifecycle), null, null);
+        return service.addComponentTemplate(state, true, name, ct);
+    }
+
+    private void assertLifecycleResolution(
+        MetadataIndexTemplateService service,
+        ClusterState state,
+        List<String> composeOf,
+        DataStreamLifecycle lifecycleZ,
+        DataStreamLifecycle expected
+    ) throws Exception {
+        ComposableIndexTemplate it = new ComposableIndexTemplate(
+            List.of(randomAlphaOfLength(10) + "*"),
+            new Template(null, null, null, lifecycleZ),
+            composeOf,
+            0L,
+            1L,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(),
+            null
+        );
+        state = service.addIndexTemplateV2(state, true, "my-template", it);
+
+        DataStreamLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template");
+        assertThat(resolvedLifecycle, equalTo(expected));
+    }
+
     public void testAddInvalidTemplate() throws Exception {
         ComposableIndexTemplate template = new ComposableIndexTemplate(
             Collections.singletonList("a"),
@@ -1502,10 +1682,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             "good",
             TimeValue.timeValueSeconds(5),
             ct,
-            ActionListener.wrap(r -> ctLatch.countDown(), e -> {
-                logger.error("unexpected error", e);
-                fail("unexpected error");
-            })
+            ActionTestUtils.assertNoFailureListener(r -> ctLatch.countDown())
         );
         ctLatch.await(5, TimeUnit.SECONDS);
         InvalidIndexTemplateException e = expectThrows(InvalidIndexTemplateException.class, () -> {
@@ -1529,7 +1706,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         });
 
         assertThat(e.name(), equalTo("template"));
-        assertThat(e.getMessage(), containsString("index template [template] specifies " + "component templates [bad] that do not exist"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "index_template [template] invalid, cause [index template [template] specifies component templates [bad] that do not exist]"
+            )
+        );
     }
 
     public void testRemoveComponentTemplate() throws Exception {
@@ -1591,6 +1773,40 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testRemoveRequiredAndNonRequiredComponents() throws Exception {
+        ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(
+            Collections.singletonList("pattern"),
+            null,
+            List.of("required1", "non-required", "required2"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            Collections.singletonList("non-required")
+        );
+        ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
+
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState clusterState = service.addComponentTemplate(ClusterState.EMPTY_STATE, false, "required1", ct);
+        clusterState = service.addComponentTemplate(clusterState, false, "required2", ct);
+        clusterState = service.addComponentTemplate(clusterState, false, "non-required", ct);
+        clusterState = service.addIndexTemplateV2(clusterState, false, "composable-index-template", composableIndexTemplate);
+
+        final ClusterState cs = clusterState;
+        Exception e = expectThrows(IllegalArgumentException.class, () -> innerRemoveComponentTemplate(cs, "required*"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "component templates [required1, required2] cannot be removed as they are still in use by index templates "
+                    + "[composable-index-template]"
+            )
+        );
+
+        // This removal should succeed
+        innerRemoveComponentTemplate(cs, "non-required*");
+    }
+
     /**
      * Tests that we check that settings/mappings/etc are valid even after template composition,
      * when adding/updating a composable index template
@@ -1649,6 +1865,36 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(
             e.getCause().getCause().getMessage(),
             containsString("can't merge a non object mapping [field2] with an object mapping")
+        );
+    }
+
+    /**
+     * Tests that we check that when there is lifecycle configuration this index template can only
+     * create data streams.
+     */
+    public void testIndexTemplateFailsToAdd() throws Exception {
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        ComponentTemplate ct = new ComponentTemplate(
+            new Template(null, null, null, DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build()),
+            null,
+            null
+        );
+        state = service.addComponentTemplate(state, true, "ct", ct);
+        ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("i*"), null, List.of("ct"), null, null, null);
+
+        final ClusterState finalState = state;
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.addIndexTemplateV2(finalState, randomBoolean(), "my-template", it)
+        );
+
+        assertThat(
+            e.getMessage(),
+            matchesRegex(
+                "index template \\[my-template\\] specifies lifecycle configuration that can only be used in combination with a data stream"
+            )
         );
     }
 
@@ -1769,16 +2015,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-unreferenced-000001")
-                            .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid2")
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .build()
-                            )
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
                     )
-                    .build()
             )
             .build();
 
@@ -1806,16 +2044,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .build()
-                            )
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
                     )
-                    .build()
             )
             .build();
 
@@ -1929,16 +2159,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-unreferenced-000001")
-                            .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid2")
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .build()
-                            )
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
                     )
-                    .build()
             )
             .build();
 
@@ -1966,16 +2188,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .build()
-                            )
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
                     )
-                    .build()
             )
             .build();
 
@@ -2004,11 +2218,67 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             containsString("unable to remove composable templates [logs, logs2] as they are in use by a data streams [logs-mysql-default]")
         );
 
-        assertThat(MetadataIndexTemplateService.dataStreamsUsingTemplates(state, Set.of("logs")), equalTo(Set.of()));
-        assertThat(MetadataIndexTemplateService.dataStreamsUsingTemplates(state, Set.of("logs2")), equalTo(Set.of("logs-mysql-default")));
+        assertThat(MetadataIndexTemplateService.dataStreamsExclusivelyUsingTemplates(state, Set.of("logs")), equalTo(Set.of()));
+        assertThat(MetadataIndexTemplateService.findV2Template(state.metadata(), "logs-mysql-default", false), equalTo("logs2"));
 
         // The unreferenced template can be removed without an exception
         MetadataIndexTemplateService.innerRemoveIndexTemplateV2(stateWithTwoTemplates, "logs");
+    }
+
+    public void testRemovingHigherOrderTemplateOfDataStreamWithMultipleTemplates() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            Collections.singletonList("logs-*"),
+            null,
+            null,
+            100L,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(),
+            null
+        );
+
+        state = service.addIndexTemplateV2(state, false, "logs", template);
+
+        ClusterState stateWithDS = ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .put(
+                        DataStreamTestHelper.newInstance(
+                            "logs-mysql-default",
+                            Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
+                        )
+                    )
+                    .put(
+                        IndexMetadata.builder(".ds-logs-mysql-default-000001")
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
+                    )
+            )
+            .build();
+
+        ComposableIndexTemplate fineGrainedLogsTemplate = new ComposableIndexTemplate(
+            Collections.singletonList("logs-mysql-*"),
+            null,
+            null,
+            200L, // Higher priority
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(),
+            null
+        );
+
+        state = service.addIndexTemplateV2(stateWithDS, false, "logs-test", fineGrainedLogsTemplate);
+
+        // Verify that the data stream now matches to the higher order template
+        assertThat(MetadataIndexTemplateService.dataStreamsExclusivelyUsingTemplates(state, Set.of("logs")), equalTo(Set.of()));
+        assertThat(MetadataIndexTemplateService.findV2Template(state.metadata(), "logs-mysql-default", false), equalTo("logs-test"));
+
+        // Test removing the higher order template
+        state = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, "logs-test");
+
+        assertThat(MetadataIndexTemplateService.findV2Template(state.metadata(), "logs-mysql-default", false), equalTo("logs"));
     }
 
     public void testV2TemplateOverlaps() throws Exception {
@@ -2108,6 +2378,143 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    /**
+     * Tests to add two component templates but ignores both with is valid
+     *
+     * @throws Exception
+     */
+    public void testIgnoreMissingComponentTemplateValid() throws Exception {
+
+        String indexTemplateName = "metric-test";
+
+        List<String> componentTemplates = new ArrayList<>();
+        componentTemplates.add("foo");
+        componentTemplates.add("bar");
+
+        // Order of params is mixed up on purpose
+        List<String> ignoreMissingComponentTemplates = new ArrayList<>();
+        ignoreMissingComponentTemplates.add("bar");
+        ignoreMissingComponentTemplates.add("foo");
+
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            Arrays.asList("metrics-test-*"),
+            null,
+            componentTemplates,
+            1L,
+            null,
+            null,
+            null,
+            null,
+            ignoreMissingComponentTemplates
+        );
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+
+        ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, indexTemplateName, template);
+        MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), indexTemplateName, template);
+    }
+
+    public void testIgnoreMissingComponentTemplateInvalid() throws Exception {
+
+        String indexTemplateName = "metric-test";
+
+        List<String> componentTemplates = new ArrayList<>();
+        componentTemplates.add("foo");
+        componentTemplates.add("fail");
+
+        List<String> ignoreMissingComponentTemplates = new ArrayList<>();
+        ignoreMissingComponentTemplates.add("bar");
+        ignoreMissingComponentTemplates.add("foo");
+
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            Arrays.asList("metrics-foo-*"),
+            null,
+            componentTemplates,
+            1L,
+            null,
+            null,
+            null,
+            null,
+            ignoreMissingComponentTemplates
+        );
+
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, indexTemplateName, template);
+
+        // try now the same thing with validation on
+        InvalidIndexTemplateException e = expectThrows(
+            InvalidIndexTemplateException.class,
+            () -> MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), indexTemplateName, template)
+
+        );
+        assertThat(e.getMessage(), containsString("specifies a missing component templates [fail] that does not exist"));
+    }
+
+    /**
+     * This is a similar test as above but with running the service
+     * @throws Exception
+     */
+    public void testAddInvalidTemplateIgnoreService() throws Exception {
+
+        String indexTemplateName = "metric-test";
+
+        List<String> componentTemplates = new ArrayList<>();
+        componentTemplates.add("foo");
+        componentTemplates.add("fail");
+
+        List<String> ignoreMissingComponentTemplates = new ArrayList<>();
+        ignoreMissingComponentTemplates.add("bar");
+        ignoreMissingComponentTemplates.add("foo");
+
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            Arrays.asList("metrics-foo-*"),
+            null,
+            componentTemplates,
+            1L,
+            null,
+            null,
+            null,
+            null,
+            ignoreMissingComponentTemplates
+        );
+
+        ComponentTemplate ct = new ComponentTemplate(new Template(Settings.EMPTY, null, null), null, null);
+
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        CountDownLatch ctLatch = new CountDownLatch(1);
+        // Makes ure the foo template exists
+        service.putComponentTemplate(
+            "api",
+            randomBoolean(),
+            "foo",
+            TimeValue.timeValueSeconds(5),
+            ct,
+            ActionTestUtils.assertNoFailureListener(r -> ctLatch.countDown())
+        );
+        ctLatch.await(5, TimeUnit.SECONDS);
+        InvalidIndexTemplateException e = expectThrows(InvalidIndexTemplateException.class, () -> {
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<Exception> err = new AtomicReference<>();
+            service.putIndexTemplateV2(
+                "api",
+                randomBoolean(),
+                "template",
+                TimeValue.timeValueSeconds(30),
+                template,
+                ActionListener.wrap(r -> fail("should have failed!"), exception -> {
+                    err.set(exception);
+                    latch.countDown();
+                })
+            );
+            latch.await(5, TimeUnit.SECONDS);
+            if (err.get() != null) {
+                throw err.get();
+            }
+        });
+
+        assertThat(e.name(), equalTo("template"));
+        assertThat(e.getMessage(), containsString("missing component templates [fail] that does not exist"));
+    }
+
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         ThreadPool testThreadPool = mock(ThreadPool.class);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
@@ -2126,7 +2533,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             new IndexSettingProviders(Set.of())
         );
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(
-            null,
+            clusterService,
             createIndexService,
             null,
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
@@ -2200,6 +2607,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public static void assertTemplatesEqual(ComposableIndexTemplate actual, ComposableIndexTemplate expected) {
-        assertTrue(Objects.equals(actual, expected));
+        assertEquals(actual, expected);
     }
 }

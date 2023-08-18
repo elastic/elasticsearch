@@ -8,7 +8,7 @@
 
 package org.elasticsearch.aggregations.bucket.histogram;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.aggregations.bucket.AggregationMultiBucketAggregationTestCase;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram.BucketInfo;
@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ContextParser;
 
 import java.io.IOException;
@@ -475,10 +475,10 @@ public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggreg
             createTestMetadata(),
             InternalAggregations.EMPTY
         );
-        Version version = VersionUtils.randomVersionBetween(
+        TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            Version.CURRENT.minimumCompatibilityVersion(),
-            VersionUtils.getPreviousVersion(Version.V_8_3_0)
+            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_3_0)
         );
         InternalAutoDateHistogram deserialized = copyInstance(instance, version);
         assertEquals(1, deserialized.getBucketInnerInterval());
@@ -504,7 +504,7 @@ public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggreg
                     + "AAyAAAAZAF5BHllYXIAAARib29sAQAAAAAAAAAKZAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
             );
         try (StreamInput in = new NamedWriteableAwareStreamInput(new BytesArray(bytes).streamInput(), getNamedWriteableRegistry())) {
-            in.setVersion(Version.V_8_2_0);
+            in.setTransportVersion(TransportVersion.V_8_2_0);
             InternalAutoDateHistogram deserialized = new InternalAutoDateHistogram(in);
             assertEquals("name", deserialized.getName());
             assertEquals(1, deserialized.getBucketInnerInterval());

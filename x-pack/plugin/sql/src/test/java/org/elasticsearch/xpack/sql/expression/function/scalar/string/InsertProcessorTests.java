@@ -30,6 +30,11 @@ public class InsertProcessorTests extends AbstractWireSerializingTestCase<Insert
     }
 
     @Override
+    protected InsertFunctionProcessor mutateInstance(InsertFunctionProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<InsertFunctionProcessor> instanceReader() {
         return InsertFunctionProcessor::new;
     }

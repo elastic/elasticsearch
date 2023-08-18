@@ -8,9 +8,9 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 
@@ -87,19 +87,19 @@ public class DelayableWriteableTests extends ESTestCase {
     }
 
     private static class SneakOtherSideVersionOnWire implements Writeable {
-        private final Version version;
+        private final TransportVersion version;
 
         SneakOtherSideVersionOnWire() {
-            version = Version.CURRENT;
+            version = TransportVersion.current();
         }
 
         SneakOtherSideVersionOnWire(StreamInput in) throws IOException {
-            version = Version.readVersion(in);
+            version = TransportVersion.readVersion(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            Version.writeVersion(out.getVersion(), out);
+            TransportVersion.writeVersion(out.getTransportVersion(), out);
         }
     }
 
@@ -144,7 +144,7 @@ public class DelayableWriteableTests extends ESTestCase {
     }
 
     public void testSerializesWithRemoteVersion() throws IOException {
-        Version remoteVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        TransportVersion remoteVersion = TransportVersionUtils.randomCompatibleVersion(random());
         DelayableWriteable<SneakOtherSideVersionOnWire> original = DelayableWriteable.referencing(new SneakOtherSideVersionOnWire());
         assertThat(roundTrip(original, SneakOtherSideVersionOnWire::new, remoteVersion).expand().version, equalTo(remoteVersion));
     }
@@ -157,14 +157,14 @@ public class DelayableWriteableTests extends ESTestCase {
     }
 
     private <T extends Writeable> void roundTripTestCase(DelayableWriteable<T> original, Writeable.Reader<T> reader) throws IOException {
-        DelayableWriteable<T> roundTripped = roundTrip(original, reader, Version.CURRENT);
+        DelayableWriteable<T> roundTripped = roundTrip(original, reader, TransportVersion.current());
         assertThat(roundTripped.expand(), equalTo(original.expand()));
     }
 
     private <T extends Writeable> DelayableWriteable<T> roundTrip(
         DelayableWriteable<T> original,
         Writeable.Reader<T> reader,
-        Version version
+        TransportVersion version
     ) throws IOException {
         DelayableWriteable<T> delayed = copyInstance(
             original,
@@ -192,7 +192,11 @@ public class DelayableWriteableTests extends ESTestCase {
         return new NamedWriteableRegistry(singletonList(new NamedWriteableRegistry.Entry(Example.class, "example", Example::new)));
     }
 
-    private static Version randomOldVersion() {
-        return randomValueOtherThanMany(Version.CURRENT::before, () -> VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+    private static TransportVersion randomOldVersion() {
+        return TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersionUtils.getPreviousVersion(TransportVersion.current())
+        );
     }
 }

@@ -15,6 +15,7 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskDependency;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -152,9 +153,18 @@ public class Jdk implements Buildable, Iterable<File> {
         return new Object() {
             @Override
             public String toString() {
-                return getHomeRoot() + "/bin/java";
+                try {
+                    return new File(getHomeRoot() + getPlatformBinPath()).getCanonicalPath();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
         };
+    }
+
+    private String getPlatformBinPath() {
+        boolean isWindows = "windows".equals(getPlatform());
+        return "/bin/java" + (isWindows ? ".exe" : "");
     }
 
     public Object getJavaHomePath() {

@@ -9,7 +9,6 @@ add time series mappings:
           body:
             settings:
               index:
-                number_of_replicas: 0
                 number_of_shards: 2
             mappings:
               properties:
@@ -60,7 +59,6 @@ can't shadow dimensions:
           body:
             settings:
               index:
-                number_of_replicas: 0
                 number_of_shards: 2
             mappings:
               properties:
@@ -126,7 +124,6 @@ can't shadow metrics:
           body:
             settings:
               index:
-                number_of_replicas: 0
                 number_of_shards: 2
             mappings:
               properties:
@@ -190,10 +187,6 @@ no _tsid in standard indices:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              number_of_replicas: 0
-              number_of_shards: 2
           mappings:
             properties:
               "@timestamp":

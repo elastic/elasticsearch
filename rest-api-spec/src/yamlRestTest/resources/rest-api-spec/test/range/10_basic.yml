@@ -3,8 +3,6 @@ setup:
       indices.create:
           index: test
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               "properties":
                 "integer_range":

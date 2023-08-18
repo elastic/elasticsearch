@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -45,6 +44,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
@@ -91,7 +91,6 @@ import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator
  */
 public class TransportStartDatafeedAction extends TransportMasterNodeAction<StartDatafeedAction.Request, NodeAcknowledgedResponse> {
 
-    private static final Version COMPOSITE_AGG_SUPPORT = Version.V_7_13_0;
     private static final Logger logger = LogManager.getLogger(TransportStartDatafeedAction.class);
 
     private final Client client;
@@ -246,10 +245,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                 remoteClusterService.getRegisteredRemoteClusterNames(),
                                 remoteIndices
                             );
-                            checkRemoteClusterVersions(
+                            checkRemoteConfigVersions(
                                 datafeedConfigHolder.get(),
                                 remoteAliases,
-                                (cn) -> remoteClusterService.getConnection(cn).getVersion()
+                                (cn) -> MlConfigVersion.fromVersion(remoteClusterService.getConnection(cn).getVersion())
                             );
                             createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
                         }
@@ -286,23 +285,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 params.setJobId(datafeedConfig.getJobId());
                 params.setIndicesOptions(datafeedConfig.getIndicesOptions());
                 datafeedConfigHolder.set(datafeedConfig);
-                if (datafeedConfig.hasCompositeAgg(xContentRegistry)) {
-                    if (state.nodes()
-                        .mastersFirstStream()
-                        .filter(MachineLearning::isMlNode)
-                        .map(DiscoveryNode::getVersion)
-                        .anyMatch(COMPOSITE_AGG_SUPPORT::after)) {
-                        listener.onFailure(
-                            ExceptionsHelper.badRequestException(
-                                "cannot start datafeed [{}] as [{}] requires all machine learning nodes to be at least version [{}]",
-                                datafeedConfig.getId(),
-                                "composite aggs",
-                                COMPOSITE_AGG_SUPPORT
-                            )
-                        );
-                        return;
-                    }
-                }
+
                 jobConfigProvider.getJob(datafeedConfig.getJobId(), null, jobListener);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -312,20 +295,20 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), null, datafeedListener);
     }
 
-    static void checkRemoteClusterVersions(
+    static void checkRemoteConfigVersions(
         DatafeedConfig config,
         List<String> remoteClusters,
-        Function<String, Version> clusterVersionSupplier
+        Function<String, MlConfigVersion> configVersionSupplier
     ) {
-        Optional<Tuple<Version, String>> minVersionAndReason = config.minRequiredClusterVersion();
+        Optional<Tuple<MlConfigVersion, String>> minVersionAndReason = config.minRequiredConfigVersion();
         if (minVersionAndReason.isPresent() == false) {
             return;
         }
         final String reason = minVersionAndReason.get().v2();
-        final Version minVersion = minVersionAndReason.get().v1();
+        final MlConfigVersion minVersion = minVersionAndReason.get().v1();
 
         List<String> clustersTooOld = remoteClusters.stream()
-            .filter(cn -> clusterVersionSupplier.apply(cn).before(minVersion))
+            .filter(cn -> configVersionSupplier.apply(cn).before(minVersion))
             .collect(Collectors.toList());
         if (clustersTooOld.isEmpty()) {
             return;
@@ -355,7 +338,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             job,
             xContentRegistry,
             // Fake DatafeedTimingStatsReporter that does not have access to results index
-            new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), (ts, refreshPolicy) -> {}),
+            new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), (ts, refreshPolicy, listener1) -> {}),
             ActionListener.wrap(
                 unused -> persistentTasksService.sendStartRequest(
                     MlTasks.datafeedTaskId(params.getDatafeedId()),

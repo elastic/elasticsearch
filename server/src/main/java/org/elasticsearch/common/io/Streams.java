@@ -136,22 +136,6 @@ public abstract class Streams {
         return out.toString();
     }
 
-    public static int readFully(InputStream reader, byte[] dest) throws IOException {
-        return readFully(reader, dest, 0, dest.length);
-    }
-
-    public static int readFully(InputStream reader, byte[] dest, int offset, int len) throws IOException {
-        int read = 0;
-        while (read < len) {
-            final int r = reader.read(dest, offset + read, len - read);
-            if (r == -1) {
-                break;
-            }
-            read += r;
-        }
-        return read;
-    }
-
     /**
      * Fully consumes the input stream, throwing the bytes away. Returns the number of bytes consumed.
      */
@@ -303,11 +287,6 @@ public abstract class Streams {
         @Override
         public int available() throws IOException {
             return Math.toIntExact(Math.min(in.available(), currentLimit));
-        }
-
-        @Override
-        public void close() throws IOException {
-            in.close();
         }
 
         @Override

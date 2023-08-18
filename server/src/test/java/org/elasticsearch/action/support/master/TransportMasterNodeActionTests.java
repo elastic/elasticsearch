@@ -8,7 +8,6 @@
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -19,7 +18,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -36,6 +34,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -43,8 +42,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
@@ -114,20 +116,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
-        localNode = new DiscoveryNode(
-            "local_node",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
-        remoteNode = new DiscoveryNode(
-            "remote_node",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        localNode = DiscoveryNodeUtils.builder("local_node").roles(Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)).build();
+        remoteNode = DiscoveryNodeUtils.builder("remote_node").roles(Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)).build();
         allNodes = new DiscoveryNode[] { localNode, remoteNode };
     }
 
@@ -155,6 +145,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
     public static class Request extends MasterNodeRequest<Request> implements IndicesRequest.Replaceable {
         private String[] indices = Strings.EMPTY_ARRAY;
+        private final RefCounted refCounted = AbstractRefCounted.of(() -> {});
 
         Request() {}
 
@@ -186,6 +177,26 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         public IndicesRequest indices(String... indices) {
             this.indices = indices;
             return this;
+        }
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refCounted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
         }
     }
 
@@ -241,12 +252,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 Response::new,
                 executor
             );
-        }
-
-        @Override
-        protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
-            // remove unneeded threading by wrapping listener with SAME to prevent super.doExecute from wrapping it with LISTENER
-            super.doExecute(task, request, new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SAME, listener, false));
         }
 
         @Override
@@ -398,6 +403,9 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         } else {
             assertListenerThrows("ClusterBlockException should be thrown", listener, ClusterBlockException.class);
         }
+
+        request.decRef();
+        assertFalse(request.hasReferences());
     }
 
     public void testCheckBlockThrowsException() throws InterruptedException {
@@ -461,6 +469,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), null, request, listener);
         assertTrue(listener.isDone());
         assertListenerThrows("MasterNotDiscoveredException should be thrown", listener, MasterNotDiscoveredException.class);
+        request.decRef();
+        assertFalse(request.hasReferences());
     }
 
     public void testMasterBecomesAvailable() throws ExecutionException, InterruptedException {
@@ -469,8 +479,11 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), null, request, listener);
         assertFalse(listener.isDone());
+        request.decRef();
+        assertTrue(request.hasReferences());
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
         assertTrue(listener.isDone());
+        assertFalse(request.hasReferences());
         listener.get();
     }
 
@@ -480,6 +493,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), null, request, listener);
+        request.decRef();
+        assertTrue(request.hasReferences());
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
@@ -491,6 +506,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         transport.handleResponse(capturedRequest.requestId(), response);
         assertTrue(listener.isDone());
         assertThat(listener.get(), equalTo(response));
+        assertFalse(request.hasReferences());
     }
 
     public void testDelegateToFailingMaster() throws ExecutionException, InterruptedException {
@@ -522,21 +538,19 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             assertFalse(listener.isDone());
             if (randomBoolean()) {
                 // simulate master node removal
-                final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-                nodesBuilder.masterNodeId(null);
-                setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));
+                var state = clusterService.state();
+                setState(clusterService, ClusterState.builder(state).nodes(state.nodes().withMasterNodeId(null)));
             }
             if (randomBoolean()) {
                 // reset the same state to increment a version simulating a join of an existing node
                 // simulating use being disconnected
-                final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-                nodesBuilder.masterNodeId(masterNode.getId());
-                setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));
+                var state = clusterService.state();
+                setState(clusterService, ClusterState.builder(state).nodes(state.nodes().withMasterNodeId(masterNode.getId())));
             } else {
                 // simulate master restart followed by a state recovery - this will reset the cluster state version
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
                 nodesBuilder.remove(masterNode);
-                masterNode = new DiscoveryNode(masterNode.getId(), masterNode.getAddress(), masterNode.getVersion());
+                masterNode = DiscoveryNodeUtils.create(masterNode.getId(), masterNode.getAddress(), masterNode.getVersion());
                 nodesBuilder.add(masterNode);
                 nodesBuilder.masterNodeId(masterNode.getId());
                 final ClusterState.Builder builder = ClusterState.builder(clusterService.state()).nodes(nodesBuilder);
@@ -719,7 +733,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         assertFalse(listener.isDone());
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexRequestName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0);
         ClusterState clusterStateWithoutBlocks = ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))

@@ -1,0 +1,43 @@
+[[release-notes-8.6.1]]
+== {es} version 8.6.1
+
+Also see <<breaking-changes-8.6,Breaking changes in 8.6>>.
+
+[[known-issues-8.6.1]]
+[float]
+=== Known issues
+
+include::8.6.0.asciidoc[tag=reconciliation-imbalance-known-issue]
+
+include::8.4.0.asciidoc[tag=ingest-processor-log4j-cluster-instability-known-issue]
+
+[[bug-8.6.1]]
+[float]
+=== Bug fixes
+
+Data streams::
+* Fix wildcard expansion for delete-by-query on data streams {es-pull}92891[#92891]
+* Fix wildcard expansion for update-by-query on data streams {es-pull}92717[#92717] (issue: {es-issue}90272[#90272])
+* Patch jackson-core with locally modified class #92984
+This fixes an issue in jackson parsing (issue: {es-issue}92480[#92480])
+
+Distributed::
+* Fix `ByteArrayIndexInput` with nonzero offset {es-pull}93205[#93205]
+
+ILM+SLM::
+* Get repository metadata from the cluster state doesn't throw an exception if a repo is missing {es-pull}92914[#92914]
+
+Infra/Core::
+* Don't announce ready until file settings are applied {es-pull}92856[#92856] (issue: {es-issue}92812[#92812])
+
+Machine Learning::
+* Utilise parallel allocations where the inference request contains multiple documents {es-pull}92359[#92359]
+
+Mapping::
+* Fix `_bulk` api `dynamic_templates` and explicit `op_type` {es-pull}92687[#92687]
+
+Search::
+* Avoid doing I/O when fetching min and max for keyword fields {es-pull}92026[#92026]
+* Reduce memory required for search responses when many shards are unavailable {es-pull}91365[#91365] (issue: {es-issue}90622[#90622])
+
+

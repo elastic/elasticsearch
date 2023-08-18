@@ -30,7 +30,11 @@ public class EqlRestValidationIT extends EqlRestValidationTestCase {
         // TODO: revisit after
         // https://github.com/elastic/elasticsearch/issues/64197
         // is closed
-        assertErrorMessage("inexistent1,inexistent2", reqParameter, """
-            "root_cause":[{"type":"index_not_found_exception","reason":"no such index [null]\"""");
+        assertErrorMessage(
+            "inexistent1,inexistent2",
+            reqParameter,
+            "\"root_cause\":[{\"type\":\"index_not_found_exception\",\"reason\":\"no such index [null]\","
+                + "\"resource.type\":\"index_expression\",\"resource.id\":[\"inexistent1\",\"inexistent2\"]}]"
+        );
     }
 }

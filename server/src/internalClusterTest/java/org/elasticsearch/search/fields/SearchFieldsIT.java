@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.fields;
 
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -28,7 +29,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.lookup.FieldLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -53,10 +54,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.client.internal.Requests.refreshRequest;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -142,7 +143,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         static Object sourceScript(Map<String, Object> vars, String path) {
             @SuppressWarnings("unchecked")
-            Map<String, Object> source = ((SourceLookup) vars.get("_source")).source();
+            Map<String, Object> source = ((Supplier<Source>) vars.get("_source")).get().source();
             return XContentMapValues.extractValue(path, source);
         }
 
@@ -178,7 +179,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
 
         client().prepareIndex("test")
             .setId("1")
@@ -187,7 +188,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             )
             .get();
 
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addStoredField("field1").get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -273,7 +274,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
 
         client().prepareIndex("test")
             .setId("1")
@@ -281,21 +282,21 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).field("date", "1970-01-01T00:00:00").endObject()
             )
             .get();
-        client().admin().indices().prepareFlush().get();
+        indicesAdmin().prepareFlush().get();
         client().prepareIndex("test")
             .setId("2")
             .setSource(
                 jsonBuilder().startObject().field("test", "value beck").field("num1", 2.0f).field("date", "1970-01-01T00:00:25").endObject()
             )
             .get();
-        client().admin().indices().prepareFlush().get();
+        indicesAdmin().prepareFlush().get();
         client().prepareIndex("test")
             .setId("3")
             .setSource(
                 jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).field("date", "1970-01-01T00:02:00").endObject()
             )
             .get();
-        client().admin().indices().refresh(refreshRequest()).actionGet();
+        indicesAdmin().refresh(new RefreshRequest()).actionGet();
 
         logger.info("running doc['num1'].value");
         SearchResponse response = client().prepareSearch()
@@ -376,7 +377,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
         String date = "2019-01-31T10:00:00.123456789Z";
         indexRandom(
             true,
@@ -470,7 +471,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        client().admin().indices().refresh(refreshRequest()).actionGet();
+        indicesAdmin().refresh(new RefreshRequest()).actionGet();
 
         SearchResponse response = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -554,7 +555,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             )
             .get();
 
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
     }
 
     public void testStoredFieldsWithoutSource() throws Exception {
@@ -609,7 +610,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
         client().prepareIndex("test")
@@ -629,7 +630,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             )
             .get();
 
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -693,9 +694,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
     }
 
     public void testGetFieldsComplexField() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("my-index")
+        indicesAdmin().prepareCreate("my-index")
             .setSettings(Settings.builder().put("index.refresh_interval", -1))
             .setMapping(
                 jsonBuilder().startObject()
@@ -764,7 +763,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
     // see #8203
     public void testSingleValueFieldDatatField() throws ExecutionException, InterruptedException {
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping("test_field", "type=keyword").get());
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("test_field", "type=keyword").get());
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("test_field", "foobar"));
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -829,7 +828,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
         client().prepareIndex("test")
@@ -852,7 +851,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             )
             .get();
 
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         SearchRequestBuilder builder = client().prepareSearch()
             .setQuery(matchAllQuery())

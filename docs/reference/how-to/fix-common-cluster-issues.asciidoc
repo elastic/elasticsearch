@@ -158,6 +158,8 @@ You can also use the <<cat-nodes,cat nodes API>> to get the current
 GET _cat/nodes?v=true&h=name,node*,heap*
 ----
 
+See <<high-jvm-memory-pressure>> for more details.
+
 To get the JVM memory usage for each circuit breaker, use the
 <<cluster-nodes-stats,node stats API>>.
 
@@ -181,7 +183,7 @@ For high-cardinality `text` fields, fielddata can use a large amount of JVM
 memory. To avoid this, {es} disables fielddata on `text` fields by default. If
 you've enabled fielddata and triggered the <<fielddata-circuit-breaker,fielddata
 circuit breaker>>, consider disabling it and using a `keyword` field instead.
-See <<fielddata>>.
+See <<fielddata-mapping-param>>.
 
 **Clear the fieldata cache**
 
@@ -441,13 +443,10 @@ GET _cluster/allocation/explain?filter_path=index,node_allocation_decisions.node
 {
   "index": "my-index",
   "shard": 0,
-  "primary": false,
-  "current_node": "my-node"
+  "primary": false
 }
 ----
 // TEST[s/^/PUT my-index\n/]
-// TEST[s/"primary": false,/"primary": false/]
-// TEST[s/"current_node": "my-node"//]
 
 [discrete]
 [[fix-red-yellow-cluster-status]]

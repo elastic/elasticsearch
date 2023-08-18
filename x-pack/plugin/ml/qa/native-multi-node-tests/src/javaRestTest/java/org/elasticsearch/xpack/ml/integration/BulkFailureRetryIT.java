@@ -56,19 +56,14 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
 
     @After
     public void cleanUpTest() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .putNull("xpack.ml.persist_results_max_retries")
-                    .putNull("logger.org.elasticsearch.xpack.ml.datafeed.DatafeedJob")
-                    .putNull("logger.org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister")
-                    .putNull("logger.org.elasticsearch.xpack.ml.job.process.autodetect.output")
-                    .putNull("logger.org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService")
-                    .build()
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder()
+                .putNull("xpack.ml.persist_results_max_retries")
+                .putNull("logger.org.elasticsearch.xpack.ml.datafeed.DatafeedJob")
+                .putNull("logger.org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister")
+                .putNull("logger.org.elasticsearch.xpack.ml.job.process.autodetect.output")
+                .putNull("logger.org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService")
+        );
         cleanUp();
     }
 
@@ -121,19 +116,14 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
         Bucket initialLatestBucket = getLatestFinalizedBucket(jobId);
         assertThat(initialLatestBucket.getEpoch(), greaterThan(0L));
 
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .put("logger.org.elasticsearch.xpack.ml.datafeed.DatafeedJob", "TRACE")
-                    .put("logger.org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister", "TRACE")
-                    .put("logger.org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService", "TRACE")
-                    .put("logger.org.elasticsearch.xpack.ml.job.process.autodetect.output", "TRACE")
-                    .put("xpack.ml.persist_results_max_retries", "15")
-                    .build()
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder()
+                .put("logger.org.elasticsearch.xpack.ml.datafeed.DatafeedJob", "TRACE")
+                .put("logger.org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister", "TRACE")
+                .put("logger.org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService", "TRACE")
+                .put("logger.org.elasticsearch.xpack.ml.job.process.autodetect.output", "TRACE")
+                .put("xpack.ml.persist_results_max_retries", "15")
+        );
 
         setAnomaliesReadOnlyBlock();
 

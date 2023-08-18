@@ -121,11 +121,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("node.name", "testScalingExecutorType")
                 .build();
             threadPool = new ThreadPool(nodeSettings);
-            final int expectedMinimum = switch (threadPoolName) {
-                case "generic" -> 4;
-                case "management" -> 2;
-                default -> 1;
-            };
+            final int expectedMinimum = "generic".equals(threadPoolName) ? 4 : 1;
             assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedMinimum));
             assertThat(info(threadPool, threadPoolName).getMax(), equalTo(10));
             final long expectedKeepAlive = "generic".equals(threadPoolName) || Names.SNAPSHOT_META.equals(threadPoolName) ? 30 : 300;
@@ -181,7 +177,13 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 randomBoolean()
             );
 
-            final FixedExecutorBuilder fixed = new FixedExecutorBuilder(Settings.EMPTY, "my_pool2", 1, 1, false);
+            final FixedExecutorBuilder fixed = new FixedExecutorBuilder(
+                Settings.EMPTY,
+                "my_pool2",
+                1,
+                1,
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            );
 
             threadPool = new ThreadPool(Settings.builder().put("node.name", "testCustomThreadPool").build(), scaling, fixed);
 

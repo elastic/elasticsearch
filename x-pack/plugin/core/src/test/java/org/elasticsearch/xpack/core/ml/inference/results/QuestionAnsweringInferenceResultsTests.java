@@ -73,6 +73,11 @@ public class QuestionAnsweringInferenceResultsTests extends InferenceResultsTest
     }
 
     @Override
+    protected QuestionAnsweringInferenceResults mutateInstance(QuestionAnsweringInferenceResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<QuestionAnsweringInferenceResults> instanceReader() {
         return QuestionAnsweringInferenceResults::new;
     }

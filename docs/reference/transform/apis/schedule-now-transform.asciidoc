@@ -1,0 +1,64 @@
+[role="xpack"]
+[testenv="basic"]
+[[schedule-now-transform]]
+= Schedule now {transform} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Schedule now {transform}</titleabbrev>
+++++
+
+Instantly runs a {transform} to process data.
+
+[[schedule-now-transform-request]]
+== {api-request-title}
+
+`POST _transform/<transform_id>/_schedule_now`
+
+[[schedule-now-transform-prereqs]]
+== {api-prereq-title}
+
+* Requires the `manage_transform` cluster privilege. This privilege is included
+in the `transform_admin` built-in role.
+
+[[schedule-now-transform-desc]]
+== {api-description-title}
+
+When you run this API, processing for the next checkpoint is started immediately 
+without waiting for the configured `frequency` interval. The API returns 
+immediately, data processing happens in the background. Subsequently, the 
+{transform} will be processed again at `now + frequency` unless the API is 
+called again in the meantime.
+
+[[schedule-now-transform-path-parms]]
+== {api-path-parms-title}
+
+`<transform_id>`::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
+
+[[schedule-now-transform-query-parms]]
+== {api-query-parms-title}
+
+`timeout`::
+(Optional, time)
+Period to wait for a response. If no response is received before the timeout
+expires, the request fails and returns an error. Defaults to `30s`.
+
+[[schedule-now-transform-examples]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _transform/ecommerce_transform/_schedule_now
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+When the {transform} is scheduled now, you receive the following results:
+
+[source,console-result]
+----
+{
+  "acknowledged" : true
+}
+----

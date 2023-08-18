@@ -124,6 +124,11 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
     }
 
     @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
+    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = super.validate();
         if (getSearchRequest().indices() == null || getSearchRequest().indices().length == 0) {

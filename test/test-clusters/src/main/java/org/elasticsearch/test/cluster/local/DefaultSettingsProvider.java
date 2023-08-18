@@ -21,7 +21,6 @@ public class DefaultSettingsProvider implements SettingsProvider {
     public Map<String, String> get(LocalNodeSpec nodeSpec) {
         Map<String, String> settings = new HashMap<>();
 
-        settings.put("node.name", nodeSpec.getName());
         settings.put("node.attr.testattr", "test");
         settings.put("node.portsfile", "true");
         settings.put("http.port", "0");
@@ -65,8 +64,20 @@ public class DefaultSettingsProvider implements SettingsProvider {
         settings.put("action.destructive_requires_name", "false");
 
         // Setup cluster discovery
-        String nodeNames = nodeSpec.getCluster().getNodes().stream().map(LocalNodeSpec::getName).collect(Collectors.joining(","));
-        settings.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
+        String masterEligibleNodes = nodeSpec.getCluster()
+            .getNodes()
+            .stream()
+            .filter(LocalNodeSpec::isMasterEligible)
+            .map(LocalNodeSpec::getName)
+            .collect(Collectors.joining(","));
+
+        if (masterEligibleNodes.isEmpty()) {
+            throw new IllegalStateException(
+                "Cannot start cluster '" + nodeSpec.getCluster().getName() + "' as it configured with no master-eligible nodes."
+            );
+        }
+
+        settings.put("cluster.initial_master_nodes", "[" + masterEligibleNodes + "]");
         settings.put("discovery.seed_providers", "file");
         settings.put("discovery.seed_hosts", "[]");
 

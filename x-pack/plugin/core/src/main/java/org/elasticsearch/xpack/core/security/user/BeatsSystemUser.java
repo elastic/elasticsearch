@@ -6,17 +6,14 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
-
 /**
  * Built in user for beats internals. Currently used for Beats monitoring.
  */
-public class BeatsSystemUser extends User {
+public class BeatsSystemUser extends ReservedUser {
 
     public static final String NAME = UsernamesField.BEATS_NAME;
-    public static final String ROLE_NAME = UsernamesField.BEATS_ROLE;
 
     public BeatsSystemUser(boolean enabled) {
-        super(NAME, new String[] { ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);
+        super(NAME, UsernamesField.BEATS_ROLE, enabled);
     }
 }

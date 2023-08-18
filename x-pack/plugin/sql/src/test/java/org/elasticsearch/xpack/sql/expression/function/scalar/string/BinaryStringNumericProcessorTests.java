@@ -30,6 +30,11 @@ public class BinaryStringNumericProcessorTests extends AbstractWireSerializingTe
     }
 
     @Override
+    protected BinaryStringNumericProcessor mutateInstance(BinaryStringNumericProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<BinaryStringNumericProcessor> instanceReader() {
         return BinaryStringNumericProcessor::new;
     }

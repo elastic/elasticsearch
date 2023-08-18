@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.protocol.xpack;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -57,7 +57,7 @@ public class XPackInfoRequest extends ActionRequest {
             categories.add(Category.valueOf(in.readString()));
         }
         this.categories = categories;
-        if (hasLicenseVersionField(in.getVersion())) {
+        if (hasLicenseVersionField(in.getTransportVersion())) {
             int ignoredLicenseVersion = in.readVInt();
         }
     }
@@ -91,12 +91,12 @@ public class XPackInfoRequest extends ActionRequest {
         for (Category category : categories) {
             out.writeString(category.name());
         }
-        if (hasLicenseVersionField(out.getVersion())) {
+        if (hasLicenseVersionField(out.getTransportVersion())) {
             out.writeVInt(License.VERSION_CURRENT);
         }
     }
 
-    private static boolean hasLicenseVersionField(Version streamVersion) {
-        return streamVersion.onOrAfter(Version.V_7_8_1) && streamVersion.before(Version.V_8_0_0);
+    private static boolean hasLicenseVersionField(TransportVersion streamVersion) {
+        return streamVersion.between(TransportVersion.V_7_8_1, TransportVersion.V_8_0_0);
     }
 }

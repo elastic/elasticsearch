@@ -7,9 +7,16 @@
  */
 package org.elasticsearch.action;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ReachabilityChecker;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -22,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -73,7 +81,7 @@ public class ActionListenerTests extends ESTestCase {
 
     public void testWrapRunnable() {
         var executed = new AtomicBoolean();
-        var listener = ActionListener.wrap(new Runnable() {
+        var listener = ActionListener.running(new Runnable() {
             @Override
             public void run() {
                 assertTrue(executed.compareAndSet(false, true));
@@ -95,7 +103,7 @@ public class ActionListenerTests extends ESTestCase {
 
         expectThrows(
             AssertionError.class,
-            () -> ActionListener.wrap(() -> { throw new UnsupportedOperationException(); }).onResponse(null)
+            () -> ActionListener.running(() -> { throw new UnsupportedOperationException(); }).onResponse(null)
         );
     }
 
@@ -212,18 +220,25 @@ public class ActionListenerTests extends ESTestCase {
             refList.add(reference);
             excList.add(exReference);
             boolean fail = i == listenerToFail;
-            CheckedConsumer<Boolean, ? extends Exception> handler = (o) -> { reference.set(o); };
-            listeners.add(ActionListener.wrap(handler, (e) -> {
-                exReference.set(e);
-                if (fail) {
-                    throw new RuntimeException("double boom");
+            listeners.add(new ActionListener<>() {
+                @Override
+                public void onResponse(Boolean result) {
+                    reference.set(result);
                 }
-            }));
+
+                @Override
+                public void onFailure(Exception e) {
+                    exReference.set(e);
+                    if (fail) {
+                        throw new RuntimeException("double boom");
+                    }
+                }
+            });
         }
 
         try {
             ActionListener.onFailure(listeners, new Exception("booom"));
-            assertTrue("unexpected succces listener to fail: " + listenerToFail, listenerToFail == -1);
+            assertEquals("unexpected succces listener to fail: " + listenerToFail, -1, listenerToFail);
         } catch (RuntimeException ex) {
             assertTrue("listener to fail: " + listenerToFail, listenerToFail >= 0);
             assertNotNull(ex.getCause());
@@ -249,7 +264,7 @@ public class ActionListenerTests extends ESTestCase {
         {
             AtomicBoolean afterFailure = new AtomicBoolean();
             ActionListener<Object> listener = ActionListener.runAfter(ActionListener.noop(), () -> afterFailure.set(true));
-            listener.onFailure(null);
+            listener.onFailure(new RuntimeException("test"));
             assertThat(afterFailure.get(), equalTo(true));
         }
     }
@@ -264,7 +279,7 @@ public class ActionListenerTests extends ESTestCase {
         {
             AtomicBoolean afterFailure = new AtomicBoolean();
             ActionListener<Object> listener = ActionListener.runBefore(ActionListener.noop(), () -> afterFailure.set(true));
-            listener.onFailure(null);
+            listener.onFailure(new RuntimeException("test"));
             assertThat(afterFailure.get(), equalTo(true));
         }
     }
@@ -303,6 +318,15 @@ public class ActionListenerTests extends ESTestCase {
             assertThat(onResponseTimes.get(), equalTo(0));
             assertThat(onFailureTimes.get(), equalTo(1));
         }
+    }
+
+    public void testNotifyOnceReleasesDelegate() {
+        final var reachabilityChecker = new ReachabilityChecker();
+        final var listener = ActionListener.notifyOnce(reachabilityChecker.register(ActionListener.running(() -> {})));
+        reachabilityChecker.checkReachable();
+        listener.onResponse(null);
+        reachabilityChecker.ensureUnreachable();
+        assertEquals("notifyOnce[null]", listener.toString());
     }
 
     public void testConcurrentNotifyOnce() throws InterruptedException {
@@ -375,8 +399,8 @@ public class ActionListenerTests extends ESTestCase {
             @Override
             public void onFailure(Exception e) {
                 exReference.set(e);
-                if (e instanceof IllegalArgumentException) {
-                    throw (IllegalArgumentException) e;
+                if (e instanceof IllegalArgumentException iae) {
+                    throw iae;
                 }
             }
         };
@@ -385,10 +409,9 @@ public class ActionListenerTests extends ESTestCase {
         assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertNull(exReference.get());
 
-        assertionError = expectThrows(
-            AssertionError.class,
-            () -> ActionListener.completeWith(listener, () -> { throw new IllegalArgumentException(); })
-        );
+        assertionError = expectThrows(AssertionError.class, () -> ActionListener.completeWith(listener, () -> {
+            throw new IllegalArgumentException();
+        }));
         assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
     }
@@ -428,7 +451,7 @@ public class ActionListenerTests extends ESTestCase {
         });
 
         AssertionError assertionError = expectThrows(AssertionError.class, () -> mapped.onResponse(null));
-        assertThat(assertionError.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertNull(exReference.get());
         mapped.onResponse(false);
         assertNull(exReference.get());
@@ -436,9 +459,178 @@ public class ActionListenerTests extends ESTestCase {
         assertThat(exReference.get(), instanceOf(IllegalStateException.class));
 
         assertionError = expectThrows(AssertionError.class, () -> mapped.onFailure(new IllegalArgumentException()));
-        assertThat(assertionError.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
         mapped.onFailure(new IllegalStateException());
         assertThat(exReference.get(), instanceOf(IllegalStateException.class));
+    }
+
+    public void testRunBeforeThrowsAssertionErrorIfExecutedMoreThanOnce() {
+        assumeTrue("test only works with assertions enabled", Assertions.ENABLED);
+        final String description = randomAlphaOfLength(10);
+        final ActionListener<Void> runBefore = ActionListener.runBefore(ActionListener.noop(), makeCheckedRunnable(description));
+
+        completeListener(randomBoolean(), runBefore);
+
+        var error = expectThrows(AssertionError.class, () -> completeListener(true, runBefore));
+        assertThat(error.getMessage(), containsString(description));
+    }
+
+    public void testRunAfterThrowsAssertionErrorIfExecutedMoreThanOnce() {
+        assumeTrue("test only works with assertions enabled", Assertions.ENABLED);
+        final String description = randomAlphaOfLength(10);
+        final ActionListener<Void> runAfter = randomBoolean()
+            ? ActionListener.runAfter(ActionListener.noop(), makeRunnable(description))
+            : ActionListener.releaseAfter(ActionListener.noop(), makeReleasable(description, new AtomicBoolean()));
+
+        completeListener(randomBoolean(), runAfter);
+
+        var error = expectThrows(AssertionError.class, () -> completeListener(true, runAfter));
+        assertThat(error.getMessage(), containsString(description));
+    }
+
+    public void testWrappedRunBeforeOrAfterThrowsAssertionErrorIfExecutedMoreThanOnce() {
+        assumeTrue("test only works with assertions enabled", Assertions.ENABLED);
+        final ActionListener<Void> throwingListener = new ActionListener<>() {
+            @Override
+            public void onResponse(Void o) {
+                throw new AlreadyClosedException("throwing on purpose");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("should not be called");
+            }
+        };
+
+        final String description = randomAlphaOfLength(10);
+        final ActionListener<Void> runBeforeOrAfterListener = randomBoolean()
+            ? ActionListener.runBefore(throwingListener, makeCheckedRunnable(description))
+            : ActionListener.runAfter(throwingListener, makeRunnable(description));
+
+        final ActionListener<Void> wrappedListener = ActionListener.running(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                runBeforeOrAfterListener.onFailure(e);
+            }
+
+            @Override
+            protected void doRun() {
+                runBeforeOrAfterListener.onResponse(null);
+            }
+        });
+
+        var error = expectThrows(AssertionError.class, () -> completeListener(true, wrappedListener));
+        assertThat(error.getMessage(), containsString(description));
+    }
+
+    public void testReleasing() {
+        runReleasingTest(true);
+        runReleasingTest(false);
+    }
+
+    private static void runReleasingTest(boolean successResponse) {
+        final AtomicBoolean releasedFlag = new AtomicBoolean();
+        final String description = randomAlphaOfLength(10);
+        final ActionListener<Void> l = ActionListener.releasing(makeReleasable(description, releasedFlag));
+        assertThat(l.toString(), containsString("release[" + description + "]}"));
+        completeListener(successResponse, l);
+        assertTrue(releasedFlag.get());
+    }
+
+    private static void completeListener(boolean successResponse, ActionListener<Void> listener) {
+        if (successResponse) {
+            try {
+                listener.onResponse(null);
+            } catch (Exception e) {
+                // ok
+            }
+        } else {
+            listener.onFailure(new RuntimeException("simulated"));
+        }
+    }
+
+    public void testReleaseAfter() {
+        runReleaseAfterTest(true, false);
+        runReleaseAfterTest(true, true);
+        runReleaseAfterTest(false, false);
+    }
+
+    private static void runReleaseAfterTest(boolean successResponse, final boolean throwFromOnResponse) {
+        final AtomicBoolean released = new AtomicBoolean();
+        final String description = randomAlphaOfLength(10);
+        final ActionListener<Void> l = ActionListener.releaseAfter(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                if (throwFromOnResponse) {
+                    throw new RuntimeException("onResponse");
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // ok
+            }
+
+            @Override
+            public String toString() {
+                return "test listener";
+            }
+        }, makeReleasable(description, released));
+        assertThat(l.toString(), containsString("test listener/release[" + description + "]"));
+
+        if (successResponse) {
+            try {
+                l.onResponse(null);
+            } catch (Exception e) {
+                // ok
+            }
+        } else {
+            l.onFailure(new RuntimeException("supplied"));
+        }
+
+        assertTrue(released.get());
+    }
+
+    private static Releasable makeReleasable(String description, AtomicBoolean releasedFlag) {
+        return new Releasable() {
+            @Override
+            public void close() {
+                assertTrue(releasedFlag.compareAndSet(false, true));
+            }
+
+            @Override
+            public String toString() {
+                return description;
+            }
+        };
+    }
+
+    private static Runnable makeRunnable(String description) {
+        return new Runnable() {
+            @Override
+            public void run() {}
+
+            @Override
+            public String toString() {
+                return description;
+            }
+        };
+    }
+
+    private static CheckedRunnable<?> makeCheckedRunnable(String description) {
+        return new CheckedRunnable<>() {
+            @Override
+            public void run() {}
+
+            @Override
+            public String toString() {
+                return description;
+            }
+        };
+    }
+
+    public static <T> Matcher<T> isMappedActionListener() {
+        return instanceOf(ActionListenerImplementations.MappedActionListener.class);
     }
 }

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.cluster.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -63,7 +63,7 @@ public class MigrateToDataTiersResponse extends ActionResponse implements ToXCon
         migratedPolicies = in.readStringList();
         migratedIndices = in.readStringList();
         dryRun = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_17_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_17_0)) {
             migratedLegacyTemplates = in.readStringList();
             migratedComposableTemplates = in.readStringList();
             migratedComponentTemplates = in.readStringList();
@@ -154,7 +154,7 @@ public class MigrateToDataTiersResponse extends ActionResponse implements ToXCon
         out.writeStringCollection(migratedPolicies);
         out.writeStringCollection(migratedIndices);
         out.writeBoolean(dryRun);
-        if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_17_0)) {
             out.writeStringCollection(migratedLegacyTemplates);
             out.writeStringCollection(migratedComposableTemplates);
             out.writeStringCollection(migratedComponentTemplates);

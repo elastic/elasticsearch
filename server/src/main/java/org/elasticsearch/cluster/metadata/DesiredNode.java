@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -39,6 +40,7 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public final class DesiredNode implements Writeable, ToXContentObject, Comparable<DesiredNode> {
     public static final Version RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION = Version.V_8_3_0;
+    public static final TransportVersion RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION = TransportVersion.V_8_3_0;
 
     private static final ParseField SETTINGS_FIELD = new ParseField("settings");
     private static final ParseField PROCESSORS_FIELD = new ParseField("processors");
@@ -173,7 +175,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         final var settings = Settings.readSettingsFromStream(in);
         final Processors processors;
         final ProcessorsRange processorsRange;
-        if (in.getVersion().onOrAfter(RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION)) {
             processors = in.readOptionalWriteable(Processors::readFrom);
             processorsRange = in.readOptionalWriteable(ProcessorsRange::readFrom);
         } else {
@@ -189,7 +191,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         settings.writeTo(out);
-        if (out.getVersion().onOrAfter(RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION)) {
             out.writeOptionalWriteable(processors);
             out.writeOptionalWriteable(processorsRange);
         } else {

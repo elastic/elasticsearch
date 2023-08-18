@@ -8,8 +8,8 @@
 
 package org.elasticsearch.ingest.geoip.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -28,8 +28,13 @@ public class GeoIpDownloaderStatsActionNodeResponseSerializingTests extends Abst
         return createRandomInstance();
     }
 
+    @Override
+    protected GeoIpDownloaderStatsAction.NodeResponse mutateInstance(GeoIpDownloaderStatsAction.NodeResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     static GeoIpDownloaderStatsAction.NodeResponse createRandomInstance() {
-        DiscoveryNode node = new DiscoveryNode("id", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("id");
         Set<String> databases = Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
         Set<String> files = Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
         Set<String> configDatabases = Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));

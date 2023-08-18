@@ -1,6 +1,0 @@
-pr: 91256
-summary: Prevalidate node removal API (pt. 2)
-area: Allocation
-type: enhancement
-issues:
- - 87776

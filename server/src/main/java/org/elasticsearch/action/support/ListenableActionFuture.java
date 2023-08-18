@@ -8,88 +8,48 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 /**
- * A {@code Future} and {@link ActionListener} against which other {@link ActionListener}s can be registered later, to support
- * fanning-out a result to a dynamic collection of listeners.
+ * An {@link ActionListener} which allows for the result to fan out to a (dynamic) collection of other listeners, added using {@link
+ * #addListener}. Listeners added before completion are retained until completion; listeners added after completion are completed
+ * immediately.
+ *
+ * Similar to {@link ListenableFuture} and {@link SubscribableListener} except for its handling of exceptions: if this listener is completed
+ * exceptionally with an {@link ElasticsearchException} that is also an {@link ElasticsearchWrapperException} then it is unwrapped using
+ * {@link ExceptionsHelper#unwrapCause}; if the resulting exception is a checked exception then it is wrapped in an {@link
+ * UncategorizedExecutionException}. Moreover if this listener is completed exceptionally with a checked exception then it wraps the
+ * exception in an {@link UncategorizedExecutionException} whose cause is an {@link ExecutionException}, whose cause in turn is the checked
+ * exception. This matches the behaviour of {@link PlainActionFuture#actionGet}.
  */
-public class ListenableActionFuture<T> extends AdapterActionFuture<T, T> {
-
-    private Object listeners;
-    private boolean executedListeners = false;
-
-    /**
-     * Registers an {@link ActionListener} to be notified when this future is completed. If the future is already completed then the
-     * listener is notified immediately, on the calling thread. If not, the listener is notified on the thread that completes the listener.
-     */
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void addListener(final ActionListener<T> listener) {
-        final boolean executeImmediate;
-        synchronized (this) {
-            executeImmediate = executedListeners;
-            if (executeImmediate == false) {
-                final Object oldListeners = listeners;
-                final Object newListeners;
-                if (oldListeners == null) {
-                    // adding the first listener
-                    newListeners = listener;
-                } else if (oldListeners instanceof List) {
-                    // adding a listener after the second
-                    ((List) oldListeners).add(listener);
-                    newListeners = oldListeners;
-                } else {
-                    // adding the second listener
-                    newListeners = new ArrayList<>(2);
-                    ((List) newListeners).add(oldListeners);
-                    ((List) newListeners).add(listener);
-                }
-                this.listeners = newListeners;
-            }
-        }
-        if (executeImmediate) {
-            executeListener(listener);
-        }
-    }
-
-    @Override
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    protected void done(boolean success) {
-        super.done(success);
-        final Object listenersToExecute;
-        synchronized (this) {
-            executedListeners = true;
-            listenersToExecute = listeners;
-            listeners = null;
-        }
-
-        if (listenersToExecute != null) {
-            if (listenersToExecute instanceof List) {
-                for (final Object listener : (List) listenersToExecute) {
-                    executeListener((ActionListener<T>) listener);
-                }
-            } else {
-                executeListener((ActionListener<T>) listenersToExecute);
-            }
-        }
-    }
-
-    @Override
-    protected T convert(T listenerResponse) {
-        return listenerResponse;
-    }
-
-    private void executeListener(final ActionListener<T> listener) {
+// The name {@link ListenableActionFuture} dates back a long way and could be improved - TODO find a better name
+public final class ListenableActionFuture<T> extends SubscribableListener<T> {
+    public T actionResult() {
         try {
-            // we use a timeout of 0 to by pass assertion forbidding to call actionGet() (blocking) on a network thread.
-            // here we know we will never block
-            listener.onResponse(actionGet(0));
+            return super.rawResult();
         } catch (Exception e) {
-            listener.onFailure(e);
+            throw wrapException(e);
         }
     }
 
+    @Override
+    protected RuntimeException wrapException(Exception exception) {
+        if (exception instanceof ElasticsearchException elasticsearchException) {
+            final var rootCause = ExceptionsHelper.unwrapCause(elasticsearchException);
+            if (rootCause instanceof RuntimeException runtimeException) {
+                return runtimeException;
+            } else {
+                return new UncategorizedExecutionException("Failed execution", rootCause);
+            }
+        } else {
+            return wrapAsExecutionException(exception);
+        }
+    }
 }

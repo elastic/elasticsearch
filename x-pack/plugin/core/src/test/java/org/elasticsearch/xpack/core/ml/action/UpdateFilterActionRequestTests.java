@@ -35,6 +35,11 @@ public class UpdateFilterActionRequestTests extends AbstractXContentSerializingT
     }
 
     @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
     }
@@ -46,11 +51,6 @@ public class UpdateFilterActionRequestTests extends AbstractXContentSerializingT
             strings.add(randomAlphaOfLength(20));
         }
         return strings;
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 
     @Override

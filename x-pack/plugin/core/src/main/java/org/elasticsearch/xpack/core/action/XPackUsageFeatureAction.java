@@ -29,6 +29,7 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     public static final XPackUsageFeatureAction MACHINE_LEARNING = new XPackUsageFeatureAction(XPackField.MACHINE_LEARNING);
     public static final XPackUsageFeatureAction LOGSTASH = new XPackUsageFeatureAction(XPackField.LOGSTASH);
     public static final XPackUsageFeatureAction EQL = new XPackUsageFeatureAction(XPackField.EQL);
+    public static final XPackUsageFeatureAction ESQL = new XPackUsageFeatureAction(XPackField.ESQL);
     public static final XPackUsageFeatureAction SQL = new XPackUsageFeatureAction(XPackField.SQL);
     public static final XPackUsageFeatureAction ROLLUP = new XPackUsageFeatureAction(XPackField.ROLLUP);
     public static final XPackUsageFeatureAction INDEX_LIFECYCLE = new XPackUsageFeatureAction(XPackField.INDEX_LIFECYCLE);
@@ -42,18 +43,23 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     public static final XPackUsageFeatureAction ENRICH = new XPackUsageFeatureAction(XPackField.ENRICH);
     public static final XPackUsageFeatureAction SEARCHABLE_SNAPSHOTS = new XPackUsageFeatureAction(XPackField.SEARCHABLE_SNAPSHOTS);
     public static final XPackUsageFeatureAction DATA_STREAMS = new XPackUsageFeatureAction(XPackField.DATA_STREAMS);
+    public static final XPackUsageFeatureAction DATA_STREAM_LIFECYCLE = new XPackUsageFeatureAction(XPackField.DATA_STREAM_LIFECYCLE);
     public static final XPackUsageFeatureAction DATA_TIERS = new XPackUsageFeatureAction(XPackField.DATA_TIERS);
     public static final XPackUsageFeatureAction AGGREGATE_METRIC = new XPackUsageFeatureAction(XPackField.AGGREGATE_METRIC);
     public static final XPackUsageFeatureAction ARCHIVE = new XPackUsageFeatureAction(XPackField.ARCHIVE);
     public static final XPackUsageFeatureAction HEALTH = new XPackUsageFeatureAction(XPackField.HEALTH_API);
+    public static final XPackUsageFeatureAction REMOTE_CLUSTERS = new XPackUsageFeatureAction(XPackField.REMOTE_CLUSTERS);
+    public static final XPackUsageFeatureAction ENTERPRISE_SEARCH = new XPackUsageFeatureAction(XPackField.ENTERPRISE_SEARCH);
 
     static final List<XPackUsageFeatureAction> ALL = List.of(
         AGGREGATE_METRIC,
         ANALYTICS,
         CCR,
         DATA_STREAMS,
+        DATA_STREAM_LIFECYCLE,
         DATA_TIERS,
         EQL,
+        ESQL,
         FROZEN_INDICES,
         GRAPH,
         INDEX_LIFECYCLE,
@@ -70,7 +76,9 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
         VOTING_ONLY,
         WATCHER,
         ARCHIVE,
-        HEALTH
+        HEALTH,
+        REMOTE_CLUSTERS,
+        ENTERPRISE_SEARCH
     );
 
     // public for testing

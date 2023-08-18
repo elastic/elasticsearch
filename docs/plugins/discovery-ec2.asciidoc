@@ -1,8 +1,8 @@
 [[discovery-ec2]]
-=== EC2 Discovery Plugin
+=== EC2 Discovery plugin
 
 The EC2 discovery plugin provides a list of seed addresses to the
-{ref}/modules-discovery-hosts-providers.html[discovery process] by querying the
+{ref}/discovery-hosts-providers.html[discovery process] by querying the
 https://github.com/aws/aws-sdk-java[AWS API] for a list of EC2 instances
 matching certain criteria determined by the <<discovery-ec2-usage,plugin
 settings>>.

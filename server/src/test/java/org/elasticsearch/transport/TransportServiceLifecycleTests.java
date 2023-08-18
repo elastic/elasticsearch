@@ -9,9 +9,9 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
@@ -22,6 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Random;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -85,8 +86,8 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                                     }
 
                                     @Override
-                                    public String executor() {
-                                        return executor;
+                                    public Executor executor(ThreadPool threadPool) {
+                                        return threadPool.executor(executor);
                                     }
                                 }
                             );
@@ -135,19 +136,18 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                     return super.executor(name);
                 }
             };
-            final var tcpTransport = MockTransportService.newMockTransport(Settings.EMPTY, Version.CURRENT, threadPool);
+            final var tcpTransport = MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.current(), threadPool);
             transportService = new TransportService(
                 Settings.EMPTY,
                 tcpTransport,
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                boundTransportAddress -> new DiscoveryNode(
+                boundTransportAddress -> DiscoveryNodeUtils.create(
                     nodeName,
                     nodeName,
                     tcpTransport.boundAddress().publishAddress(),
                     emptyMap(),
-                    emptySet(),
-                    Version.CURRENT
+                    emptySet()
                 ),
                 null,
                 emptySet()

@@ -50,7 +50,7 @@ public class LifecyclePolicyMetadataTests extends AbstractXContentSerializingTes
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::read),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, in -> FreezeAction.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
@@ -127,7 +127,7 @@ public class LifecyclePolicyMetadataTests extends AbstractXContentSerializingTes
     }
 
     @Override
-    protected LifecyclePolicyMetadata mutateInstance(LifecyclePolicyMetadata instance) throws IOException {
+    protected LifecyclePolicyMetadata mutateInstance(LifecyclePolicyMetadata instance) {
         LifecyclePolicy policy = instance.getPolicy();
         Map<String, String> headers = instance.getHeaders();
         long version = instance.getVersion();

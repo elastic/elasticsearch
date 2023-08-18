@@ -10,14 +10,16 @@ package org.elasticsearch.search.rescore;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -128,17 +130,18 @@ public class QueryRescorerBuilderTests extends ESTestCase {
      */
     public void testBuildRescoreSearchContext() throws ElasticsearchParseException, IOException {
         final long nowInMillis = randomNonNegativeLong();
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
         SearchExecutionContext mockContext = new SearchExecutionContext(
             0,
             0,
             idxSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             null,
-            null,
+            MappingLookup.EMPTY,
             null,
             null,
             parserConfig(),
@@ -167,7 +170,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
                 : rescoreBuilder.windowSize().intValue();
             assertEquals(expectedWindowSize, rescoreContext.getWindowSize());
             Query expectedQuery = Rewriteable.rewrite(rescoreBuilder.getRescoreQuery(), mockContext).toQuery(mockContext);
-            assertEquals(expectedQuery, rescoreContext.query());
+            assertEquals(expectedQuery, rescoreContext.parsedQuery().query());
             assertEquals(rescoreBuilder.getQueryWeight(), rescoreContext.queryWeight(), Float.MIN_VALUE);
             assertEquals(rescoreBuilder.getRescoreQueryWeight(), rescoreContext.rescoreQueryWeight(), Float.MIN_VALUE);
             assertEquals(rescoreBuilder.getScoreMode(), rescoreContext.scoreMode());
@@ -190,17 +193,18 @@ public class QueryRescorerBuilderTests extends ESTestCase {
     public void testRewritingKeepsSettings() throws IOException {
 
         final long nowInMillis = randomNonNegativeLong();
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
         SearchExecutionContext mockContext = new SearchExecutionContext(
             0,
             0,
             idxSettings,
+            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             null,
-            null,
+            MappingLookup.EMPTY,
             null,
             null,
             parserConfig(),

@@ -57,6 +57,7 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
     private final Property<String> projectPath;
     private final Property<String> targetReference;
     private final Property<String> version;
+    private final Property<String> remoteUrl;
 
     @Inject
     public GenerateSnykDependencyGraph(ObjectFactory objectFactory) {
@@ -66,6 +67,7 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
         projectName = objectFactory.property(String.class);
         projectPath = objectFactory.property(String.class);
         version = objectFactory.property(String.class);
+        remoteUrl = objectFactory.property(String.class);
         targetReference = objectFactory.property(String.class);
     }
 
@@ -115,7 +117,7 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
     }
 
     private Object buildTargetData() {
-        return Map.of("remoteUrl", "http://github.com/elastic/elasticsearch.git", "branch", BuildParams.getGitRevision());
+        return Map.of("remoteUrl", remoteUrl.get(), "branch", BuildParams.getGitRevision());
     }
 
     @InputFiles
@@ -146,6 +148,11 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
     @Input
     public Property<String> getGradleVersion() {
         return gradleVersion;
+    }
+
+    @Input
+    public Property<String> getRemoteUrl() {
+        return remoteUrl;
     }
 
     @Input

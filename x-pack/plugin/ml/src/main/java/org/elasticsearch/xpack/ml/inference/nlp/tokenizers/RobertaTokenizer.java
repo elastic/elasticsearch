@@ -32,7 +32,7 @@ public class RobertaTokenizer extends NlpTokenizer {
     public static final String SEPARATOR_TOKEN = "</s>";
     public static final String PAD_TOKEN = "<pad>";
     public static final String CLASS_TOKEN = "<s>";
-    public static final String MASK_TOKEN = "<mask>";
+    public static final String MASK_TOKEN = RobertaTokenization.MASK_TOKEN;
 
     private static final Set<String> NEVER_SPLIT = Set.of(MASK_TOKEN);
 
@@ -156,6 +156,11 @@ public class RobertaTokenizer extends NlpTokenizer {
     @Override
     public String getMaskToken() {
         return MASK_TOKEN;
+    }
+
+    @Override
+    public List<String> getVocabulary() {
+        return originalVocab;
     }
 
     @Override

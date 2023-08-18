@@ -46,7 +46,7 @@ public class WaitForSnapshotActionTests extends AbstractActionTestCase<WaitForSn
     }
 
     @Override
-    protected WaitForSnapshotAction mutateInstance(WaitForSnapshotAction instance) throws IOException {
+    protected WaitForSnapshotAction mutateInstance(WaitForSnapshotAction instance) {
         return randomInstance();
     }
 

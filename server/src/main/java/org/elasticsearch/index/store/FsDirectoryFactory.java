@@ -130,6 +130,16 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             IOUtils.close(super::close, delegate);
         }
 
+        private static String getExtension(String name) {
+            // Unlike FileSwitchDirectory#getExtension, we treat `tmp` as a normal file extension, which can have its own rules for mmaping.
+            final int lastDotIndex = name.lastIndexOf('.');
+            if (lastDotIndex == -1) {
+                return "";
+            } else {
+                return name.substring(lastDotIndex + 1);
+            }
+        }
+
         static boolean useDelegate(String name, IOContext ioContext) {
             if (ioContext == Store.READONCE_CHECKSUM) {
                 // If we're just reading the footer for the checksum then mmap() isn't really necessary, and it's desperately inefficient
@@ -137,7 +147,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 return false;
             }
 
-            final LuceneFilesExtensions extension = LuceneFilesExtensions.fromExtension(FileSwitchDirectory.getExtension(name));
+            final LuceneFilesExtensions extension = LuceneFilesExtensions.fromExtension(getExtension(name));
             if (extension == null || extension.shouldMmap() == false) {
                 // Other files are either less performance-sensitive (e.g. stored field index, norms metadata)
                 // or are large and have a random access pattern and mmap leads to page cache trashing

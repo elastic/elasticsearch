@@ -38,6 +38,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -188,6 +189,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         DiscoveryNode localNode = mock(DiscoveryNode.class);
         when(localNode.isIngestNode()).thenAnswer(stub -> localIngest);
         when(clusterService.localNode()).thenReturn(localNode);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         remoteNode1 = mock(DiscoveryNode.class);
         remoteNode2 = mock(DiscoveryNode.class);
         nodes = mock(DiscoveryNodes.class);
@@ -201,14 +203,14 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 Map.of(
                     WITH_DEFAULT_PIPELINE,
                     IndexMetadata.builder(WITH_DEFAULT_PIPELINE)
-                        .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build())
+                        .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build())
                         .putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build())
                         .numberOfShards(1)
                         .numberOfReplicas(1)
                         .build(),
                     ".system",
                     IndexMetadata.builder(".system")
-                        .settings(settings(Version.CURRENT))
+                        .settings(settings(IndexVersion.current()))
                         .system(true)
                         .numberOfShards(1)
                         .numberOfReplicas(0)
@@ -237,12 +239,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         IndexRequest indexRequest = new IndexRequest("index").id("id");
         indexRequest.source(Collections.emptyMap());
         bulkRequest.add(indexRequest);
-        ActionTestUtils.execute(
-            action,
-            null,
-            bulkRequest,
-            ActionListener.wrap(response -> {}, exception -> { throw new AssertionError(exception); })
-        );
+        ActionTestUtils.execute(action, null, bulkRequest, ActionTestUtils.assertNoFailureListener(response -> {}));
         assertTrue(action.isExecuted);
         verifyNoMoreInteractions(ingestService);
     }
@@ -250,12 +247,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     public void testSingleItemBulkActionIngestSkipped() throws Exception {
         IndexRequest indexRequest = new IndexRequest("index").id("id");
         indexRequest.source(Collections.emptyMap());
-        ActionTestUtils.execute(
-            singleItemBulkWriteAction,
-            null,
-            indexRequest,
-            ActionListener.wrap(response -> {}, exception -> { throw new AssertionError(exception); })
-        );
+        ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, ActionTestUtils.assertNoFailureListener(response -> {}));
         assertTrue(action.isExecuted);
         verifyNoMoreInteractions(ingestService);
     }
@@ -405,10 +397,10 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         bulkRequest.add(indexRequest);
         BulkResponse bulkResponse = mock(BulkResponse.class);
         AtomicBoolean responseCalled = new AtomicBoolean(false);
-        ActionListener<BulkResponse> listener = ActionListener.wrap(response -> {
+        ActionListener<BulkResponse> listener = ActionTestUtils.assertNoFailureListener(response -> {
             responseCalled.set(true);
             assertSame(bulkResponse, response);
-        }, e -> { throw new AssertionError(e); });
+        });
         ActionTestUtils.execute(action, null, bulkRequest, listener);
 
         // should not have executed ingest locally
@@ -445,10 +437,10 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         indexRequest.setPipeline("testpipeline");
         IndexResponse indexResponse = mock(IndexResponse.class);
         AtomicBoolean responseCalled = new AtomicBoolean(false);
-        ActionListener<IndexResponse> listener = ActionListener.wrap(response -> {
+        ActionListener<IndexResponse> listener = ActionTestUtils.assertNoFailureListener(response -> {
             responseCalled.set(true);
             assertSame(indexResponse, response);
-        }, e -> { throw new AssertionError(e); });
+        });
         ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, listener);
 
         // should not have executed ingest locally
@@ -737,12 +729,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
-        ActionTestUtils.execute(
-            action,
-            null,
-            bulkRequest,
-            ActionListener.wrap(response -> { responseCalled.set(true); }, e -> { failureCalled.set(true); })
-        );
+        ActionTestUtils.execute(action, null, bulkRequest, ActionListener.wrap(response -> { responseCalled.set(true); }, e -> {
+            failureCalled.set(true);
+        }));
 
         // check failure works, and passes through to the listener
         assertFalse(action.isExecuted); // haven't executed yet

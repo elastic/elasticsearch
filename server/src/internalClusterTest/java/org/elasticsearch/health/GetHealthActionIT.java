@@ -12,7 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.metrics.Counters;
@@ -22,6 +22,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.stats.HealthApiStatsAction;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -107,7 +108,8 @@ public class GetHealthActionIT extends ESIntegTestCase {
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            AllocationDeciders allocationDeciders
+            AllocationService allocationService,
+            IndicesService indicesService
         ) {
             healthIndicatorServices.add(new IlmHealthIndicatorService(clusterService));
             healthIndicatorServices.add(new SlmHealthIndicatorService(clusterService));

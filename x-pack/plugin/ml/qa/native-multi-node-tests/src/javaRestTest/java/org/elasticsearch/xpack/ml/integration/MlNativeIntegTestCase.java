@@ -34,7 +34,7 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.Plugin;
@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.slm.SnapshotLifecycle;
 import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.transform.Transform;
 
@@ -142,6 +143,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class,
+            // SLM is required for the slm.history_index_enabled setting
+            SnapshotLifecycle.class,
             // The feature reset API touches transform custom cluster state so we need this plugin to understand it
             Transform.class,
             DataStreamsPlugin.class
@@ -193,7 +196,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         builder.put(ELASTICSEARCH_COLLECTION_ENABLED.getKey(), false);
         builder.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
         builder.put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
-        builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        builder.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         builder.put(Environment.PATH_HOME_SETTING.getKey(), home);
         builder.put("xpack.security.transport.ssl.enabled", true);
         builder.put("xpack.security.transport.ssl.key", key.toAbsolutePath().toString());
@@ -237,7 +240,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
     }
 
     protected boolean upgradeMode() {
-        ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
+        ClusterState masterClusterState = clusterAdmin().prepareState().all().get().getState();
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(masterClusterState);
         return mlMetadata.isUpgradeMode();
     }
@@ -315,7 +318,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             );
             entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom));
             entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new));
-            entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new));
+            entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::read));
             entries.add(
                 new NamedWriteableRegistry.Entry(
                     PersistentTaskParams.class,
@@ -353,7 +356,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 new NamedWriteableRegistry.Entry(AutoscalingDeciderResult.Reason.class, MlScalingReason.NAME, MlScalingReason::new)
             );
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
-            ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
+            ClusterState masterClusterState = clusterAdmin().prepareState().all().get().getState();
             byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
             // remove local node reference
             masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);

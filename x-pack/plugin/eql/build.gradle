@@ -8,12 +8,9 @@ esplugin {
   extendedPlugins = ['x-pack-ql', 'lang-painless']
 }
 
-ext {
-  // EQL dependency versions
-  antlrVersion = "4.9.2"
+base {
+  archivesName = 'x-pack-eql'
 }
-
-archivesBaseName = 'x-pack-eql'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
@@ -51,7 +48,7 @@ configurations {
 }
 
 dependencies {
-  regenerate "org.antlr:antlr4:${antlrVersion}"
+  regenerate "org.antlr:antlr4:${versions.antlr4}"
 }
 
 String grammarPath = 'src/main/antlr'

@@ -24,11 +24,6 @@ public class ForecastJobActionRequestTests extends AbstractXContentSerializingTe
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Request createTestInstance() {
         Request request = new Request(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
@@ -43,6 +38,11 @@ public class ForecastJobActionRequestTests extends AbstractXContentSerializingTe
             );
         }
         return request;
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

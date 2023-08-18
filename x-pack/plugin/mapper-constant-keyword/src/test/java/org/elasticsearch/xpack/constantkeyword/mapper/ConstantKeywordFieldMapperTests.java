@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -83,7 +84,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         doc = mapper.parse(source(b -> b.field("field", "foo")));
         assertNull(doc.rootDoc().getField("field"));
 
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("field", "bar"))));
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("field", "bar"))));
         assertEquals(
             "[constant_keyword] field [field] only accepts values that are equal to the value defined in the mappings [foo], "
                 + "but got [bar]",

@@ -15,8 +15,10 @@ import org.elasticsearch.script.field.Field;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -72,5 +74,10 @@ public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier 
     @Override
     public LeafReaderContext getLeafReaderContext() {
         return leafReaderContext;
+    }
+
+    @Override
+    public Supplier<Source> source() {
+        return leafSearchLookup.source();
     }
 }

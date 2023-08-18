@@ -9,7 +9,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,10 +46,10 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ExplainPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.CustomHighlighter;
+import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
-import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -298,7 +298,7 @@ public class SearchModuleTests extends ESTestCase {
         Map<String, Highlighter> highlighters = module.getHighlighters();
         assertEquals(FastVectorHighlighter.class, highlighters.get("fvh").getClass());
         assertEquals(PlainHighlighter.class, highlighters.get("plain").getClass());
-        assertEquals(UnifiedHighlighter.class, highlighters.get("unified").getClass());
+        assertEquals(DefaultHighlighter.class, highlighters.get("unified").getClass());
         assertSame(highlighters.get("custom"), customHighlighter);
     }
 
@@ -544,8 +544,8 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_EMPTY;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.ZERO;
         }
     }
 
@@ -556,7 +556,9 @@ public class SearchModuleTests extends ESTestCase {
         public static final ConstructingObjectParser<TestPipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
             "test",
             false,
-            (args, name) -> { return new TestPipelineAggregationBuilder(name, (String) args[0]); }
+            (args, name) -> {
+                return new TestPipelineAggregationBuilder(name, (String) args[0]);
+            }
         );
         static {
             PARSER.declareString(constructorArg(), PipelineAggregator.Parser.BUCKETS_PATH);
@@ -599,8 +601,8 @@ public class SearchModuleTests extends ESTestCase {
         protected void validate(ValidationContext context) {}
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_EMPTY;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.ZERO;
         }
     }
 
@@ -649,8 +651,8 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_EMPTY;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.ZERO;
         }
     }
 
@@ -717,8 +719,8 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_EMPTY;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.ZERO;
         }
     }
 

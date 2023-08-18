@@ -118,11 +118,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
     public void createBogusIndex() {
         // randomly create an index with two aliases from user admin, to make sure it doesn't affect any of the test results
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("bogus_index_1")
-                .addAlias(new Alias("bogus_alias_1"))
-                .addAlias(new Alias("bogus_alias_2"))
+            indicesAdmin().prepareCreate("bogus_index_1").addAlias(new Alias("bogus_alias_1")).addAlias(new Alias("bogus_alias_2"))
         );
     }
 
@@ -384,9 +380,9 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
         // add unauthorized aliases
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareAliases().addAlias("test_1", "alias_1").get());
+            assertAcked(indicesAdmin().prepareAliases().addAlias("test_1", "alias_1").get());
         }
-        assertAcked(client().admin().indices().prepareAliases().addAlias("test_1", "alias_2").get());
+        assertAcked(indicesAdmin().prepareAliases().addAlias("test_1", "alias_2").get());
 
         // fails: user doesn't have manage_aliases on alias_1
         assertThrowsAuthorizationException(
@@ -769,14 +765,16 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
             .get();
         assertEquals(0, getAliasesResponse.getAliases().size());
 
-        // no manage_aliases privilege on non_authorized alias
-        getAliasesResponse = client.admin()
-            .indices()
-            .prepareGetAliases("non_authorized")
-            .addIndices("test_1")
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .get();
-        assertEquals(0, getAliasesResponse.getAliases().size());
+        // no manage_aliases privilege on `non_authorized` alias and ignore_unavailable doesn't influence aliases
+        assertThrowsAuthorizationException(
+            client.admin()
+                .indices()
+                .prepareGetAliases("non_authorized")
+                .addIndices("test_1")
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())::get,
+            GetAliasesAction.NAME,
+            "aliases_only"
+        );
 
         // no manage_aliases privilege on non_authorized index
         getAliasesResponse = client.admin()
@@ -805,7 +803,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertAcked(client.admin().indices().prepareAliases().removeIndex("*").get());
         GetAliasesResponse getAliasesResponse = client.admin().indices().prepareGetAliases().setAliases("*").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(0));
-        assertAliases(client().admin().indices().prepareGetAliases().setAliases("*"), "bogus_index_1", "bogus_alias_1", "bogus_alias_2");
+        assertAliases(indicesAdmin().prepareGetAliases().setAliases("*"), "bogus_index_1", "bogus_alias_1", "bogus_alias_2");
     }
 
     public void testAliasesForHiddenIndices() {
@@ -847,7 +845,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), Matchers.equalTo(visibleAlias));
         assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), nullValue());
 
-        response = client().admin().indices().prepareGetAliases("alias*").get();
+        response = indicesAdmin().prepareGetAliases("alias*").get();
         assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
         assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), Matchers.equalTo(visibleAlias));
         assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), nullValue());

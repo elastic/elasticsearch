@@ -10,10 +10,10 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
@@ -65,14 +65,14 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         assertFalse(future1.isDone());
         testCache.assertPendingRefreshes(1);
         testCache.completeNextRefresh("foo", 1);
-        assertThat(future0.actionGet(0L), equalTo(1));
-        assertThat(future0.actionGet(0L), sameInstance(future1.actionGet(0L)));
+        assertThat(future0.result(), equalTo(1));
+        assertThat(future0.result(), sameInstance(future1.result()));
 
         // A further get() call with a matching key re-uses the cached value
         final TestFuture future2 = new TestFuture();
         testCache.get("foo", () -> false, future2);
         testCache.assertNoPendingRefreshes();
-        assertThat(future2.actionGet(0L), sameInstance(future1.actionGet(0L)));
+        assertThat(future2.result(), sameInstance(future1.result()));
 
         // A call with a different key triggers another refresh
         final TestFuture future3 = new TestFuture();
@@ -80,7 +80,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         assertFalse(future3.isDone());
         testCache.assertPendingRefreshes(1);
         testCache.completeNextRefresh("bar", 2);
-        assertThat(future3.actionGet(0L), equalTo(2));
+        assertThat(future3.result(), equalTo(2));
     }
 
     public void testListenerCompletedByRefreshEvenIfDiscarded() {
@@ -99,10 +99,10 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         testCache.get("foo", () -> false, future2);
         testCache.assertPendingRefreshes(1);
         testCache.completeNextRefresh("foo", 1);
-        assertThat(future2.actionGet(0L), equalTo(1));
+        assertThat(future2.result(), equalTo(1));
 
         // ... and the original listener is also completed successfully
-        assertThat(future1.actionGet(0L), sameInstance(future2.actionGet(0L)));
+        assertThat(future1.result(), sameInstance(future2.result()));
     }
 
     public void testListenerCompletedWithCancellationExceptionIfRefreshCancelled() {
@@ -122,9 +122,9 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         testCache.get("bar", () -> false, future2);
         testCache.assertPendingRefreshes(2);
         testCache.assertNextRefreshCancelled();
-        expectThrows(TaskCancelledException.class, () -> future1.actionGet(0L));
+        expectThrows(TaskCancelledException.class, future1::result);
         testCache.completeNextRefresh("bar", 2);
-        assertThat(future2.actionGet(0L), equalTo(2));
+        assertThat(future2.result(), equalTo(2));
     }
 
     public void testListenerCompletedWithFresherInputIfSuperseded() {
@@ -143,8 +143,8 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         assertFalse(future1.isDone());
 
         testCache.completeNextRefresh("bar", 2);
-        assertThat(future2.actionGet(0L), equalTo(2));
-        assertThat(future1.actionGet(0L), equalTo(2));
+        assertThat(future2.result(), equalTo(2));
+        assertThat(future1.result(), equalTo(2));
     }
 
     public void testRunsCancellationChecksEvenWhenSuperseded() {
@@ -166,7 +166,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
 
         isCancelled.set(true);
         testCache.completeNextRefresh("bar", 1);
-        expectThrows(TaskCancelledException.class, () -> future1.actionGet(0L));
+        expectThrows(TaskCancelledException.class, future1::result);
     }
 
     public void testExceptionCompletesListenersButIsNotCached() {
@@ -180,8 +180,8 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         testCache.assertPendingRefreshes(1);
         final ElasticsearchException exception = new ElasticsearchException("simulated");
         testCache.completeNextRefresh(exception);
-        assertSame(exception, expectThrows(ElasticsearchException.class, () -> future0.actionGet(0L)));
-        assertSame(exception, expectThrows(ElasticsearchException.class, () -> future1.actionGet(0L)));
+        assertSame(exception, expectThrows(ElasticsearchException.class, future0::result));
+        assertSame(exception, expectThrows(ElasticsearchException.class, future1::result));
 
         testCache.assertNoPendingRefreshes();
         // The exception is not cached, however, so a subsequent get() call with a matching key performs another refresh
@@ -189,7 +189,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         testCache.get("foo", () -> false, future2);
         testCache.assertPendingRefreshes(1);
         testCache.completeNextRefresh("foo", 1);
-        assertThat(future2.actionGet(0L), equalTo(1));
+        assertThat(future2.actionResult(), equalTo(1));
     }
 
     public void testConcurrentRefreshesAndCancellation() throws InterruptedException {
@@ -234,7 +234,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                         throw new AssertionError(e);
                     }
 
-                    final StepListener<Integer> stepListener = new StepListener<>();
+                    final ListenableFuture<Integer> stepListener = new ListenableFuture<>();
                     final AtomicBoolean isComplete = new AtomicBoolean();
                     final AtomicBoolean isCancelled = new AtomicBoolean();
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
@@ -255,7 +255,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                         isCancelled.set(true);
                     }
 
-                    stepListener.whenComplete(len -> {
+                    stepListener.addListener(ActionListener.wrap(len -> {
                         finishLatch.countDown();
                         assertThat(len, equalTo(input.length()));
                         assertNotEquals("FAIL", input);
@@ -266,7 +266,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                         } else {
                             assertEquals("FAIL", input);
                         }
-                    });
+                    }));
                 });
             }
 
@@ -331,7 +331,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                         throw new AssertionError(e);
                     }
 
-                    final StepListener<Integer> stepListener = new StepListener<>();
+                    final ListenableFuture<Integer> stepListener = new ListenableFuture<>();
                     final AtomicBoolean isComplete = new AtomicBoolean();
                     final AtomicBoolean isCancelled = new AtomicBoolean();
                     testCache.get(
@@ -349,7 +349,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                         isCancelled.set(true);
                     }
 
-                    stepListener.whenComplete(len -> {
+                    stepListener.addListener(ActionListener.wrap(len -> {
                         finishLatch.countDown();
                         assertThat(len, greaterThanOrEqualTo(input.length()));
                     }, e -> {
@@ -359,7 +359,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                         } else {
                             throw new AssertionError("unexpected", e);
                         }
-                    });
+                    }));
                 });
             }
 
@@ -430,14 +430,14 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         testCache.get("successful", () -> false, successfulFuture);
         cancelledThread.join();
 
-        expectThrows(TaskCancelledException.class, () -> cancelledFuture.actionGet(0L));
+        expectThrows(TaskCancelledException.class, cancelledFuture::result);
     }
 
     private static final ThreadContext testThreadContext = new ThreadContext(Settings.EMPTY);
 
     private static class TestCache extends CancellableSingleObjectCache<String, String, Integer> {
 
-        private final LinkedList<StepListener<Function<String, Integer>>> pendingRefreshes = new LinkedList<>();
+        private final LinkedList<ListenableFuture<Function<String, Integer>>> pendingRefreshes = new LinkedList<>();
 
         private TestCache() {
             super(testThreadContext);
@@ -450,17 +450,17 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
             BooleanSupplier supersedeIfStale,
             ActionListener<Integer> listener
         ) {
-            final StepListener<Function<String, Integer>> stepListener = new StepListener<>();
+            final ListenableFuture<Function<String, Integer>> stepListener = new ListenableFuture<>();
             pendingRefreshes.offer(stepListener);
-            stepListener.whenComplete(f -> {
+            stepListener.addListener(listener.delegateFailureAndWrap((l, f) -> {
                 if (supersedeIfStale.getAsBoolean()) {
                     return;
                 }
-                ActionListener.completeWith(listener, () -> {
+                ActionListener.completeWith(l, () -> {
                     ensureNotCancelled.run();
                     return f.apply(input);
                 });
-            }, listener::onFailure);
+            }));
         }
 
         @Override
@@ -491,9 +491,9 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
             nextRefresh().onResponse(k -> { throw new AssertionError("should not be called"); });
         }
 
-        private StepListener<Function<String, Integer>> nextRefresh() {
+        private ListenableFuture<Function<String, Integer>> nextRefresh() {
             assertThat(pendingRefreshes, not(empty()));
-            final StepListener<Function<String, Integer>> nextRefresh = pendingRefreshes.poll();
+            final ListenableFuture<Function<String, Integer>> nextRefresh = pendingRefreshes.poll();
             assertNotNull(nextRefresh);
             return nextRefresh;
         }

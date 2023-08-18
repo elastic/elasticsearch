@@ -30,6 +30,11 @@ public class DataStreamsStatsResponseTests extends AbstractWireSerializingTestCa
         return randomStatsResponse();
     }
 
+    @Override
+    protected DataStreamsStatsAction.Response mutateInstance(DataStreamsStatsAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static DataStreamsStatsAction.Response randomStatsResponse() {
         int dataStreamCount = randomInt(10);
         int backingIndicesTotal = 0;

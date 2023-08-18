@@ -171,4 +171,9 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
         assertThat(result.getBuckets().get(4).key.utf8ToString(), equalTo("9"));
         assertThat(result.getBuckets().get(4).getDocCount(), equalTo(9L));
     }
+
+    @Override
+    protected InternalTimeSeries mutateInstance(InternalTimeSeries instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

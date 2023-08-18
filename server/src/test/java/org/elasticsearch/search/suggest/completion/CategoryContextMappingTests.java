@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.suggest.completion;
 
+import org.apache.lucene.analysis.core.SimpleAnalyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
@@ -19,22 +21,24 @@ import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.CompletionFieldMapper.CompletionFieldType;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.search.suggest.completion.context.CategoryContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -42,13 +46,26 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class CategoryContextMappingTests extends ESSingleNodeTestCase {
+public class CategoryContextMappingTests extends MapperServiceTestCase {
+
+    @Override
+    protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        return IndexAnalyzers.of(
+            Map.of(
+                "default",
+                new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()),
+                "simple",
+                new NamedAnalyzer("simple", AnalyzerScope.INDEX, new SimpleAnalyzer())
+            )
+        );
+    }
 
     public void testIndexingWithNoContexts() throws Exception {
         String mapping = Strings.toString(
@@ -69,8 +86,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
         );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper defaultMapper = createDocumentMapper(mapping);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
@@ -96,7 +112,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 XContentType.JSON
             )
         );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 7);
     }
 
@@ -119,8 +135,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
         );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper defaultMapper = createDocumentMapper(mapping);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
@@ -141,7 +156,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 XContentType.JSON
             )
         );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -164,8 +179,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
         );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper defaultMapper = createDocumentMapper(mapping);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
@@ -186,7 +200,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 XContentType.JSON
             )
         );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -209,8 +223,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
         );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper defaultMapper = createDocumentMapper(mapping);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
@@ -231,7 +244,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 XContentType.JSON
             )
         );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -254,8 +267,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
         );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper defaultMapper = createDocumentMapper(mapping);
         XContentBuilder builder = jsonBuilder().startObject()
             .startArray("completion")
             .startObject()
@@ -269,7 +281,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
             .endObject();
 
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> defaultMapper.parse(new SourceToParse("1", BytesReference.bytes(builder), XContentType.JSON))
         );
         assertEquals(
@@ -297,8 +309,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
         );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper defaultMapper = createDocumentMapper(mapping);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
@@ -317,7 +328,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 XContentType.JSON
             )
         );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -340,8 +351,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
         );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper defaultMapper = createDocumentMapper(mapping);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
@@ -360,7 +370,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 XContentType.JSON
             )
         );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -383,8 +393,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
         );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper defaultMapper = createDocumentMapper(mapping);
         XContentBuilder builder = jsonBuilder().startObject()
             .startObject("completion")
             .array("input", "suggestion5", "suggestion6", "suggestion7")
@@ -396,7 +405,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
             .endObject();
 
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> defaultMapper.parse(new SourceToParse("1", BytesReference.bytes(builder), XContentType.JSON))
         );
         assertEquals("context array must have string, number or boolean values, but was [VALUE_NULL]", e.getCause().getMessage());
@@ -425,8 +434,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
         );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper defaultMapper = createDocumentMapper(mapping);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         XContentBuilder builder = jsonBuilder().startObject()
             .startArray("completion")
@@ -441,7 +449,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
             .endArray()
             .endObject();
         ParsedDocument parsedDocument = defaultMapper.parse(new SourceToParse("1", BytesReference.bytes(builder), XContentType.JSON));
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -776,14 +784,14 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
+        MapperService mapperService = createMapperService(mapping);
         CompletionFieldType completionFieldType = (CompletionFieldType) mapperService.fieldType("completion");
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> completionFieldType.getContextMappings().get("brand"));
         assertEquals("Unknown context name [brand], must be one of [ctx, type]", e.getMessage());
     }
 
-    public void testParsingContextFromDocument() throws Exception {
+    public void testParsingContextFromDocument() {
         CategoryContextMapping mapping = ContextBuilder.category("cat").field("category").build();
         LuceneDocument document = new LuceneDocument();
 
@@ -820,7 +828,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         assertThat(exc.getMessage(), containsString("Failed to parse context field [category]"));
     }
 
-    static void assertContextSuggestFields(IndexableField[] fields, int expected) {
+    static void assertContextSuggestFields(List<IndexableField> fields, int expected) {
         int actualFieldCount = 0;
         for (IndexableField field : fields) {
             if (field instanceof ContextSuggestField) {

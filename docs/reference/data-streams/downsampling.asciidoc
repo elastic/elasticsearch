@@ -1,7 +1,15 @@
 [[downsampling]]
-=== Downsampling a time series data stream
 
-preview::[]
+/////
+[source,console]
+--------------------------------------------------
+DELETE _ilm/policy/my_policy
+--------------------------------------------------
+// TEST
+// TEARDOWN
+/////
+
+=== Downsampling a time series data stream
 
 Downsampling provides a method to reduce the footprint of your <<tsds,time
 series data>> by storing it at reduced granularity.
@@ -72,18 +80,14 @@ To downsample a time series index, use the
 <<indices-downsample-data-stream,Downsample API>> and set `fixed_interval` to
 the level of granularity that you'd like:
 
-```
-POST /<source_index>/_downsample/<new_index>
-{
-    "fixed_interval": "1d"
-}
-```
+include::../indices/downsample-data-stream.asciidoc[tag=downsample-example]
 
 To downsample time series data as part of ILM, include a
 <<ilm-downsample,Downsample action>> in your ILM policy and set `fixed_interval`
 to the level of granularity that you'd like:
 
-```
+[source,console]
+----
 PUT _ilm/policy/my_policy
 {
   "policy": {
@@ -98,7 +102,7 @@ PUT _ilm/policy/my_policy
     }
   }
 }
-```
+----
 
 [discrete]
 [[querying-downsampled-indices]]
@@ -119,15 +123,17 @@ on a downsampled index that has been downsampled at an hourly resolution
 minute 0, then 59 empty buckets, and then a bucket with data again for the next
 hour.
 
-NOTE:
+[discrete]
+[[querying-downsampled-indices-notes]]
+==== Notes on downsample queries
 
-There are a few things to note when querying downsampled indices:
+There are a few things to note about querying downsampled indices:
 
 * When you run queries in {kib} and through Elastic solutions, a normal
 response is returned without notification that some of the queried indices are
 downsampled.
-* For 
-<<search-aggregations-bucket-datehistogram-aggregation,date histogram aggregations>>, 
+* For
+<<search-aggregations-bucket-datehistogram-aggregation,date histogram aggregations>>,
 only `fixed_intervals` (and not calendar-aware intervals) are supported.
 * Only Coordinated Universal Time (UTC) date-times are supported.
 
@@ -137,13 +143,13 @@ only `fixed_intervals` (and not calendar-aware intervals) are supported.
 
 The following restrictions and limitations apply for downsampling:
 
-* Only indices in a <<tsds,time series data stream>> are supported. 
+* Only indices in a <<tsds,time series data stream>> are supported.
 
 * Data is downsampled based on the time dimension only. All other dimensions are
 copied to the new index without any modification.
 
 * Within a data stream, a downsampled index replaces the original index and the
-original index is deleted. Only one index can exist for a given time period. 
+original index is deleted. Only one index can exist for a given time period.
 
 * A source index must be in read-only mode for the downsampling process to
 succeed. Check the <<downsampling-manual,Run downsampling manually>> example for

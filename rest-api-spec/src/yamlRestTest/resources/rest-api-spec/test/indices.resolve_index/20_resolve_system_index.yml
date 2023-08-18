@@ -3,10 +3,23 @@ setup:
   - skip:
       version: " - 8.1.99"
       reason: "system index attribute introduced in 8.2"
+      features: "warnings"
 
   - do:
       indices.create:
         index: ".tasks"
+---
+# explicitly delete ".tasks" because this is a system index
+teardown:
+  - skip:
+      features: "warnings"
+      reason: "these tests manipulate system indices, so we get warnings"
+  - do:
+      indices.delete:
+        index: ".tasks"
+      warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented
+       by default"
 ---
 "Resolve system index":
 

@@ -18,6 +18,7 @@ public final class QueryParsers {
     public static final ParseField CONSTANT_SCORE = new ParseField("constant_score");
     public static final ParseField SCORING_BOOLEAN = new ParseField("scoring_boolean");
     public static final ParseField CONSTANT_SCORE_BOOLEAN = new ParseField("constant_score_boolean");
+    public static final ParseField CONSTANT_SCORE_BLENDED = new ParseField("constant_score_blended");
     public static final ParseField TOP_TERMS = new ParseField("top_terms_");
     public static final ParseField TOP_TERMS_BOOST = new ParseField("top_terms_boost_");
     public static final ParseField TOP_TERMS_BLENDED_FREQS = new ParseField("top_terms_blended_freqs_");
@@ -26,15 +27,8 @@ public final class QueryParsers {
 
     }
 
-    public static void setRewriteMethod(MultiTermQuery query, @Nullable MultiTermQuery.RewriteMethod rewriteMethod) {
-        if (rewriteMethod == null) {
-            return;
-        }
-        query.setRewriteMethod(rewriteMethod);
-    }
-
     public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod, DeprecationHandler deprecationHandler) {
-        return parseRewriteMethod(rewriteMethod, MultiTermQuery.CONSTANT_SCORE_REWRITE, deprecationHandler);
+        return parseRewriteMethod(rewriteMethod, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, deprecationHandler);
     }
 
     public static MultiTermQuery.RewriteMethod parseRewriteMethod(
@@ -53,6 +47,9 @@ public final class QueryParsers {
         }
         if (CONSTANT_SCORE_BOOLEAN.match(rewriteMethod, deprecationHandler)) {
             return MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE;
+        }
+        if (CONSTANT_SCORE_BLENDED.match(rewriteMethod, deprecationHandler)) {
+            return MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
         }
 
         int firstDigit = -1;

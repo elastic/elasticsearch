@@ -8,11 +8,11 @@
 
 package org.elasticsearch.datastreams;
 
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
@@ -21,27 +21,30 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateTsdbMapping;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.composeDataLifecycles;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.MetadataDataStreamRolloverServiceTests.createSettingsProvider;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -49,61 +52,6 @@ import static org.mockito.Mockito.when;
  * Variant of MetadataIndexTemplateServiceTests in server module, but with {@link DataStreamIndexSettingsProvider}.
  */
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
-
-    public void testValidateTsdbDataStreamsReferringTsdbTemplate() throws Exception {
-        var state = ClusterState.EMPTY_STATE;
-        final var service = getMetadataIndexTemplateService();
-        var template = new ComposableIndexTemplate(
-            Collections.singletonList("logs-*-*"),
-            new Template(
-                builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(),
-                new CompressedXContent(generateTsdbMapping()),
-                null
-            ),
-            null,
-            100L,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false),
-            null
-        );
-        state = service.addIndexTemplateV2(state, false, "logs", template);
-
-        var now = Instant.now();
-        var mBuilder = Metadata.builder(state.getMetadata());
-        DataStreamTestHelper.getClusterStateWithDataStream(
-            mBuilder,
-            "unreferenced",
-            List.of(Tuple.tuple(now.minus(2, ChronoUnit.HOURS), now))
-        );
-        DataStreamTestHelper.getClusterStateWithDataStream(
-            mBuilder,
-            "logs-mysql-default",
-            List.of(Tuple.tuple(now.minus(2, ChronoUnit.HOURS), now))
-        );
-        var stateWithDS = ClusterState.builder(state).metadata(mBuilder).build();
-
-        var e = expectThrows(IllegalArgumentException.class, () -> {
-            ComposableIndexTemplate nonDSTemplate = new ComposableIndexTemplate(
-                Collections.singletonList("logs-*-*"),
-                null,
-                null,
-                100L,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                null
-            );
-            service.addIndexTemplateV2(stateWithDS, false, "logs", nonDSTemplate);
-        });
-
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "would cause tsdb data streams [logs-mysql-default] to no longer match a data stream template with a time_series index_mode"
-            )
-        );
-    }
 
     public void testRequireRoutingPath() throws Exception {
         final var service = getMetadataIndexTemplateService();
@@ -200,6 +148,59 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testLifecycleComposition() {
+        // No lifecycles result to null
+        {
+            List<DataStreamLifecycle> lifecycles = List.of();
+            assertThat(composeDataLifecycles(lifecycles), nullValue());
+        }
+        // One lifecycle results to this lifecycle as the final
+        {
+            DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+                .dataRetention(randomRetention())
+                .downsampling(randomDownsampling())
+                .build();
+            List<DataStreamLifecycle> lifecycles = List.of(lifecycle);
+            DataStreamLifecycle result = composeDataLifecycles(lifecycles);
+            // Defaults to true
+            assertThat(result.isEnabled(), equalTo(true));
+            assertThat(result.getEffectiveDataRetention(), equalTo(lifecycle.getEffectiveDataRetention()));
+            assertThat(result.getDownsamplingRounds(), equalTo(lifecycle.getDownsamplingRounds()));
+        }
+        // If the last lifecycle is missing a property (apart from enabled) we keep the latest from the previous ones
+        // Enabled is always true unless it's explicitly set to false
+        {
+            DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+                .enabled(false)
+                .dataRetention(randomNonEmptyRetention())
+                .downsampling(randomNonEmptyDownsampling())
+                .build();
+            List<DataStreamLifecycle> lifecycles = List.of(lifecycle, new DataStreamLifecycle());
+            DataStreamLifecycle result = composeDataLifecycles(lifecycles);
+            assertThat(result.isEnabled(), equalTo(true));
+            assertThat(result.getEffectiveDataRetention(), equalTo(lifecycle.getEffectiveDataRetention()));
+            assertThat(result.getDownsamplingRounds(), equalTo(lifecycle.getDownsamplingRounds()));
+        }
+        // If both lifecycle have all properties, then the latest one overwrites all the others
+        {
+            DataStreamLifecycle lifecycle1 = DataStreamLifecycle.newBuilder()
+                .enabled(false)
+                .dataRetention(randomNonEmptyRetention())
+                .downsampling(randomNonEmptyDownsampling())
+                .build();
+            DataStreamLifecycle lifecycle2 = DataStreamLifecycle.newBuilder()
+                .enabled(true)
+                .dataRetention(randomNonEmptyRetention())
+                .downsampling(randomNonEmptyDownsampling())
+                .build();
+            List<DataStreamLifecycle> lifecycles = List.of(lifecycle1, lifecycle2);
+            DataStreamLifecycle result = composeDataLifecycles(lifecycles);
+            assertThat(result.isEnabled(), equalTo(lifecycle2.isEnabled()));
+            assertThat(result.getEffectiveDataRetention(), equalTo(lifecycle2.getEffectiveDataRetention()));
+            assertThat(result.getDownsamplingRounds(), equalTo(lifecycle2.getDownsamplingRounds()));
+        }
+    }
+
     private MetadataIndexTemplateService getMetadataIndexTemplateService() {
         var indicesService = getInstanceFromNode(IndicesService.class);
         var clusterService = getInstanceFromNode(ClusterService.class);
@@ -240,4 +241,49 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         return new ShardLimitValidator(limitOnlySettings, clusterService);
     }
 
+    @Nullable
+    private static DataStreamLifecycle.Retention randomRetention() {
+        return switch (randomInt(2)) {
+            case 0 -> null;
+            case 1 -> DataStreamLifecycle.Retention.NULL;
+            default -> randomNonEmptyRetention();
+        };
+    }
+
+    private static DataStreamLifecycle.Retention randomNonEmptyRetention() {
+        return new DataStreamLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
+    }
+
+    @Nullable
+    private static DataStreamLifecycle.Downsampling randomDownsampling() {
+        return switch (randomInt(2)) {
+            case 0 -> null;
+            case 1 -> DataStreamLifecycle.Downsampling.NULL;
+            default -> randomNonEmptyDownsampling();
+        };
+    }
+
+    private static DataStreamLifecycle.Downsampling randomNonEmptyDownsampling() {
+        var count = randomIntBetween(0, 9);
+        List<DataStreamLifecycle.Downsampling.Round> rounds = new ArrayList<>();
+        var previous = new DataStreamLifecycle.Downsampling.Round(
+            TimeValue.timeValueDays(randomIntBetween(1, 365)),
+            new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
+        );
+        rounds.add(previous);
+        for (int i = 0; i < count; i++) {
+            DataStreamLifecycle.Downsampling.Round round = nextRound(previous);
+            rounds.add(round);
+            previous = round;
+        }
+        return new DataStreamLifecycle.Downsampling(rounds);
+    }
+
+    private static DataStreamLifecycle.Downsampling.Round nextRound(DataStreamLifecycle.Downsampling.Round previous) {
+        var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
+        var fixedInterval = new DownsampleConfig(
+            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
+        );
+        return new DataStreamLifecycle.Downsampling.Round(after, fixedInterval);
+    }
 }

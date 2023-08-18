@@ -132,4 +132,9 @@ public class PolygonTests extends BaseGeometryTestCase<Polygon> {
             ex.getMessage()
         );
     }
+
+    @Override
+    protected Polygon mutateInstance(Polygon instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

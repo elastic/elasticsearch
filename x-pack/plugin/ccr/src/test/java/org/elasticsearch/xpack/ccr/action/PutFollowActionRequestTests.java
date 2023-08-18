@@ -65,7 +65,7 @@ public class PutFollowActionRequestTests extends AbstractXContentSerializingTest
     }
 
     @Override
-    protected PutFollowAction.Request mutateInstance(PutFollowAction.Request instance) throws IOException {
+    protected PutFollowAction.Request mutateInstance(PutFollowAction.Request instance) {
         PutFollowAction.Request request = new PutFollowAction.Request();
         request.setFollowerIndex(instance.getFollowerIndex());
         request.waitForActiveShards(instance.waitForActiveShards());
@@ -98,8 +98,4 @@ public class PutFollowActionRequestTests extends AbstractXContentSerializingTest
         return request;
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
 }

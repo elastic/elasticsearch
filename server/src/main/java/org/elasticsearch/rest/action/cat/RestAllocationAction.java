@@ -22,6 +22,8 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 
@@ -31,6 +33,7 @@ import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestAllocationAction extends AbstractCatAction {
 
     @Override
@@ -89,6 +92,7 @@ public class RestAllocationAction extends AbstractCatAction {
         table.addCell("host", "alias:h;desc:host of node");
         table.addCell("ip", "desc:ip of node");
         table.addCell("node", "alias:n;desc:name of node");
+        table.addCell("node.role", "default:false;alias:r,role,nodeRole;desc:node roles");
         table.endHeaders();
         return table;
     }
@@ -96,16 +100,13 @@ public class RestAllocationAction extends AbstractCatAction {
     private Table buildTable(RestRequest request, final ClusterStateResponse state, final NodesStatsResponse stats) {
         final Map<String, Integer> allocs = new HashMap<>();
 
-        for (ShardRouting shard : state.getState().routingTable().allShards()) {
+        for (ShardRouting shard : state.getState().routingTable().allShardsIterator()) {
             String nodeId = "UNASSIGNED";
-
             if (shard.assignedToNode()) {
                 nodeId = shard.currentNodeId();
             }
-
             allocs.merge(nodeId, 1, Integer::sum);
         }
-
         Table table = getTableWithHeader(request);
 
         for (NodeStats nodeStats : stats.getNodes()) {
@@ -135,6 +136,7 @@ public class RestAllocationAction extends AbstractCatAction {
             table.addCell(node.getHostName());
             table.addCell(node.getHostAddress());
             table.addCell(node.getName());
+            table.addCell(node.getRoleAbbreviationString());
             table.endRow();
         }
 
@@ -150,6 +152,7 @@ public class RestAllocationAction extends AbstractCatAction {
             table.addCell(null);
             table.addCell(null);
             table.addCell(UNASSIGNED);
+            table.addCell(null);
             table.endRow();
         }
 

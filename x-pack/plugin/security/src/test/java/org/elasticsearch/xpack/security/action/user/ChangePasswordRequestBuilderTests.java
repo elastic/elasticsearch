@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.hamcrest.Matchers.containsString;
@@ -56,7 +57,7 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
         assertThat(request.passwordHash(), equalTo(hash));
     }
 
-    public void testWithHashedPasswordWithWrongAlgo() {
+    public void testWithHashedPasswordWithDifferentAlgo() throws IOException {
         final Hasher systemHasher = getFastStoredHashAlgoForTests();
         Hasher userHasher = getFastStoredHashAlgoForTests();
         while (userHasher.name().equals(systemHasher.name())) {
@@ -67,28 +68,29 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
             {"password_hash": "%s"}
             """, new String(hash));
         ChangePasswordRequestBuilder builder = new ChangePasswordRequestBuilder(mock(Client.class));
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { builder.source(new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher).request(); }
-        );
-        assertThat(e.getMessage(), containsString(userHasher.name()));
-        assertThat(e.getMessage(), containsString(systemHasher.name()));
+        final ChangePasswordRequest request = builder.source(
+            new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON,
+            systemHasher
+        ).request();
+        assertThat(request.passwordHash(), equalTo(hash));
     }
 
     public void testWithHashedPasswordNotHash() {
-        final Hasher systemHasher = getFastStoredHashAlgoForTests();
+        final Hasher systemHasher = Hasher.valueOf(randomFrom(Hasher.getAvailableAlgoStoredHash()).toUpperCase(Locale.ROOT));
         final char[] hash = randomAlphaOfLength(20).toCharArray();
         final String json = Strings.format("""
             {
                 "password_hash": "%s"
             }""", new String(hash));
         ChangePasswordRequestBuilder builder = new ChangePasswordRequestBuilder(mock(Client.class));
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { builder.source(new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher).request(); }
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            builder.source(new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher).request();
+        });
+        assertThat(
+            e.getMessage(),
+            containsString("The provided password hash is not a hash or it could not be resolved to a supported hash algorithm.")
         );
-        assertThat(e.getMessage(), containsString(Hasher.NOOP.name()));
-        assertThat(e.getMessage(), containsString(systemHasher.name()));
     }
 
     public void testWithPasswordAndHash() throws IOException {
@@ -103,10 +105,9 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
         );
 
         ChangePasswordRequestBuilder builder = new ChangePasswordRequestBuilder(mock(Client.class));
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { builder.source(json, XContentType.JSON, hasher).request(); }
-        );
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            builder.source(json, XContentType.JSON, hasher).request();
+        });
         assertThat(e.getMessage(), containsString("password_hash has already been set"));
 
     }

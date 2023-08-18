@@ -1,5 +1,0 @@
-pr: 92489
-summary: Make `RecoveryPlannerService` optional
-area: Snapshot/Restore
-type: enhancement
-issues: []

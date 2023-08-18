@@ -18,14 +18,20 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -53,11 +59,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedConsumer;
@@ -95,6 +101,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
+import org.elasticsearch.index.query.DataRewriteContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
@@ -103,6 +110,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -119,6 +127,7 @@ import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -161,6 +170,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -222,6 +232,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final OldShardsStats oldShardsStats = new OldShardsStats();
     private final MapperRegistry mapperRegistry;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
     private final Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers;
     private final IndexingMemoryController indexingMemoryController;
     private final TimeValue cleanInterval;
@@ -241,7 +252,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
     @Nullable
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
-    private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
+    private final Set<Index> danglingIndicesToWrite = ConcurrentCollections.newConcurrentSet();
     private final boolean nodeWriteDanglingIndicesInfo;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final TimestampFieldMapperService timestampFieldMapperService;
@@ -279,7 +290,8 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners,
         Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers,
-        CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator
+        CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator,
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -295,6 +307,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
         indexingMemoryController = new IndexingMemoryController(
             settings,
             threadPool,
@@ -532,7 +545,9 @@ public class IndicesService extends AbstractLifecycleComponent
                     CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, flags),
                     commitStats,
                     seqNoStats,
-                    retentionLeaseStats
+                    retentionLeaseStats,
+                    indexShard.isSearchIdle(),
+                    indexShard.searchIdleTime()
                 ) }
         );
     }
@@ -617,16 +632,46 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
         };
+        final IndexEventListener beforeIndexShardRecovery = new IndexEventListener() {
+            volatile boolean reloaded;
+
+            @Override
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                try {
+                    if (indexShard.mapperService() != null) {
+                        // we need to reload once, not on every shard recovery in case multiple shards are on the same node
+                        if (reloaded == false) {
+                            synchronized (indexShard.mapperService()) {
+                                if (reloaded == false) {
+                                    // we finish loading analyzers from resources here
+                                    // during shard recovery in the generic thread pool,
+                                    // as this may require longer running operations and blocking calls
+                                    indexShard.mapperService().reloadSearchAnalyzers(getAnalysis(), null, false);
+                                }
+                                reloaded = true;
+                            }
+                        }
+                    }
+                    listener.onResponse(null);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }
+        };
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
-        final IndexService indexService = createIndexService(
-            CREATE_INDEX,
-            indexMetadata,
-            indicesQueryCache,
-            indicesFieldDataCache,
-            finalListeners,
-            indexingMemoryController
-        );
+        finalListeners.add(beforeIndexShardRecovery);
+        IndexService indexService;
+        try (var ignored = threadPool.getThreadContext().newStoredContext()) {
+            indexService = createIndexService(
+                CREATE_INDEX,
+                indexMetadata,
+                indicesQueryCache,
+                indicesFieldDataCache,
+                finalListeners,
+                indexingMemoryController
+            );
+        }
         boolean success = false;
         try {
             if (writeDanglingIndices && nodeWriteDanglingIndicesInfo) {
@@ -716,7 +761,8 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            documentParsingObserverSupplier
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -792,10 +838,11 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            documentParsingObserverSupplier
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
-        return indexModule.newIndexMapperService(parserConfig, mapperRegistry, scriptService);
+        return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
     }
 
     /**
@@ -838,7 +885,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final PeerRecoveryTargetService.RecoveryListener recoveryListener,
         final RepositoriesService repositoriesService,
         final Consumer<IndexShard.ShardFailure> onShardFailure,
-        final Consumer<ShardId> globalCheckpointSyncer,
+        final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode targetNode,
         final DiscoveryNode sourceNode
@@ -850,15 +897,20 @@ public class IndicesService extends AbstractLifecycleComponent
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
-        indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {
+        indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, (mapping, listener) -> {
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
                 : "mapping update consumer only required by local shards recovery";
-            client.admin()
-                .indices()
-                .preparePutMapping()
-                .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
-                .setSource(mapping.source().string(), XContentType.JSON)
-                .get();
+            client.execute(
+                clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_8_8_0)
+                    ? AutoPutMappingAction.INSTANCE
+                    : PutMappingAction.INSTANCE,
+                new PutMappingRequest().setConcreteIndex(shardRouting.index())
+                    .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
+                    .source(mapping.source().string(), XContentType.JSON)
+                    .timeout(TimeValue.MAX_VALUE)
+                    .masterNodeTimeout(TimeValue.MAX_VALUE),
+                new ThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
+            );
         }, this);
         return indexShard;
     }
@@ -1223,12 +1275,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
     private void addPendingDelete(Index index, PendingDelete pendingDelete) {
         synchronized (pendingDeletes) {
-            List<PendingDelete> list = pendingDeletes.get(index);
-            if (list == null) {
-                list = new ArrayList<>();
-                pendingDeletes.put(index, list);
-            }
-            list.add(pendingDelete);
+            pendingDeletes.computeIfAbsent(index, k -> new ArrayList<>()).add(pendingDelete);
             numUncompletedDeletes.incrementAndGet();
         }
     }
@@ -1648,14 +1695,20 @@ public class IndicesService extends AbstractLifecycleComponent
 
         Metadata metadata = state.metadata();
         IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
-        if (ia.getParentDataStream() != null) {
-            List<QueryBuilder> filters = Arrays.stream(aliases).map(name -> metadata.dataStreamAliases().get(name)).map(dataStreamAlias -> {
-                try {
-                    return filterParser.apply(dataStreamAlias.getFilter().uncompressed());
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }).toList();
+        DataStream dataStream = ia.getParentDataStream();
+        if (dataStream != null) {
+            String dataStreamName = dataStream.getName();
+            List<QueryBuilder> filters = Arrays.stream(aliases)
+                .map(name -> metadata.dataStreamAliases().get(name))
+                .filter(dataStreamAlias -> dataStreamAlias.getFilter(dataStreamName) != null)
+                .map(dataStreamAlias -> {
+                    try {
+                        return filterParser.apply(dataStreamAlias.getFilter(dataStreamName).uncompressed());
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                })
+                .toList();
             if (filters.isEmpty()) {
                 return AliasFilter.of(null, aliases);
             } else {
@@ -1679,18 +1732,15 @@ public class IndicesService extends AbstractLifecycleComponent
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
-        return new QueryRewriteContext(parserConfig, namedWriteableRegistry, client, nowInMillis);
+        return new QueryRewriteContext(parserConfig, client, nowInMillis);
+    }
+
+    public DataRewriteContext getDataRewriteContext(LongSupplier nowInMillis) {
+        return new DataRewriteContext(parserConfig, client, nowInMillis);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {
-        return new CoordinatorRewriteContextProvider(
-            parserConfig,
-            namedWriteableRegistry,
-            client,
-            nowInMillis,
-            clusterService::state,
-            this::getTimestampFieldType
-        );
+        return new CoordinatorRewriteContextProvider(parserConfig, client, nowInMillis, clusterService::state, this::getTimestampFieldType);
     }
 
     /**
@@ -1716,13 +1766,6 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public Function<String, Predicate<String>> getFieldFilter() {
         return mapperRegistry.getFieldFilter();
-    }
-
-    /**
-     * Returns the registered metadata field names for the provided compatible {@link Version}.
-     */
-    public Set<String> getMetadataFields(Version version) {
-        return mapperRegistry.getMetadataMapperParsers(version).keySet();
     }
 
     private void setIdFieldDataEnabled(boolean value) {
@@ -1797,4 +1840,7 @@ public class IndicesService extends AbstractLifecycleComponent
         return timestampFieldMapperService.getTimestampFieldType(index);
     }
 
+    public IndexScopedSettings getIndexScopedSettings() {
+        return indexScopedSettings;
+    }
 }

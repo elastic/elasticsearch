@@ -1,6 +1,0 @@
-pr: 91438
-summary: Handle APM global labels as affix setting
-area: Infra/Core
-type: enhancement
-issues:
- - 91278

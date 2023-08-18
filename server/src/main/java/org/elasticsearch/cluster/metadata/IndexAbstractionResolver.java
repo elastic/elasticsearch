@@ -14,7 +14,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -27,32 +26,6 @@ public class IndexAbstractionResolver {
 
     public IndexAbstractionResolver(IndexNameExpressionResolver indexNameExpressionResolver) {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-    }
-
-    public List<String> resolveIndexAbstractions(
-        String[] indices,
-        IndicesOptions indicesOptions,
-        Metadata metadata,
-        boolean includeDataStreams
-    ) {
-        return resolveIndexAbstractions(Arrays.asList(indices), indicesOptions, metadata, includeDataStreams);
-    }
-
-    public List<String> resolveIndexAbstractions(
-        Iterable<String> indices,
-        IndicesOptions indicesOptions,
-        Metadata metadata,
-        boolean includeDataStreams
-    ) {
-        final Set<String> availableIndexAbstractions = metadata.getIndicesLookup().keySet();
-        return resolveIndexAbstractions(
-            indices,
-            indicesOptions,
-            metadata,
-            () -> availableIndexAbstractions,
-            availableIndexAbstractions::contains,
-            includeDataStreams
-        );
     }
 
     public List<String> resolveIndexAbstractions(
@@ -110,6 +83,9 @@ public class IndexAbstractionResolver {
                 if (minus) {
                     finalIndices.remove(indexAbstraction);
                 } else if (indicesOptions.ignoreUnavailable() == false || isAuthorized.test(indexAbstraction)) {
+                    // Unauthorized names are considered unavailable, so if `ignoreUnavailable` is `true` they should be silently
+                    // discarded from the `finalIndices` list. Other "ways of unavailable" must be handled by the action
+                    // handler, see: https://github.com/elastic/elasticsearch/issues/90215
                     finalIndices.add(indexAbstraction);
                 }
             }

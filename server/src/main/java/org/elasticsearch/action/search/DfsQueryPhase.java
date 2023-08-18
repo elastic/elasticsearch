@@ -8,10 +8,10 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -38,7 +38,7 @@ final class DfsQueryPhase extends SearchPhase {
     private final QueryPhaseResultConsumer queryResult;
     private final List<DfsSearchResult> searchResults;
     private final AggregatedDfs dfs;
-    private final DfsKnnResults knnResults;
+    private final List<DfsKnnResults> knnResults;
     private final Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final SearchTransportService searchTransportService;
@@ -47,7 +47,7 @@ final class DfsQueryPhase extends SearchPhase {
     DfsQueryPhase(
         List<DfsSearchResult> searchResults,
         AggregatedDfs dfs,
-        DfsKnnResults knnResults,
+        List<DfsKnnResults> knnResults,
         QueryPhaseResultConsumer queryResult,
         Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
         SearchPhaseContext context
@@ -130,29 +130,30 @@ final class DfsQueryPhase extends SearchPhase {
         }
     }
 
-    private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
+    // package private for testing
+    ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
         SearchSourceBuilder source = request.source();
-        if (source == null || source.knnSearch() == null) {
+        if (source == null || source.knnSearch().isEmpty()) {
             return request;
         }
 
-        List<ScoreDoc> scoreDocs = new ArrayList<>();
-        for (ScoreDoc scoreDoc : knnResults.scoreDocs()) {
-            if (scoreDoc.shardIndex == request.shardRequestIndex()) {
-                scoreDocs.add(scoreDoc);
+        List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>(source.subSearches());
+
+        for (DfsKnnResults dfsKnnResults : knnResults) {
+            List<ScoreDoc> scoreDocs = new ArrayList<>();
+            for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
+                if (scoreDoc.shardIndex == request.shardRequestIndex()) {
+                    scoreDocs.add(scoreDoc);
+                }
             }
-        }
-        scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
-        KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
-
-        SearchSourceBuilder newSource = source.shallowCopy().knnSearch(null);
-        if (source.query() == null) {
-            newSource.query(knnQuery);
-        } else {
-            newSource.query(new BoolQueryBuilder().should(knnQuery).should(source.query()));
+            scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
+            KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
+            subSearchSourceBuilders.add(new SubSearchSourceBuilder(knnQuery));
         }
 
-        request.source(newSource);
+        source = source.shallowCopy().subSearches(subSearchSourceBuilders).knnSearch(List.of());
+        request.source(source);
+
         return request;
     }
 }

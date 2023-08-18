@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.document;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -44,12 +44,12 @@ public class DocumentField implements Writeable, Iterable<Object> {
     public DocumentField(StreamInput in) throws IOException {
         name = in.readString();
         values = in.readList(StreamInput::readGenericValue);
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             ignoredValues = in.readList(StreamInput::readGenericValue);
         } else {
             ignoredValues = Collections.emptyList();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             lookupFields = in.readList(LookupField::new);
         } else {
             lookupFields = List.of();
@@ -114,10 +114,10 @@ public class DocumentField implements Writeable, Iterable<Object> {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeCollection(values, StreamOutput::writeGenericValue);
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             out.writeCollection(ignoredValues, StreamOutput::writeGenericValue);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             out.writeList(lookupFields);
         } else {
             if (lookupFields.isEmpty() == false) {
@@ -135,10 +135,12 @@ public class DocumentField implements Writeable, Iterable<Object> {
         return (builder, params) -> {
             builder.startArray(name);
             for (Object value : values) {
-                // This call doesn't really need to support writing any kind of object, since the values
-                // here are always serializable to xContent. Each value could be a leaf types like a string,
-                // number, or boolean, a list of such values, or a map of such values with string keys.
-                builder.value(value);
+                try {
+                    builder.value(value);
+                } catch (RuntimeException e) {
+                    // if the value cannot be serialized, we catch here and return a placeholder value
+                    builder.value("<unserializable>");
+                }
             }
             builder.endArray();
             return builder;

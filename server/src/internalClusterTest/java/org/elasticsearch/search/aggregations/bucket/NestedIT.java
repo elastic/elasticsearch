@@ -11,7 +11,6 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -34,8 +33,6 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
@@ -429,10 +426,7 @@ public class NestedIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        assertAcked(
-            prepareCreate("idx2").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .setMapping(mapping)
-        );
+        assertAcked(prepareCreate("idx2").setSettings(indexSettings(1, 0)).setMapping(mapping));
         ensureGreen("idx2");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(2);
@@ -544,7 +538,7 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testNestedSameDocIdProcessedMultipleTime() throws Exception {
         assertAcked(
-            prepareCreate("idx4").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+            prepareCreate("idx4").setSettings(indexSettings(1, 0))
                 .setMapping("categories", "type=keyword", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idx4");
@@ -814,9 +808,8 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testExtractInnerHitBuildersWithDuplicateHitName() throws Exception {
         assertAcked(
-            prepareCreate("idxduplicatehitnames").setSettings(
-                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
-            ).setMapping("categories", "type=keyword", "name", "type=text", "property", "type=nested")
+            prepareCreate("idxduplicatehitnames").setSettings(indexSettings(1, 0))
+                .setMapping("categories", "type=keyword", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idxduplicatehitnames");
 
@@ -838,9 +831,8 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testExtractInnerHitBuildersWithDuplicatePath() throws Exception {
         assertAcked(
-            prepareCreate("idxnullhitnames").setSettings(
-                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
-            ).setMapping("categories", "type=keyword", "name", "type=text", "property", "type=nested")
+            prepareCreate("idxnullhitnames").setSettings(indexSettings(1, 0))
+                .setMapping("categories", "type=keyword", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idxnullhitnames");
 

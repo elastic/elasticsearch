@@ -173,6 +173,11 @@ public class ContextInfoTests extends AbstractXContentSerializingTestCase<Painle
     }
 
     @Override
+    protected PainlessContextInfo mutateInstance(PainlessContextInfo instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<PainlessContextInfo> instanceReader() {
         return PainlessContextInfo::new;
     }

@@ -88,7 +88,7 @@ public class ReindexFailureTests extends ReindexTestCase {
             ReindexRequestBuilder copy = reindex().source("source").destination("dest");
             copy.source().setSize(10);
             Future<BulkByScrollResponse> response = copy.execute();
-            client().admin().indices().prepareDelete("source").get();
+            indicesAdmin().prepareDelete("source").get();
 
             try {
                 response.get();

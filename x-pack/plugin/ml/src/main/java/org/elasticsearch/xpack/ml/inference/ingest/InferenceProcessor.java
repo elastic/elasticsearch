@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,6 +22,7 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -45,6 +45,10 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassification
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -150,7 +154,7 @@ public class InferenceProcessor extends AbstractProcessor {
             fields.put(INGEST_KEY, ingestDocument.getIngestMetadata());
         }
         LocalModel.mapFieldsIfNecessary(fields, fieldMap);
-        return new InferModelAction.Request(modelId, fields, inferenceConfig, previouslyLicensed);
+        return InferModelAction.Request.forIngestDocs(modelId, List.of(fields), inferenceConfig, previouslyLicensed);
     }
 
     void auditWarningAboutLicenseIfNecessary() {
@@ -172,7 +176,7 @@ public class InferenceProcessor extends AbstractProcessor {
             response.getInferenceResults().get(0),
             ingestDocument,
             targetField,
-            response.getModelId() != null ? response.getModelId() : modelId
+            response.getId() != null ? response.getId() : modelId
         );
     }
 
@@ -194,18 +198,18 @@ public class InferenceProcessor extends AbstractProcessor {
         private final InferenceAuditor auditor;
         private volatile int currentInferenceProcessors;
         private volatile int maxIngestProcessors;
-        private volatile Version minNodeVersion = Version.CURRENT;
+        private volatile MlConfigVersion minNodeVersion = MlConfigVersion.CURRENT;
 
-        public Factory(Client client, ClusterService clusterService, Settings settings) {
+        public Factory(Client client, ClusterService clusterService, Settings settings, boolean includeNodeInfo) {
             this.client = client;
             this.maxIngestProcessors = MAX_INFERENCE_PROCESSORS.get(settings);
-            this.auditor = new InferenceAuditor(client, clusterService);
+            this.auditor = new InferenceAuditor(client, clusterService, includeNodeInfo);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_INFERENCE_PROCESSORS, this::setMaxIngestProcessors);
         }
 
         @Override
         public void accept(ClusterState state) {
-            minNodeVersion = state.nodes().getMinNodeVersion();
+            minNodeVersion = MlConfigVersion.getMinMlConfigVersion(state.nodes());
             try {
                 currentInferenceProcessors = InferenceProcessorInfoExtractor.countInferenceProcessors(state);
             } catch (Exception ex) {
@@ -312,6 +316,12 @@ public class InferenceProcessor extends AbstractProcessor {
             } else if (configMap.containsKey(TextEmbeddingConfig.NAME)) {
                 checkNlpSupported(TextEmbeddingConfig.NAME);
                 return TextEmbeddingConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(TextExpansionConfig.NAME)) {
+                checkNlpSupported(TextExpansionConfig.NAME);
+                return TextExpansionConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(TextSimilarityConfig.NAME)) {
+                checkNlpSupported(TextSimilarityConfig.NAME);
+                return TextSimilarityConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(ZeroShotClassificationConfig.NAME)) {
                 checkNlpSupported(ZeroShotClassificationConfig.NAME);
                 return ZeroShotClassificationConfigUpdate.fromMap(valueMap);
@@ -328,8 +338,11 @@ public class InferenceProcessor extends AbstractProcessor {
                         FillMaskConfig.NAME,
                         NerConfig.NAME,
                         PassThroughConfig.NAME,
+                        QuestionAnsweringConfig.NAME,
                         TextClassificationConfig.NAME,
                         TextEmbeddingConfig.NAME,
+                        TextExpansionConfigUpdate.NAME,
+                        TextSimilarityConfig.NAME,
                         ZeroShotClassificationConfig.NAME
                     )
                 );
@@ -350,12 +363,12 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         void checkSupportedVersion(InferenceConfig config) {
-            if (config.getMinimalSupportedVersion().after(minNodeVersion)) {
+            if (config.getMinimalSupportedMlConfigVersion().after(minNodeVersion)) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(
                         Messages.INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION,
                         config.getName(),
-                        config.getMinimalSupportedVersion(),
+                        config.getMinimalSupportedMlConfigVersion(),
                         minNodeVersion
                     )
                 );

@@ -15,6 +15,7 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -142,7 +143,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
             .count();
 
         this.<Map<String, String>>assertAsync(
-            listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, emptyMap(), listener),
+            listener -> SchemaUtil.deduceMappings(client, emptyMap(), pivotConfig, new String[] { "source-index" }, emptyMap(), listener),
             mappings -> {
                 assertEquals("Mappings were: " + mappings, numGroupsWithoutScripts + 15, mappings.size());
                 assertEquals("long", mappings.get("max_rating"));
@@ -214,7 +215,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
             .count();
 
         this.<Map<String, String>>assertAsync(
-            listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, emptyMap(), listener),
+            listener -> SchemaUtil.deduceMappings(client, emptyMap(), pivotConfig, new String[] { "source-index" }, emptyMap(), listener),
             mappings -> {
                 assertEquals(numGroupsWithoutScripts + 12, mappings.size());
                 assertEquals("long", mappings.get("filter_1"));
@@ -289,10 +290,10 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
 
-        LatchedActionListener<T> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
+        LatchedActionListener<T> listener = new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(r -> {
             assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
             furtherTests.accept(r);
-        }, e -> { fail("got unexpected exception: " + e); }), latch);
+        }), latch);
 
         function.accept(listener);
         assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));

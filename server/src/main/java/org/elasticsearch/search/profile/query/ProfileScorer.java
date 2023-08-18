@@ -24,22 +24,22 @@ import java.util.Collection;
 final class ProfileScorer extends Scorer {
 
     private final Scorer scorer;
-    private ProfileWeight profileWeight;
+    private final ProfileWeight profileWeight;
 
     private final Timer scoreTimer, nextDocTimer, advanceTimer, matchTimer, shallowAdvanceTimer, computeMaxScoreTimer,
         setMinCompetitiveScoreTimer;
 
-    ProfileScorer(ProfileWeight w, Scorer scorer, QueryProfileBreakdown profile) throws IOException {
+    ProfileScorer(ProfileWeight w, Scorer scorer, QueryProfileBreakdown profile) {
         super(w);
         this.scorer = scorer;
         this.profileWeight = w;
-        scoreTimer = profile.getTimer(QueryTimingType.SCORE);
-        nextDocTimer = profile.getTimer(QueryTimingType.NEXT_DOC);
-        advanceTimer = profile.getTimer(QueryTimingType.ADVANCE);
-        matchTimer = profile.getTimer(QueryTimingType.MATCH);
-        shallowAdvanceTimer = profile.getTimer(QueryTimingType.SHALLOW_ADVANCE);
-        computeMaxScoreTimer = profile.getTimer(QueryTimingType.COMPUTE_MAX_SCORE);
-        setMinCompetitiveScoreTimer = profile.getTimer(QueryTimingType.SET_MIN_COMPETITIVE_SCORE);
+        scoreTimer = profile.getNewTimer(QueryTimingType.SCORE);
+        nextDocTimer = profile.getNewTimer(QueryTimingType.NEXT_DOC);
+        advanceTimer = profile.getNewTimer(QueryTimingType.ADVANCE);
+        matchTimer = profile.getNewTimer(QueryTimingType.MATCH);
+        shallowAdvanceTimer = profile.getNewTimer(QueryTimingType.SHALLOW_ADVANCE);
+        computeMaxScoreTimer = profile.getNewTimer(QueryTimingType.COMPUTE_MAX_SCORE);
+        setMinCompetitiveScoreTimer = profile.getNewTimer(QueryTimingType.SET_MIN_COMPETITIVE_SCORE);
     }
 
     @Override
@@ -69,39 +69,7 @@ final class ProfileScorer extends Scorer {
 
     @Override
     public DocIdSetIterator iterator() {
-        final DocIdSetIterator in = scorer.iterator();
-        return new DocIdSetIterator() {
-
-            @Override
-            public int advance(int target) throws IOException {
-                advanceTimer.start();
-                try {
-                    return in.advance(target);
-                } finally {
-                    advanceTimer.stop();
-                }
-            }
-
-            @Override
-            public int nextDoc() throws IOException {
-                nextDocTimer.start();
-                try {
-                    return in.nextDoc();
-                } finally {
-                    nextDocTimer.stop();
-                }
-            }
-
-            @Override
-            public int docID() {
-                return in.docID();
-            }
-
-            @Override
-            public long cost() {
-                return in.cost();
-            }
-        };
+        return new TimedDocIdSetIterator(scorer.iterator());
     }
 
     @Override
@@ -110,40 +78,7 @@ final class ProfileScorer extends Scorer {
         if (in == null) {
             return null;
         }
-        final DocIdSetIterator inApproximation = in.approximation();
-        final DocIdSetIterator approximation = new DocIdSetIterator() {
-
-            @Override
-            public int advance(int target) throws IOException {
-                advanceTimer.start();
-                try {
-                    return inApproximation.advance(target);
-                } finally {
-                    advanceTimer.stop();
-                }
-            }
-
-            @Override
-            public int nextDoc() throws IOException {
-                nextDocTimer.start();
-                try {
-                    return inApproximation.nextDoc();
-                } finally {
-                    nextDocTimer.stop();
-                }
-            }
-
-            @Override
-            public int docID() {
-                return inApproximation.docID();
-            }
-
-            @Override
-            public long cost() {
-                return inApproximation.cost();
-            }
-        };
-        return new TwoPhaseIterator(approximation) {
+        return new TwoPhaseIterator(new TimedDocIdSetIterator(in.approximation())) {
             @Override
             public boolean matches() throws IOException {
                 matchTimer.start();
@@ -188,6 +123,45 @@ final class ProfileScorer extends Scorer {
             scorer.setMinCompetitiveScore(minScore);
         } finally {
             setMinCompetitiveScoreTimer.stop();
+        }
+    }
+
+    private class TimedDocIdSetIterator extends DocIdSetIterator {
+
+        private final DocIdSetIterator in;
+
+        TimedDocIdSetIterator(DocIdSetIterator in) {
+            this.in = in;
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            advanceTimer.start();
+            try {
+                return in.advance(target);
+            } finally {
+                advanceTimer.stop();
+            }
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            nextDocTimer.start();
+            try {
+                return in.nextDoc();
+            } finally {
+                nextDocTimer.stop();
+            }
+        }
+
+        @Override
+        public int docID() {
+            return in.docID();
+        }
+
+        @Override
+        public long cost() {
+            return in.cost();
         }
     }
 }

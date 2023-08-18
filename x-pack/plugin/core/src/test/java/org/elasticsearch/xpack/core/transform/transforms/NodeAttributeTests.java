@@ -38,6 +38,11 @@ public class NodeAttributeTests extends AbstractXContentSerializingTestCase<Node
     }
 
     @Override
+    protected NodeAttributes mutateInstance(NodeAttributes instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<NodeAttributes> instanceReader() {
         return NodeAttributes::new;
     }

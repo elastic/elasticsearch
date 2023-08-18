@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -37,7 +38,6 @@ import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.junit.After;
 import org.junit.Before;
 

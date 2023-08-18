@@ -11,7 +11,7 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
@@ -227,7 +227,7 @@ public class TcpTransportTests extends ESTestCase {
         try {
             final TcpTransport tcpTransport = new TcpTransport(
                 settings,
-                Version.CURRENT,
+                TransportVersion.current(),
                 testThreadPool,
                 new MockPageCacheRecycler(settings),
                 new NoneCircuitBreakerService(),
@@ -245,7 +245,7 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected TcpChannel initiateChannel(DiscoveryNode node) {
+                protected TcpChannel initiateChannel(DiscoveryNode node, ConnectionProfile connectionProfile) {
                     throw new UnsupportedOperationException();
                 }
 
@@ -602,7 +602,7 @@ public class TcpTransportTests extends ESTestCase {
                 lifecycle,
                 new OutboundHandler(
                     randomAlphaOfLength(10),
-                    Version.CURRENT,
+                    TransportVersion.current(),
                     new StatsTracker(),
                     testThreadPool,
                     new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY)),

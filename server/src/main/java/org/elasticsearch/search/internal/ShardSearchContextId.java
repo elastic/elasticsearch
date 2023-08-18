@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -34,12 +34,12 @@ public final class ShardSearchContextId implements Writeable {
 
     public ShardSearchContextId(StreamInput in) throws IOException {
         this.id = in.readLong();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
             this.sessionId = in.readString();
         } else {
             this.sessionId = "";
         }
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
             this.searcherId = in.readOptionalString();
         } else {
             this.searcherId = null;
@@ -49,10 +49,10 @@ public final class ShardSearchContextId implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
             out.writeString(sessionId);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
             out.writeOptionalString(searcherId);
         }
     }

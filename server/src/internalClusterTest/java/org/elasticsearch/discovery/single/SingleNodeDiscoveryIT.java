@@ -9,13 +9,10 @@
 package org.elasticsearch.discovery.single;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -105,7 +102,6 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
 
     public void testCannotJoinNodeWithSingleNodeDiscovery() throws Exception {
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation("test", JoinHelper.class.getCanonicalName(), Level.INFO, "failed to join") {
 
@@ -158,20 +154,13 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 "other",
                 Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
                 Function.identity()
-            )
+            );
+            var ignored = mockAppender.capturing(JoinHelper.class)
         ) {
-
-            Logger clusterLogger = LogManager.getLogger(JoinHelper.class);
-            Loggers.addAppender(clusterLogger, mockAppender);
-            try {
-                other.beforeTest(random());
-                final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
-                assertThat(first.nodes().getSize(), equalTo(1));
-                assertBusy(() -> mockAppender.assertAllExpectationsMatched());
-            } finally {
-                Loggers.removeAppender(clusterLogger, mockAppender);
-                mockAppender.stop();
-            }
+            other.beforeTest(random());
+            final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
+            assertThat(first.nodes().getSize(), equalTo(1));
+            assertBusy(mockAppender::assertAllExpectationsMatched);
         }
     }
 

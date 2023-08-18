@@ -1,5 +1,0 @@
-pr: 92322
-summary: implement extension pruning in frequent items to improve runtime
-area: Machine Learning
-type: enhancement
-issues: []

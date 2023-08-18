@@ -1,0 +1,206 @@
+{
+  "template": {
+    "mappings": {
+      "dynamic_templates": [
+        {
+          "ecs_timestamp": {
+            "mapping": {
+              "ignore_malformed": false,
+              "type": "date"
+            },
+            "match": "@timestamp"
+          }
+        },
+        {
+          "ecs_message_match_only_text": {
+            "mapping": {
+              "type": "match_only_text"
+            },
+            "path_match": [
+              "message",
+              "*.message"
+            ]
+          }
+        },
+        {
+          "ecs_ip": {
+            "mapping": {
+              "type": "ip"
+            },
+            "path_match": [
+              "ip",
+              "*.ip",
+              "*_ip"
+            ],
+            "match_mapping_type": "string"
+          }
+        },
+        {
+          "ecs_wildcard": {
+            "mapping": {
+              "type": "wildcard"
+            },
+            "path_match": [
+              "*.io.text",
+              "*.message_id",
+              "*registry.data.strings",
+              "*url.path"
+            ]
+          }
+        },
+        {
+          "ecs_path_match_wildcard_and_match_only_text": {
+            "mapping": {
+              "fields": {
+                "text": {
+                  "type": "match_only_text"
+                }
+              },
+              "type": "wildcard"
+            },
+            "path_match": [
+              "*.body.content",
+              "*url.full",
+              "*url.original"
+            ]
+          }
+        },
+        {
+          "ecs_match_wildcard_and_match_only_text": {
+            "mapping": {
+              "fields": {
+                "text": {
+                  "type": "match_only_text"
+                }
+              },
+              "type": "wildcard"
+            },
+            "match": [
+              "*command_line",
+              "*stack_trace"
+            ]
+          }
+        },
+        {
+          "ecs_path_match_keyword_and_match_only_text": {
+            "mapping": {
+              "fields": {
+                "text": {
+                  "type": "match_only_text"
+                }
+              },
+              "type": "keyword"
+            },
+            "path_match": [
+              "*file.path",
+              "*file.target_path",
+              "*os.full",
+              "user_agent.original"
+            ]
+          }
+        },
+        {
+          "ecs_match_keyword_and_match_only_text": {
+            "mapping": {
+              "fields": {
+                "text": {
+                  "type": "match_only_text"
+                }
+              },
+              "type": "keyword"
+            },
+            "path_match": [
+              "*.title",
+              "*.executable",
+              "*.name",
+              "*.working_directory",
+              "*.full_name"
+            ]
+          }
+        },
+        {
+          "ecs_date": {
+            "mapping": {
+              "type": "date"
+            },
+            "path_match": [
+              "*.timestamp",
+              "*_timestamp",
+              "*.not_after",
+              "*.not_before",
+              "*.accessed",
+              "created",
+              "*.created",
+              "*.installed",
+              "*.creation_date",
+              "*.ctime",
+              "*.mtime",
+              "ingested",
+              "*.ingested",
+              "*.start",
+              "*.end"
+            ]
+          }
+        },
+        {
+          "ecs_path_match_float": {
+            "mapping": {
+              "type": "float"
+            },
+            "path_match": [
+              "*.score.*",
+              "*_score*"
+            ],
+            "path_unmatch": "*.version"
+          }
+        },
+        {
+          "ecs_usage_scaled_float": {
+            "mapping": {
+              "type": "scaled_float",
+              "scaling_factor": 1000
+            },
+            "path_match": "*.usage"
+          }
+        },
+        {
+          "ecs_geo_point": {
+            "mapping": {
+              "type": "geo_point"
+            },
+            "path_match": [
+              "location",
+              "*.location"
+            ]
+          }
+        },
+        {
+          "ecs_flattened": {
+            "mapping": {
+              "type": "flattened"
+            },
+            "path_match": [
+              "*structured_data",
+              "*exports",
+              "*imports"
+            ]
+          }
+        },
+        {
+          "all_strings_to_keywords": {
+            "mapping": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "match_mapping_type": "string"
+          }
+        }
+      ]
+    }
+  },
+  "_meta": {
+    "description": "dynamic mappings based on ECS, installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version}
+}

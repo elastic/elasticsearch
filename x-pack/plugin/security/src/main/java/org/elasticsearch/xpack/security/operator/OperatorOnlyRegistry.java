@@ -7,95 +7,33 @@
 
 package org.elasticsearch.xpack.security.operator;
 
-import org.elasticsearch.action.admin.cluster.allocation.GetDesiredBalanceAction;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
-import org.elasticsearch.action.admin.cluster.desirednodes.DeleteDesiredNodesAction;
-import org.elasticsearch.action.admin.cluster.desirednodes.GetDesiredNodesAction;
-import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
-import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalAction;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.license.DeleteLicenseAction;
-import org.elasticsearch.license.PutLicenseAction;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
 
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Stream;
-
-public class OperatorOnlyRegistry {
-
-    public static final Set<String> SIMPLE_ACTIONS = Set.of(
-        AddVotingConfigExclusionsAction.NAME,
-        ClearVotingConfigExclusionsAction.NAME,
-        PutLicenseAction.NAME,
-        DeleteLicenseAction.NAME,
-        // Autoscaling does not publish its actions to core, literal strings are needed.
-        "cluster:admin/autoscaling/put_autoscaling_policy",
-        "cluster:admin/autoscaling/delete_autoscaling_policy",
-        // Repository analysis actions are not mentioned in core, literal strings are needed.
-        "cluster:admin/repository/analyze",
-        "cluster:admin/repository/analyze/blob",
-        "cluster:admin/repository/analyze/blob/read",
-        // Node shutdown APIs are operator only
-        "cluster:admin/shutdown/create",
-        "cluster:admin/shutdown/get",
-        "cluster:admin/shutdown/delete",
-        // Node removal prevalidation API
-        PrevalidateNodeRemovalAction.NAME,
-        // Desired Nodes API
-        DeleteDesiredNodesAction.NAME,
-        GetDesiredNodesAction.NAME,
-        UpdateDesiredNodesAction.NAME,
-        GetDesiredBalanceAction.NAME
-    );
-
-    private final ClusterSettings clusterSettings;
-
-    public OperatorOnlyRegistry(ClusterSettings clusterSettings) {
-        this.clusterSettings = clusterSettings;
-    }
+public interface OperatorOnlyRegistry {
 
     /**
      * Check whether the given action and request qualify as operator-only. The method returns
      * null if the action+request is NOT operator-only. Other it returns a violation object
      * that contains the message for details.
      */
-    public OperatorPrivilegesViolation check(String action, TransportRequest request) {
-        if (SIMPLE_ACTIONS.contains(action)) {
-            return () -> "action [" + action + "]";
-        } else if (ClusterUpdateSettingsAction.NAME.equals(action)) {
-            assert request instanceof ClusterUpdateSettingsRequest;
-            return checkClusterUpdateSettings((ClusterUpdateSettingsRequest) request);
-        } else {
-            return null;
-        }
-    }
+    OperatorPrivilegesViolation check(String action, TransportRequest request);
 
-    private OperatorPrivilegesViolation checkClusterUpdateSettings(ClusterUpdateSettingsRequest request) {
-        List<String> operatorOnlySettingKeys = Stream.concat(
-            request.transientSettings().keySet().stream(),
-            request.persistentSettings().keySet().stream()
-        ).filter(k -> {
-            final Setting<?> setting = clusterSettings.get(k);
-            return setting != null && setting.isOperatorOnly();
-        }).toList();
-        if (false == operatorOnlySettingKeys.isEmpty()) {
-            return () -> (operatorOnlySettingKeys.size() == 1 ? "setting" : "settings")
-                + " ["
-                + Strings.collectionToDelimitedString(operatorOnlySettingKeys, ",")
-                + "]";
-        } else {
-            return null;
-        }
-    }
+    /**
+     * Checks to see if a given {@link RestHandler} is subject to operator-only restrictions for the REST API. Any REST API may be
+     * fully or partially restricted. A fully restricted REST API mandates that the implementation call restChannel.sendResponse(...) and
+     * return a {@link OperatorPrivilegesViolation}. A partially restricted REST API mandates that the {@link RestRequest} is marked as
+     * restricted so that the downstream handler can behave appropriately. For example, to restrict the REST response the implementation
+     * should call {@link RestRequest#markResponseRestricted(String)} so that the downstream handler can properly restrict the response
+     * before returning to the client. Note - a partial restriction should return null.
+     * @param restHandler The {@link RestHandler} to check for any restrictions
+     * @param restRequest The {@link RestRequest} to check for any restrictions and mark any partially restricted REST API's
+     * @param restChannel The {@link RestChannel} to enforce fully restricted REST API's
+     * @return {@link OperatorPrivilegesViolation} iff the request was fully restricted and the response has been sent back to the client.
+     * else returns null.
+     */
+    OperatorPrivilegesViolation checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel);
 
-    @FunctionalInterface
-    public interface OperatorPrivilegesViolation {
-        String message();
-    }
 }

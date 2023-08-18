@@ -11,10 +11,13 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -22,6 +25,8 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
@@ -31,10 +36,14 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -51,6 +60,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 public class PointInTimeIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -163,12 +177,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                 .map(DiscoveryNode::getId)
                 .collect(Collectors.toSet());
             final List<String> excludedNodes = randomSubsetOf(2, dataNodes);
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put("index.routing.allocation.exclude._id", String.join(",", excludedNodes)).build())
-            );
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._id", String.join(",", excludedNodes)), "test");
             if (randomBoolean()) {
                 int moreDocs = randomIntBetween(10, 50);
                 for (int i = 0; i < moreDocs; i++) {
@@ -184,7 +193,6 @@ public class PointInTimeIT extends ESIntegTestCase {
                 final Set<String> assignedNodes = clusterService().state()
                     .routingTable()
                     .allShards()
-                    .stream()
                     .filter(shr -> shr.index().getName().equals("test") && shr.assignedToNode())
                     .map(ShardRouting::currentNodeId)
                     .collect(Collectors.toSet());
@@ -213,7 +221,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         assertHitCount(resp1, index1);
         if (rarely()) {
             assertBusy(() -> {
-                final CommonStats stats = client().admin().indices().prepareStats().setSearch(true).get().getTotal();
+                final CommonStats stats = indicesAdmin().prepareStats().setSearch(true).get().getTotal();
                 assertThat(stats.search.getOpenContexts(), equalTo(0L));
             }, 60, TimeUnit.SECONDS);
         } else {
@@ -249,7 +257,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pit)).get();
             assertNoFailures(resp);
             assertHitCount(resp, index1 + index2);
-            client().admin().indices().prepareDelete("index-1").get();
+            indicesAdmin().prepareDelete("index-1").get();
             if (randomBoolean()) {
                 resp = client().prepareSearch("index-*").get();
                 assertNoFailures(resp);
@@ -279,11 +287,19 @@ public class PointInTimeIT extends ESIntegTestCase {
         }
     }
 
+    public void testAllowNoIndex() {
+        var request = new OpenPointInTimeRequest("my_index").indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+            .keepAlive(TimeValue.timeValueMinutes(between(1, 10)));
+        String pit = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet().getPointInTimeId();
+        var closeResp = client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pit)).actionGet();
+        assertThat(closeResp.status(), equalTo(RestStatus.OK));
+    }
+
     public void testCanMatch() throws Exception {
-        final Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(5, 10))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(randomIntBetween(50, 100)));
+        final Settings.Builder settings = indexSettings(randomIntBetween(5, 10), 0).put(
+            IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(),
+            TimeValue.timeValueMillis(randomIntBetween(50, 100))
+        );
         assertAcked(prepareCreate("test").setSettings(settings).setMapping("""
             {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}"""));
         ensureGreen("test");
@@ -377,7 +393,7 @@ public class PointInTimeIT extends ESIntegTestCase {
     }
 
     public void testPITTiebreak() throws Exception {
-        assertAcked(client().admin().indices().prepareDelete("index-*").get());
+        assertAcked(indicesAdmin().prepareDelete("index-*").get());
         int numIndex = randomIntBetween(2, 10);
         int expectedNumDocs = 0;
         for (int i = 0; i < numIndex; i++) {
@@ -422,8 +438,54 @@ public class PointInTimeIT extends ESIntegTestCase {
 
     public void testCloseInvalidPointInTime() {
         expectThrows(Exception.class, () -> client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest("")).actionGet());
-        List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(ClosePointInTimeAction.NAME).get().getTasks();
+        List<TaskInfo> tasks = clusterAdmin().prepareListTasks().setActions(ClosePointInTimeAction.NAME).get().getTasks();
         assertThat(tasks, empty());
+    }
+
+    public void testOpenPITConcurrentShardRequests() throws Exception {
+        DiscoveryNode dataNode = randomFrom(clusterService().state().nodes().getDataNodes().values());
+        int numShards = randomIntBetween(5, 10);
+        int maxConcurrentRequests = randomIntBetween(2, 5);
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                        .put("index.routing.allocation.require._id", dataNode.getId())
+                        .build()
+                )
+        );
+        var transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getName());
+        try {
+            CountDownLatch sentLatch = new CountDownLatch(maxConcurrentRequests);
+            CountDownLatch readyLatch = new CountDownLatch(1);
+            transportService.addRequestHandlingBehavior(
+                TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME,
+                (handler, request, channel, task) -> {
+                    sentLatch.countDown();
+                    Thread thread = new Thread(() -> {
+                        try {
+                            assertTrue(readyLatch.await(1, TimeUnit.MINUTES));
+                            handler.messageReceived(request, channel, task);
+                        } catch (Exception e) {
+                            throw new AssertionError(e);
+                        }
+                    });
+                    thread.start();
+                }
+            );
+            OpenPointInTimeRequest request = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(1));
+            request.maxConcurrentShardRequests(maxConcurrentRequests);
+            PlainActionFuture<OpenPointInTimeResponse> future = new PlainActionFuture<>();
+            client().execute(OpenPointInTimeAction.INSTANCE, request, future);
+            assertTrue(sentLatch.await(1, TimeUnit.MINUTES));
+            readyLatch.countDown();
+            closePointInTime(future.actionGet().getPointInTimeId());
+        } finally {
+            transportService.clearAllRules();
+        }
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })

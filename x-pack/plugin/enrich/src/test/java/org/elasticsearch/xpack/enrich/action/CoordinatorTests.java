@@ -370,7 +370,7 @@ public class CoordinatorTests extends ESTestCase {
                 threadPool.generic().execute(() -> {
                     while (schedulePermits.tryAcquire()) {
                         final AtomicBoolean completed = new AtomicBoolean();
-                        coordinator.schedule(new SearchRequest("index"), ActionListener.wrap(() -> {
+                        coordinator.schedule(new SearchRequest("index"), ActionListener.running(() -> {
                             assertTrue(completed.compareAndSet(false, true)); // no double-completion
                             completionCountdown.countDown();
                         }));

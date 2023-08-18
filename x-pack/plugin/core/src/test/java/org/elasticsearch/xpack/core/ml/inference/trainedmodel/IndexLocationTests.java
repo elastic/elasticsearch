@@ -37,6 +37,11 @@ public class IndexLocationTests extends AbstractXContentSerializingTestCase<Inde
     }
 
     @Override
+    protected IndexLocation mutateInstance(IndexLocation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected boolean supportsUnknownFields() {
         return lenient;
     }

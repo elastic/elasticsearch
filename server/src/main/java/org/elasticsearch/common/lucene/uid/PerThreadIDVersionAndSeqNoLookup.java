@@ -8,15 +8,18 @@
 
 package org.elasticsearch.common.lucene.uid;
 
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
@@ -52,10 +55,15 @@ final class PerThreadIDVersionAndSeqNoLookup {
     /** used for assertions to make sure class usage meets assumptions */
     private final Object readerKey;
 
+    final boolean loadedTimestampRange;
+    final long minTimestamp;
+    final long maxTimestamp;
+
     /**
      * Initialize lookup for the provided segment
      */
-    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField, boolean trackReaderKey) throws IOException {
+    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField, boolean trackReaderKey, boolean loadTimestampRange)
+        throws IOException {
         this.uidField = uidField;
         final Terms terms = reader.terms(uidField);
         if (terms == null) {
@@ -84,10 +92,23 @@ final class PerThreadIDVersionAndSeqNoLookup {
         Object readerKey = null;
         assert trackReaderKey ? (readerKey = reader.getCoreCacheHelper().getKey()) != null : readerKey == null;
         this.readerKey = readerKey;
+
+        this.loadedTimestampRange = loadTimestampRange;
+        // Also check for the existence of the timestamp field, because sometimes a segment can only contain tombstone documents,
+        // which don't have any mapped fields (also not the timestamp field) and just some meta fields like _id, _seq_no etc.
+        if (loadTimestampRange && reader.getFieldInfos().fieldInfo(DataStream.TIMESTAMP_FIELD_NAME) != null) {
+            PointValues tsPointValues = reader.getPointValues(DataStream.TIMESTAMP_FIELD_NAME);
+            assert tsPointValues != null : "no timestamp field for reader:" + reader + " and parent:" + reader.getContext().parent.reader();
+            minTimestamp = LongPoint.decodeDimension(tsPointValues.getMinPackedValue(), 0);
+            maxTimestamp = LongPoint.decodeDimension(tsPointValues.getMaxPackedValue(), 0);
+        } else {
+            minTimestamp = 0;
+            maxTimestamp = Long.MAX_VALUE;
+        }
     }
 
-    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField) throws IOException {
-        this(reader, uidField, true);
+    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField, boolean loadTimestampRange) throws IOException {
+        this(reader, uidField, true, loadTimestampRange);
     }
 
     /** Return null if id is not found.

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -193,12 +193,12 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             this.remoteCluster = in.readString();
             this.leaderIndex = in.readString();
             this.followerIndex = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
                 this.settings = Settings.readSettingsFromStream(in);
             }
             this.parameters = new FollowParameters(in);
             waitForActiveShards(ActiveShardCount.readFrom(in));
-            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 this.dataStreamName = in.readOptionalString();
             }
         }
@@ -209,12 +209,12 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             out.writeString(remoteCluster);
             out.writeString(leaderIndex);
             out.writeString(followerIndex);
-            if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
                 settings.writeTo(out);
             }
             parameters.writeTo(out);
             waitForActiveShards.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 out.writeOptionalString(this.dataStreamName);
             }
         }

@@ -51,6 +51,11 @@ public class MulticlassConfusionMatrixResultTests extends AbstractXContentSerial
     }
 
     @Override
+    protected Result mutateInstance(Result instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Result> instanceReader() {
         return Result::new;
     }

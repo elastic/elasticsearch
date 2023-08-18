@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensedFeature;
@@ -99,7 +100,8 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
 
         return createComponents(client, environment.settings(), clusterService, namedWriteableRegistry);

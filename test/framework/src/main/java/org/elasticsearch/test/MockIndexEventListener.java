@@ -10,7 +10,7 @@ package org.elasticsearch.test;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -27,6 +27,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -88,7 +89,8 @@ public final class MockIndexEventListener {
             IndexNameExpressionResolver expressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            AllocationDeciders allocationDeciders
+            AllocationService allocationService,
+            IndicesService indicesService
         ) {
             return Collections.singletonList(listener);
         }

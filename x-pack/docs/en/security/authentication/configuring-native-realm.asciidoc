@@ -1,6 +1,10 @@
-The native realm is available by default when no other realms are 
-configured. If other realm settings have been configured in `elasticsearch.yml`, 
-you must add the native realm to the realm chain.
+The native realm is available and enabled by default. You can disable it explicitly with the following snippet. 
+
+[source,yaml]
+----------------------------------------
+xpack.security.authc.realms.native.native1:
+  enabled: false
+----------------------------------------
 
 You can configure a `native` realm in the `xpack.security.authc.realms.native`
 namespace in `elasticsearch.yml`.
@@ -21,13 +25,8 @@ sets the `order` to zero so the realm is checked first:
 
 [source, yaml]
 ------------------------------------------------------------
-xpack:
-  security:
-    authc:
-      realms:
-        native:
-          native1:
-            order: 0
+xpack.security.authc.realms.native.native1:
+  order: 0
 ------------------------------------------------------------
 
 NOTE: To limit exposure to credential theft and mitigate credential compromise,

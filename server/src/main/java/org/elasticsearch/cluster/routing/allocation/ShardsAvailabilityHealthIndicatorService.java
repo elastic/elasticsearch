@@ -177,6 +177,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         FIX_DELAYED_SHARDS_GUIDE
     );
 
+    public static final String WAIT_FOR_INITIALIZATION_GUIDE = "https://ela.st/wait-for-shard-initialization";
+    public static final Diagnosis.Definition DIAGNOSIS_WAIT_FOR_INITIALIZATION = new Diagnosis.Definition(
+        NAME,
+        "initializing_shards",
+        "Elasticsearch is currently initializing the unavailable shards. Please wait for the initialization to finish.",
+        "The shards will become available as long as the initialization completes. No action is required by the user, you can"
+            + " monitor the progress of the initializing shards at "
+            + WAIT_FOR_INITIALIZATION_GUIDE
+            + ".",
+        WAIT_FOR_INITIALIZATION_GUIDE
+    );
+
     public static final String ENABLE_INDEX_ALLOCATION_GUIDE = "https://ela.st/fix-index-allocation";
     public static final Diagnosis.Definition ACTION_ENABLE_INDEX_ROUTING_ALLOCATION = new Diagnosis.Definition(
         NAME,
@@ -412,7 +424,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         }
                     }
                 }
-                case INITIALIZING -> initializing++;
+                case INITIALIZING -> {
+                    initializing++;
+                    if (verbose) {
+                        addDefinition(DIAGNOSIS_WAIT_FOR_INITIALIZATION, routing.getIndexName());
+                    }
+                }
                 case STARTED -> started++;
                 case RELOCATING -> relocating++;
             }
@@ -428,13 +445,13 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         if (info == null || info.getReason() != UnassignedInfo.Reason.NODE_RESTARTING) {
             return false;
         }
-        var shutdown = shutdowns.getAllNodeMetadataMap().get(info.getLastAllocatedNodeId());
-        if (shutdown == null || shutdown.getType() != SingleNodeShutdownMetadata.Type.RESTART) {
+        var shutdown = shutdowns.get(info.getLastAllocatedNodeId(), SingleNodeShutdownMetadata.Type.RESTART);
+        if (shutdown == null) {
             return false;
         }
         var now = System.nanoTime();
         var restartingAllocationDelayExpiration = info.getUnassignedTimeInNanos() + shutdown.getAllocationDelay().nanos();
-        return now <= restartingAllocationDelayExpiration;
+        return now - restartingAllocationDelayExpiration <= 0;
     }
 
     private static boolean isUnassignedDueToNewInitialization(ShardRouting routing) {
@@ -451,22 +468,16 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
         LOGGER.trace("Diagnosing unassigned shard [{}] due to reason [{}]", shardRouting.shardId(), shardRouting.unassignedInfo());
         switch (shardRouting.unassignedInfo().getLastAllocationStatus()) {
-            case NO_VALID_SHARD_COPY:
-                diagnosisDefs.add(ACTION_RESTORE_FROM_SNAPSHOT);
-                break;
-            case NO_ATTEMPT:
+            case NO_VALID_SHARD_COPY -> diagnosisDefs.add(ACTION_RESTORE_FROM_SNAPSHOT);
+            case NO_ATTEMPT -> {
                 if (shardRouting.unassignedInfo().isDelayed()) {
                     diagnosisDefs.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
                 } else {
                     diagnosisDefs.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
                 }
-                break;
-            case DECIDERS_NO:
-                diagnosisDefs.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
-                break;
-            case DELAYED_ALLOCATION:
-                diagnosisDefs.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
-                break;
+            }
+            case DECIDERS_NO -> diagnosisDefs.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
+            case DELAYED_ALLOCATION -> diagnosisDefs.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
         }
         if (diagnosisDefs.isEmpty()) {
             diagnosisDefs.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);
@@ -556,10 +567,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * @return A predicate that returns true if the decision exists and matches the expected outcome, false otherwise.
      */
     private static Predicate<NodeAllocationResult> hasDeciderResult(String deciderName, Decision.Type outcome) {
-        return (nodeResult) -> nodeResult.getCanAllocateDecision()
-            .getDecisions()
-            .stream()
-            .anyMatch(decision -> deciderName.equals(decision.label()) && outcome == decision.type());
+        return (nodeResult) -> {
+            Decision decision = nodeResult.getCanAllocateDecision();
+            return decision != null && decision.getDecisions().stream().anyMatch(d -> deciderName.equals(d.label()) && outcome == d.type());
+        };
     }
 
     /**
@@ -804,13 +815,17 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 || primaries.unassigned_new > 0
                 || primaries.unassigned_restarting > 0
                 || replicas.unassigned > 0
-                || replicas.unassigned_restarting > 0) {
+                || replicas.unassigned_restarting > 0
+                || primaries.initializing > 0
+                || replicas.initializing > 0) {
                 builder.append(
                     Stream.of(
                         createMessage(primaries.unassigned, "unavailable primary shard", "unavailable primary shards"),
                         createMessage(primaries.unassigned_new, "creating primary shard", "creating primary shards"),
                         createMessage(primaries.unassigned_restarting, "restarting primary shard", "restarting primary shards"),
                         createMessage(replicas.unassigned, "unavailable replica shard", "unavailable replica shards"),
+                        createMessage(primaries.initializing, "initializing primary shard", "initializing primary shards"),
+                        createMessage(replicas.initializing, "initializing replica shard", "initializing replica shards"),
                         createMessage(replicas.unassigned_restarting, "restarting replica shard", "restarting replica shards")
                     ).flatMap(Function.identity()).collect(joining(", "))
                 ).append(".");

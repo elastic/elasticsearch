@@ -46,6 +46,11 @@ public class SnapshotsStatusResponseTests extends AbstractChunkedSerializingTest
     }
 
     @Override
+    protected SnapshotsStatusResponse mutateInstance(SnapshotsStatusResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<SnapshotsStatusResponse> instanceReader() {
         return SnapshotsStatusResponse::new;
     }

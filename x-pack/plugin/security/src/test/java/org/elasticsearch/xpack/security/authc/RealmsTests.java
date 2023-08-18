@@ -542,10 +542,9 @@ public class RealmsTests extends ESTestCase {
         }
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { new Realms(settings, env, factories, licenseState, threadContext, reservedRealm); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        });
         assertThat(e.getMessage(), containsString("Found multiple realms configured with the same order"));
     }
 
@@ -572,10 +571,9 @@ public class RealmsTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { new Realms(settings, env, factories, licenseState, threadContext, reservedRealm); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        });
         assertThat(e.getMessage(), containsString("Found multiple realms configured with the same name"));
     }
 

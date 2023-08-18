@@ -46,6 +46,8 @@ import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -189,6 +191,15 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * @return a list of dimension fields. Expected to be used by fields that have
+     * nested fields or that, in some way, identify a collection of fields by means
+     * of a top level field (like flattened fields).
+     */
+    public List<String> dimensions() {
+        return Collections.emptyList();
+    }
+
+    /**
      * @return metric type or null if the field is not a metric field
      */
     public TimeSeriesParams.MetricType getMetricType() {
@@ -248,11 +259,23 @@ public abstract class MappedFieldType {
         int prefixLength,
         int maxExpansions,
         boolean transpositions,
-        SearchExecutionContext context
+        SearchExecutionContext context,
+        @Nullable MultiTermQuery.RewriteMethod rewriteMethod
     ) {
         throw new IllegalArgumentException(
             "Can only use fuzzy queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
+    }
+
+    public Query fuzzyQuery(
+        Object value,
+        Fuzziness fuzziness,
+        int prefixLength,
+        int maxExpansions,
+        boolean transpositions,
+        SearchExecutionContext context
+    ) {
+        return fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context, null);
     }
 
     // Case sensitive form of prefix query
@@ -578,25 +601,26 @@ public abstract class MappedFieldType {
      * If fields cannot look up matching terms quickly they should return null.
      * The returned TermEnum should implement next(), term() and doc_freq() methods
      * but postings etc are not required.
-     * @param caseInsensitive if matches should be case insensitive
-     * @param string the partially complete word the user has typed (can be empty)
-     * @param queryShardContext the shard context
+     * @param reader an index reader
+     * @param prefix the partially complete word the user has typed (can be empty)
+     * @param caseInsensitive if prefix matches should be case insensitive
      * @param searchAfter - usually null. If supplied the TermsEnum result must be positioned after the provided term (used for pagination)
-     * @return null or an enumeration of matching terms and their doc frequencies
+     * @return null or an enumeration of matching terms
      * @throws IOException Errors accessing data
      */
-    public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
-        throws IOException {
+    public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
         return null;
     }
 
     /**
      * Validate that this field can be the target of {@link IndexMetadata#INDEX_ROUTING_PATH}.
      */
-    public void validateMatchedRoutingPath() {
+    public void validateMatchedRoutingPath(String routingPath) {
         throw new IllegalArgumentException(
-            "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                + "and without the [script] parameter. ["
+            "All fields that match routing_path "
+                + "must be keywords with [time_series_dimension: true] "
+                + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                + "without the [script] parameter. ["
                 + name()
                 + "] was ["
                 + typeName()

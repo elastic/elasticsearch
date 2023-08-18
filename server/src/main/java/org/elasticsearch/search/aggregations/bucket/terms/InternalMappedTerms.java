@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -63,7 +63,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
      */
     protected InternalMappedTerms(StreamInput in, Bucket.Reader<B> bucketReader) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_15_0)) {
             if (in.readBoolean()) {
                 docCountError = in.readZLong();
             } else {
@@ -81,7 +81,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
 
     @Override
     protected final void writeTermTypeInfoTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_15_0)) {
             if (docCountError != null) {
                 out.writeBoolean(true);
                 out.writeZLong(docCountError);

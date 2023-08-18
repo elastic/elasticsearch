@@ -7,38 +7,28 @@
 
 package org.elasticsearch.xpack.ml.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
-import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.deployment.NlpInferenceInput;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
-import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
-
-import static org.elasticsearch.core.Strings.format;
 
 public class TransportInferTrainedModelDeploymentAction extends TransportTasksAction<
     TrainedModelDeploymentTask,
@@ -46,16 +36,11 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
     InferTrainedModelDeploymentAction.Response,
     InferTrainedModelDeploymentAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportInferTrainedModelDeploymentAction.class);
-
-    private final TrainedModelProvider provider;
-
     @Inject
     public TransportInferTrainedModelDeploymentAction(
         ClusterService clusterService,
         TransportService transportService,
-        ActionFilters actionFilters,
-        TrainedModelProvider provider
+        ActionFilters actionFilters
     ) {
         super(
             InferTrainedModelDeploymentAction.NAME,
@@ -67,63 +52,6 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             InferTrainedModelDeploymentAction.Response::new,
             ThreadPool.Names.SAME
         );
-        this.provider = provider;
-    }
-
-    @Override
-    protected void doExecute(
-        Task task,
-        InferTrainedModelDeploymentAction.Request request,
-        ActionListener<InferTrainedModelDeploymentAction.Response> listener
-    ) {
-        TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        // Update the requests model ID if it's an alias
-        Optional.ofNullable(ModelAliasMetadata.fromState(clusterService.state()).getModelId(request.getModelId()))
-            .ifPresent(request::setModelId);
-        // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the
-        // node running the job task.
-        TrainedModelAssignment assignment = TrainedModelAssignmentMetadata.assignmentForModelId(
-            clusterService.state(),
-            request.getModelId()
-        ).orElse(null);
-        if (assignment == null) {
-            // If there is no assignment, verify the model even exists so that we can provide a nicer error message
-            provider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), taskId, ActionListener.wrap(config -> {
-                if (config.getModelType() != TrainedModelType.PYTORCH) {
-                    listener.onFailure(
-                        ExceptionsHelper.badRequestException(
-                            "Only [pytorch] models are supported by _infer, provided model [{}] has type [{}]",
-                            config.getModelId(),
-                            config.getModelType()
-                        )
-                    );
-                    return;
-                }
-                String message = "Trained model [" + request.getModelId() + "] is not deployed";
-                listener.onFailure(ExceptionsHelper.conflictStatusException(message));
-            }, listener::onFailure));
-            return;
-        }
-        if (assignment.getAssignmentState() == AssignmentState.STOPPING) {
-            String message = "Trained model [" + request.getModelId() + "] is STOPPING";
-            listener.onFailure(ExceptionsHelper.conflictStatusException(message));
-            return;
-        }
-        logger.trace(() -> format("[%s] selecting node from routing table: %s", assignment.getModelId(), assignment.getNodeRoutingTable()));
-        assignment.selectRandomStartedNodeWeighedOnAllocations().ifPresentOrElse(node -> {
-            logger.trace(() -> format("[%s] selected node [%s]", assignment.getModelId(), node));
-            request.setNodes(node);
-            long start = System.currentTimeMillis();
-            super.doExecute(task, request, ActionListener.wrap(r -> {
-                r.setTookMillis(System.currentTimeMillis() - start);
-                listener.onResponse(r);
-            }, listener::onFailure));
-        }, () -> {
-            logger.trace(() -> format("[%s] model not allocated to any node [%s]", assignment.getModelId()));
-            listener.onFailure(
-                ExceptionsHelper.conflictStatusException("Trained model [" + request.getModelId() + "] is not allocated to any nodes")
-            );
-        });
     }
 
     @Override
@@ -139,41 +67,42 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             throw failedNodeExceptions.get(0);
         } else if (tasks.isEmpty()) {
             throw new ElasticsearchStatusException(
-                "Unable to find deployment task for model [{}] please stop and start the deployment or try again momentarily",
+                "Unable to find model deployment task [{}] please stop and start the deployment or try again momentarily",
                 RestStatus.NOT_FOUND,
-                request.getModelId()
+                request.getId()
             );
         } else {
+            assert tasks.size() == 1;
             return tasks.get(0);
         }
     }
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         InferTrainedModelDeploymentAction.Request request,
         TrainedModelDeploymentTask task,
         ActionListener<InferTrainedModelDeploymentAction.Response> listener
     ) {
-        assert actionTask instanceof CancellableTask : "task [" + actionTask + "] not cancellable";
-
-        NlpInferenceInput input;
+        var nlpInputs = new ArrayList<NlpInferenceInput>();
         if (request.getTextInput() != null) {
-            input = NlpInferenceInput.fromText(request.getTextInput());
+            for (var text : request.getTextInput()) {
+                nlpInputs.add(NlpInferenceInput.fromText(text));
+            }
         } else {
-            input = NlpInferenceInput.fromDoc(request.getDocs().get(0));
+            for (var doc : request.getDocs()) {
+                nlpInputs.add(NlpInferenceInput.fromDoc(doc));
+            }
         }
 
-        task.infer(
-            input,
-            request.getUpdate(),
-            request.isSkipQueue(),
-            request.getInferenceTimeout(),
-            actionTask,
-            ActionListener.wrap(
-                pyTorchResult -> listener.onResponse(new InferTrainedModelDeploymentAction.Response(pyTorchResult, 0)),
-                listener::onFailure
-            )
-        );
+        // Multiple documents to infer on, wait for all results
+        ActionListener<Collection<InferenceResults>> collectingListener = ActionListener.wrap(pyTorchResults -> {
+            listener.onResponse(new InferTrainedModelDeploymentAction.Response(new ArrayList<>(pyTorchResults)));
+        }, listener::onFailure);
+
+        GroupedActionListener<InferenceResults> groupedListener = new GroupedActionListener<>(nlpInputs.size(), collectingListener);
+        for (var input : nlpInputs) {
+            task.infer(input, request.getUpdate(), request.isHighPriority(), request.getInferenceTimeout(), actionTask, groupedListener);
+        }
     }
 }

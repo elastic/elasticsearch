@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
@@ -90,6 +90,6 @@ public class ItemSetMapReduceValueSourceTests extends ESTestCase {
     }
 
     private Field copyField(Field field) throws IOException {
-        return copyInstance(field, writableRegistry(), (out, value) -> value.writeTo(out), in -> new Field(in), Version.CURRENT);
+        return copyInstance(field, writableRegistry(), (out, value) -> value.writeTo(out), Field::new, TransportVersion.current());
     }
 }

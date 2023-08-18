@@ -75,7 +75,6 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
     }
 
     public void testPrefixAndStorageTypeDefaults() {
-        SearchableSnapshotAction action = new SearchableSnapshotAction("repo", randomBoolean());
         StepKey nonFrozenKey = new StepKey(randomFrom("hot", "warm", "cold", "delete"), randomAlphaOfLength(5), randomAlphaOfLength(5));
         StepKey frozenKey = new StepKey("frozen", randomAlphaOfLength(5), randomAlphaOfLength(5));
 
@@ -158,8 +157,12 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
     }
 
     @Override
-    protected SearchableSnapshotAction mutateInstance(SearchableSnapshotAction instance) throws IOException {
-        return randomInstance();
+    protected SearchableSnapshotAction mutateInstance(SearchableSnapshotAction instance) {
+        return switch (randomIntBetween(0, 1)) {
+            case 0 -> new SearchableSnapshotAction(randomAlphaOfLengthBetween(5, 10), instance.isForceMergeIndex());
+            case 1 -> new SearchableSnapshotAction(instance.getSnapshotRepository(), instance.isForceMergeIndex() == false);
+            default -> throw new IllegalArgumentException("Invalid mutation branch");
+        };
     }
 
     static SearchableSnapshotAction randomInstance() {

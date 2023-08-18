@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
@@ -61,8 +61,13 @@ public class RobertaTokenizationUpdateTests extends AbstractBWCWireSerialization
     }
 
     @Override
-    protected RobertaTokenizationUpdate mutateInstanceForVersion(RobertaTokenizationUpdate instance, Version version) {
-        if (version.before(Version.V_8_2_0)) {
+    protected RobertaTokenizationUpdate mutateInstance(RobertaTokenizationUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected RobertaTokenizationUpdate mutateInstanceForVersion(RobertaTokenizationUpdate instance, TransportVersion version) {
+        if (version.before(TransportVersion.V_8_2_0)) {
             return new RobertaTokenizationUpdate(instance.getTruncate(), null);
         }
 

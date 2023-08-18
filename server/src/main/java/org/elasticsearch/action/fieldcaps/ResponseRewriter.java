@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,12 +24,12 @@ import java.util.stream.Collectors;
 final class ResponseRewriter {
 
     public static Map<String, IndexFieldCapabilities> rewriteOldResponses(
-        Version version,
+        TransportVersion version,
         Map<String, IndexFieldCapabilities> input,
         String[] filters,
         String[] allowedTypes
     ) {
-        if (version.onOrAfter(Version.V_8_2_0)) {
+        if (version.onOrAfter(TransportVersion.V_8_2_0)) {
             return input;   // nothing needs to be done
         }
         Function<IndexFieldCapabilities, IndexFieldCapabilities> transformer = buildTransformer(input, filters, allowedTypes);

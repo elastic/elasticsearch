@@ -63,7 +63,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayList;
@@ -169,7 +169,7 @@ public class JobDataDeleter {
     ) {
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId));
         if (deleteUserAnnotations == false) {
-            boolQuery.filter(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), XPackUser.NAME));
+            boolQuery.filter(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), InternalUsers.XPACK_USER.principal()));
         }
         if (fromEpochMs != null || toEpochMs != null) {
             boolQuery.filter(QueryBuilders.rangeQuery(Annotation.TIMESTAMP.getPreferredName()).gte(fromEpochMs).lt(toEpochMs));

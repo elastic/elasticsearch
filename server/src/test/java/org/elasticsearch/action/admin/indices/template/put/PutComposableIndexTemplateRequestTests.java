@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -41,8 +40,7 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
     }
 
     @Override
-    protected PutComposableIndexTemplateAction.Request mutateInstance(PutComposableIndexTemplateAction.Request instance)
-        throws IOException {
+    protected PutComposableIndexTemplateAction.Request mutateInstance(PutComposableIndexTemplateAction.Request instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 

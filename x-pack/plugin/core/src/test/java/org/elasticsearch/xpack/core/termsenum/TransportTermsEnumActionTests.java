@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.termsenum;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -14,6 +14,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumRequest;
@@ -68,10 +69,11 @@ public class TransportTermsEnumActionTests extends ESSingleNodeTestCase {
      */
     public void testCCSCheckCompatibility() throws Exception {
         TermsEnumRequest request = new TermsEnumRequest().field("field").timeout(TimeValue.timeValueSeconds(5));
+        TransportVersion version = TransportVersionUtils.getNextVersion(TransportVersion.MINIMUM_CCS_VERSION, true);
         request.indexFilter(new DummyQueryBuilder() {
             @Override
-            public Version getMinimalSupportedVersion() {
-                return Version.CURRENT;
+            public TransportVersion getMinimalSupportedVersion() {
+                return version;
             }
         });
         ExecutionException ex = expectThrows(ExecutionException.class, () -> client().execute(TermsEnumAction.INSTANCE, request).get());
@@ -80,7 +82,7 @@ public class TransportTermsEnumActionTests extends ESSingleNodeTestCase {
         assertThat(
             ex.getCause().getCause().getMessage(),
             containsString(
-                "was released first in version " + Version.CURRENT + ", failed compatibility check trying to send it to node with version"
+                "was released first in version " + version + ", failed compatibility check trying to send it to node with version"
             )
         );
     }

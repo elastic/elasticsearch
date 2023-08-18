@@ -33,7 +33,7 @@ import static org.mockito.Mockito.verify;
 
 public class TrainedModelDeploymentTaskTests extends ESTestCase {
 
-    void assertTrackingComplete(Consumer<TrainedModelDeploymentTask> method, String modelId) {
+    void assertTrackingComplete(Consumer<TrainedModelDeploymentTask> method, String modelId, String deploymentId) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         LicensedFeature.Persistent feature = mock(LicensedFeature.Persistent.class);
         TrainedModelAssignmentNodeService nodeService = mock(TrainedModelAssignmentNodeService.class);
@@ -53,6 +53,7 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
             Map.of(),
             new StartTrainedModelDeploymentAction.TaskParams(
                 modelId,
+                deploymentId,
                 randomLongBetween(1, Long.MAX_VALUE),
                 randomInt(5),
                 randomInt(5),
@@ -72,20 +73,21 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
     }
 
     public void testMarkAsStopped() {
-        assertTrackingComplete(t -> t.markAsStopped("foo"), randomAlphaOfLength(10));
+        assertTrackingComplete(t -> t.markAsStopped("foo"), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     public void testOnStop() {
-        assertTrackingComplete(t -> t.stop("foo", ActionListener.noop()), randomAlphaOfLength(10));
+        assertTrackingComplete(t -> t.stop("foo", ActionListener.noop()), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     public void testCancelled() {
-        assertTrackingComplete(TrainedModelDeploymentTask::onCancelled, randomAlphaOfLength(10));
+        assertTrackingComplete(TrainedModelDeploymentTask::onCancelled, randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     public void testUpdateNumberOfAllocations() {
         StartTrainedModelDeploymentAction.TaskParams initialParams = new StartTrainedModelDeploymentAction.TaskParams(
             "test-model",
+            "test-deployment",
             randomLongBetween(1, Long.MAX_VALUE),
             randomIntBetween(1, 32),
             randomIntBetween(1, 32),
@@ -112,6 +114,7 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
 
         StartTrainedModelDeploymentAction.TaskParams updatedParams = task.getParams();
         assertThat(updatedParams.getModelId(), equalTo(initialParams.getModelId()));
+        assertThat(updatedParams.getDeploymentId(), equalTo(initialParams.getDeploymentId()));
         assertThat(updatedParams.getModelBytes(), equalTo(initialParams.getModelBytes()));
         assertThat(updatedParams.getNumberOfAllocations(), equalTo(newNumberOfAllocations));
         assertThat(updatedParams.getThreadsPerAllocation(), equalTo(initialParams.getThreadsPerAllocation()));

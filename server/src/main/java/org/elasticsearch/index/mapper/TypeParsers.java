@@ -8,10 +8,10 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.util.ArrayList;
@@ -88,7 +88,7 @@ public class TypeParsers {
             if (parserContext.isWithinMultiField()) {
                 // For indices created prior to 8.0, we only emit a deprecation warning and do not fail type parsing. This is to
                 // maintain the backwards-compatibility guarantee that we can always load indexes from the previous major version.
-                if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
+                if (parserContext.indexVersionCreated().before(IndexVersion.V_8_0_0)) {
                     deprecationLogger.warn(
                         DeprecationCategory.INDICES,
                         "multifield_within_multifield",
@@ -110,7 +110,7 @@ public class TypeParsers {
                 }
             }
 
-            parserContext = MappingParserContext.createMultiFieldContext(parserContext);
+            parserContext = parserContext.createMultiFieldContext();
 
             final Map<String, Object> multiFieldsPropNodes;
             if (propNode instanceof List && ((List<?>) propNode).isEmpty()) {

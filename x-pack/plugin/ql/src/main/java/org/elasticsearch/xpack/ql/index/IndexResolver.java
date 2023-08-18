@@ -455,8 +455,13 @@ public class IndexResolver {
             );
         }
 
-        final String indexName = fieldCapsResponse.getIndices()[0];
-        return IndexResolution.valid(indices.isEmpty() ? new EsIndex(indexName, emptyMap()) : indices.get(0));
+        String[] indexNames = fieldCapsResponse.getIndices();
+        if (indices.isEmpty()) {
+            return IndexResolution.valid(new EsIndex(indexNames[0], emptyMap(), Set.of()));
+        } else {
+            EsIndex idx = indices.get(0);
+            return IndexResolution.valid(new EsIndex(idx.name(), idx.mapping(), Set.of(indexNames)));
+        }
     }
 
     private static EsField createField(
@@ -587,21 +592,15 @@ public class IndexResolver {
     ) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen, runtimeMappings);
         client.fieldCaps(fieldRequest, wrap(response -> {
-            client.admin()
-                .indices()
-                .getAliases(
-                    createGetAliasesRequest(response, includeFrozen),
-                    wrap(
-                        aliases -> { listener.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases())); },
-                        ex -> {
-                            if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
-                                listener.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
-                            } else {
-                                listener.onFailure(ex);
-                            }
-                        }
-                    )
-                );
+            client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases -> {
+                listener.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases()));
+            }, ex -> {
+                if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
+                    listener.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
+                } else {
+                    listener.onFailure(ex);
+                }
+            }));
         }, listener::onFailure));
 
     }
@@ -710,7 +709,7 @@ public class IndexResolver {
                     for (String concreteIndex : concreteIndices) {
                         if (aliases.containsKey(concreteIndex)) {
                             List<AliasMetadata> concreteIndexAliases = aliases.get(concreteIndex);
-                            concreteIndexAliases.stream().forEach(e -> uniqueAliases.add(e.alias()));
+                            concreteIndexAliases.forEach(e -> uniqueAliases.add(e.alias()));
                         }
                     }
                     concreteIndices.addAll(uniqueAliases);
@@ -783,7 +782,7 @@ public class IndexResolver {
         // return indices in ascending order
         List<EsIndex> foundIndices = new ArrayList<>(indices.size());
         for (Entry<String, Fields> entry : indices.entrySet()) {
-            foundIndices.add(new EsIndex(entry.getKey(), entry.getValue().hierarchicalMapping));
+            foundIndices.add(new EsIndex(entry.getKey(), entry.getValue().hierarchicalMapping, Set.of(entry.getKey())));
         }
         foundIndices.sort(Comparator.comparing(EsIndex::name));
         return foundIndices;

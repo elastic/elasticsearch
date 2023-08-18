@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -16,7 +17,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -96,7 +97,11 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         );
         Randomness.shuffle(indexResponses);
         FieldCapabilitiesNodeResponse inNode = randomNodeResponse(indexResponses);
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_2_0, Version.CURRENT);
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_8_2_0,
+            TransportVersion.current()
+        );
         final FieldCapabilitiesNodeResponse outNode = copyInstance(inNode, version);
         assertThat(outNode.getFailures().keySet(), equalTo(inNode.getFailures().keySet()));
         assertThat(outNode.getUnmatchedShardIds(), equalTo(inNode.getUnmatchedShardIds()));
@@ -124,15 +129,19 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
     }
 
     public void testSerializeNodeResponseBetweenOldNodes() throws IOException {
-        final Version minCompactVersion = Version.CURRENT.minimumCompatibilityVersion();
-        assertTrue("Remove this test once minCompactVersion >= 8.2.0", minCompactVersion.before(Version.V_8_2_0));
+        final TransportVersion minCompactVersion = TransportVersion.MINIMUM_COMPATIBLE;
+        assertTrue("Remove this test once minCompactVersion >= 8.2.0", minCompactVersion.before(TransportVersion.V_8_2_0));
         List<FieldCapabilitiesIndexResponse> indexResponses = CollectionUtils.concatLists(
             randomIndexResponsesWithMappingHash(randomMappingHashToIndices()),
             randomIndexResponsesWithoutMappingHash()
         );
         Randomness.shuffle(indexResponses);
         FieldCapabilitiesNodeResponse inResponse = randomNodeResponse(indexResponses);
-        Version version = VersionUtils.randomVersionBetween(random(), minCompactVersion, VersionUtils.getPreviousVersion(Version.V_8_2_0));
+        TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            minCompactVersion,
+            TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_2_0)
+        );
         final FieldCapabilitiesNodeResponse outResponse = copyInstance(inResponse, version);
         assertThat(outResponse.getFailures().keySet(), equalTo(inResponse.getFailures().keySet()));
         assertThat(outResponse.getUnmatchedShardIds(), equalTo(inResponse.getUnmatchedShardIds()));
@@ -145,7 +154,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
             assertThat(outList.get(i).canMatch(), equalTo(inList.get(i).canMatch()));
             Map<String, IndexFieldCapabilities> outCap = outList.get(i).get();
             Map<String, IndexFieldCapabilities> inCap = inList.get(i).get();
-            if (version.onOrAfter(Version.V_8_0_0)) {
+            if (version.onOrAfter(TransportVersion.V_8_0_0)) {
                 assertThat(outCap, equalTo(inCap));
             } else {
                 // Exclude metric types which was introduced in 8.0
@@ -168,7 +177,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
             + "RleF8wMgAACGluZGV4XzAzAgdfc2VxX25vB19zZXFfbm8EbG9uZwEBAQAAAAx5ZWxsb3dfZmllbGQMeWVsbG93X2ZpZWxkB2tleXdvcmQAAQEAAAABAAEI"
             + "aW5kZXhfMTAGdXVpZF9hAQ==";
         StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(base64));
-        in.setVersion(Version.V_8_1_0);
+        in.setTransportVersion(TransportVersion.V_8_1_0);
         FieldCapabilitiesNodeResponse nodeResp = new FieldCapabilitiesNodeResponse(in);
         assertThat(nodeResp.getUnmatchedShardIds(), equalTo(Set.of(new ShardId("index_10", "uuid_a", 1))));
         assertThat(nodeResp.getFailures(), anEmptyMap());

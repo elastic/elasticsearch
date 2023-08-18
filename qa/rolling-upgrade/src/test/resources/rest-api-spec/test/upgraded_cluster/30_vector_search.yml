@@ -1,0 +1,143 @@
+---
+"Search float indices created in old cluster":
+  - do:
+      search:
+        index: test-float-index
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  field(params.field).get().dotProduct(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: bdv
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 27 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 21 }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2._score: 15 }
+
+  - do:
+      search:
+        index: test-float-index
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "knn" } }
+              script:
+                source: |
+                  field(params.field).get().dotProduct(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: knn
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 27 }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.1._score: 25 }
+  - match: { hits.hits.2._id: "7" }
+  - match: { hits.hits.2._score: 23 }
+
+  - do:
+      search:
+        index: test-float-index
+        body:
+          knn:
+            field: "knn"
+            query_vector: [4, 5, 6]
+            k: 3
+            num_candidates: 7
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.2._id: "2" }
+
+  - do:
+      search:
+        index: test-float-index
+        body:
+          knn:
+            field: "knn"
+            query_vector: [ 4, 5, 6 ]
+            k: 3
+            num_candidates: 6
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.2._id: "2" }
+
+---
+"Search byte indices created in old cluster":
+  - do:
+      search:
+        index: test-byte-index
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  field(params.field).get().dotProduct(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: bdv
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 27 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 21 }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2._score: 15 }
+
+  - do:
+      search:
+        index: test-byte-index
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "knn" } }
+              script:
+                source: |
+                  field(params.field).get().dotProduct(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: knn
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 27 }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.1._score: 25 }
+  - match: { hits.hits.2._id: "7" }
+  - match: { hits.hits.2._score: 23 }
+
+  - do:
+      search:
+        index: test-byte-index
+        body:
+          knn:
+            field: "knn"
+            query_vector: [4, 5, 6]
+            k: 3
+            num_candidates: 6
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.2._id: "2" }
+
+  - do:
+      search:
+        index: test-byte-index
+        body:
+          knn:
+            field: "knn"
+            query_vector: [4, 5, 6]
+            k: 3
+            num_candidates: 7
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.2._id: "2" }

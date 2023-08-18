@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -33,10 +33,9 @@ public class TrainedModelCacheInfoResponseTests extends AbstractWireSerializingT
         int numNodes = randomIntBetween(1, 20);
         List<CacheInfo> nodes = new ArrayList<>(numNodes);
         for (int i = 0; i < numNodes; ++i) {
-            DiscoveryNode node = new DiscoveryNode(
+            DiscoveryNode node = DiscoveryNodeUtils.create(
                 randomAlphaOfLength(20),
-                new TransportAddress(InetAddress.getLoopbackAddress(), 9200 + i),
-                Version.CURRENT
+                new TransportAddress(InetAddress.getLoopbackAddress(), 9200 + i)
             );
             nodes.add(CacheInfoTests.createTestInstance(node));
         }
@@ -52,5 +51,10 @@ public class TrainedModelCacheInfoResponseTests extends AbstractWireSerializingT
             );
         }
         return new TrainedModelCacheInfoAction.Response(ClusterName.DEFAULT, nodes, failures);
+    }
+
+    @Override
+    protected TrainedModelCacheInfoAction.Response mutateInstance(TrainedModelCacheInfoAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

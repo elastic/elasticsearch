@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpd
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdateTests;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -37,10 +38,10 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
         boolean createQueryStringRequest = randomBoolean();
 
         if (createQueryStringRequest) {
-            return new InferTrainedModelDeploymentAction.Request(
+            return InferTrainedModelDeploymentAction.Request.forTextInput(
                 randomAlphaOfLength(4),
                 randomBoolean() ? null : randomInferenceConfigUpdate(),
-                randomAlphaOfLength(6),
+                Arrays.asList(generateRandomStringArray(4, 7, false)),
                 randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "timeout")
             );
         } else {
@@ -49,13 +50,18 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
                 () -> randomMap(1, 3, () -> Tuple.tuple(randomAlphaOfLength(7), randomAlphaOfLength(7)))
             );
 
-            return new InferTrainedModelDeploymentAction.Request(
+            return InferTrainedModelDeploymentAction.Request.forDocs(
                 randomAlphaOfLength(4),
                 randomBoolean() ? null : randomInferenceConfigUpdate(),
                 docs,
                 randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "timeout")
             );
         }
+    }
+
+    @Override
+    protected InferTrainedModelDeploymentAction.Request mutateInstance(InferTrainedModelDeploymentAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

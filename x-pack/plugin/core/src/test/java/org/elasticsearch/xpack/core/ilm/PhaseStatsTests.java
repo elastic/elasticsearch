@@ -12,7 +12,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PhaseStats;
 
-import java.io.IOException;
 import java.util.Arrays;
 
 public class PhaseStatsTests extends AbstractWireSerializingTestCase<PhaseStats> {
@@ -29,7 +28,7 @@ public class PhaseStatsTests extends AbstractWireSerializingTestCase<PhaseStats>
     }
 
     @Override
-    protected PhaseStats mutateInstance(PhaseStats instance) throws IOException {
+    protected PhaseStats mutateInstance(PhaseStats instance) {
         TimeValue after = instance.getAfter();
         String[] actionNames = instance.getActionNames();
         switch (between(0, 1)) {

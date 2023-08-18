@@ -1,6 +1,0 @@
-pr: 91195
-summary: Allow different decay values depending on the score function
-area: Search
-type: bug
-issues:
-  - 78887

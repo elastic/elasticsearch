@@ -9,7 +9,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -78,7 +78,7 @@ public class ScriptException extends ElasticsearchException {
         scriptStack = Arrays.asList(in.readStringArray());
         script = in.readString();
         lang = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0) && in.readBoolean()) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0) && in.readBoolean()) {
             pos = new Position(in);
         } else {
             pos = null;
@@ -86,12 +86,12 @@ public class ScriptException extends ElasticsearchException {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+        super.writeTo(out, nestedExceptionsWriter);
         out.writeStringArray(scriptStack.toArray(new String[0]));
         out.writeString(script);
         out.writeString(lang);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
             if (pos == null) {
                 out.writeBoolean(false);
             } else {

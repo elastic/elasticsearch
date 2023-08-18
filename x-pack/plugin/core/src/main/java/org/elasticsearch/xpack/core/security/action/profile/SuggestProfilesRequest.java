@@ -140,7 +140,7 @@ public class SuggestProfilesRequest extends ActionRequest {
 
         public Hint(StreamInput in) throws IOException {
             this.uids = in.readStringList();
-            this.labels = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
+            this.labels = in.readMapOfLists(StreamInput::readString);
         }
 
         public List<String> getUids() {

@@ -49,4 +49,9 @@ public class InternalChangePointAggregationTests extends AbstractWireSerializing
             )
         );
     }
+
+    @Override
+    protected InternalChangePointAggregation mutateInstance(InternalChangePointAggregation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

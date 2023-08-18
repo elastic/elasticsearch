@@ -25,6 +25,15 @@ import java.util.Arrays;
 
 public class HexRingTests extends ESTestCase {
 
+    public void testInvalidHexRingPos() {
+        long h3 = H3.geoToH3(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude(), randomIntBetween(0, H3.MAX_H3_RES));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> H3.hexRingPosToH3(h3, -1));
+        assertEquals(ex.getMessage(), "invalid ring position");
+        int pos = H3.isPentagon(h3) ? 5 : 6;
+        ex = expectThrows(IllegalArgumentException.class, () -> H3.hexRingPosToH3(h3, pos));
+        assertEquals(ex.getMessage(), "invalid ring position");
+    }
+
     public void testHexRing() {
         for (int i = 0; i < 500; i++) {
             double lat = GeoTestUtil.nextLatitude();

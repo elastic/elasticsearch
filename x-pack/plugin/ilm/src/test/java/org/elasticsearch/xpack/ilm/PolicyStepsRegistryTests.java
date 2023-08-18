@@ -21,6 +21,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -66,7 +67,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
 
     private IndexMetadata emptyMetadata(Index index) {
         return IndexMetadata.builder(index.getName())
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -104,14 +105,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhaseDefinition(phaseJson);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(
-                Settings.builder()
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-                    .put("index.version.created", Version.CURRENT)
-                    .put(LifecycleSettings.LIFECYCLE_NAME, "policy")
-                    .build()
-            )
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "policy"))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .build();
         SortedMap<String, LifecyclePolicyMetadata> metas = new TreeMap<>();
@@ -151,14 +145,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         LifecyclePolicy policy = LifecyclePolicyTests.randomTimeseriesLifecyclePolicy("policy");
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(policy, Collections.emptyMap(), 1, randomNonNegativeLong());
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(
-                Settings.builder()
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-                    .put("index.version.created", Version.CURRENT)
-                    .put(LifecycleSettings.LIFECYCLE_NAME, "policy")
-                    .build()
-            )
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "policy").build())
             .build();
         SortedMap<String, LifecyclePolicyMetadata> metas = new TreeMap<>();
         metas.put("policy", policyMetadata);
@@ -181,14 +168,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhaseDefinition(phaseJson);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(
-                Settings.builder()
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-                    .put("index.version.created", Version.CURRENT)
-                    .put(LifecycleSettings.LIFECYCLE_NAME, "policy")
-                    .build()
-            )
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "policy").build())
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .build();
         SortedMap<String, LifecyclePolicyMetadata> metas = new TreeMap<>();
@@ -221,15 +201,12 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase("new");
         Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
+            .persistentSettings(settings(IndexVersion.current()).build())
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
             .put(
                 IndexMetadata.builder("test")
                     .settings(
-                        Settings.builder()
-                            .put("index.uuid", "uuid")
-                            .put("index.number_of_shards", 1)
-                            .put("index.number_of_replicas", 0)
+                        indexSettings(1, 0).put("index.uuid", "uuid")
                             .put("index.version.created", Version.CURRENT.id)
                             .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
                     )
@@ -244,7 +221,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         }
         String nodeId = randomAlphaOfLength(10);
         DiscoveryNode masterNode = DiscoveryNode.createLocal(
-            NodeRoles.masterNode(settings(Version.CURRENT).build()),
+            NodeRoles.masterNode(settings(IndexVersion.current()).build()),
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
             nodeId
         );
@@ -321,12 +298,12 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         );
         IndexLifecycleMetadata lifecycleMetadata = new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING);
         Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
+            .persistentSettings(settings(IndexVersion.current()).build())
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
             .build();
         String nodeId = randomAlphaOfLength(10);
         DiscoveryNode masterNode = DiscoveryNode.createLocal(
-            NodeRoles.masterNode(settings(Version.CURRENT).build()),
+            NodeRoles.masterNode(settings(IndexVersion.current()).build()),
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
             nodeId
         );
@@ -390,15 +367,12 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         lifecycleState.setPhase("warm");
         lifecycleState.setPhaseDefinition(phaseJson);
         Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
+            .persistentSettings(settings(IndexVersion.current()).build())
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
             .put(
                 IndexMetadata.builder("test")
                     .settings(
-                        Settings.builder()
-                            .put("index.uuid", "uuid")
-                            .put("index.number_of_shards", 1)
-                            .put("index.number_of_replicas", 0)
+                        indexSettings(1, 0).put("index.uuid", "uuid")
                             .put("index.version.created", Version.CURRENT.id)
                             .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
                     )
@@ -413,7 +387,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         }
         String nodeId = randomAlphaOfLength(10);
         DiscoveryNode masterNode = DiscoveryNode.createLocal(
-            NodeRoles.masterNode(settings(Version.CURRENT).build()),
+            NodeRoles.masterNode(settings(IndexVersion.current()).build()),
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
             nodeId
         );
@@ -481,14 +455,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .setPhaseDefinition(Strings.toString(new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong())))
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(
-                Settings.builder()
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-                    .put("index.version.created", Version.CURRENT)
-                    .put(LifecycleSettings.LIFECYCLE_NAME, "policy")
-                    .build()
-            )
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "policy").build())
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap())
             .build();
 

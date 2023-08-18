@@ -13,7 +13,7 @@ import com.azure.core.util.serializer.JacksonAdapter;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
@@ -60,11 +61,10 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     // protected for testing
     final SetOnce<AzureStorageService> azureStoreService = new SetOnce<>();
     private final Settings settings;
-    private final Map<String, AzureStorageSettings> initialClientSettings;
 
     public AzureRepositoryPlugin(Settings settings) {
         // eagerly load client settings so that secure settings are read
-        this.initialClientSettings = AzureStorageSettings.load(settings);
+        AzureStorageSettings.load(settings);
         this.settings = settings;
     }
 
@@ -97,7 +97,8 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         AzureClientProvider azureClientProvider = AzureClientProvider.create(threadPool, settings);
         azureStoreService.set(createAzureStorageService(settings, azureClientProvider));
@@ -119,7 +120,9 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
             AzureStorageSettings.MAX_RETRIES_SETTING,
             AzureStorageSettings.PROXY_TYPE_SETTING,
             AzureStorageSettings.PROXY_HOST_SETTING,
-            AzureStorageSettings.PROXY_PORT_SETTING
+            AzureStorageSettings.PROXY_PORT_SETTING,
+            AzureStorageSettings.ENDPOINT_SETTING,
+            AzureStorageSettings.SECONDARY_ENDPOINT_SETTING
         );
     }
 

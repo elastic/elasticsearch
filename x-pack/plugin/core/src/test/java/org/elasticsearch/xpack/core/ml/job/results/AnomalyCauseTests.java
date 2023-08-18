@@ -90,6 +90,11 @@ public class AnomalyCauseTests extends AbstractXContentSerializingTestCase<Anoma
     }
 
     @Override
+    protected AnomalyCause mutateInstance(AnomalyCause instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<AnomalyCause> instanceReader() {
         return AnomalyCause::new;
     }

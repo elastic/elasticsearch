@@ -1,5 +1,0 @@
-pr: 92340
-summary: Add vector distance scoring to micro benchmarks
-area: Performance
-type: enhancement
-issues: []

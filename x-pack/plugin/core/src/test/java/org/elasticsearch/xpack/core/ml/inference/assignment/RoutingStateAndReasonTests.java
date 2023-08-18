@@ -33,4 +33,9 @@ public class RoutingStateAndReasonTests extends AbstractXContentSerializingTestC
     protected RoutingStateAndReason createTestInstance() {
         return randomInstance();
     }
+
+    @Override
+    protected RoutingStateAndReason mutateInstance(RoutingStateAndReason instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

@@ -98,6 +98,6 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
 
     @Override
     public void cancelTask(TaskManager taskManager, Runnable runnable, String reason) {
-        taskManager.cancelTaskAndDescendants(this, reason, true, ActionListener.wrap(runnable));
+        taskManager.cancelTaskAndDescendants(this, reason, true, ActionListener.running(runnable));
     }
 }

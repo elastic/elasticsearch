@@ -54,7 +54,7 @@ setup:
 ---
 "Basic test":
   - skip:
-      version: " - 8.5.99"
+      version: " - 8.6.99"
       reason: Time series result serialization changed in 8.6.0
 
   - do:
@@ -74,10 +74,133 @@ setup:
 
 
   - match: { hits.total.value: 1 }
-  - length: { aggregations.ts.buckets: 1 }
+  - length: { aggregations: 1 }
 
   - match: { aggregations.ts.buckets.0.key: { "key": "foo" } }
   - match: { aggregations.ts.buckets.0.doc_count: 1 }
+
+---
+
+"Basic test profiled":
+  - skip:
+      version: " - 8.7.99"
+      reason: Time series profiling enabled in 8.8
+
+  - do:
+      search:
+        index: tsdb
+        body:
+          profile: true
+          query:
+            range:
+              "@timestamp":
+                gte: "2021-01-01T00:10:00Z"
+          size: 0
+          aggs:
+            ts:
+              time_series:
+                keyed: false
+
+  - match: { profile.shards.0.aggregations.0.type: /TimeSeriesAggregator/ }
+  - match: { profile.shards.0.aggregations.0.description: ts }
+
+---
+"Size test":
+  - skip:
+      version: " - 8.6.99"
+      reason: Size added in 8.7.0
+
+  - do:
+      search:
+        index: tsdb
+        body:
+          query:
+            range:
+              "@timestamp":
+                gte: "2019-01-01T00:10:00Z"
+          size: 0
+          aggs:
+            ts:
+              time_series:
+                keyed: false
+                size: 1
+
+  - length: { aggregations.ts.buckets: 1 }
+  - match: { aggregations.ts.buckets.0.key: { "key": "bar" } }
+
+  - do:
+      search:
+        index: tsdb
+        body:
+          query:
+            range:
+              "@timestamp":
+                gte: "2019-01-01T00:10:00Z"
+          size: 0
+          aggs:
+            ts:
+              time_series:
+                keyed: false
+                size: 3
+
+  - length: { aggregations.ts.buckets: 3 }
+  - match: { aggregations.ts.buckets.0.key: { "key": "bar" } }
+  - match: { aggregations.ts.buckets.1.key: { "key": "baz" } }
+  - match: { aggregations.ts.buckets.2.key: { "key": "foo" } }
+
+---
+"Score test filter some":
+  - skip:
+      version: " - 8.8.99"
+      reason: Time series min score fixed in 8.9
+
+  - do:
+      search:
+        index: tsdb
+        body:
+          query:
+            function_score:
+              field_value_factor:
+                field: "val"
+                factor: 0.1
+                missing: 1
+          size: 0
+          min_score: 0.3
+          aggs:
+            ts:
+              time_series:
+                keyed: false
+
+  - match: { hits.total.value: 6 }
+  - length: { aggregations: 1 }
+
+  - length: { aggregations.ts.buckets: 3 }
+
+---
+"Score test filter all":
+  - skip:
+      version: " - 8.8.99"
+      reason: Time series min score fixed in 8.9
+
+  - do:
+      search:
+        index: tsdb
+        body:
+          query:
+            range:
+              "@timestamp":
+                gte: "2021-01-01T00:10:00Z"
+          size: 0
+          min_score: 100
+          aggs:
+            ts:
+              time_series:
+                keyed: false
+
+  - match: { hits.total.value: 0 }
+  - length: { aggregations: 1 }
+  - length: { aggregations.ts.buckets: 0 }
+
 
 ---
 "Sampler aggregation with nested time series aggregation failure":
@@ -167,3 +290,20 @@ setup:
                     sum:
                       sum:
                         field: val
+---
+"Configure with no synthetic source":
+  - skip:
+      version: " - 8.8.99"
+      reason: "Error message fix in 8.9"
+
+  - do:
+      catch: '/Time series indices only support synthetic source./'
+      indices.create:
+        index: tsdb_error
+        body:
+          settings:
+            mode: time_series
+            routing_path: [key]
+          mappings:
+            _source:
+              enabled: false

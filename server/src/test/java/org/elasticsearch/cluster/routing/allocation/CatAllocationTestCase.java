@@ -8,10 +8,11 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -22,6 +23,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -90,7 +92,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for (Idx idx : indices.values()) {
             IndexMetadata.Builder idxMetaBuilder = IndexMetadata.builder(idx.name)
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(idx.numShards())
                 .numberOfReplicas(idx.numReplicas());
             for (ShardRouting shardRouting : idx.routing) {
@@ -107,7 +109,10 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
             }
             IndexMetadata idxMeta = idxMetaBuilder.build();
             builder.put(idxMeta, false);
-            IndexRoutingTable.Builder tableBuilder = new IndexRoutingTable.Builder(idxMeta.getIndex()).initializeAsRecovery(idxMeta);
+            IndexRoutingTable.Builder tableBuilder = new IndexRoutingTable.Builder(
+                TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+                idxMeta.getIndex()
+            ).initializeAsRecovery(idxMeta);
             Map<Integer, IndexShardRoutingTable.Builder> shardIdToRouting = new HashMap<>();
             for (ShardRouting r : idx.routing) {
                 shardIdToRouting.computeIfAbsent(r.shardId().getId(), i -> new IndexShardRoutingTable.Builder(r.shardId())).addShard(r);
@@ -125,9 +130,11 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
         for (String node : nodes) {
             builderDiscoNodes.add(newNode(node));
         }
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).nodes(builderDiscoNodes.build()).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(builderDiscoNodes.build())
+            .build();
         if (balanceFirst()) {
             clusterState = rebalance(clusterState);
         }

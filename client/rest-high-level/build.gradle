@@ -13,7 +13,10 @@ apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'elasticsearch.rest-resources'
 
 group = 'org.elasticsearch.client'
-archivesBaseName = 'elasticsearch-rest-high-level-client'
+
+base {
+  archivesName = 'elasticsearch-rest-high-level-client'
+}
 
 restResources {
   //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)

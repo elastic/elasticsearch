@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.core.scheduler.CronSchedule;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;

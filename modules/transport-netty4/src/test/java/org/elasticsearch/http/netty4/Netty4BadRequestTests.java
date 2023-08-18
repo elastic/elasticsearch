@@ -87,7 +87,8 @@ public class Netty4BadRequestTests extends ESTestCase {
                 new SharedGroupFactory(Settings.EMPTY),
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
-                null
+                null,
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
             )
         ) {
             httpServerTransport.start();

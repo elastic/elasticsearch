@@ -12,6 +12,8 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 
@@ -20,6 +22,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestClusterStatsAction extends BaseRestHandler {
 
     @Override

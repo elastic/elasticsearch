@@ -8,7 +8,7 @@
 
 package org.elasticsearch.aggregations.pipeline;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,7 +48,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
      */
     public BucketSelectorPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, NAME);
-        bucketsPathsMap = in.readMap(StreamInput::readString, StreamInput::readString);
+        bucketsPathsMap = in.readMap(StreamInput::readString);
         script = new Script(in);
         gapPolicy = GapPolicy.readFrom(in);
     }
@@ -214,7 +214,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

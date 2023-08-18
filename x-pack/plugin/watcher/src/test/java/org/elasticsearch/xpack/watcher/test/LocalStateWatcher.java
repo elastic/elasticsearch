@@ -8,18 +8,21 @@ package org.elasticsearch.xpack.watcher.test;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.nio.file.Path;
 
-public class LocalStateWatcher extends LocalStateCompositeXPackPlugin {
+public class LocalStateWatcher extends LocalStateCompositeXPackPlugin implements ReloadablePlugin {
+
+    private final Watcher watcher;
+
     public LocalStateWatcher(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
         LocalStateWatcher thisVar = this;
-
-        plugins.add(new Watcher(settings) {
+        this.watcher = new Watcher(settings) {
             @Override
             protected SSLService getSslService() {
                 return thisVar.getSslService();
@@ -30,6 +33,12 @@ public class LocalStateWatcher extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
 
-        });
+        };
+        plugins.add(watcher);
+    }
+
+    @Override
+    public void reload(Settings settings) throws Exception {
+        this.watcher.reload(settings);
     }
 }

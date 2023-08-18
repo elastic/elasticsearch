@@ -8,13 +8,13 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -35,13 +35,13 @@ public class ClusterStateRequestTests extends ESTestCase {
                 .indices("testindex", "testindex2")
                 .indicesOptions(indicesOptions);
 
-            Version testVersion = VersionUtils.randomVersionBetween(
+            TransportVersion testVersion = TransportVersionUtils.randomVersionBetween(
                 random(),
-                Version.CURRENT.minimumCompatibilityVersion(),
-                Version.CURRENT
+                TransportVersion.MINIMUM_COMPATIBLE,
+                TransportVersion.current()
             );
             // TODO: change version to V_6_6_0 after backporting:
-            if (testVersion.onOrAfter(Version.V_7_0_0)) {
+            if (testVersion.onOrAfter(TransportVersion.V_7_0_0)) {
                 if (randomBoolean()) {
                     clusterStateRequest.waitForMetadataVersion(randomLongBetween(1, Long.MAX_VALUE));
                 }
@@ -51,11 +51,11 @@ public class ClusterStateRequestTests extends ESTestCase {
             }
 
             BytesStreamOutput output = new BytesStreamOutput();
-            output.setVersion(testVersion);
+            output.setTransportVersion(testVersion);
             clusterStateRequest.writeTo(output);
 
             StreamInput streamInput = output.bytes().streamInput();
-            streamInput.setVersion(testVersion);
+            streamInput.setTransportVersion(testVersion);
             ClusterStateRequest deserializedCSRequest = new ClusterStateRequest(streamInput);
 
             assertThat(deserializedCSRequest.routingTable(), equalTo(clusterStateRequest.routingTable()));

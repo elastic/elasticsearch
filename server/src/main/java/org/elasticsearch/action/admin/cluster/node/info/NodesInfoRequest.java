@@ -106,19 +106,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         return this;
     }
 
-    /**
-     * Helper method for adding and removing metrics. Used when deserializing
-     * a NodesInfoRequest from an ordered list of booleans.
-     *
-     * @param addMetric Whether or not to include a metric.
-     * @param metricName Name of the metric to include or remove.
-     */
-    private void optionallyAddMetric(boolean addMetric, String metricName) {
-        if (addMetric) {
-            requestedMetrics.add(metricName);
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -152,6 +139,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         THREAD_POOL("thread_pool"),
         TRANSPORT("transport"),
         HTTP("http"),
+        REMOTE_CLUSTER_SERVER("remote_cluster_server"),
         PLUGINS("plugins"),
         INGEST("ingest"),
         AGGREGATIONS("aggregations"),

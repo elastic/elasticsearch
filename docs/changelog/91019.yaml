@@ -1,5 +1,0 @@
-pr: 91019
-summary: Store write load in the `IndexMetadata` during data streams rollovers
-area: Allocation
-type: enhancement
-issues: []

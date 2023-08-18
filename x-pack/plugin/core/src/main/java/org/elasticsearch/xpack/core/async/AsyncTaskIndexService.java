@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -87,6 +88,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public static final String RESPONSE_HEADERS_FIELD = "response_headers";
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
     public static final String RESULT_FIELD = "result";
+    private static final int ASYNC_TASK_INDEX_MAPPINGS_VERSION = 0;
 
     // Usually the settings, mappings and system index descriptor below
     // would be co-located with the SystemIndexPlugin implementation,
@@ -109,6 +111,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
                 .field("version", Version.CURRENT)
+                .field(SystemIndexDescriptor.VERSION_META_KEY, ASYNC_TASK_INDEX_MAPPINGS_VERSION)
                 .endObject()
                 .field("dynamic", "strict")
                 .startObject("properties")
@@ -314,7 +317,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                         response,
                         e,
                         // at end, we should report a failure to the listener
-                        ActionListener.wrap(() -> newListener.onFailure(e))
+                        ActionListener.running(() -> newListener.onFailure(e))
                     );
                 } else {
                     listener.onFailure(e);
@@ -523,11 +526,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                     asyncExecutionId,
                     false,
                     false,
-                    outerListener.delegateFailure(
-                        (listener, resp) -> listener.onResponse(
-                            statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded())
-                        )
-                    )
+                    outerListener.map(resp -> statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded()))
                 );
             }
         } catch (Exception exc) {
@@ -568,13 +567,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private void writeResponse(R response, OutputStream os) throws IOException {
         // do not close the output
         os = Streams.noCloseStream(os);
-        final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
-        Version.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
-        if (minNodeVersion.onOrAfter(Version.V_7_15_0)) {
+        TransportVersion minNodeVersion = clusterService.state().getMinTransportVersion();
+        TransportVersion.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
+        if (minNodeVersion.onOrAfter(TransportVersion.V_7_15_0)) {
             os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
         }
         try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
-            out.setVersion(minNodeVersion);
+            out.setTransportVersion(minNodeVersion);
             response.writeTo(out);
         }
     }
@@ -593,13 +592,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 }
             }
         });
-        final Version version = Version.readVersion(new InputStreamStreamInput(encodedIn));
-        assert version.onOrBefore(Version.CURRENT) : version + " >= " + Version.CURRENT;
-        if (version.onOrAfter(Version.V_7_15_0)) {
+        TransportVersion version = TransportVersion.readVersion(new InputStreamStreamInput(encodedIn));
+        assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
+        if (version.onOrAfter(TransportVersion.V_7_15_0)) {
             encodedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(encodedIn);
         }
         try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), registry)) {
-            in.setVersion(version);
+            in.setTransportVersion(version);
             return reader.read(in);
         }
     }

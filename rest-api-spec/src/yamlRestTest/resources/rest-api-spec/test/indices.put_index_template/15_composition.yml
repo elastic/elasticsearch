@@ -286,3 +286,66 @@
 
   - is_false: purple-index.mappings.properties.nested.include_in_root
   - is_true: purple-index.mappings.properties.nested.include_in_parent
+
+---
+"Index template ignore_missing_component_template valid":
+  - skip:
+      version: " - 8.6.99"
+      reason: "index template v2 ignore_missing_component_template config not available before 8.7"
+      features: allowed_warnings
+
+  - do:
+      cluster.put_component_template:
+        name: red
+        body:
+          template:
+            mappings:
+              properties:
+                foo:
+                  type: keyword
+
+  - do:
+      allowed_warnings:
+        - "index template [blue] has index patterns [purple-index] matching patterns from existing older templates [global] with patterns (global => [*]); this template [blue] will take precedence during new index creation"
+      indices.put_index_template:
+        name: blue
+        body:
+          index_patterns: ["purple-index"]
+          composed_of: ["red", "blue"]
+          ignore_missing_component_templates: ["blue"]
+
+  - do:
+      indices.create:
+        index: purple-index
+
+  - do:
+      indices.get:
+        index: purple-index
+
+  - match: {purple-index.mappings.properties.foo: {type: keyword}}
+
+---
+"Index template ignore_missing_component_template invalid":
+  - skip:
+      version: " - 8.6.99"
+      reason: "index template v2 ignore_missing_component_template config not available before 8.7"
+      features: allowed_warnings
+
+  - do:
+      cluster.put_component_template:
+        name: red
+        body:
+          template:
+            mappings:
+              properties:
+                foo:
+                  type: keyword
+
+  - do:
+      catch: /index_template \[blue\] invalid, cause \[index template \[blue\] specifies a missing component templates \[blue\] that does not exist/
+      indices.put_index_template:
+        name: blue
+        body:
+          index_patterns: ["purple-index"]
+          composed_of: ["red", "blue"]
+          ignore_missing_component_templates: ["foo"]

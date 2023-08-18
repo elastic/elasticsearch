@@ -67,8 +67,9 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
             return groupShardsIter.iterator().next();
         }
 
-        return clusterService.operationRouting()
+        ShardIterator shards = clusterService.operationRouting()
             .getShards(state, request.concreteIndex(), request.request().id(), request.request().routing(), request.request().preference());
+        return clusterService.operationRouting().useOnlyPromotableShardsForStateless(shards);
     }
 
     @Override
@@ -90,7 +91,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         if (request.realtime()) { // it's a realtime request which is not subject to refresh cycles
             super.asyncShardOperation(request, shardId, listener);
         } else {
-            indexShard.awaitShardSearchActive(b -> {
+            indexShard.ensureShardSearchActive(b -> {
                 try {
                     super.asyncShardOperation(request, shardId, listener);
                 } catch (Exception ex) {

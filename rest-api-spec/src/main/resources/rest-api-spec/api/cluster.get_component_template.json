@@ -39,6 +39,10 @@
       "local":{
         "type":"boolean",
         "description":"Return local information, do not retrieve the state from master node (default: false)"
+      },
+      "include_defaults":{
+        "type":"boolean",
+        "description":"Return all default configurations for the component template (default: false)"
       }
     }
   }

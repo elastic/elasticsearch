@@ -12,18 +12,20 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.client.internal.Requests.createSnapshotRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 /**
  * Creates a new snapshot
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestCreateSnapshotAction extends BaseRestHandler {
 
     @Override
@@ -38,7 +40,9 @@ public class RestCreateSnapshotAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        CreateSnapshotRequest createSnapshotRequest = createSnapshotRequest(request.param("repository"), request.param("snapshot"));
+        String repository = request.param("repository");
+        String snapshot = request.param("snapshot");
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
         request.applyContentParser(p -> createSnapshotRequest.source(p.mapOrdered()));
         createSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createSnapshotRequest.masterNodeTimeout()));
         createSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));

@@ -129,7 +129,7 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
                 .numberOfReplicas(numReplicas)
                 .build();
 
-            final IndexRoutingTable.Builder indexRountingTableBuilder = new IndexRoutingTable.Builder(indexMetadata.getIndex());
+            final IndexRoutingTable.Builder indexRountingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
             for (int shardIdNumber = 0; shardIdNumber < numShards; shardIdNumber++) {
                 ShardId shardId = new ShardId(indexMetadata.getIndex(), shardIdNumber);
                 final IndexShardRoutingTable.Builder shardBuilder = new IndexShardRoutingTable.Builder(shardId);
@@ -137,7 +137,8 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
                     shardId,
                     true,
                     RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-                    decidersNoUnassignedInfo
+                    decidersNoUnassignedInfo,
+                    ShardRouting.Role.DEFAULT
                 );
                 shardBuilder.addShard(shardRouting);
                 if (shardIdNumber < numReplicas) {
@@ -146,7 +147,8 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
                             shardId,
                             false,
                             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                            decidersNoUnassignedInfo
+                            decidersNoUnassignedInfo,
+                            ShardRouting.Role.DEFAULT
                         )
                     );
                 }
@@ -157,7 +159,7 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
             mb.put(indexMetadata, false);
         }
 
-        ClusterState initialClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState initialClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(mb)
             .routingTable(routingTable)
             .nodes(nb)

@@ -1,6 +1,0 @@
-pr: 90482
-summary: Transport threads and `_hot_threads`
-area: Infra/Core
-type: enhancement
-issues:
- - 90334

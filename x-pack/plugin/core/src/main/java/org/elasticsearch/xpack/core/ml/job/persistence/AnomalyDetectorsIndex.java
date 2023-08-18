@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.TimeValue;
@@ -19,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -29,7 +29,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public final class AnomalyDetectorsIndex {
 
     private static final String RESULTS_MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
-    private static final String RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/anomalydetection/";
+    private static final String RESOURCE_PATH = "/ml/anomalydetection/";
+    public static final int RESULTS_INDEX_MAPPINGS_VERSION = 1;
 
     private AnomalyDetectorsIndex() {}
 
@@ -103,7 +104,7 @@ public final class AnomalyDetectorsIndex {
         final ActionListener<Boolean> finalListener
     ) {
         final ActionListener<Boolean> stateIndexAndAliasCreated = ActionListener.wrap(success -> {
-            final ClusterHealthRequest request = Requests.clusterHealthRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
+            final ClusterHealthRequest request = new ClusterHealthRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
                 .waitForYellowStatus()
                 .masterNodeTimeout(masterNodeTimeout);
             executeAsyncWithOrigin(
@@ -137,7 +138,8 @@ public final class AnomalyDetectorsIndex {
         return TemplateUtils.loadTemplate(
             RESOURCE_PATH + "results_index_mappings.json",
             Version.CURRENT.toString(),
-            RESULTS_MAPPINGS_VERSION_VARIABLE
+            RESULTS_MAPPINGS_VERSION_VARIABLE,
+            Map.of("xpack.ml.managed.index.version", Integer.toString(RESULTS_INDEX_MAPPINGS_VERSION))
         );
     }
 }

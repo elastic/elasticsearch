@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -83,7 +83,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
     }
 
     public ModelAliasMetadata(StreamInput in) throws IOException {
-        this.modelAliases = in.readImmutableMap(StreamInput::readString, ModelAliasEntry::new);
+        this.modelAliases = in.readImmutableMap(ModelAliasEntry::new);
     }
 
     public Map<String, ModelAliasEntry> modelAliases() {
@@ -111,8 +111,8 @@ public class ModelAliasMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_13_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_13_0;
     }
 
     @Override
@@ -161,8 +161,8 @@ public class ModelAliasMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_7_13_0;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.V_7_13_0;
         }
 
     }

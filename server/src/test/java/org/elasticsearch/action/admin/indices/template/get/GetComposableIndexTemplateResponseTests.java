@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplateTests;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -37,8 +36,7 @@ public class GetComposableIndexTemplateResponseTests extends AbstractWireSeriali
     }
 
     @Override
-    protected GetComposableIndexTemplateAction.Response mutateInstance(GetComposableIndexTemplateAction.Response instance)
-        throws IOException {
+    protected GetComposableIndexTemplateAction.Response mutateInstance(GetComposableIndexTemplateAction.Response instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

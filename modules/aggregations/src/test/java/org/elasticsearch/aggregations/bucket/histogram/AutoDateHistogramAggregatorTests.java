@@ -15,7 +15,6 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -24,7 +23,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -34,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
@@ -308,8 +307,6 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 docs.add(
                     List.of(
                         new SortedNumericDocValuesField(AGGREGABLE_DATE, d),
-                        new SortedSetDocValuesField("k1", aBytes),
-                        new SortedSetDocValuesField("k1", d < useC ? bBytes : cBytes),
                         new Field("k1", aBytes, KeywordFieldMapper.Defaults.FIELD_TYPE),
                         new Field("k1", d < useC ? bBytes : cBytes, KeywordFieldMapper.Defaults.FIELD_TYPE),
                         new SortedNumericDocValuesField("n", n++)
@@ -1011,7 +1008,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         final Settings nodeSettings = Settings.builder().put("search.max_buckets", 25000).build();
         return new IndexSettings(
             IndexMetadata.builder("_index")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .creationDate(System.currentTimeMillis())
@@ -1031,8 +1028,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 indexSampleData(dataset, indexWriter);
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                final IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 final AutoDateHistogramAggregationBuilder aggregationBuilder = new AutoDateHistogramAggregationBuilder("_name");
                 if (configure != null) {
@@ -1075,7 +1072,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
     private Map<String, Integer> bucketCountsAsMap(InternalAutoDateHistogram result) {
         Map<String, Integer> map = Maps.newLinkedHashMapWithExpectedSize(result.getBuckets().size());
-        result.getBuckets().stream().forEach(b -> {
+        result.getBuckets().forEach(b -> {
             Object old = map.put(b.getKeyAsString(), Math.toIntExact(b.getDocCount()));
             assertNull(old);
         });
@@ -1084,7 +1081,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
     private Map<String, Double> maxAsMap(InternalAutoDateHistogram result) {
         Map<String, Double> map = Maps.newLinkedHashMapWithExpectedSize(result.getBuckets().size());
-        result.getBuckets().stream().forEach(b -> {
+        result.getBuckets().forEach(b -> {
             Max max = b.getAggregations().get("max");
             Object old = map.put(b.getKeyAsString(), max.value());
             assertNull(old);

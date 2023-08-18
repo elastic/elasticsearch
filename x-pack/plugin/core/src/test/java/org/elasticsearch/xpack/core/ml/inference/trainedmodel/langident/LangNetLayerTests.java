@@ -39,6 +39,11 @@ public class LangNetLayerTests extends AbstractXContentSerializingTestCase<LangN
         return createRandom();
     }
 
+    @Override
+    protected LangNetLayer mutateInstance(LangNetLayer instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static LangNetLayer createRandom() {
         int numWeights = randomIntBetween(1, 1000);
         return new LangNetLayer(

@@ -18,6 +18,8 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
@@ -29,6 +31,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestIndexAction extends BaseRestHandler {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document "
         + "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, "
@@ -49,6 +52,7 @@ public class RestIndexAction extends BaseRestHandler {
         return "document_index_action";
     }
 
+    @ServerlessScope(Scope.PUBLIC)
     public static final class CreateHandler extends RestIndexAction {
 
         @Override
@@ -80,6 +84,7 @@ public class RestIndexAction extends BaseRestHandler {
         }
     }
 
+    @ServerlessScope(Scope.PUBLIC)
     public static final class AutoIdHandler extends RestIndexAction {
 
         private final Supplier<DiscoveryNodes> nodesInCluster;

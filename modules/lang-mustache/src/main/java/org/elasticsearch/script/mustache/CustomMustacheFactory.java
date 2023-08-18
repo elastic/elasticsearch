@@ -14,9 +14,7 @@ import com.github.mustachejava.DefaultMustacheVisitor;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheException;
 import com.github.mustachejava.MustacheVisitor;
-import com.github.mustachejava.SafeMustacheFactory;
 import com.github.mustachejava.TemplateContext;
-import com.github.mustachejava.TemplateFunction;
 import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
@@ -36,11 +34,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class CustomMustacheFactory extends SafeMustacheFactory {
+public class CustomMustacheFactory extends DefaultMustacheFactory {
     static final String V7_JSON_MEDIA_TYPE_WITH_CHARSET = "application/json; charset=UTF-8";
     static final String JSON_MEDIA_TYPE_WITH_CHARSET = "application/json;charset=utf-8";
     static final String JSON_MEDIA_TYPE = "application/json";
@@ -65,7 +64,7 @@ public class CustomMustacheFactory extends SafeMustacheFactory {
     private final Encoder encoder;
 
     public CustomMustacheFactory(String mediaType) {
-        super(Collections.emptySet(), ".");
+        super();
         setObjectHandler(new CustomReflectionObjectHandler());
         this.encoder = createEncoder(mediaType);
     }
@@ -146,7 +145,7 @@ public class CustomMustacheFactory extends SafeMustacheFactory {
             writer.write(tc.endChars());
         }
 
-        protected abstract TemplateFunction createFunction(Object resolved);
+        protected abstract Function<String, String> createFunction(Object resolved);
 
         /**
          * At compile time, this function extracts the name of the variable:
@@ -189,7 +188,7 @@ public class CustomMustacheFactory extends SafeMustacheFactory {
 
         @Override
         @SuppressWarnings("unchecked")
-        protected TemplateFunction createFunction(Object resolved) {
+        protected Function<String, String> createFunction(Object resolved) {
             return s -> {
                 if (resolved == null) {
                     return null;
@@ -239,7 +238,7 @@ public class CustomMustacheFactory extends SafeMustacheFactory {
         }
 
         @Override
-        protected TemplateFunction createFunction(Object resolved) {
+        protected Function<String, String> createFunction(Object resolved) {
             return s -> {
                 if (s == null) {
                     return null;

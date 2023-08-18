@@ -18,7 +18,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -48,6 +47,8 @@ import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.script.ScriptStats;
@@ -55,10 +56,10 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestNodesAction extends AbstractCatAction {
 
     @Override
@@ -412,13 +413,7 @@ public class RestNodesAction extends AbstractCatAction {
             );
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
 
-            final String roles;
-            if (node.getRoles().isEmpty()) {
-                roles = "-";
-            } else {
-                roles = node.getRoles().stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().collect(Collectors.joining());
-            }
-            table.addCell(roles);
+            table.addCell(node.getRoleAbbreviationString());
             table.addCell(masterId == null ? "x" : masterId.equals(node.getId()) ? "*" : "-");
             table.addCell(node.getName());
 

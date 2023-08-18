@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -67,12 +67,12 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.concat(
             Iterators.single((builder, params) -> builder.startArray(TYPE)),
-            entries.stream().<ToXContent>map(entry -> (builder, params) -> {
+            Iterators.map(entries.iterator(), entry -> (builder, params) -> {
                 builder.startObject();
                 builder.field("repository", entry.repository);
                 builder.endObject();
                 return builder;
-            }).iterator(),
+            }),
             Iterators.single((builder, params) -> builder.endArray())
         );
     }
@@ -83,8 +83,8 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_4_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_4_0;
     }
 
     public static final class Entry implements Writeable, RepositoryOperation {

@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 
@@ -43,7 +42,7 @@ public class PostFeatureUpgradeResponseTests extends AbstractWireSerializingTest
     }
 
     @Override
-    protected PostFeatureUpgradeResponse mutateInstance(PostFeatureUpgradeResponse instance) throws IOException {
+    protected PostFeatureUpgradeResponse mutateInstance(PostFeatureUpgradeResponse instance) {
         if (instance.isAccepted()) {
             return new PostFeatureUpgradeResponse(
                 true,

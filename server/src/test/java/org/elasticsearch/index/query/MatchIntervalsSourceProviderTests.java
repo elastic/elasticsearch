@@ -26,7 +26,7 @@ public class MatchIntervalsSourceProviderTests extends AbstractXContentSerializi
     }
 
     @Override
-    protected Match mutateInstance(Match instance) throws IOException {
+    protected Match mutateInstance(Match instance) {
         String query = instance.getQuery();
         int maxGaps = instance.getMaxGaps();
         boolean isOrdered = instance.isOrdered();

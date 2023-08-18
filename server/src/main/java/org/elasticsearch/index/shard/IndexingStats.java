@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
 public class IndexingStats implements Writeable, ToXContentFragment {
 
     public static class Stats implements Writeable, ToXContentFragment {
-        private static final Version WRITE_LOAD_AVG_SUPPORTED_VERSION = Version.V_8_6_0;
+        private static final TransportVersion WRITE_LOAD_AVG_SUPPORTED_VERSION = TransportVersion.V_8_6_0;
 
         private long indexCount;
         private long indexTimeInMillis;
@@ -55,7 +55,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             noopUpdateCount = in.readVLong();
             isThrottled = in.readBoolean();
             throttleTimeInMillis = in.readLong();
-            if (in.getVersion().onOrAfter(WRITE_LOAD_AVG_SUPPORTED_VERSION)) {
+            if (in.getTransportVersion().onOrAfter(WRITE_LOAD_AVG_SUPPORTED_VERSION)) {
                 totalIndexingTimeSinceShardStartedInNanos = in.readLong();
                 totalActiveTimeInNanos = in.readLong();
             }
@@ -196,7 +196,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             out.writeVLong(noopUpdateCount);
             out.writeBoolean(isThrottled);
             out.writeLong(throttleTimeInMillis);
-            if (out.getVersion().onOrAfter(WRITE_LOAD_AVG_SUPPORTED_VERSION)) {
+            if (out.getTransportVersion().onOrAfter(WRITE_LOAD_AVG_SUPPORTED_VERSION)) {
                 out.writeLong(totalIndexingTimeSinceShardStartedInNanos);
                 out.writeLong(totalActiveTimeInNanos);
             }
@@ -268,9 +268,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
     public IndexingStats(StreamInput in) throws IOException {
         totalStats = new Stats(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             if (in.readBoolean()) {
-                Map<String, Stats> typeStats = in.readMap(StreamInput::readString, Stats::new);
+                Map<String, Stats> typeStats = in.readMap(Stats::new);
                 assert typeStats.size() == 1;
                 assert typeStats.containsKey(MapperService.SINGLE_MAPPING_NAME);
             }
@@ -349,7 +349,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         totalStats.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeBoolean(false);
         }
     }

@@ -115,7 +115,7 @@
  *     {@code SnapshotsInProgress.Entry#clones} map for the clone operation with the the relevant shard clone tasks.</li>
  *     <li>After the clone tasks have been added to the {@code SnapshotsInProgress.Entry}, master executes them on its snapshot thread-pool
  *     by invoking {@link org.elasticsearch.repositories.Repository#cloneShardSnapshot} for each shard that is to be cloned. Each completed
- *     shard snapshot triggers a call to the {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_STATE_EXECUTOR} which updates the
+ *     shard snapshot triggers a call to the {@link org.elasticsearch.snapshots.SnapshotsService#masterServiceTaskQueue} which updates the
  *     clone's {@code SnapshotsInProgress.Entry} to mark the shard clone operation completed.</li>
  *     <li>Once all the entries in {@code SnapshotsInProgress.Entry#clones} have completed, the clone is finalized just like any other
  *     snapshot through {@link org.elasticsearch.snapshots.SnapshotsService#endSnapshot}. The only difference being that the metadata that

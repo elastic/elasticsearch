@@ -15,14 +15,19 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.ByteUtils;
 
+import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.zip.CRC32;
 
 /**
  * Each translog file is started with a translog header then followed by translog operations.
@@ -148,25 +153,36 @@ final class TranslogHeader {
         }
     }
 
+    private static final byte[] TRANSLOG_HEADER;
+
+    static {
+        var out = new ByteArrayOutputStream();
+        try {
+            CodecUtil.writeHeader(new OutputStreamDataOutput(out), TRANSLOG_CODEC, CURRENT_VERSION);
+            TRANSLOG_HEADER = out.toByteArray();
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     /**
      * Writes this header with the latest format into the file channel
      */
     void write(final FileChannel channel) throws IOException {
-        // This output is intentionally not closed because closing it will close the FileChannel.
-        @SuppressWarnings({ "IOResourceOpenedButNotSafelyClosed", "resource" })
-        final BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(
-            new OutputStreamStreamOutput(java.nio.channels.Channels.newOutputStream(channel))
-        );
-        CodecUtil.writeHeader(new OutputStreamDataOutput(out), TRANSLOG_CODEC, CURRENT_VERSION);
-        // Write uuid
-        final BytesRef uuid = new BytesRef(translogUUID);
-        out.writeInt(uuid.length);
-        out.writeBytes(uuid.bytes, uuid.offset, uuid.length);
+        final byte[] buffer = Arrays.copyOf(TRANSLOG_HEADER, headerSizeInBytes);
+        // Write uuid and leave 4 bytes for its length
+        final int uuidOffset = TRANSLOG_HEADER.length + Integer.BYTES;
+        int offset = UnicodeUtil.UTF16toUTF8(translogUUID, 0, translogUUID.length(), buffer, uuidOffset);
+        // write uuid length before uuid
+        ByteUtils.writeIntBE(offset - uuidOffset, buffer, TRANSLOG_HEADER.length);
         // Write primary term
-        out.writeLong(primaryTerm);
+        ByteUtils.writeLongBE(primaryTerm, buffer, offset);
+        offset += Long.BYTES;
+        final CRC32 crc32 = new CRC32();
+        crc32.update(buffer, 0, offset);
         // Checksum header
-        out.writeInt((int) out.getChecksum());
-        out.flush();
+        ByteUtils.writeIntBE((int) crc32.getValue(), buffer, offset);
+        Channels.writeToChannel(buffer, channel);
         channel.force(true);
         assert channel.position() == headerSizeInBytes
             : "Header is not fully written; header size [" + headerSizeInBytes + "], channel position [" + channel.position() + "]";

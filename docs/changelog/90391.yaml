@@ -1,6 +1,0 @@
-pr: 90391
-summary: Remove resize index settings once shards are started
-area: Recovery
-type: enhancement
-issues:
- - 90127

@@ -57,6 +57,11 @@ public class MultiValuesSourceFieldConfigTests extends AbstractXContentSerializi
     }
 
     @Override
+    protected MultiValuesSourceFieldConfig mutateInstance(MultiValuesSourceFieldConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<MultiValuesSourceFieldConfig> instanceReader() {
         return MultiValuesSourceFieldConfig::new;
     }

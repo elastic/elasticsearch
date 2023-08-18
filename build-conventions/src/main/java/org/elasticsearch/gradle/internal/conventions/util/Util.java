@@ -21,6 +21,7 @@ import org.gradle.api.tasks.util.PatternFilterable;
 
 import javax.annotation.Nullable;
 import java.io.File;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -105,7 +106,6 @@ public class Util {
         return project.getExtensions().getByType(JavaPluginExtension.class) == null;
     }
 
-
     public static Object toStringable(Supplier<String> getter) {
         return new Object() {
             @Override
@@ -119,21 +119,31 @@ public class Util {
         return project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
     }
 
-    public static File locateElasticsearchWorkspace(Gradle project) {
-        if (project.getParent() == null) {
-            // See if any of these included builds is the Elasticsearch project
-            for (IncludedBuild includedBuild : project.getIncludedBuilds()) {
-                File versionProperties = new File(includedBuild.getProjectDir(), "build-tools-internal/version.properties");
-                if (versionProperties.exists()) {
-                    return includedBuild.getProjectDir();
+        public static File locateElasticsearchWorkspace(Gradle gradle) {
+            if(gradle.getRootProject().getName().startsWith("build-tools")) {
+                File buildToolsParent = gradle.getRootProject().getRootDir().getParentFile();
+                if(versionFileExists(buildToolsParent)) {
+                    return buildToolsParent;
                 }
+                return buildToolsParent;
             }
+            if (gradle.getParent() == null) {
+                // See if any of these included builds is the Elasticsearch gradle
+                for (IncludedBuild includedBuild : gradle.getIncludedBuilds()) {
+                    if (versionFileExists(includedBuild.getProjectDir())) {
+                        return includedBuild.getProjectDir();
+                    }
+                }
 
-            // Otherwise assume this project is the root elasticsearch workspace
-            return project.getRootProject().getRootDir();
-        } else {
-            // We're an included build, so keep looking
-            return locateElasticsearchWorkspace(project.getParent());
+                // Otherwise assume this gradle is the root elasticsearch workspace
+                return gradle.getRootProject().getRootDir();
+            } else {
+                // We're an included build, so keep looking
+                return locateElasticsearchWorkspace(gradle.getParent());
+            }
         }
+
+    private static boolean versionFileExists(File rootDir) {
+        return new File(rootDir, "build-tools-internal/version.properties").exists();
     }
 }

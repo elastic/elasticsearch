@@ -12,6 +12,7 @@ import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -79,9 +80,9 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
 
-        IndexableField[] fields = doc1.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertThat(fields[0], Matchers.instanceOf(FeatureField.class));
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertThat(fields.get(0), Matchers.instanceOf(FeatureField.class));
         FeatureField featureField1 = null;
         FeatureField featureField2 = null;
         for (IndexableField field : fields) {
@@ -106,9 +107,9 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
 
-        IndexableField[] fields = doc1.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertThat(fields[0], Matchers.instanceOf(FeatureField.class));
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertThat(fields.get(0), Matchers.instanceOf(FeatureField.class));
         FeatureField featureField1 = null;
         FeatureField featureField2 = null;
         for (IndexableField field : fields) {
@@ -126,6 +127,16 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
         assertTrue(freq1 > freq2);
     }
 
+    public void testDotinFieldname() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", Map.of("politi.cs", 10, "sports", 20))))
+        );
+        assertThat(ex.getCause().getMessage(), containsString("do not support dots in feature names"));
+        assertThat(ex.getCause().getMessage(), containsString("politi.cs"));
+    }
+
     public void testRejectMultiValuedFields() throws MapperParsingException, IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("field").field("type", "rank_features").endObject();
@@ -136,8 +147,8 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
             b.endObject().endObject();
         }));
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.startObject("field").field("foo", Arrays.asList(10, 20)).endObject()))
         );
         assertEquals(
@@ -145,7 +156,7 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
             e.getCause().getMessage()
         );
 
-        e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+        e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("foo");
             {
                 b.startObject().startObject("field").field("bar", 10).endObject().endObject();

@@ -8,11 +8,12 @@
 package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.xpack.eql.execution.payload.EventPayload;
 import org.elasticsearch.xpack.eql.session.Payload;
 
-public class AsEventListener extends ActionListener.Delegating<SearchResponse, Payload> {
+public class AsEventListener extends DelegatingActionListener<SearchResponse, Payload> {
 
     public AsEventListener(ActionListener<Payload> listener) {
         super(listener);

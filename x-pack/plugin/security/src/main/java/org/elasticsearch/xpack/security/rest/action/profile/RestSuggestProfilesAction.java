@@ -14,6 +14,8 @@ import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -32,6 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestSuggestProfilesAction extends SecurityBaseRestHandler {
 
     static final ConstructingObjectParser<Payload, Void> PARSER = new ConstructingObjectParser<>(

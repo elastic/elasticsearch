@@ -43,4 +43,9 @@ public class SimpleHeuristicWireTests extends AbstractXContentSerializingTestCas
     protected SimpleHeuristic createTestInstance() {
         return new SimpleHeuristic();
     }
+
+    @Override
+    protected SimpleHeuristic mutateInstance(SimpleHeuristic instance) throws IOException {
+        return null;
+    }
 }

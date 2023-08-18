@@ -1,7 +1,7 @@
 [[repository-s3]]
 === S3 repository
 
-You can use AWS S3 as a repository for {ref}/modules-snapshots.html[Snapshot/Restore].
+You can use AWS S3 as a repository for {ref}/snapshot-restore.html[Snapshot/Restore].
 
 *If you are looking for a hosted solution of Elasticsearch on AWS, please visit
 https://www.elastic.co/cloud/.*
@@ -143,9 +143,9 @@ settings belong in the `elasticsearch.yml` file.
 
 `read_timeout`::
 
-    The socket timeout for connecting to S3. The value should specify the unit.
-    For example, a value of `5s` specifies a 5 second timeout. The default value
-    is 50 seconds.
+    (<<time-units,time value>>) The maximum time {es} will wait to receive the next byte
+    of data over an established, open connection to the repository before it closes the
+    connection. The default value is 50 seconds.
 
 `max_retries`::
 
@@ -283,7 +283,7 @@ multiple deployments may share the same bucket.
 
 `chunk_size`::
 
-    Big files can be broken down into chunks during snapshotting if needed.
+    (<<byte-units,byte value>>) Big files can be broken down into chunks during snapshotting if needed.
     Specify the chunk size as a value and unit, for example:
     `1TB`, `1GB`, `10MB`. Defaults to the maximum size of a blob in the S3 which is `5TB`.
 
@@ -302,7 +302,8 @@ include::repository-shared-settings.asciidoc[]
 
 `buffer_size`::
 
-    Minimum threshold below which the chunk is uploaded using a single request.
+    (<<byte-units,byte value>>) Minimum threshold below which the chunk is
+    uploaded using a single request.
     Beyond this threshold, the S3 repository will use the
     https://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html[AWS
     Multipart Upload API] to split the chunk into several parts, each of

@@ -9,16 +9,17 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -48,7 +49,12 @@ import static org.mockito.Mockito.when;
 
 public class MetadataIndexAliasesServiceTests extends ESTestCase {
     private final MetadataDeleteIndexService deleteIndexService = mock(MetadataDeleteIndexService.class);
-    private final MetadataIndexAliasesService service = new MetadataIndexAliasesService(null, null, deleteIndexService, xContentRegistry());
+    private final MetadataIndexAliasesService service = new MetadataIndexAliasesService(
+        mock(ClusterService.class),
+        null,
+        deleteIndexService,
+        xContentRegistry()
+    );
 
     public MetadataIndexAliasesServiceTests() {
         // Mock any deletes so we don't need to worry about how MetadataDeleteIndexService does its job
@@ -319,12 +325,12 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
     public void testAddWriteOnlyWithExistingWriteIndex() {
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         IndexMetadata.Builder indexMetadata2 = IndexMetadata.builder("test2")
             .putAlias(AliasMetadata.builder("alias").writeIndex(true).build())
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
@@ -350,11 +356,11 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
     public void testSwapWriteOnlyIndex() {
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
             .putAlias(AliasMetadata.builder("alias").writeIndex(true).build())
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         IndexMetadata.Builder indexMetadata2 = IndexMetadata.builder("test2")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
@@ -381,16 +387,16 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
     public void testAddWriteOnlyWithExistingNonWriteIndices() {
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
             .putAlias(AliasMetadata.builder("alias").writeIndex(randomBoolean() ? null : false).build())
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         IndexMetadata.Builder indexMetadata2 = IndexMetadata.builder("test2")
             .putAlias(AliasMetadata.builder("alias").writeIndex(randomBoolean() ? null : false).build())
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         IndexMetadata.Builder indexMetadata3 = IndexMetadata.builder("test3")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
@@ -416,12 +422,12 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
     public void testAddWriteOnlyWithIndexRemoved() {
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
             .putAlias(AliasMetadata.builder("alias").build())
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         IndexMetadata.Builder indexMetadata2 = IndexMetadata.builder("test2")
             .putAlias(AliasMetadata.builder("alias").build())
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
@@ -443,11 +449,11 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
     public void testAddWriteOnlyValidatesAgainstMetadataBuilder() {
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         IndexMetadata.Builder indexMetadata2 = IndexMetadata.builder("test2")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
@@ -535,11 +541,11 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
     public void testSimultaneousHiddenPropertyValidation() {
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         IndexMetadata.Builder indexMetadata2 = IndexMetadata.builder("test2")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
@@ -578,7 +584,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         String dataStreamName = "foo-stream";
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis);
         IndexMetadata indexMetadata = IndexMetadata.builder(backingIndexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();

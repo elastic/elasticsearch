@@ -110,8 +110,8 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
                 document.add(new XYDocValuesField("field", (float) singleVal.getX(), (float) singleVal.getY()));
                 w.addDocument(document);
                 expectedCentroid = expectedCentroid.reset(
-                    expectedCentroid.getX() + (singleVal.getX() - expectedCentroid.getX()) / (i + 1),
-                    expectedCentroid.getY() + (singleVal.getY() - expectedCentroid.getY()) / (i + 1)
+                    expectedCentroid.getX() + ((float) singleVal.getX() - expectedCentroid.getX()) / (i + 1),
+                    expectedCentroid.getY() + ((float) singleVal.getY() - expectedCentroid.getY()) / (i + 1)
                 );
             }
             assertCentroid(w, expectedCentroid);
@@ -137,8 +137,8 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
                 document.add(new XYDocValuesField("field", (float) multiVal[0].getX(), (float) multiVal[0].getY()));
                 document.add(new XYDocValuesField("field", (float) multiVal[1].getX(), (float) multiVal[1].getY()));
                 w.addDocument(document);
-                double newMVx = (multiVal[0].getX() + multiVal[1].getX()) / 2d;
-                double newMVy = (multiVal[0].getY() + multiVal[1].getY()) / 2d;
+                double newMVx = ((float) multiVal[0].getX() + (float) multiVal[1].getX()) / 2d;
+                double newMVy = ((float) multiVal[0].getY() + (float) multiVal[1].getY()) / 2d;
                 expectedCentroid = expectedCentroid.reset(
                     expectedCentroid.getX() + (newMVx - expectedCentroid.getX()) / (i + 1),
                     expectedCentroid.getY() + (newMVy - expectedCentroid.getY()) / (i + 1)

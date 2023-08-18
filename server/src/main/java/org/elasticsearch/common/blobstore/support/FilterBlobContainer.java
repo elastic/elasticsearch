@@ -8,9 +8,11 @@
 
 package org.elasticsearch.common.blobstore.support;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 
@@ -100,5 +102,25 @@ public abstract class FilterBlobContainer implements BlobContainer {
     @Override
     public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {
         return delegate.listBlobsByPrefix(blobNamePrefix);
+    }
+
+    @Override
+    public void compareAndExchangeRegister(
+        String key,
+        BytesReference expected,
+        BytesReference updated,
+        ActionListener<OptionalBytesReference> listener
+    ) {
+        delegate.compareAndExchangeRegister(key, expected, updated, listener);
+    }
+
+    @Override
+    public void compareAndSetRegister(String key, BytesReference expected, BytesReference updated, ActionListener<Boolean> listener) {
+        delegate.compareAndSetRegister(key, expected, updated, listener);
+    }
+
+    @Override
+    public void getRegister(String key, ActionListener<OptionalBytesReference> listener) {
+        delegate.getRegister(key, listener);
     }
 }

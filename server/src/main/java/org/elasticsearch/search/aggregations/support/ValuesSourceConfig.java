@@ -31,7 +31,7 @@ import java.util.function.Function;
 public class ValuesSourceConfig {
 
     /**
-     * Given the query context and other information, decide on the input {@link ValuesSource} for this aggretation run, and construct a new
+     * Given the query context and other information, decide on the input {@link ValuesSource} for this aggregation run, and construct a new
      * {@link ValuesSourceConfig} based on that {@link ValuesSourceType}
      *
      * @param context - the query context
@@ -408,7 +408,11 @@ public class ValuesSourceConfig {
     }
 
     /**
-     * Check if this values source supports using global and segment ordinals.
+     * Check if this values source supports segment ordinals. Global ordinals might or might not be supported.
+     * <p>
+     * If this returns {@code true} then it is safe to cast it to {@link ValuesSource.Bytes.WithOrdinals}.
+     * Call {@link ValuesSource.Bytes.WithOrdinals#supportsGlobalOrdinalsMapping} to find out if global ordinals are supported.
+     *
      */
     public boolean hasOrdinals() {
         return valuesSource.hasOrdinals();
@@ -447,8 +451,15 @@ public class ValuesSourceConfig {
 
         MappedFieldType fieldType = fieldType();
         if (fieldType != null) {
-            return "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "]";
+            String typeName = fieldType.typeName();
+            String valuesSourceTypeName = valuesSourceType.typeName();
+            if (valuesSourceType instanceof TimeSeriesValuesSourceType) {
+                return "Field [" + fieldType.name() + "] of type [" + typeName + "][" + valuesSourceTypeName + "]";
+            } else {
+                // Avoid repeated names. Currently only time series values source types have a different behaviour/validation.
+                return "Field [" + fieldType.name() + "] of type [" + typeName + "]";
+            }
         }
-        return "unmapped field";
+        return "unmapped field with value source type [" + valuesSourceType.typeName() + "]";
     }
 }

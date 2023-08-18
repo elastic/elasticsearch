@@ -64,16 +64,17 @@ public class FetchProfiler implements FetchPhase.Profiler {
         current.debug.put("stored_fields", storedFieldLoader.fieldsToLoad());
         return new StoredFieldLoader() {
             @Override
-            public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) {
+            public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
                 LeafStoredFieldLoader in = storedFieldLoader.getLoader(ctx, docs);
                 return new LeafStoredFieldLoader() {
                     @Override
                     public void advanceTo(int doc) throws IOException {
-                        current.getTimer(FetchPhaseTiming.LOAD_STORED_FIELDS).start();
+                        final Timer timer = current.getNewTimer(FetchPhaseTiming.LOAD_STORED_FIELDS);
+                        timer.start();
                         try {
                             in.advanceTo(doc);
                         } finally {
-                            current.getTimer(FetchPhaseTiming.LOAD_STORED_FIELDS).stop();
+                            timer.stop();
                         }
                     }
 
@@ -113,7 +114,7 @@ public class FetchProfiler implements FetchPhase.Profiler {
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) throws IOException {
-                Timer timer = breakdown.getTimer(FetchSubPhaseTiming.NEXT_READER);
+                Timer timer = breakdown.getNewTimer(FetchSubPhaseTiming.NEXT_READER);
                 timer.start();
                 try {
                     delegate.setNextReader(readerContext);
@@ -129,7 +130,7 @@ public class FetchProfiler implements FetchPhase.Profiler {
 
             @Override
             public void process(HitContext hitContext) throws IOException {
-                Timer timer = breakdown.getTimer(FetchSubPhaseTiming.PROCESS);
+                Timer timer = breakdown.getNewTimer(FetchSubPhaseTiming.PROCESS);
                 timer.start();
                 try {
                     delegate.process(hitContext);
@@ -141,23 +142,17 @@ public class FetchProfiler implements FetchPhase.Profiler {
     }
 
     @Override
-    public void startLoadingSource() {
-        current.getTimer(FetchPhaseTiming.LOAD_SOURCE).start();
+    public Timer startLoadingSource() {
+        Timer timer = current.getNewTimer(FetchPhaseTiming.LOAD_SOURCE);
+        timer.start();
+        return timer;
     }
 
     @Override
-    public void stopLoadingSource() {
-        current.getTimer(FetchPhaseTiming.LOAD_SOURCE).stop();
-    }
-
-    @Override
-    public void startNextReader() {
-        current.getTimer(FetchPhaseTiming.NEXT_READER).start();
-    }
-
-    @Override
-    public void stopNextReader() {
-        current.getTimer(FetchPhaseTiming.NEXT_READER).stop();
+    public Timer startNextReader() {
+        Timer timer = current.getNewTimer(FetchPhaseTiming.NEXT_READER);
+        timer.start();
+        return timer;
     }
 
     static class FetchProfileBreakdown extends AbstractProfileBreakdown<FetchPhaseTiming> {

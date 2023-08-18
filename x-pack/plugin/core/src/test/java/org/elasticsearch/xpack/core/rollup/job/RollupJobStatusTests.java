@@ -39,6 +39,11 @@ public class RollupJobStatusTests extends AbstractXContentSerializingTestCase<Ro
     }
 
     @Override
+    protected RollupJobStatus mutateInstance(RollupJobStatus instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<RollupJobStatus> instanceReader() {
         return RollupJobStatus::new;
     }

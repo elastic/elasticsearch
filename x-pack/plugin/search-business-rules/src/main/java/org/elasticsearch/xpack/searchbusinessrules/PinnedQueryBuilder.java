@@ -13,7 +13,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,7 +39,6 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -53,8 +52,8 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     public static final String NAME = "pinned";
     public static final int MAX_NUM_PINNED_HITS = 100;
 
-    private static final ParseField IDS_FIELD = new ParseField("ids");
-    private static final ParseField DOCS_FIELD = new ParseField("docs");
+    public static final ParseField IDS_FIELD = new ParseField("ids");
+    public static final ParseField DOCS_FIELD = new ParseField("docs");
     public static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
 
     private final List<String> ids;
@@ -71,8 +70,8 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     public static final class Item implements ToXContentObject, Writeable {
         public static final String NAME = "item";
 
-        private static final ParseField INDEX_FIELD = new ParseField("_index");
-        private static final ParseField ID_FIELD = new ParseField("_id");
+        public static final ParseField INDEX_FIELD = new ParseField("_index");
+        public static final ParseField ID_FIELD = new ParseField("_id");
 
         private final String index;
         private final String id;
@@ -105,7 +104,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         /**
          * Read from a stream.
          */
-        Item(StreamInput in) throws IOException {
+        public Item(StreamInput in) throws IOException {
             index = in.readString();
             id = in.readString();
         }
@@ -220,7 +219,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
      */
     public PinnedQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_7_15_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_7_15_0)) {
             ids = in.readStringList();
             docs = null;
         } else {
@@ -232,7 +231,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_7_15_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_7_15_0)) {
             out.writeStringCollection(this.ids);
         } else {
             out.writeOptionalStringCollection(this.ids);
@@ -343,7 +342,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         if (idField == null) {
             return new MatchNoDocsQuery("No mappings");
         }
-        List<Item> items = (docs != null) ? docs : ids.stream().map(id -> new Item(id)).collect(Collectors.toList());
+        List<Item> items = (docs != null) ? docs : ids.stream().map(id -> new Item(id)).toList();
         if (items.isEmpty()) {
             return new CappedScoreQuery(organicQuery.toQuery(context), MAX_ORGANIC_SCORE);
         } else {
@@ -390,7 +389,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_4_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_4_0;
     }
 }

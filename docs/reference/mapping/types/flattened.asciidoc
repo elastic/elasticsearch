@@ -124,8 +124,8 @@ specify the <<mapping-store, `store`>> parameter in the mapping.
 [[search-fields-flattened]]
 ==== Retrieving flattened fields
 
-Field values and concrete subfields can be retrieved using the 
-<<search-fields-param,fields parameter>>. content. Since the `flattened` field maps an 
+Field values and concrete subfields can be retrieved using the
+<<search-fields-param,fields parameter>>. content. Since the `flattened` field maps an
 entire object with potentially many subfields as a single field, the response contains
 the unaltered structure from `_source`.
 
@@ -235,7 +235,7 @@ POST /my-index-000001/_bulk?refresh
 
 Because `labels` is a `flattened` field type, the entire object is mapped as a
 single field. To retrieve values from this sub-field in a Painless script, use
-the `doc['<field_name>.<sub-field_name>'].value` format. 
+the `doc['<field_name>.<sub-field_name>'].value` format.
 
 [source,painless]
 ----
@@ -307,3 +307,129 @@ The following mapping parameters are accepted:
     Whether <<full-text-queries,full text queries>> should split the input on
     whitespace when building a query for this field. Accepts `true` or `false`
     (default).
+
+`time_series_dimensions`::
+    (Optional, array of strings) A list of fields inside the flattened object, where each field is a dimension
+    of the time series. Each field is specified using the relative path from the
+    root field and does not include the root field name.
+
+
+[[flattened-synthetic-source]]
+==== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
+Flattened fields support <<synthetic-source,synthetic`_source`>> in their default
+configuration. Synthetic `_source` cannot be used with <<doc-values,`doc_values`>>
+disabled.
+
+Synthetic source always sorts alphabetically and de-duplicates flattened fields.
+For example:
+[source,console,id=synthetic-source-flattened-sorting-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "flattened": { "type": "flattened" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "flattened": {
+    "field": [ "apple", "apple", "banana", "avocado", "10", "200", "AVOCADO", "Banana", "Tangerine" ]
+  }
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+[source,console-result]
+----
+{
+  "flattened": {
+    "field": [ "10", "200", "AVOCADO", "Banana", "Tangerine", "apple", "avocado", "banana" ]
+  }
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
+Synthetic source always uses nested objects instead of array of objects.
+For example:
+[source,console,id=synthetic-source-flattened-array-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "flattened": { "type": "flattened" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "flattened": {
+      "field": [
+        { "id": 1, "name": "foo" },
+        { "id": 2, "name": "bar" },
+        { "id": 3, "name": "baz" }
+      ]
+  }
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become (note the nested objects instead of the "flattened" array):
+[source,console-result]
+----
+{
+    "flattened": {
+      "field": {
+          "id": [ "1", "2", "3" ],
+          "name": [ "bar", "baz", "foo" ]
+      }
+    }
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
+Synthetic source always uses single-valued fields for one-element arrays.
+For example:
+[source,console,id=synthetic-source-flattened-single-value-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "flattened": { "type": "flattened" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "flattened": {
+    "field": [ "foo" ]
+  }
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become (note the nested objects instead of the "flattened" array):
+[source,console-result]
+----
+{
+  "flattened": {
+    "field": "foo"
+  }
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]

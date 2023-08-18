@@ -9,7 +9,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,18 +25,29 @@ import java.io.IOException;
 public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBuilder> {
     public static final String NAME = "match_none";
 
+    private String rewriteReason;
+
     public MatchNoneQueryBuilder() {}
+
+    public MatchNoneQueryBuilder(String rewriteReason) {
+        this.rewriteReason = rewriteReason;
+    }
 
     /**
      * Read from a stream.
      */
     public MatchNoneQueryBuilder(StreamInput in) throws IOException {
         super(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_029)) {
+            rewriteReason = in.readOptionalString();
+        }
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        // all state is in the superclass
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_029)) {
+            out.writeOptionalString(rewriteReason);
+        }
     }
 
     @Override
@@ -81,7 +92,10 @@ public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBu
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        return Queries.newMatchNoDocsQuery("User requested \"" + this.getName() + "\" query.");
+        if (rewriteReason != null) {
+            return Queries.newMatchNoDocsQuery(rewriteReason);
+        }
+        return Queries.newMatchNoDocsQuery("User requested \"" + getName() + "\" query.");
     }
 
     @Override
@@ -100,7 +114,7 @@ public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBu
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

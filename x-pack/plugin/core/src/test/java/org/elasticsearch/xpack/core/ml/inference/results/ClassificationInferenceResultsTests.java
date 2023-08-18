@@ -133,6 +133,11 @@ public class ClassificationInferenceResultsTests extends InferenceResultsTestCas
     }
 
     @Override
+    protected ClassificationInferenceResults mutateInstance(ClassificationInferenceResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<ClassificationInferenceResults> instanceReader() {
         return ClassificationInferenceResults::new;
     }

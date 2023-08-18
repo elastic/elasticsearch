@@ -17,7 +17,6 @@ import org.elasticsearch.common.bytes.BytesReference;
  */
 class RandomBlobContentBytesReference extends AbstractBytesReference {
 
-    private final int length;
     private final RandomBlobContent randomBlobContent;
 
     /**
@@ -25,19 +24,14 @@ class RandomBlobContentBytesReference extends AbstractBytesReference {
      * @param length            The length of this blob.
      */
     RandomBlobContentBytesReference(RandomBlobContent randomBlobContent, int length) {
+        super(length);
         assert 0 < length;
         this.randomBlobContent = randomBlobContent;
-        this.length = length;
     }
 
     @Override
     public byte get(int index) {
         return randomBlobContent.buffer[index % randomBlobContent.buffer.length];
-    }
-
-    @Override
-    public int length() {
-        return length;
     }
 
     @Override

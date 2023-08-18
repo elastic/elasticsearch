@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.ml.utils;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -48,10 +47,7 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
 
         ClusterState clusterState = buildClusterStateWithModelReferences(2, modelId1, modelId2, modelId3);
 
-        Map<String, Set<String>> pipelineIdsByModelIds = InferenceProcessorInfoExtractor.pipelineIdsByModelIdsOrAliases(
-            clusterState,
-            modelIds
-        );
+        Map<String, Set<String>> pipelineIdsByModelIds = InferenceProcessorInfoExtractor.pipelineIdsByResource(clusterState, modelIds);
 
         assertThat(pipelineIdsByModelIds.keySet(), equalTo(modelIds));
         assertThat(
@@ -110,9 +106,9 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
             .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
-                    .add(new DiscoveryNode("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302), Version.CURRENT))
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300)))
+                    .add(DiscoveryNodeUtils.create("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302)))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304)))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )
@@ -160,9 +156,9 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
             .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
-                    .add(new DiscoveryNode("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302), Version.CURRENT))
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304), Version.CURRENT))
+                    .add(DiscoveryNodeUtils.create("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300)))
+                    .add(DiscoveryNodeUtils.create("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302)))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304)))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -27,7 +28,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -206,12 +207,12 @@ public class IndexRequestTests extends ESTestCase {
             if (randomBoolean()) {
                 indexRequest.setDynamicTemplates(Map.of());
             }
-            Version ver = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            TransportVersion ver = TransportVersionUtils.randomCompatibleVersion(random());
             BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(ver);
+            out.setTransportVersion(ver);
             indexRequest.writeTo(out);
             StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
-            in.setVersion(ver);
+            in.setTransportVersion(ver);
             IndexRequest serialized = new IndexRequest(in);
             assertThat(serialized.getDynamicTemplates(), anEmptyMap());
         }
@@ -221,9 +222,13 @@ public class IndexRequestTests extends ESTestCase {
                 .boxed()
                 .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
             indexRequest.setDynamicTemplates(dynamicTemplates);
-            Version ver = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_13_0));
+            TransportVersion ver = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersion.V_7_0_0,
+                TransportVersionUtils.getPreviousVersion(TransportVersion.V_7_13_0)
+            );
             BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(ver);
+            out.setTransportVersion(ver);
             IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> indexRequest.writeTo(out));
             assertThat(
                 error.getMessage(),
@@ -236,12 +241,16 @@ public class IndexRequestTests extends ESTestCase {
                 .boxed()
                 .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
             indexRequest.setDynamicTemplates(dynamicTemplates);
-            Version ver = VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT);
+            TransportVersion ver = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersion.V_7_13_0,
+                TransportVersion.current()
+            );
             BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(ver);
+            out.setTransportVersion(ver);
             indexRequest.writeTo(out);
             StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
-            in.setVersion(ver);
+            in.setTransportVersion(ver);
             IndexRequest serialized = new IndexRequest(in);
             assertThat(serialized.getDynamicTemplates(), equalTo(dynamicTemplates));
         }

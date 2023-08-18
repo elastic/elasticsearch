@@ -11,8 +11,7 @@ package org.elasticsearch.index.mapper.vectors;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.VectorValues;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
@@ -28,12 +27,12 @@ final class VectorDVLeafFieldData implements LeafFieldData {
 
     private final LeafReader reader;
     private final String field;
-    private final Version indexVersion;
+    private final IndexVersion indexVersion;
     private final ElementType elementType;
     private final int dims;
     private final boolean indexed;
 
-    VectorDVLeafFieldData(LeafReader reader, String field, Version indexVersion, ElementType elementType, int dims, boolean indexed) {
+    VectorDVLeafFieldData(LeafReader reader, String field, IndexVersion indexVersion, ElementType elementType, int dims, boolean indexed) {
         this.reader = reader;
         this.field = field;
         this.indexVersion = indexVersion;
@@ -56,15 +55,9 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
         try {
             if (indexed) {
-                VectorValues values = reader.getVectorValues(field);
-                if (values == VectorValues.EMPTY) {
-                    // There's no way for KnnDenseVectorDocValuesField to reliably differentiate between VectorValues.EMPTY and
-                    // values that can be iterated through. Since VectorValues.EMPTY throws on docID(), pass a null instead.
-                    values = null;
-                }
                 return switch (elementType) {
-                    case BYTE -> new ByteKnnDenseVectorDocValuesField(values, name, elementType, dims);
-                    case FLOAT -> new KnnDenseVectorDocValuesField(values, name, elementType, dims);
+                    case BYTE -> new ByteKnnDenseVectorDocValuesField(reader.getByteVectorValues(field), name, dims);
+                    case FLOAT -> new KnnDenseVectorDocValuesField(reader.getFloatVectorValues(field), name, dims);
                 };
             } else {
                 BinaryDocValues values = DocValues.getBinary(reader, field);

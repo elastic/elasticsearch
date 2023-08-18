@@ -20,6 +20,11 @@ public class FilterRefTests extends AbstractXContentSerializingTestCase<FilterRe
     }
 
     @Override
+    protected FilterRef mutateInstance(FilterRef instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected FilterRef doParseInstance(XContentParser parser) throws IOException {
         return FilterRef.STRICT_PARSER.parse(parser, null);
     }

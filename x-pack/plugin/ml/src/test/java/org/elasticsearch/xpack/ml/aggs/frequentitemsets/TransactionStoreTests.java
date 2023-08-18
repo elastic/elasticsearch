@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -143,7 +143,7 @@ public class TransactionStoreTests extends ESTestCase {
                 writableRegistry(),
                 (out, value) -> value.writeTo(out),
                 in -> new HashBasedTransactionStore(in, mockBigArraysWithThrowingCircuitBreaker()),
-                Version.CURRENT
+                TransportVersion.current()
             );
         } catch (CircuitBreakingException ce) {
             assertEquals("cbe", ce.getMessage());
@@ -167,7 +167,7 @@ public class TransactionStoreTests extends ESTestCase {
             writableRegistry(),
             (out, value) -> value.writeTo(out),
             in -> new HashBasedTransactionStore(in, mockBigArrays()),
-            Version.CURRENT
+            TransportVersion.current()
         );
 
         // create an immutable version

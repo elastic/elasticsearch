@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -76,7 +77,7 @@ public class SpatialPluginTests extends ESTestCase {
         )) {
             checkLicenseRequired(GeoShapeValuesSourceType.instance(), registryKey, (agg) -> {
                 try {
-                    agg.build(null, null, null, 0, null, 0, 0, null, null, CardinalityUpperBound.NONE, null);
+                    agg.build(null, AggregatorFactories.EMPTY, null, 0, null, 0, 0, null, null, CardinalityUpperBound.NONE, null);
                 } catch (IOException e) {
                     fail("Unexpected exception: " + e.getMessage());
                 }
@@ -132,7 +133,7 @@ public class SpatialPluginTests extends ESTestCase {
         return new SpatialPlugin() {
             protected XPackLicenseState getLicenseState() {
                 TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
-                licenseState.update(operationMode, true, null);
+                licenseState.update(new XPackLicenseStatus(operationMode, true, null));
                 return licenseState;
             }
         };

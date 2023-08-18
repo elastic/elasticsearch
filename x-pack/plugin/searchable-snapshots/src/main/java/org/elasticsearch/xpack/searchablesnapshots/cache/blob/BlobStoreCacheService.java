@@ -20,6 +20,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -41,7 +42,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 
 import java.time.Instant;
 import java.util.concurrent.ExecutionException;

@@ -8,12 +8,10 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-
-import java.io.IOException;
 
 import static org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateShardPathRequestSerializationTests.createSetMutation;
 
@@ -37,11 +35,11 @@ public class NodePrevalidateShardPathResponseSerializationTests extends Abstract
     }
 
     public static DiscoveryNode getRandomNode() {
-        return new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), Version.CURRENT);
+        return DiscoveryNodeUtils.create(randomAlphaOfLength(10));
     }
 
     @Override
-    protected NodePrevalidateShardPathResponse mutateInstance(NodePrevalidateShardPathResponse response) throws IOException {
+    protected NodePrevalidateShardPathResponse mutateInstance(NodePrevalidateShardPathResponse response) {
         if (randomBoolean()) {
             return new NodePrevalidateShardPathResponse(getRandomNode(), response.getShardIds());
         }

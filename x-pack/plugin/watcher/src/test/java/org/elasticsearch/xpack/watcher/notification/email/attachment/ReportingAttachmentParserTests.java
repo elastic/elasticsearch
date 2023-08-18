@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.notification.WebhookService;
 import org.elasticsearch.xpack.watcher.notification.email.Attachment;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser.EmailAttachment;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
@@ -83,7 +84,8 @@ public class ReportingAttachmentParserTests extends ESTestCase {
     public void init() throws Exception {
         httpClient = mock(HttpClient.class);
         clusterSettings = mockClusterService().getClusterSettings();
-        reportingAttachmentParser = new ReportingAttachmentParser(Settings.EMPTY, httpClient, templateEngine, clusterSettings);
+        WebhookService webhookService = new WebhookService(Settings.EMPTY, httpClient, clusterSettings);
+        reportingAttachmentParser = new ReportingAttachmentParser(Settings.EMPTY, webhookService, templateEngine, clusterSettings);
         attachmentParsers.put(ReportingAttachmentParser.TYPE, reportingAttachmentParser);
         emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
     }
@@ -413,7 +415,12 @@ public class ReportingAttachmentParserTests extends ESTestCase {
 
         Settings settings = Settings.builder().put(INTERVAL_SETTING.getKey(), "1ms").put(RETRIES_SETTING.getKey(), retries).build();
 
-        reportingAttachmentParser = new ReportingAttachmentParser(settings, httpClient, templateEngine, clusterSettings);
+        reportingAttachmentParser = new ReportingAttachmentParser(
+            settings,
+            new WebhookService(settings, httpClient, clusterSettings),
+            templateEngine,
+            clusterSettings
+        );
         expectThrows(
             ElasticsearchException.class,
             () -> reportingAttachmentParser.toAttachment(createWatchExecutionContext(), Payload.EMPTY, attachment)
@@ -445,7 +452,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         );
         reportingAttachmentParser = new ReportingAttachmentParser(
             Settings.EMPTY,
-            httpClient,
+            new WebhookService(Settings.EMPTY, httpClient, clusterSettings),
             replaceHttpWithHttpsTemplateEngine,
             clusterSettings
         );
@@ -468,7 +475,12 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         Settings invalidSettings = Settings.builder().put("xpack.notification.reporting.retries", -10).build();
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> new ReportingAttachmentParser(invalidSettings, httpClient, templateEngine, clusterSettings)
+            () -> new ReportingAttachmentParser(
+                invalidSettings,
+                new WebhookService(invalidSettings, httpClient, clusterSettings),
+                templateEngine,
+                clusterSettings
+            )
         );
         assertThat(e.getMessage(), is("Failed to parse value [-10] for setting [xpack.notification.reporting.retries] must be >= 0"));
     }

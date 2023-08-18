@@ -206,6 +206,54 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         );
     }
 
+    public void testMessageForRemoteClusterSslEnabledWithoutKeys() {
+        final String prefix = "xpack.security.remote_cluster_server.ssl";
+        final Settings.Builder builder = Settings.builder().put("remote_cluster_server.enabled", true);
+        // remote cluster ssl is enabled by default
+        if (randomBoolean()) {
+            builder.put(prefix + ".enabled", true);
+        }
+        if (inFipsJvm()) {
+            configureWorkingTrustedAuthorities(prefix, builder);
+        } else {
+            configureWorkingTruststore(prefix, builder);
+        }
+
+        final Throwable exception = expectFailure(builder);
+        assertThat(
+            exception,
+            throwableWithMessage(
+                "invalid SSL configuration for "
+                    + prefix
+                    + " - server ssl configuration requires a key and certificate, but these have not been configured;"
+                    + " you must set either ["
+                    + prefix
+                    + ".keystore.path], or both ["
+                    + prefix
+                    + ".key] and ["
+                    + prefix
+                    + ".certificate]"
+            )
+        );
+        assertThat(exception, instanceOf(ElasticsearchException.class));
+    }
+
+    public void testNoErrorIfRemoteClusterOrSslDisabledWithoutKeys() {
+        final String prefix = "xpack.security.remote_cluster_server.ssl";
+        final Settings.Builder builder = Settings.builder().put(prefix + ".enabled", false);
+        if (randomBoolean()) {
+            builder.put("remote_cluster_server.enabled", true);
+        } else {
+            builder.put("remote_cluster_server.enabled", false);
+        }
+        if (inFipsJvm()) {
+            configureWorkingTrustedAuthorities(prefix, builder);
+        } else {
+            configureWorkingTruststore(prefix, builder);
+        }
+        expectSuccess(builder);
+    }
+
     private void checkMissingKeyManagerResource(String fileType, String configKey, @Nullable Settings.Builder additionalSettings) {
         checkMissingResource(fileType, configKey, (prefix, builder) -> buildKeyConfigSettings(additionalSettings, prefix, builder));
     }

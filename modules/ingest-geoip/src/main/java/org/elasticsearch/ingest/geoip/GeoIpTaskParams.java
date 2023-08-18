@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -41,8 +41,8 @@ class GeoIpTaskParams implements PersistentTaskParams {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_13_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_13_0;
     }
 
     @Override

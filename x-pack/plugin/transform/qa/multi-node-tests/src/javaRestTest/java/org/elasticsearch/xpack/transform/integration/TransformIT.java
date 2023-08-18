@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -22,6 +21,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
@@ -111,7 +112,7 @@ public class TransformIT extends TransformRestTestCase {
         assertBusy(() -> { assertEquals("stopped", getTransformStats(config.getId()).get("state")); });
 
         var storedConfig = getTransform(config.getId());
-        assertThat(storedConfig.get("version"), equalTo(Version.CURRENT.toString()));
+        assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
         assertTrue("[create_time] is not before current time", Instant.ofEpochMilli(createTime).isBefore(now));
@@ -152,7 +153,7 @@ public class TransformIT extends TransformRestTestCase {
         int docsIndexed = (Integer) XContentMapValues.extractValue("stats.documents_indexed", transformStats);
 
         var storedConfig = getTransform(config.getId());
-        assertThat(storedConfig.get("version"), equalTo(Version.CURRENT.toString()));
+        assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
         assertTrue("[create_time] is not before current time", Instant.ofEpochMilli(createTime).isBefore(now));
@@ -200,7 +201,7 @@ public class TransformIT extends TransformRestTestCase {
         int docsIndexed = (Integer) XContentMapValues.extractValue("stats.documents_indexed", getTransformStats(config.getId()));
 
         var storedConfig = getTransform(config.getId());
-        assertThat(storedConfig.get("version"), equalTo(Version.CURRENT.toString()));
+        assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
         assertTrue("[create_time] is not before current time", Instant.ofEpochMilli(createTime).isBefore(now));
@@ -229,7 +230,7 @@ public class TransformIT extends TransformRestTestCase {
                 }
             }
             """, dest, pipelineId);
-        updateConfig(id, update);
+        updateConfig(id, update, RequestOptions.DEFAULT);
 
         // index some more docs
         long timeStamp = Instant.now().toEpochMilli() - 1_000;
@@ -293,7 +294,7 @@ public class TransformIT extends TransformRestTestCase {
                 "retention_policy": null
             }
             """;
-        updateConfig(transformId, update);
+        updateConfig(transformId, update, RequestOptions.DEFAULT);
         assertThat(getTransform(transformId), not(hasKey("retention_policy")));
     }
 
@@ -416,7 +417,7 @@ public class TransformIT extends TransformRestTestCase {
             }
             """, reqsPerSec, maxPageSize);
 
-        updateConfig(config.getId(), update);
+        updateConfig(config.getId(), update, RequestOptions.DEFAULT);
 
         waitUntilCheckpoint(config.getId(), 1L);
         assertThat(getTransformState(config.getId()), equalTo("started"));
@@ -426,7 +427,7 @@ public class TransformIT extends TransformRestTestCase {
         int pagesProcessed = (Integer) XContentMapValues.extractValue("stats.pages_processed", transformStats);
 
         var storedConfig = getTransform(config.getId());
-        assertThat(storedConfig.get("version"), equalTo(Version.CURRENT.toString()));
+        assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
         assertTrue("[create_time] is not before current time", Instant.ofEpochMilli(createTime).isBefore(now));
@@ -471,12 +472,26 @@ public class TransformIT extends TransformRestTestCase {
             .build();
 
         putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
+
         ResponseException e = expectThrows(
             ResponseException.class,
             () -> startTransform(config.getId(), RequestOptions.DEFAULT.toBuilder().addParameter("timeout", "1nanos").build())
         );
 
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.REQUEST_TIMEOUT.getStatus()));
+        assertThat(e.getMessage(), containsString("Starting transform [" + transformId + "] timed out after [1nanos]"));
+
+        // After we've verified that the _start call timed out, we stop the transform (which might have been started despite timeout).
+        try {
+            stopTransform(transformId);
+        } catch (ResponseException e2) {
+            // It can be that the _stop call timed out because of the race condition, i.e.: the _stop call executed *before* the _start call
+            // because of how threads were scheduled by the generic thread pool and now the current transform state is STARTED.
+            // In such a case, we repeat the _stop call to make the transform STOPPED.
+            assertThat(e2.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.REQUEST_TIMEOUT.getStatus()));
+            assertThat(e2.getMessage(), containsString("Could not stop the transforms [" + transformId + "] as they timed out [30s]."));
+            stopTransform(transformId);
+        }
     }
 
     private void indexMoreDocs(long timestamp, long userId, String index) throws Exception {

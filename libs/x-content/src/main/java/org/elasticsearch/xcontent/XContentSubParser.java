@@ -24,7 +24,8 @@ public class XContentSubParser extends FilterXContentParserWrapper {
 
     public XContentSubParser(XContentParser parser) {
         super(parser);
-        if (parser.currentToken() != Token.START_OBJECT && parser.currentToken() != Token.START_ARRAY) {
+        final Token token = parser.currentToken();
+        if (token != Token.START_OBJECT && token != Token.START_ARRAY) {
             throw new IllegalStateException("The sub parser has to be created on the start of an object or array");
         }
         level = 1;

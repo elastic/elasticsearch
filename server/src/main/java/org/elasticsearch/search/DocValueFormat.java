@@ -10,7 +10,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -241,14 +241,14 @@ public interface DocValueFormat extends NamedWriteable {
             this.formatter = DateFormatter.forPattern(formatterPattern).withZone(this.timeZone);
             this.parser = formatter.toDateMathParser();
             this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
-            if (in.getVersion().onOrAfter(Version.V_7_7_0) && in.getVersion().before(Version.V_8_0_0)) {
+            if (in.getTransportVersion().between(TransportVersion.V_7_7_0, TransportVersion.V_8_0_0)) {
                 /* when deserialising from 7.7+ nodes expect a flag indicating if a pattern is of joda style
                    This is only used to support joda style indices in 7.x, in 8 we no longer support this.
                    All indices in 8 should use java style pattern. Hence we can ignore this flag.
                 */
                 in.readBoolean();
             }
-            if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
                 this.formatSortValues = in.readBoolean();
             } else {
                 this.formatSortValues = false;
@@ -265,14 +265,14 @@ public interface DocValueFormat extends NamedWriteable {
             out.writeString(formatter.pattern());
             out.writeString(timeZone.getId());
             out.writeVInt(resolution.ordinal());
-            if (out.getVersion().onOrAfter(Version.V_7_7_0) && out.getVersion().before(Version.V_8_0_0)) {
+            if (out.getTransportVersion().between(TransportVersion.V_7_7_0, TransportVersion.V_8_0_0)) {
                 /* when serializing to 7.7+  send out a flag indicating if a pattern is of joda style
                    This is only used to support joda style indices in 7.x, in 8 we no longer support this.
                    All indices in 8 should use java style pattern. Hence this flag is always false.
                 */
                 out.writeBoolean(false);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
                 out.writeBoolean(formatSortValues);
             }
         }

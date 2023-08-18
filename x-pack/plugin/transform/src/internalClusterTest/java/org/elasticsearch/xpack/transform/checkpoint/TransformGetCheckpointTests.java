@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.checkpoint;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LatchedActionListener;
@@ -96,14 +97,12 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
                 if (action.equals(GetCheckpointNodeAction.NAME)) {
-                    getCheckpointNodeAction.execute(
-                        null,
-                        (GetCheckpointNodeAction.Request) request,
-                        ActionListener.wrap(r -> { this.handleResponse(requestId, r); }, e -> {
-                            this.handleError(requestId, new TransportException(e.getMessage(), e));
+                    getCheckpointNodeAction.execute(null, (GetCheckpointNodeAction.Request) request, ActionListener.wrap(r -> {
+                        this.handleResponse(requestId, r);
+                    }, e -> {
+                        this.handleError(requestId, new TransportException(e.getMessage(), e));
 
-                        })
-                    );
+                    }));
                 }
             }
         };
@@ -124,7 +123,10 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             testIndicesList.add(indexNamePattern + i);
         }
         testIndices = testIndicesList.toArray(new String[0]);
-        clusterStateWithIndex = ClusterStateCreationUtils.state(numberOfNodes, testIndices, numberOfShards);
+
+        clusterStateWithIndex = ClusterState.builder(ClusterStateCreationUtils.state(numberOfNodes, testIndices, numberOfShards))
+            .putTransportVersion("node01", TransportVersion.V_8_5_0)
+            .build();
 
         transformTask = new Task(
             1L,
@@ -280,10 +282,13 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
 
-        LatchedActionListener<GetCheckpointAction.Response> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
-            assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
-            furtherTests.accept(r);
-        }, e -> { fail("got unexpected exception: " + e); }), latch);
+        LatchedActionListener<GetCheckpointAction.Response> listener = new LatchedActionListener<>(
+            ActionTestUtils.assertNoFailureListener(r -> {
+                assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
+                furtherTests.accept(r);
+            }),
+            latch
+        );
 
         ActionTestUtils.execute(getCheckpointAction, transformTask, request, listener);
         assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));

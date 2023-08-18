@@ -1,0 +1,10 @@
+{
+  "INITIAL_MASTER_NODES": "important-settings.html#initial_master_nodes",
+  "DISCOVERY_TROUBLESHOOTING": "discovery-troubleshooting.html",
+  "UNSTABLE_CLUSTER_TROUBLESHOOTING": "cluster-fault-detection.html#cluster-fault-detection-troubleshooting",
+  "LAGGING_NODE_TROUBLESHOOTING": "cluster-fault-detection.html#_diagnosing_lagging_nodes",
+  "SHARD_LOCK_TROUBLESHOOTING": "cluster-fault-detection.html#_diagnosing_shardlockobtainfailedexception_failures",
+  "CONCURRENT_REPOSITORY_WRITERS": "add-repository.html",
+  "ARCHIVE_INDICES": "archive-indices.html",
+  "HTTP_TRACER": "modules-network.html#http-rest-request-tracer"
+}

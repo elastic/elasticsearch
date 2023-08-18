@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ilm.action.RemoveIndexLifecyclePolicyAction.Request;
 
-import java.io.IOException;
 import java.util.Arrays;
 
 public class RemoveIndexLifecyclePolicyRequestTests extends AbstractWireSerializingTestCase<Request> {
@@ -45,7 +44,7 @@ public class RemoveIndexLifecyclePolicyRequestTests extends AbstractWireSerializ
     }
 
     @Override
-    protected Request mutateInstance(Request instance) throws IOException {
+    protected Request mutateInstance(Request instance) {
         String[] indices = instance.indices();
         IndicesOptions indicesOptions = instance.indicesOptions();
         switch (between(0, 1)) {

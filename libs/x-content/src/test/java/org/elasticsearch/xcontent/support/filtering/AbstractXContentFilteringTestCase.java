@@ -305,7 +305,6 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92632")
     public void testDotsAndDoubleWildcardInExcludedFieldName() throws IOException {
         testFilter(
             builder -> builder.startObject().endObject(),
@@ -334,6 +333,61 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         assertFilterResult(expected.apply(createBuilder()), filter(sample, includes, excludes, matchFieldNamesWithDots));
     }
 
+    public void testArrayWithEmptyObjectInInclude() throws IOException {
+        testFilter(
+            builder -> builder.startObject().startArray("foo").startObject().field("bar", "baz").endObject().endArray().endObject(),
+            builder -> builder.startObject()
+                .startArray("foo")
+                .startObject()
+                .field("bar", "baz")
+                .endObject()
+                .startObject()
+                .endObject()
+                .endArray()
+                .endObject(),
+            singleton("foo.bar"),
+            emptySet(),
+            true
+        );
+    }
+
+    public void testArrayWithEmptyArrayInInclude() throws IOException {
+        testFilter(
+            builder -> builder.startObject().startArray("foo").startObject().field("bar", "baz").endObject().endArray().endObject(),
+            builder -> builder.startObject()
+                .startArray("foo")
+                .startObject()
+                .field("bar", "baz")
+                .endObject()
+                .startArray()
+                .endArray()
+                .endArray()
+                .endObject(),
+            singleton("foo.bar"),
+            emptySet(),
+            true
+        );
+    }
+
+    public void testArrayWithLastObjectSkipped() throws IOException {
+        testFilter(
+            builder -> builder.startObject().startArray("foo").startObject().field("bar", "baz").endObject().endArray().endObject(),
+            builder -> builder.startObject()
+                .startArray("foo")
+                .startObject()
+                .field("bar", "baz")
+                .endObject()
+                .startObject()
+                .field("skipped", "value")
+                .endObject()
+                .endArray()
+                .endObject(),
+            singleton("foo.bar"),
+            emptySet(),
+            true
+        );
+    }
+
     protected abstract void assertFilterResult(XContentBuilder expected, XContentBuilder actual);
 
     protected abstract XContentType getXContentType();
@@ -353,7 +407,9 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
             return filterOnBuilder(sample, includes, excludes);
         }
         FilterPath[] excludesFilter = FilterPath.compile(excludes);
-        if (excludesFilter != null && Arrays.stream(excludesFilter).anyMatch(FilterPath::hasDoubleWildcard)) {
+        if (excludesFilter != null
+            && Arrays.stream(excludesFilter).anyMatch(FilterPath::hasDoubleWildcard)
+            && matchFieldNamesWithDots == false) {
             return filterOnBuilder(sample, includes, excludes);
         }
         return filterOnParser(sample, includes, excludes, matchFieldNamesWithDots);

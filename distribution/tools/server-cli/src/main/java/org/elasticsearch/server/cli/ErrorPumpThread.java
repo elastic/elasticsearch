@@ -16,22 +16,18 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.bootstrap.BootstrapInfo.SERVER_READY_MARKER;
-import static org.elasticsearch.bootstrap.BootstrapInfo.USER_EXCEPTION_MARKER;
 import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptibleVoid;
 
 /**
  * A thread which reads stderr of the jvm process and writes it to this process' stderr.
  *
- * <p> Two special state markers are watched for. These are ascii control characters which signal
- * to the cli process something has changed in the server process. The two possible special messages are:
- * <ul>
- *     <li>{@link BootstrapInfo#USER_EXCEPTION_MARKER} - signals a bootstrap error has occurred, and is followed
- *     by the error message</li>
- *     <li>{@link BootstrapInfo#SERVER_READY_MARKER} - signals the server is ready so the cli may detach if daemonizing</li>
- * </ul>
+ * <p> The thread watches for a special state marker from the process. The ascii character
+ * {@link BootstrapInfo#SERVER_READY_MARKER} signals the server is ready and the cli may
+ * detach if daemonizing. All other messages are passed through to stderr.
  */
 class ErrorPumpThread extends Thread {
     private final BufferedReader reader;
@@ -42,9 +38,6 @@ class ErrorPumpThread extends Thread {
 
     // a flag denoting whether the ready marker has been received by the server process
     private volatile boolean ready;
-
-    // an exception message received alongside the user exception marker, if a bootstrap error has occurred
-    private volatile String userExceptionMsg;
 
     // an unexpected io failure that occurred while pumping stderr
     private volatile IOException ioFailure;
@@ -66,10 +59,6 @@ class ErrorPumpThread extends Thread {
         if (ioFailure != null) {
             throw ioFailure;
         }
-        if (ready == false) {
-            return userExceptionMsg;
-        }
-        assert userExceptionMsg == null;
         return null;
     }
 
@@ -80,18 +69,18 @@ class ErrorPumpThread extends Thread {
         nonInterruptibleVoid(this::join);
     }
 
+    /** List of messages / lines to filter from the output. */
+    List<String> filter = List.of("WARNING: Using incubator modules: jdk.incubator.vector");
+
     @Override
     public void run() {
         try {
             String line;
             while ((line = reader.readLine()) != null) {
-                if (line.isEmpty() == false && line.charAt(0) == USER_EXCEPTION_MARKER) {
-                    userExceptionMsg = line.substring(1);
-                    readyOrDead.countDown();
-                } else if (line.isEmpty() == false && line.charAt(0) == SERVER_READY_MARKER) {
+                if (line.isEmpty() == false && line.charAt(0) == SERVER_READY_MARKER) {
                     ready = true;
                     readyOrDead.countDown();
-                } else {
+                } else if (filter.contains(line) == false) {
                     writer.println(line);
                 }
             }

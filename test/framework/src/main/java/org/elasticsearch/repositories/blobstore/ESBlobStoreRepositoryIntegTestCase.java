@@ -23,8 +23,8 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -83,9 +83,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
     protected final String createRepository(final String name, final Settings settings, final boolean verify) {
         logger.info("-->  creating repository [name: {}, verify: {}, settings: {}]", name, verify, settings);
-        assertAcked(
-            client().admin().cluster().preparePutRepository(name).setType(repositoryType()).setVerify(verify).setSettings(settings)
-        );
+        assertAcked(clusterAdmin().preparePutRepository(name).setType(repositoryType()).setVerify(verify).setSettings(settings));
 
         internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class).forEach(repositories -> {
             assertThat(repositories.repository(name), notNullValue());
@@ -100,7 +98,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
     protected final void deleteRepository(final String name) {
         logger.debug("-->  deleting repository [name: {}]", name);
-        assertAcked(client().admin().cluster().prepareDeleteRepository(name));
+        assertAcked(clusterAdmin().prepareDeleteRepository(name));
         internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class).forEach(repositories -> {
             RepositoryMissingException e = expectThrows(RepositoryMissingException.class, () -> repositories.repository(name));
             assertThat(e.repository(), equalTo(name));
@@ -298,7 +296,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         final String snapshotName = randomName();
         logger.info("-->  create snapshot {}:{}", repoName, snapshotName);
         assertSuccessfulSnapshot(
-            client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).setIndices(indexNames)
+            clusterAdmin().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).setIndices(indexNames)
         );
 
         List<String> deleteIndices = randomSubsetOf(randomIntBetween(0, indexCount), indexNames);
@@ -339,7 +337,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         }
 
         logger.info("--> restore all indices from the snapshot");
-        assertSuccessfulRestore(client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(true));
+        assertSuccessfulRestore(clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(true));
 
         // higher timeout since we can have quite a few shards and a little more data here
         ensureGreen(TimeValue.timeValueSeconds(120));
@@ -349,18 +347,18 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         }
 
         logger.info("-->  delete snapshot {}:{}", repoName, snapshotName);
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).get());
 
         expectThrows(
             SnapshotMissingException.class,
-            () -> client().admin().cluster().prepareGetSnapshots(repoName).setSnapshots(snapshotName).execute().actionGet()
+            () -> clusterAdmin().prepareGetSnapshots(repoName).setSnapshots(snapshotName).execute().actionGet()
         );
 
-        expectThrows(SnapshotMissingException.class, () -> client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).get());
+        expectThrows(SnapshotMissingException.class, () -> clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).get());
 
         expectThrows(
             SnapshotRestoreException.class,
-            () -> client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(randomBoolean()).get()
+            () -> clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(randomBoolean()).get()
         );
     }
 
@@ -392,11 +390,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             docCounts[i] = (int) client().prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value;
             logger.info("-->  create snapshot {}:{} with {} documents", repoName, snapshotName + "-" + i, docCounts[i]);
             assertSuccessfulSnapshot(
-                client().admin()
-                    .cluster()
-                    .prepareCreateSnapshot(repoName, snapshotName + "-" + i)
-                    .setWaitForCompletion(true)
-                    .setIndices(indexName)
+                clusterAdmin().prepareCreateSnapshot(repoName, snapshotName + "-" + i).setWaitForCompletion(true).setIndices(indexName)
             );
         }
 
@@ -412,10 +406,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
             logger.info("--> restore index from the snapshot");
             assertSuccessfulRestore(
-                client().admin()
-                    .cluster()
-                    .prepareRestoreSnapshot(repoName, snapshotName + "-" + iterationToRestore)
-                    .setWaitForCompletion(true)
+                clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName + "-" + iterationToRestore).setWaitForCompletion(true)
             );
 
             ensureGreen();
@@ -424,7 +415,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
         for (int i = 0; i < iterationCount; i++) {
             logger.info("-->  delete snapshot {}:{}", repoName, snapshotName + "-" + i);
-            assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName + "-" + i).get());
+            assertAcked(clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName + "-" + i).get());
         }
     }
 
@@ -467,7 +458,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         assertEquals(createSnapshotResponse.getSnapshotInfo().successfulShards(), createSnapshotResponse.getSnapshotInfo().totalShards());
 
         logger.info("--> delete a snapshot");
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, "test-snap").get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(repoName, "test-snap").get());
 
         logger.info("--> verify index folder deleted from blob container");
         RepositoriesService repositoriesSvc = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
@@ -487,7 +478,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             }
         }
 
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, "test-snap2").get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(repoName, "test-snap2").get());
     }
 
     protected void addRandomDocuments(String name, int numDocs) throws InterruptedException {

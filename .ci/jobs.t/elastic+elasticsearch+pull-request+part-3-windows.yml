@@ -4,7 +4,7 @@
     display-name: "elastic / elasticsearch - pull request part-3 windows"
     description: "Testing of Elasticsearch pull requests - part-3 windows"
     node: "windows-immutable"
-    workspace: "C:\\Users\\jenkins\\workspace\\pr-part-2\\${BUILD_NUMBER}"
+    workspace: "C:\\Users\\jenkins\\workspace\\pr-part-3-windows\\${BUILD_NUMBER}"
     scm:
       - git:
           refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
@@ -33,7 +33,6 @@
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$USERPROFILE\\.java\\$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$USERPROFILE\\.java\\$ES_RUNTIME_JAVA
             JAVA11_HOME=$USERPROFILE\\.java\\java11
             JAVA16_HOME=$USERPROFILE\\.java\\openjdk16
             GRADLE_TASK=checkPart3

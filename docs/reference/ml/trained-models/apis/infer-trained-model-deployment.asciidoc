@@ -46,8 +46,8 @@ Controls the amount of time to wait for {infer} results. Defaults to 10 seconds.
 `docs`::
 (Required, array)
 An array of objects to pass to the model for inference. The objects should
-contain a field matching your configured trained model input. Typically, the 
-field name is `text_field`. Currently, only a single value is allowed.
+contain a field matching your configured trained model input. Typically, the
+field name is `text_field`.
 
 ////
 [[infer-trained-model-deployment-results]]
@@ -62,7 +62,7 @@ field name is `text_field`. Currently, only a single value is allowed.
 [[infer-trained-model-deployment-example]]
 == {api-examples-title}
 
-The response depends on the task the model is trained for. If it is a text 
+The response depends on the task the model is trained for. If it is a text
 classification task, the response is the score. For example:
 
 [source,console]
@@ -123,7 +123,7 @@ The API returns in this case:
 ----
 // NOTCONSOLE
 
-Zero-shot classification tasks require extra configuration defining the class 
+Zero-shot classification tasks require extra configuration defining the class
 labels. These labels are passed in the zero-shot inference config.
 
 [source,console]
@@ -150,7 +150,7 @@ POST _ml/trained_models/model2/deployment/_infer
 --------------------------------------------------
 // TEST[skip:TBD]
 
-The API returns the predicted label and the confidence, as well as the top 
+The API returns the predicted label and the confidence, as well as the top
 classes:
 
 [source,console-result]
@@ -205,7 +205,7 @@ POST _ml/trained_models/model2/deployment/_infer
 --------------------------------------------------
 // TEST[skip:TBD]
 
-When the input has been truncated due to the limit imposed by the model's 
+When the input has been truncated due to the limit imposed by the model's
 `max_sequence_length` the `is_truncated` field appears in the response.
 
 [source,console-result]

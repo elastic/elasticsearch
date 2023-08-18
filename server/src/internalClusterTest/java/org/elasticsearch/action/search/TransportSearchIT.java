@@ -10,7 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -259,7 +259,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             IndexResponse indexResponse = client().index(indexRequest).actionGet();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         SearchRequest originalRequest = new SearchRequest();
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -302,8 +302,8 @@ public class TransportSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
         assertAcked(prepareCreate("test2").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
         assertAcked(prepareCreate("test3").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
-        client().admin().indices().prepareAliases().addAlias("test1", "testAlias").get();
-        client().admin().indices().prepareAliases().addAlias(new String[] { "test2", "test3" }, "testFailedAlias").get();
+        indicesAdmin().prepareAliases().addAlias("test1", "testAlias").get();
+        indicesAdmin().prepareAliases().addAlias(new String[] { "test2", "test3" }, "testFailedAlias").get();
 
         long[] validCheckpoints = new long[numberOfShards];
         Arrays.fill(validCheckpoints, SequenceNumbers.UNASSIGNED_SEQ_NO);
@@ -376,14 +376,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             // no exception
             client().prepareSearch("test1").get();
 
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Collections.singletonMap(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1 - 1)
-                    )
-            );
+            updateClusterSettings(Settings.builder().put(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1 - 1));
 
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().prepareSearch("test1").get());
             assertThat(
@@ -391,14 +384,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 containsString("Trying to query " + numPrimaries1 + " shards, which is over the limit of " + (numPrimaries1 - 1))
             );
 
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Collections.singletonMap(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1)
-                    )
-            );
+            updateClusterSettings(Settings.builder().put(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1));
 
             // no exception
             client().prepareSearch("test1").get();
@@ -412,22 +398,17 @@ public class TransportSearchIT extends ESIntegTestCase {
             );
 
         } finally {
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(Collections.singletonMap(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), null))
-            );
+            updateClusterSettings(Settings.builder().putNull(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey()));
         }
     }
 
     public void testSearchIdle() throws Exception {
         int numOfReplicas = randomIntBetween(0, 1);
         internalCluster().ensureAtLeastNumDataNodes(numOfReplicas + 1);
-        final Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(randomIntBetween(50, 500)));
+        final Settings.Builder settings = indexSettings(randomIntBetween(1, 5), numOfReplicas).put(
+            IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(),
+            TimeValue.timeValueMillis(randomIntBetween(50, 500))
+        );
         assertAcked(prepareCreate("test").setSettings(settings).setMapping("""
             {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}"""));
         ensureGreen("test");
@@ -488,8 +469,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
 
         try {
-            Settings settings = Settings.builder().put("indices.breaker.request.limit", "1b").build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+            updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "1b"));
             final Client client = client();
             assertBusy(() -> {
                 Exception exc = expectThrows(
@@ -528,8 +508,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             }
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
         } finally {
-            Settings settings = Settings.builder().putNull("indices.breaker.request.limit").build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+            updateClusterSettings(Settings.builder().putNull("indices.breaker.request.limit"));
         }
     }
 
@@ -575,11 +554,11 @@ public class TransportSearchIT extends ESIntegTestCase {
             IndexResponse indexResponse = client().prepareIndex(indexName).setSource("number", randomInt()).get();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
-        client().admin().indices().prepareRefresh(indexName).get();
+        indicesAdmin().prepareRefresh(indexName).get();
     }
 
     private long requestBreakerUsed() {
-        NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().setBreaker(true).get();
+        NodesStatsResponse stats = clusterAdmin().prepareNodesStats().setBreaker(true).get();
         long estimated = 0;
         for (NodeStats nodeStats : stats.getNodes()) {
             estimated += nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getEstimated();
@@ -654,8 +633,8 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_EMPTY;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.ZERO;
         }
     }
 
@@ -691,6 +670,9 @@ public class TransportSearchIT extends ESIntegTestCase {
         public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
             return new InternalAggregation[] { buildEmptyAggregation() };
         }
+
+        @Override
+        public void releaseAggregations() {}
 
         @Override
         public InternalAggregation buildEmptyAggregation() {

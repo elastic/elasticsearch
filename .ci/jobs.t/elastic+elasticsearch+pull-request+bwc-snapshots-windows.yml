@@ -1,0 +1,54 @@
+---
+- job:
+    name: "elastic+elasticsearch+pull-request+bwc-snapshots-windows"
+    display-name: "elastic / elasticsearch - pull request bwc windows"
+    description: "Testing of Elasticsearch pull requests - bwc windows"
+    project-type: matrix
+    node: master
+    child-workspace: "C:\\Users\\jenkins\\workspace\\bwc-snapshots\\${BUILD_NUMBER}"
+    scm:
+      - git:
+          refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
+          branches:
+            - "${ghprbActualCommit}"
+    triggers:
+      - github-pull-request:
+          org-list:
+            - elastic
+          allow-whitelist-orgs-as-admins: true
+          trigger-phrase: '.*run\W+elasticsearch-ci/bwc-snapshots-windows.*'
+          github-hooks: true
+          status-context: elasticsearch-ci/bwc-snapshots-windows
+          cancel-builds-on-update: true
+          black-list-target-branches:
+            - 6.8
+          excluded-regions:
+            - ^docs/.*
+          white-list-labels:
+            - 'test-windows'
+          black-list-labels:
+            - '>test-mute'
+    axes:
+      - axis:
+          type: slave
+          name: nodes
+          values:
+            - "windows-immutable"
+      - axis:
+          type: yaml
+          filename: ".ci/snapshotBwcVersions"
+          name: "BWC_VERSION"
+    builders:
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            JAVA_HOME=$USERPROFILE\\.java\\$ES_BUILD_JAVA
+            JAVA11_HOME=$USERPROFILE\\.java\\java11
+            JAVA16_HOME=$USERPROFILE\\.java\\openjdk16
+      - batch: |
+          del /f /s /q %USERPROFILE%\.gradle\init.d\*.*
+          mkdir %USERPROFILE%\.gradle\init.d
+          copy .ci\init.gradle %USERPROFILE%\.gradle\init.d\
+          (
+            echo call %GRADLEW_BAT% --max-workers=4 -Dbwc.checkout.align=true v%BWC_VERSION%#bwcTest ^|^| exit /b 1
+          ) | java -jar "C:\Program Files\infra\bin\runbld" --redirect-stderr -

@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -20,7 +20,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -28,7 +27,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
+public class LicenseClusterChangeTests extends AbstractClusterStateLicenseServiceTestCase {
 
     private TestUtils.AssertingLicenseState licenseState;
 
@@ -64,7 +63,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
     }
 
     public void testSelfGeneratedLicenseGeneration() throws Exception {
-        DiscoveryNode master = new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode master = DiscoveryNodeUtils.builder("b").roles(emptySet()).build();
         ClusterState oldState = ClusterState.builder(new ClusterName("a"))
             .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).add(master))
             .build();
@@ -81,9 +80,9 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
         assertEquals(licenseType, licenseMetadata.getLicense().type());
         long expiration;
         if (licenseType.equals("basic")) {
-            expiration = LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+            expiration = LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
         } else {
-            expiration = LicenseService.NON_BASIC_SELF_GENERATED_LICENSE_DURATION.millis() + clock.millis();
+            expiration = LicenseSettings.NON_BASIC_SELF_GENERATED_LICENSE_DURATION.millis() + clock.millis();
         }
         assertEquals(expiration, licenseMetadata.getLicense().expiryDate());
     }

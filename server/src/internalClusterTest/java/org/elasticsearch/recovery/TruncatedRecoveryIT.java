@@ -55,18 +55,11 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
      * Later we allow full recovery to ensure we can still recover and don't run into corruptions.
      */
     public void testCancelRecoveryAndResume() throws Exception {
-        assertTrue(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES))
-                )
-                .get()
-                .isAcknowledged()
+        updateClusterSettings(
+            Settings.builder().put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES))
         );
 
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
+        NodesStatsResponse nodeStats = clusterAdmin().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
         for (NodeStats stat : nodeStats.getNodes()) {
             if (stat.getNode().canContainData()) {
@@ -86,10 +79,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("test").setMapping("field1", "type=text", "the_id", "type=text")
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards())
-                        .put("index.routing.allocation.include._name", primariesNode.getNode().getName())
+                    indexSettings(numberOfShards(), 0).put("index.routing.allocation.include._name", primariesNode.getNode().getName())
                 )
         ); // only allocate on the lucky node
 
@@ -107,9 +97,9 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         }
         ensureGreen();
         // ensure we have flushed segments and make them a big one via optimize
-        client().admin().indices().prepareFlush().setForce(true).get();
-        client().admin().indices().prepareFlush().setForce(true).get(); // double flush to create safe commit in case of async durability
-        client().admin().indices().prepareForceMerge().setMaxNumSegments(1).setFlush(true).get();
+        indicesAdmin().prepareFlush().setForce(true).get();
+        indicesAdmin().prepareFlush().setForce(true).get(); // double flush to create safe commit in case of async durability
+        indicesAdmin().prepareForceMerge().setMaxNumSegments(1).setFlush(true).get();
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean truncate = new AtomicBoolean(true);
@@ -135,18 +125,15 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         }
 
         logger.info("--> bumping replicas to 1"); //
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(
-                        "index.routing.allocation.include._name",  // now allow allocation on all nodes
-                        primariesNode.getNode().getName() + "," + unluckyNode.getNode().getName()
-                    )
-            )
-            .get();
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(
+                    "index.routing.allocation.include._name",  // now allow allocation on all nodes
+                    primariesNode.getNode().getName() + "," + unluckyNode.getNode().getName()
+                ),
+            "test"
+        );
 
         latch.await();
 

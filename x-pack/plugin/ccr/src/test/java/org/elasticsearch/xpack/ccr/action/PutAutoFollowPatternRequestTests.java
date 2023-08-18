@@ -25,11 +25,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class PutAutoFollowPatternRequestTests extends AbstractXContentSerializingTestCase<PutAutoFollowPatternAction.Request> {
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected PutAutoFollowPatternAction.Request doParseInstance(XContentParser parser) throws IOException {
         return PutAutoFollowPatternAction.Request.fromXContent(parser, null);
     }
@@ -56,6 +51,11 @@ public class PutAutoFollowPatternRequestTests extends AbstractXContentSerializin
         }
         ResumeFollowActionRequestTests.generateFollowParameters(request.getParameters());
         return request;
+    }
+
+    @Override
+    protected PutAutoFollowPatternAction.Request mutateInstance(PutAutoFollowPatternAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

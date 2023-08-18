@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
@@ -37,22 +38,32 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.xpack.core.ilm.ErrorStep;
+import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.ShrinkAction;
+import org.elasticsearch.xpack.core.ilm.ShrinkStep;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
+import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -127,7 +138,8 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             allocationDeciders,
             new BalancedShardsAllocator(Settings.EMPTY),
             clusterInfoService,
-            snapshotsInfoService
+            snapshotsInfoService,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator()));
     }
@@ -137,7 +149,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
      */
     public void testEmptyCluster() {
         RoutingTable routingTable = RoutingTable.EMPTY_ROUTING_TABLE;
-        ClusterState state = createTestClusterState(routingTable, Collections.emptyList(), SingleNodeShutdownMetadata.Type.REMOVE);
+        ClusterState state = createTestClusterState(routingTable, List.of(), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
             state,
@@ -481,17 +493,16 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
     public void testNodeNotInCluster() {
         String bogusNodeId = randomAlphaOfLength(10);
-        Map<String, IndexMetadata> indicesTable = new HashMap<>();
         RoutingTable.Builder routingTable = RoutingTable.builder();
 
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(
                 Metadata.builder()
-                    .indices(indicesTable)
+                    .indices(Map.of())
                     .putCustom(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
-                            Collections.singletonMap(
+                            Map.of(
                                 bogusNodeId,
                                 SingleNodeShutdownMetadata.builder()
                                     .setType(SingleNodeShutdownMetadata.Type.REMOVE)
@@ -550,11 +561,112 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.NOT_STARTED, 0, is("node is not currently part of the cluster"));
     }
 
+    public void testIlmShrinkingIndexAvoidsStall() {
+        LifecycleExecutionState executionState = LifecycleExecutionState.builder()
+            .setAction(ShrinkAction.NAME)
+            .setStep(ShrinkStep.NAME)
+            .setPhase(randomFrom("hot", "warm"))
+            .build();
+        checkStalledShardWithIlmState(executionState, OperationMode.RUNNING, SingleNodeShutdownMetadata.Status.IN_PROGRESS);
+    }
+
+    public void testIlmShrinkingWithIlmStoppingIndexAvoidsStall() {
+        LifecycleExecutionState executionState = LifecycleExecutionState.builder()
+            .setAction(ShrinkAction.NAME)
+            .setStep(ShrinkStep.NAME)
+            .build();
+        checkStalledShardWithIlmState(executionState, OperationMode.STOPPING, SingleNodeShutdownMetadata.Status.IN_PROGRESS);
+    }
+
+    public void testIlmShrinkingButIlmStoppedDoesNotAvoidStall() {
+        LifecycleExecutionState executionState = LifecycleExecutionState.builder()
+            .setAction(ShrinkAction.NAME)
+            .setStep(ShrinkStep.NAME)
+            .build();
+        checkStalledShardWithIlmState(executionState, OperationMode.STOPPED, SingleNodeShutdownMetadata.Status.STALLED);
+    }
+
+    public void testIlmShrinkingButErroredDoesNotAvoidStall() {
+        LifecycleExecutionState executionState = LifecycleExecutionState.builder()
+            .setAction(ShrinkAction.NAME)
+            .setStep(ErrorStep.NAME)
+            .build();
+        checkStalledShardWithIlmState(
+            executionState,
+            randomFrom(OperationMode.STOPPING, OperationMode.RUNNING),
+            SingleNodeShutdownMetadata.Status.STALLED
+        );
+    }
+
+    public void testIlmInAnyOtherActionDoesNotAvoidStall() {
+        Set<String> allOtherIlmActions = new HashSet<>();
+        allOtherIlmActions.addAll(TimeseriesLifecycleType.ORDERED_VALID_HOT_ACTIONS);
+        allOtherIlmActions.addAll(TimeseriesLifecycleType.ORDERED_VALID_WARM_ACTIONS);
+        allOtherIlmActions.addAll(TimeseriesLifecycleType.ORDERED_VALID_COLD_ACTIONS);
+        allOtherIlmActions.addAll(TimeseriesLifecycleType.ORDERED_VALID_FROZEN_ACTIONS);
+        allOtherIlmActions.addAll(TimeseriesLifecycleType.ORDERED_VALID_DELETE_ACTIONS);
+        allOtherIlmActions.remove(ShrinkAction.NAME);
+        for (String action : allOtherIlmActions) {
+            LifecycleExecutionState executionState = LifecycleExecutionState.builder().setAction(action).build();
+            checkStalledShardWithIlmState(
+                executionState,
+                randomFrom(OperationMode.STOPPING, OperationMode.RUNNING),
+                SingleNodeShutdownMetadata.Status.STALLED
+            );
+        }
+    }
+
+    private void checkStalledShardWithIlmState(
+        LifecycleExecutionState executionState,
+        OperationMode operationMode,
+        SingleNodeShutdownMetadata.Status expectedStatus
+    ) {
+        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
+        IndexMetadata imd = IndexMetadata.builder(generateIndexMetadata(index, 3, 0))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, executionState.asMap())
+            .build();
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), LIVE_NODE_ID, true, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), LIVE_NODE_ID, true, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 2), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.STARTED))
+            .build();
+
+        // Force a decision of NO for all moves and new allocations, simulating a decider that's stuck
+        canAllocate.set((r, n, a) -> Decision.NO);
+        // And the remain decider simulates NodeShutdownAllocationDecider
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+        state = setIlmOperationMode(state, operationMode);
+
+        ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            true,
+            clusterInfoService,
+            snapshotsInfoService,
+            allocationService,
+            allocationDeciders
+        );
+
+        assertShardMigration(
+            status,
+            expectedStatus,
+            1,
+            expectedStatus == SingleNodeShutdownMetadata.Status.STALLED
+                ? allOf(containsString(index.getName()), containsString("[2] [primary]"))
+                : nullValue()
+        );
+    }
+
     private IndexMetadata generateIndexMetadata(Index index, int numberOfShards, int numberOfReplicas) {
         return IndexMetadata.builder(index.getName())
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
             )
             .numberOfShards(numberOfShards)
@@ -578,8 +690,40 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         List<IndexMetadata> indices,
         SingleNodeShutdownMetadata.Type shutdownType
     ) {
-        Map<String, IndexMetadata> indicesTable = new HashMap<>();
-        indices.forEach(imd -> { indicesTable.put(imd.getIndex().getName(), imd); });
+        return createTestClusterState(indexRoutingTable, indices, shutdownType, false);
+    }
+
+    private ClusterState createTestClusterState(
+        RoutingTable indexRoutingTable,
+        List<IndexMetadata> indices,
+        SingleNodeShutdownMetadata.Type shutdownType,
+        boolean shuttingDownNodeAlreadyLeft
+    ) {
+        Map<String, IndexMetadata> indicesTable = indices.stream().collect(toMap(imd -> imd.getIndex().getName(), Function.identity()));
+        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder()
+            .add(
+                DiscoveryNode.createLocal(
+                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build(),
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9201),
+                    LIVE_NODE_ID
+                )
+            )
+            .add(
+                DiscoveryNode.createLocal(
+                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build(),
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9202),
+                    OTHER_LIVE_NODE_ID
+                )
+            );
+        if (shuttingDownNodeAlreadyLeft == false) {
+            discoveryNodesBuilder.add(
+                DiscoveryNode.createLocal(
+                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID).build(),
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9200),
+                    SHUTTING_DOWN_NODE_ID
+                )
+            );
+        }
 
         return ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(
@@ -588,7 +732,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                     .putCustom(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
-                            Collections.singletonMap(
+                            Map.of(
                                 SHUTTING_DOWN_NODE_ID,
                                 SingleNodeShutdownMetadata.builder()
                                     .setType(shutdownType)
@@ -600,37 +744,17 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                         )
                     )
             )
-            .nodes(
-                DiscoveryNodes.builder()
-                    .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder()
-                                .put(Settings.builder().build())
-                                .put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID)
-                                .build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                            SHUTTING_DOWN_NODE_ID
-                        )
-                    )
-                    .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder().put(Settings.builder().build()).put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                            LIVE_NODE_ID
-                        )
-                    )
-                    .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder()
-                                .put(Settings.builder().build())
-                                .put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID)
-                                .build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9202),
-                            OTHER_LIVE_NODE_ID
-                        )
-                    )
-            )
+            .nodes(discoveryNodesBuilder)
             .routingTable(indexRoutingTable)
+            .build();
+    }
+
+    private ClusterState setIlmOperationMode(ClusterState state, OperationMode operationMode) {
+        return ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .putCustom(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(operationMode, currentSLMMode(state)))
+            )
             .build();
     }
 
@@ -644,7 +768,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             System.currentTimeMillis(),
             false,
             UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-            Collections.emptySet(),
+            Set.of(),
             nodeId
         );
     }
@@ -678,7 +802,12 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
-        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+        ClusterState state = createTestClusterState(
+            routingTable.build(),
+            List.of(imd),
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            randomBoolean()
+        );
 
         return TransportGetShutdownStatusAction.shardMigrationStatus(
             state,

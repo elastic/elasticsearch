@@ -10,10 +10,10 @@ setup:
             index.routing.allocation.enable: none
 
   - do:
-      health: {}
+      health_report: {}
 
   - do:
-      health:
+      health_report:
         feature: disk
 ---
 "Usage stats on the health API":

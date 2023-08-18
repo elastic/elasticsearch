@@ -71,6 +71,9 @@ public class EqualsHashCodeTestUtils {
             if (mutationFunction != null) {
                 T mutation = mutationFunction.mutate(original);
                 assertThat(objectName + " mutation should not be equal to original", mutation, not(equalTo(original)));
+                // equals is symmetric: for any non-null reference values x and y, x.equals(y) should return true if and only
+                // if y.equals(x) returns true. Conversely, y.equals(x) should return true if and only if x.equals(y)
+                assertThat("original should not be equal to mutation" + objectName, original, not(equalTo(mutation)));
             }
 
             T copy = copyFunction.copy(original);

@@ -41,4 +41,9 @@ public class GeoIpTaskStateSerializationTests extends AbstractXContentSerializin
         }
         return state;
     }
+
+    @Override
+    protected GeoIpTaskState mutateInstance(GeoIpTaskState instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

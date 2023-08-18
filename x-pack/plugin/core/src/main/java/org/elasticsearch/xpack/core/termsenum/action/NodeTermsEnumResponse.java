@@ -6,7 +6,8 @@
  */
 package org.elasticsearch.xpack.core.termsenum.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,15 +24,14 @@ import java.util.stream.Collectors;
  */
 class NodeTermsEnumResponse extends TransportResponse {
 
-    private String error;
-    private boolean complete;
-
-    private List<String> terms;
-    private String nodeId;
+    private final String error;
+    private final boolean complete;
+    private final List<String> terms;
+    private final String nodeId;
 
     NodeTermsEnumResponse(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_8_2_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_2_0)) {
             terms = in.readList(r -> {
                 String term = r.readString();
                 in.readLong(); // obsolete docCount field
@@ -45,7 +45,23 @@ class NodeTermsEnumResponse extends TransportResponse {
         nodeId = in.readString();
     }
 
-    NodeTermsEnumResponse(String nodeId, List<String> terms, String error, boolean complete) {
+    public static NodeTermsEnumResponse empty(String nodeId) {
+        return new NodeTermsEnumResponse(nodeId, List.of(), null, true);
+    }
+
+    public static NodeTermsEnumResponse complete(String nodeId, List<String> terms) {
+        return new NodeTermsEnumResponse(nodeId, terms, null, true);
+    }
+
+    public static NodeTermsEnumResponse partial(String nodeId, List<String> terms) {
+        return new NodeTermsEnumResponse(nodeId, terms, null, false);
+    }
+
+    public static NodeTermsEnumResponse error(String nodeId, List<String> terms, Exception error) {
+        return new NodeTermsEnumResponse(nodeId, terms, ExceptionsHelper.stackTrace(error), false);
+    }
+
+    private NodeTermsEnumResponse(String nodeId, List<String> terms, String error, boolean complete) {
         this.nodeId = nodeId;
         this.terms = terms;
         this.error = error;
@@ -54,7 +70,7 @@ class NodeTermsEnumResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_8_2_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_2_0)) {
             out.writeCollection(terms.stream().map(term -> (Writeable) out1 -> {
                 out1.writeString(term);
                 out1.writeLong(1); // obsolete docCount field

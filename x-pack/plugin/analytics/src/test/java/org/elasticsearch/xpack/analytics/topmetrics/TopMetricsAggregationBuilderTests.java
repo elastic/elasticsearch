@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
@@ -86,6 +87,11 @@ public class TopMetricsAggregationBuilderTests extends AbstractXContentSerializi
         return new TopMetricsAggregationBuilder(randomAlphaOfLength(5), sortBuilders, between(1, 100), metricFields);
     }
 
+    @Override
+    protected TopMetricsAggregationBuilder mutateInstance(TopMetricsAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testClientBuilder() throws IOException {
         AbstractXContentTestCase.xContentTester(this::createParser, this::createTestInstance, this::toXContentThroughClientBuilder, p -> {
             p.nextToken();
@@ -94,6 +100,26 @@ public class TopMetricsAggregationBuilderTests extends AbstractXContentSerializi
             assertThat(b.getPipelineAggregatorFactories(), empty());
             return (TopMetricsAggregationBuilder) b.getAggregatorFactories().iterator().next();
         }).test();
+    }
+
+    public void testValidation() {
+        AggregationInitializationException e = expectThrows(AggregationInitializationException.class, () -> {
+            List<SortBuilder<?>> sortBuilders = singletonList(
+                new FieldSortBuilder(randomAlphaOfLength(5)).order(randomFrom(SortOrder.values()))
+            );
+            List<MultiValuesSourceFieldConfig> metricFields = InternalTopMetricsTests.randomMetricNames(between(1, 5))
+                .stream()
+                .map(name -> {
+                    MultiValuesSourceFieldConfig.Builder metricField = new MultiValuesSourceFieldConfig.Builder();
+                    metricField.setFieldName(randomAlphaOfLength(5)).setMissing(1.0);
+                    return metricField.build();
+                })
+                .collect(toList());
+            new TopMetricsAggregationBuilder("tm", sortBuilders, between(1, 100), metricFields).subAggregations(
+                AggregatorFactories.builder()
+            );
+        });
+        assertEquals("Aggregator [tm] of type [top_metrics] cannot accept sub-aggregations", e.getMessage());
     }
 
     private void toXContentThroughClientBuilder(TopMetricsAggregationBuilder serverBuilder, XContentBuilder builder) throws IOException {

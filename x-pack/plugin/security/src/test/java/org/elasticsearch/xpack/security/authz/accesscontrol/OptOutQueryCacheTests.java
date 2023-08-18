@@ -17,10 +17,10 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -150,11 +150,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
     }
 
     public void testOptOutQueryCacheNoIndicesPermissions() {
-        final Settings.Builder settings = Settings.builder()
-            .put("index.version.created", Version.CURRENT)
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0);
-        final IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
+        final IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
         final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final OptOutQueryCache cache = new OptOutQueryCache(indexMetadata.getIndex(), indicesQueryCache, threadContext);
@@ -166,11 +162,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
     }
 
     public void testOptOutQueryCacheIndexDoesNotHaveFieldLevelSecurity() {
-        final Settings.Builder settings = Settings.builder()
-            .put("index.version.created", Version.CURRENT)
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0);
-        final IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
+        final IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
         final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final IndicesAccessControl.IndexAccessControl indexAccessControl = mock(IndicesAccessControl.IndexAccessControl.class);

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.ParsingException;
@@ -15,6 +16,8 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -25,29 +28,62 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXContentFragment {
 
     public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
     public static final ParseField WRITE_DATA_STREAM_FIELD = new ParseField("write_data_stream");
-    public static final ParseField FILTER_FIELD = new ParseField("filter");
+    /*
+     * Before 8.7.0, we incorrectly only kept one filter for all DataStreams in the DataStreamAlias. This field remains here so that we can
+     * read old cluster states during an upgrade. We never write XContent with this field as of 8.7.0.
+     */
+    public static final ParseField OLD_FILTER_FIELD = new ParseField("filter");
+    public static final ParseField FILTERS_FIELD = new ParseField("filters");
+    private static final Logger logger = LogManager.getLogger(DataStreamAlias.class);
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStreamAlias, String> PARSER = new ConstructingObjectParser<>(
         "data_stream_alias",
         false,
-        (args, name) -> new DataStreamAlias(name, (List<String>) args[0], (String) args[1], (CompressedXContent) args[2])
+        (args, name) -> {
+            /*
+             * If we are reading an older cluster state from disk we have to support reading in the single filter that was used before
+             * 8.7.0. In this case the new dataStreamsToFilters map will be null. So we write a new dataStreamsToFilters using the existing
+             * filter value for all DataStreams in order to carry forward the previously-existing behavior.
+             */
+            Map<String, CompressedXContent> dataStreamsToFilters = (Map<String, CompressedXContent>) args[3];
+            CompressedXContent oldFilter = (CompressedXContent) args[2];
+            List<String> dataStreamNames = (List<String>) args[0];
+            if (dataStreamsToFilters == null && oldFilter != null && dataStreamNames != null) {
+                logger.info(
+                    "Reading in data stream alias [{}] with a pre-8.7.0-style data stream filter and using it for all data streams in "
+                        + "the data stream alias",
+                    name
+                );
+                dataStreamsToFilters = new HashMap<>();
+                for (String dataStreamName : dataStreamNames) {
+                    dataStreamsToFilters.put(dataStreamName, oldFilter);
+                }
+            }
+            if (dataStreamsToFilters == null) {
+                dataStreamsToFilters = Map.of();
+            }
+            return new DataStreamAlias(name, dataStreamNames, dataStreamsToFilters, (String) args[1]);
+        }
     );
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), DATA_STREAMS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), WRITE_DATA_STREAM_FIELD);
+        // Note: This field is not used in 8.7.0 and higher:
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.VALUE_EMBEDDED_OBJECT || p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return new CompressedXContent(p.binaryValue());
@@ -58,24 +94,55 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
                 assert false : "unexpected token [" + p.currentToken() + " ]";
                 return null;
             }
-        }, FILTER_FIELD, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
+        }, OLD_FILTER_FIELD, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(HashMap::new, xContentParser -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_EMBEDDED_OBJECT || p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return new CompressedXContent(p.binaryValue());
+            } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().map(p.mapOrdered());
+                return new CompressedXContent(BytesReference.bytes(builder));
+            } else {
+                assert false : "unexpected token [" + p.currentToken() + " ]";
+                return null;
+            }
+        }), FILTERS_FIELD);
     }
 
     private final String name;
     private final List<String> dataStreams;
     private final String writeDataStream;
-    private final CompressedXContent filter;
+    // package-private for testing
+    final Map<String, CompressedXContent> dataStreamToFilterMap;
 
-    private DataStreamAlias(String name, List<String> dataStreams, String writeDataStream, CompressedXContent filter) {
+    private DataStreamAlias(
+        String name,
+        List<String> dataStreams,
+        Map<String, CompressedXContent> dataStreamsToFilters,
+        String writeDataStream
+    ) {
         this.name = Objects.requireNonNull(name);
         this.dataStreams = List.copyOf(dataStreams);
         this.writeDataStream = writeDataStream;
-        this.filter = filter;
+        this.dataStreamToFilterMap = new HashMap<>(dataStreamsToFilters);
         assert writeDataStream == null || dataStreams.contains(writeDataStream);
     }
 
-    public DataStreamAlias(String name, List<String> dataStreams, String writeDataStream, Map<String, Object> filter) {
-        this(name, dataStreams, writeDataStream, compress(filter));
+    public DataStreamAlias(
+        String name,
+        List<String> dataStreams,
+        String writeDataStream,
+        Map<String, Map<String, Object>> dataStreamsToFilters
+    ) {
+        this(name, dataStreams, compressFiltersMap(dataStreamsToFilters), writeDataStream);
+    }
+
+    private static Map<String, CompressedXContent> compressFiltersMap(Map<String, Map<String, Object>> dataStreamToUncompressedFilterMap) {
+        if (dataStreamToUncompressedFilterMap == null) {
+            return Map.of();
+        }
+        return dataStreamToUncompressedFilterMap.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> compress(entry.getValue())));
     }
 
     private static CompressedXContent compress(Map<String, Object> filterAsMap) {
@@ -100,7 +167,21 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
         this.name = in.readString();
         this.dataStreams = in.readStringList();
         this.writeDataStream = in.readOptionalString();
-        this.filter = in.readBoolean() ? CompressedXContent.readCompressedString(in) : null;
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            this.dataStreamToFilterMap = in.readMap(CompressedXContent::readCompressedString);
+        } else {
+            this.dataStreamToFilterMap = new HashMap<>();
+            CompressedXContent filter = in.readBoolean() ? CompressedXContent.readCompressedString(in) : null;
+            if (filter != null) {
+                /*
+                 * Here we're reading in a DataStreamAlias from before 8.7.0, which did not correctly associate filters with DataStreams.
+                 * So we associated the same filter with all DataStreams in the alias to replicate the old behavior.
+                 */
+                for (String dataStream : dataStreams) {
+                    dataStreamToFilterMap.put(dataStream, filter);
+                }
+            }
+        }
     }
 
     /**
@@ -128,12 +209,12 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
         return writeDataStream;
     }
 
-    public CompressedXContent getFilter() {
-        return filter;
+    public CompressedXContent getFilter(String dataStreamName) {
+        return dataStreamToFilterMap.get(dataStreamName);
     }
 
     public boolean filteringRequired() {
-        return filter != null;
+        return dataStreamToFilterMap.isEmpty() == false;
     }
 
     /**
@@ -158,23 +239,25 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
         }
 
         boolean filterUpdated;
-        CompressedXContent filter;
         if (filterAsMap != null) {
-            filter = compress(filterAsMap);
-            if (this.filter == null) {
+            CompressedXContent previousFilter = dataStreamToFilterMap.get(dataStream);
+            if (previousFilter == null) {
                 filterUpdated = true;
             } else {
-                filterUpdated = filterAsMap.equals(decompress(this.filter)) == false;
+                filterUpdated = filterAsMap.equals(decompress(previousFilter)) == false;
             }
         } else {
-            filter = this.filter;
             filterUpdated = false;
         }
 
         Set<String> dataStreams = new HashSet<>(this.dataStreams);
         boolean added = dataStreams.add(dataStream);
         if (added || Objects.equals(this.writeDataStream, writeDataStream) == false || filterUpdated) {
-            return new DataStreamAlias(name, List.copyOf(dataStreams), writeDataStream, filter);
+            Map<String, CompressedXContent> newDataStreamToFilterMap = new HashMap<>(dataStreamToFilterMap);
+            if (filterAsMap != null) {
+                newDataStreamToFilterMap.put(dataStream, compress(filterAsMap));
+            }
+            return new DataStreamAlias(name, List.copyOf(dataStreams), newDataStreamToFilterMap, writeDataStream);
         } else {
             return this;
         }
@@ -199,7 +282,7 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
             if (dataStream.equals(writeDataStream)) {
                 writeDataStream = null;
             }
-            return new DataStreamAlias(name, List.copyOf(dataStreams), writeDataStream, filter);
+            return new DataStreamAlias(name, List.copyOf(dataStreams), dataStreamToFilterMap, writeDataStream);
         }
     }
 
@@ -216,7 +299,7 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
         if (intersectingDataStreams.contains(writeDataStream) == false) {
             writeDataStream = null;
         }
-        return new DataStreamAlias(this.name, intersectingDataStreams, writeDataStream, this.filter);
+        return new DataStreamAlias(this.name, intersectingDataStreams, this.dataStreamToFilterMap, writeDataStream);
     }
 
     /**
@@ -273,7 +356,7 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
             }
         }
 
-        return new DataStreamAlias(this.name, List.copyOf(mergedDataStreams), writeDataStream, filter);
+        return new DataStreamAlias(this.name, List.copyOf(mergedDataStreams), dataStreamToFilterMap, writeDataStream);
     }
 
     public static Diff<DataStreamAlias> readDiffFrom(StreamInput in) throws IOException {
@@ -296,14 +379,16 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
         if (writeDataStream != null) {
             builder.field(WRITE_DATA_STREAM_FIELD.getPreferredName(), writeDataStream);
         }
-        if (filter != null) {
-            boolean binary = params.paramAsBoolean("binary", false);
+        boolean binary = params.paramAsBoolean("binary", false);
+        builder.startObject("filters");
+        for (Map.Entry<String, CompressedXContent> entry : dataStreamToFilterMap.entrySet()) {
             if (binary) {
-                builder.field("filter", filter.compressed());
+                builder.field(entry.getKey(), entry.getValue().compressed());
             } else {
-                builder.field("filter", XContentHelper.convertToMap(filter.uncompressed(), true).v2());
+                builder.field(entry.getKey(), XContentHelper.convertToMap(entry.getValue().uncompressed(), true).v2());
             }
         }
+        builder.endObject();
         builder.endObject();
         return builder;
     }
@@ -313,11 +398,19 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
         out.writeString(name);
         out.writeStringCollection(dataStreams);
         out.writeOptionalString(writeDataStream);
-        if (filter != null) {
-            out.writeBoolean(true);
-            filter.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            out.writeMap(dataStreamToFilterMap, StreamOutput::writeString, (out1, filter) -> filter.writeTo(out1));
         } else {
-            out.writeBoolean(false);
+            if (dataStreamToFilterMap.isEmpty()) {
+                out.writeBoolean(false);
+            } else {
+                /*
+                 * TransportVersions before 8.7 incorrectly only allowed a single filter for all datastreams,
+                 * and randomly dropped all others. We replicate that buggy behavior here if we have to write
+                 * to an older node because there is no way to send multipole filters to an older node.
+                 */
+                dataStreamToFilterMap.values().iterator().next().writeTo(out);
+            }
         }
     }
 
@@ -329,12 +422,12 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
         return Objects.equals(name, that.name)
             && Objects.equals(dataStreams, that.dataStreams)
             && Objects.equals(writeDataStream, that.writeDataStream)
-            && Objects.equals(filter, that.filter);
+            && Objects.equals(dataStreamToFilterMap, that.dataStreamToFilterMap);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, dataStreams, writeDataStream, filter);
+        return Objects.hash(name, dataStreams, writeDataStream, dataStreamToFilterMap);
     }
 
     @Override
@@ -348,8 +441,11 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
             + ", writeDataStream='"
             + writeDataStream
             + '\''
-            + ", filter="
-            + (filter != null ? filter.string() : "null")
+            + ", dataStreamToFilterMap="
+            + dataStreamToFilterMap.keySet()
+                .stream()
+                .map(key -> key + "=" + dataStreamToFilterMap.get(key))
+                .collect(Collectors.joining(", ", "{", "}"))
             + '}';
     }
 }

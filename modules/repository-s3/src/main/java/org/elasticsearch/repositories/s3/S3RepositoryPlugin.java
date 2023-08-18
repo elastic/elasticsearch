@@ -15,7 +15,7 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
@@ -102,7 +103,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         service.set(s3Service(environment));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));

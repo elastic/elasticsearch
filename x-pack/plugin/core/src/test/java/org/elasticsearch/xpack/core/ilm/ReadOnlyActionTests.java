@@ -27,6 +27,11 @@ public class ReadOnlyActionTests extends AbstractActionTestCase<ReadOnlyAction> 
     }
 
     @Override
+    protected ReadOnlyAction mutateInstance(ReadOnlyAction instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<ReadOnlyAction> instanceReader() {
         return ReadOnlyAction::new;
     }

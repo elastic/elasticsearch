@@ -24,7 +24,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.OptionalInt;
 
 /**
@@ -136,19 +135,23 @@ public class NodeAvailabilityZoneMapper implements ClusterStateListener {
         Map<List<String>, Collection<DiscoveryNode>> allNodesByAvailabilityZone = new HashMap<>();
         Map<List<String>, Collection<DiscoveryNode>> mlNodesByAvailabilityZone = new HashMap<>();
         for (DiscoveryNode node : nodes) {
-            List<String> orderedNodeAttributeValues = awarenessAttributes.stream()
-                .map(a -> node.getAttributes().get(a))
-                .filter(Objects::nonNull)
-                .toList();
-            if (orderedNodeAttributeValues.size() != awarenessAttributes.size()) {
-                // This indicates bad configuration - there shouldn't be nodes that don't have all the awareness attributes
-                logger.debug(
-                    "Node [{}] does not have all configured awareness attributes {} - will be ignored in availability zone mapper",
-                    node,
-                    awarenessAttributes
-                );
-                continue;
-            }
+            List<String> orderedNodeAttributeValues = awarenessAttributes.stream().map(a -> {
+                String v = node.getAttributes().get(a);
+                if (v == null) {
+                    // This will never happen for a Cloud cluster, but for self-managed it's possible.
+                    // We reuse the same allocation attributes that are used for shards, but self-managed
+                    // users might not have bothered to set them on their ML nodes if they are not spread
+                    // across availability zones.
+                    logger.debug(
+                        "Node [{}] does not have all configured awareness attributes {} - missing [{}]",
+                        node,
+                        awarenessAttributes,
+                        a
+                    );
+                    return "";
+                }
+                return v;
+            }).toList();
             allNodesByAvailabilityZone.computeIfAbsent(orderedNodeAttributeValues, k -> new ArrayList<>()).add(node);
             if (node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)) {
                 mlNodesByAvailabilityZone.compute(orderedNodeAttributeValues, (k, v) -> {

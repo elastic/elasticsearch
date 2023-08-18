@@ -12,9 +12,11 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,6 +27,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Rest action to create an API key
  */
+@ServerlessScope(Scope.PUBLIC)
 public final class RestCreateApiKeyAction extends ApiKeyBaseRestHandler {
 
     /**
@@ -48,14 +51,16 @@ public final class RestCreateApiKeyAction extends ApiKeyBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        String refresh = request.param("refresh");
         CreateApiKeyRequestBuilder builder = new CreateApiKeyRequestBuilder(client).source(
             request.requiredContent(),
             request.getXContentType()
-        )
-            .setRefreshPolicy(
-                (refresh != null) ? WriteRequest.RefreshPolicy.parse(request.param("refresh")) : CreateApiKeyRequest.DEFAULT_REFRESH_POLICY
-            );
+        );
+        String refresh = request.param("refresh");
+        if (refresh != null) {
+            builder.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(request.param("refresh")));
+        } else {
+            builder.setRefreshPolicy(ApiKeyService.defaultCreateDocRefreshPolicy(settings));
+        }
         return channel -> builder.execute(new RestToXContentListener<>(channel));
     }
 }

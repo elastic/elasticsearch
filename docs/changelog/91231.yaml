@@ -1,5 +1,0 @@
-pr: 91231
-summary: Fix index expression options for requests with a single name or pattern
-area: Infra/Core
-type: bug
-issues: []

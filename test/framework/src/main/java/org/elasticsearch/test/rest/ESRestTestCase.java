@@ -53,6 +53,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
@@ -520,6 +521,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Returns whether to preserve the security indices created during this test on completion of this test.
+     * Defaults to {@code false}. Override this method if security indices should be preserved after the test,
+     * with the assumption that some other process or test will clean up the indices afterward.
+     * This is useful if the security entities need to be preserved between test runs
+     */
+    protected boolean preserveSecurityIndicesUponCompletion() {
+        return false;
+    }
+
+    /**
      * Controls whether or not to preserve templates upon completion of this test. The default implementation is to delete not preserve
      * templates.
      *
@@ -527,6 +538,22 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected boolean preserveTemplatesUponCompletion() {
         return false;
+    }
+
+    /**
+     * Determines whether the system feature reset API should be invoked between tests. The default implementation is to reset
+     * all feature states, deleting system indices, system associated indices, and system data streams.
+     */
+    protected boolean resetFeatureStates() {
+        try {
+            // ML reset fails when ML is disabled in versions before 8.7
+            if (isMlEnabled() == false && minimumNodeVersion().before(Version.V_8_7_0)) {
+                return false;
+            }
+        } catch (IOException e) {
+            throw new AssertionError("Failed to find a minimum node version.", e);
+        }
+        return true;
     }
 
     /**
@@ -595,17 +622,23 @@ public abstract class ESRestTestCase extends ESTestCase {
             "ml-size-based-ilm-policy",
             "logs",
             "metrics",
+            "profiling",
             "synthetics",
             "7-days-default",
             "30-days-default",
             "90-days-default",
             "180-days-default",
             "365-days-default",
-            ".fleet-actions-results-ilm-policy",
-            ".fleet-file-data-ilm-policy",
             ".fleet-files-ilm-policy",
+            ".fleet-file-data-ilm-policy",
+            ".fleet-actions-results-ilm-policy",
+            ".fleet-file-fromhost-data-ilm-policy",
+            ".fleet-file-fromhost-meta-ilm-policy",
+            ".fleet-file-tohost-data-ilm-policy",
+            ".fleet-file-tohost-meta-ilm-policy",
             ".deprecation-indexing-ilm-policy",
-            ".monitoring-8-ilm-policy"
+            ".monitoring-8-ilm-policy",
+            "behavioral_analytics-events-default_policy"
         );
     }
 
@@ -658,6 +691,11 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         wipeSnapshots();
 
+        if (resetFeatureStates()) {
+            final Request postRequest = new Request("POST", "/_features/_reset");
+            adminClient().performRequest(postRequest);
+        }
+
         // wipe data streams before indices so that the backing indices for data streams are handled properly
         if (preserveDataStreamsUponCompletion() == false) {
             wipeDataStreams();
@@ -665,7 +703,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
-            wipeAllIndices();
+            wipeAllIndices(preserveSecurityIndicesUponCompletion());
         }
 
         // wipe index templates
@@ -802,13 +840,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (hasIlm && false == preserveILMPoliciesUponCompletion()) {
             Set<String> unexpectedIlmPlicies = getAllUnexpectedIlmPolicies(preserveILMPolicyIds());
             assertTrue(
-                "Expected no ILM policies after deletions, but found " + unexpectedIlmPlicies.stream().collect(Collectors.joining(", ")),
+                "Expected no ILM policies after deletions, but found " + String.join(", ", unexpectedIlmPlicies),
                 unexpectedIlmPlicies.isEmpty()
             );
         }
         Set<String> unexpectedTemplates = getAllUnexpectedTemplates();
         assertTrue(
-            "Expected no templates after deletions, but found " + unexpectedTemplates.stream().collect(Collectors.joining(", ")),
+            "Expected no templates after deletions, but found " + String.join(", ", unexpectedTemplates),
             unexpectedTemplates.isEmpty()
         );
     }
@@ -856,12 +894,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                     Request compReq = new Request("GET", "_component_template");
                     String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
                     Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
-                    unexpectedTemplates.addAll(
-                        ((List<?>) cTemplates.get("component_templates")).stream()
-                            .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
-                            .filter(name -> isXPackTemplate(name) == false)
-                            .collect(Collectors.toList())
-                    );
+                    ((List<?>) cTemplates.get("component_templates")).stream()
+                        .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                        .filter(name -> isXPackTemplate(name) == false)
+                        .forEach(unexpectedTemplates::add);
                 }
                 // Always check for legacy templates:
                 Request getLegacyTemplatesRequest = new Request("GET", "_template");
@@ -900,24 +936,19 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void wipeAllIndices() throws IOException {
+        wipeAllIndices(false);
+    }
+
+    protected static void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         try {
             // remove all indices except ilm history which can pop up after deleting all data streams but shouldn't interfere
-            final Request deleteRequest = new Request("DELETE", "*,-.ds-ilm-history-*");
+            final List<String> indexPatterns = new ArrayList<>(List.of("*", "-.ds-ilm-history-*"));
+            if (preserveSecurityIndices) {
+                indexPatterns.add("-.security-*");
+            }
+            final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
-            RequestOptions allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
-                if (warnings.size() == 0) {
-                    return false;
-                } else if (warnings.size() > 1) {
-                    return true;
-                }
-                // We don't know exactly which indices we're cleaning up in advance, so just accept all system index access warnings.
-                final String warning = warnings.get(0);
-                final boolean isSystemIndexWarning = warning.contains("this request accesses system indices")
-                    && warning.contains("but in a future major version, direct access to system indices will be prevented by default");
-                return isSystemIndexWarning == false;
-            }).build();
-            deleteRequest.setOptions(allowSystemIndexAccessWarningOptions);
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
@@ -1274,7 +1305,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         return builder.build();
     }
 
-    protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
+    /**
+     * Override this to configure the client with additional settings.
+     */
+    protected void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
+        doConfigureClient(builder, settings);
+    }
+
+    protected static void doConfigureClient(RestClientBuilder builder, Settings settings) throws IOException {
         String truststorePath = settings.get(TRUSTSTORE_PATH);
         String certificateAuthorities = settings.get(CERTIFICATE_AUTHORITIES);
         String clientCertificatePath = settings.get(CLIENT_CERT_PATH);
@@ -1379,6 +1417,11 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+    }
+
+    public static ObjectPath assertOKAndCreateObjectPath(Response response) throws IOException {
+        assertOK(response);
+        return ObjectPath.createFromResponse(response);
     }
 
     /**
@@ -1779,17 +1822,28 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".fleet-")) {
             return true;
         }
+        if (name.startsWith("behavioral_analytics-")) {
+            return true;
+        }
+        if (name.startsWith("profiling-")) {
+            return true;
+        }
+        if (name.startsWith("elastic-connectors")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":
             case ".slm-history":
             case ".async-search":
+            case ".profiling-ilm-lock": // TODO: Remove after switch to K/V indices
             case "saml-service-provider":
             case "logs":
             case "logs-settings":
             case "logs-mappings":
             case "metrics":
             case "metrics-settings":
+            case "metrics-tsdb-settings":
             case "metrics-mappings":
             case "synthetics":
             case "synthetics-settings":
@@ -1799,6 +1853,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "logstash-index-template":
             case "security-index-template":
             case "data-streams-mappings":
+            case "ecs@dynamic_templates":
+            case "search-acl-filter":
+            case ".kibana-reporting":
                 return true;
             default:
                 return false;
@@ -1914,6 +1971,32 @@ public abstract class ESRestTestCase extends ESTestCase {
             Version nodeVersion = Version.fromString((String) ((Map<String, Object>) node.getValue()).get("version"));
             if (minVersion == null || minVersion.after(nodeVersion)) {
                 minVersion = nodeVersion;
+            }
+        }
+        assertNotNull(minVersion);
+        return minVersion;
+    }
+
+    /**
+     * Returns the minimum index version among all nodes of the cluster
+     */
+    protected static IndexVersion minimumIndexVersion() throws IOException {
+        final Request request = new Request("GET", "_nodes");
+        request.addParameter("filter_path", "nodes.*.version,nodes.*.max_index_version");
+
+        final Response response = adminClient().performRequest(request);
+        final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
+
+        IndexVersion minVersion = null;
+        for (Map.Entry<String, Object> node : nodes.entrySet()) {
+            Map<?, ?> nodeData = (Map<?, ?>) node.getValue();
+            String versionStr = (String) nodeData.get("max_index_version");
+            // fallback on version if index version is not there
+            IndexVersion indexVersion = versionStr != null
+                ? IndexVersion.fromId(Integer.parseInt(versionStr))
+                : IndexVersion.fromId(Version.fromString((String) nodeData.get("version")).id);
+            if (minVersion == null || minVersion.after(indexVersion)) {
+                minVersion = indexVersion;
             }
         }
         assertNotNull(minVersion);
@@ -2043,6 +2126,16 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertOK(response);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, response.getEntity().getContent())) {
             return FieldCapabilitiesResponse.fromXContent(parser);
+        }
+    }
+
+    private static boolean isMlEnabled() {
+        try {
+            adminClient().performRequest(new Request("GET", "_ml/info"));
+            return true;
+        } catch (IOException e) {
+            // do nothing, ML is disabled
+            return false;
         }
     }
 

@@ -26,7 +26,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -42,6 +42,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.NetworkTraceFlag;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -87,6 +89,9 @@ public class Netty4Transport extends TcpTransport {
     );
 
     public static final Setting<Integer> NETTY_BOSS_COUNT = intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
+    public static final ChannelOption<Integer> OPTION_TCP_KEEP_IDLE = NioChannelOption.of(NetUtils.getTcpKeepIdleSocketOption());
+    public static final ChannelOption<Integer> OPTION_TCP_KEEP_INTERVAL = NioChannelOption.of(NetUtils.getTcpKeepIntervalSocketOption());
+    public static final ChannelOption<Integer> OPTION_TCP_KEEP_COUNT = NioChannelOption.of(NetUtils.getTcpKeepCountSocketOption());
 
     private final SharedGroupFactory sharedGroupFactory;
     private final RecvByteBufAllocator recvByteBufAllocator;
@@ -98,7 +103,7 @@ public class Netty4Transport extends TcpTransport {
 
     public Netty4Transport(
         Settings settings,
-        Version version,
+        TransportVersion version,
         ThreadPool threadPool,
         NetworkService networkService,
         PageCacheRecycler pageCacheRecycler,
@@ -159,24 +164,21 @@ public class Netty4Transport extends TcpTransport {
         bootstrap.channel(NettyAllocator.getChannelType());
         bootstrap.option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
 
+        // The TCP options are re-configured for client connections to RCS remote clusters
+        // If how options are configured is changed here, please also update RemoteClusterClientBootstrapOptions#configure
+        // which is used inside SecurityNetty4Transport#getClientBootstrap
         bootstrap.option(ChannelOption.TCP_NODELAY, TransportSettings.TCP_NO_DELAY.get(settings));
         bootstrap.option(ChannelOption.SO_KEEPALIVE, TransportSettings.TCP_KEEP_ALIVE.get(settings));
         if (TransportSettings.TCP_KEEP_ALIVE.get(settings)) {
             // Note that Netty logs a warning if it can't set the option
             if (TransportSettings.TCP_KEEP_IDLE.get(settings) >= 0) {
-                bootstrap.option(NioChannelOption.of(NetUtils.getTcpKeepIdleSocketOption()), TransportSettings.TCP_KEEP_IDLE.get(settings));
+                bootstrap.option(OPTION_TCP_KEEP_IDLE, TransportSettings.TCP_KEEP_IDLE.get(settings));
             }
             if (TransportSettings.TCP_KEEP_INTERVAL.get(settings) >= 0) {
-                bootstrap.option(
-                    NioChannelOption.of(NetUtils.getTcpKeepIntervalSocketOption()),
-                    TransportSettings.TCP_KEEP_INTERVAL.get(settings)
-                );
+                bootstrap.option(OPTION_TCP_KEEP_INTERVAL, TransportSettings.TCP_KEEP_INTERVAL.get(settings));
             }
             if (TransportSettings.TCP_KEEP_COUNT.get(settings) >= 0) {
-                bootstrap.option(
-                    NioChannelOption.of(NetUtils.getTcpKeepCountSocketOption()),
-                    TransportSettings.TCP_KEEP_COUNT.get(settings)
-                );
+                bootstrap.option(OPTION_TCP_KEEP_COUNT, TransportSettings.TCP_KEEP_COUNT.get(settings));
             }
         }
 
@@ -267,7 +269,7 @@ public class Netty4Transport extends TcpTransport {
         return new ServerChannelInitializer(name);
     }
 
-    protected ChannelHandler getClientChannelInitializer(DiscoveryNode node) {
+    protected ChannelHandler getClientChannelInitializer(DiscoveryNode node, ConnectionProfile connectionProfile) {
         return new ClientChannelInitializer();
     }
 
@@ -275,10 +277,10 @@ public class Netty4Transport extends TcpTransport {
     static final AttributeKey<Netty4TcpServerChannel> SERVER_CHANNEL_KEY = AttributeKey.newInstance("es-server-channel");
 
     @Override
-    protected Netty4TcpChannel initiateChannel(DiscoveryNode node) throws IOException {
+    protected Netty4TcpChannel initiateChannel(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException {
         InetSocketAddress address = node.getAddress().address();
-        Bootstrap bootstrapWithHandler = clientBootstrap.clone();
-        bootstrapWithHandler.handler(getClientChannelInitializer(node));
+        Bootstrap bootstrapWithHandler = getClientBootstrap(connectionProfile);
+        bootstrapWithHandler.handler(getClientChannelInitializer(node, connectionProfile));
         bootstrapWithHandler.remoteAddress(address);
         ChannelFuture connectFuture = bootstrapWithHandler.connect();
 
@@ -288,10 +290,20 @@ public class Netty4Transport extends TcpTransport {
             throw new IOException(connectFuture.cause());
         }
 
-        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, false, "default", rstOnClose, connectFuture);
+        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(
+            channel,
+            false,
+            connectionProfile.getTransportProfile(),
+            rstOnClose,
+            connectFuture
+        );
         channel.attr(CHANNEL_KEY).set(nettyChannel);
 
         return nettyChannel;
+    }
+
+    protected Bootstrap getClientBootstrap(ConnectionProfile connectionProfile) {
+        return clientBootstrap.clone();
     }
 
     @Override
@@ -356,11 +368,13 @@ public class Netty4Transport extends TcpTransport {
     }
 
     private void setupPipeline(Channel ch) {
-        ch.pipeline()
-            .addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE)
-            .addLast("logging", ESLoggingHandler.INSTANCE)
-            .addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()))
-            .addLast("dispatcher", new Netty4MessageInboundHandler(this, recycler));
+        final var pipeline = ch.pipeline();
+        pipeline.addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
+        if (NetworkTraceFlag.TRACE_ENABLED) {
+            pipeline.addLast("logging", ESLoggingHandler.INSTANCE);
+        }
+        pipeline.addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()));
+        pipeline.addLast("dispatcher", new Netty4MessageInboundHandler(this, recycler));
     }
 
     private static void addClosedExceptionLogger(Channel channel) {

@@ -16,7 +16,8 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,6 +25,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -110,9 +112,8 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
         SearchLookup lookup = mock(SearchLookup.class);
         LeafSearchLookup leafLookup = mock(LeafSearchLookup.class);
         when(lookup.getLeafSearchLookup(leafReaderContext)).thenReturn(leafLookup);
-        SourceLookup sourceLookup = mock(SourceLookup.class);
-        when(leafLookup.asMap()).thenReturn(Collections.singletonMap("_source", sourceLookup));
-        when(sourceLookup.source()).thenReturn(Collections.singletonMap("test", 1));
+        Supplier<Source> source = () -> Source.fromMap(Map.of("test", 1), XContentType.JSON);
+        when(leafLookup.asMap()).thenReturn(Collections.singletonMap("_source", source));
         ScriptedMetricAggContexts.MapScript.LeafFactory leafFactory = factory.newFactory(params, state, lookup);
         ScriptedMetricAggContexts.MapScript script = leafFactory.newInstance(leafReaderContext);
 
@@ -141,9 +142,8 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
         SearchLookup lookup = mock(SearchLookup.class);
         LeafSearchLookup leafLookup = mock(LeafSearchLookup.class);
         when(lookup.getLeafSearchLookup(leafReaderContext)).thenReturn(leafLookup);
-        SourceLookup sourceLookup = mock(SourceLookup.class);
-        when(leafLookup.asMap()).thenReturn(Collections.singletonMap("_source", sourceLookup));
-        when(sourceLookup.source()).thenReturn(Collections.singletonMap("three", 3));
+        Supplier<Source> source = () -> Source.fromMap(Map.of("three", 3), XContentType.JSON);
+        when(leafLookup.asMap()).thenReturn(Collections.singletonMap("_source", source));
         ScriptedMetricAggContexts.MapScript.LeafFactory leafFactory = factory.newFactory(params, state, lookup);
         ScriptedMetricAggContexts.MapScript script = leafFactory.newInstance(leafReaderContext);
 

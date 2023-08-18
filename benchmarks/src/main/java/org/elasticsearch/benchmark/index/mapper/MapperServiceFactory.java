@@ -9,6 +9,7 @@
 package org.elasticsearch.benchmark.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -51,24 +53,27 @@ public class MapperServiceFactory {
 
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         MapperService mapperService = new MapperService(
+            () -> TransportVersion.current(),
             indexSettings,
-            new IndexAnalyzers(
+            IndexAnalyzers.of(
                 Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-                Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
-                Map.of()
+                Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
             ),
             XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(ClusterModule.getNamedXWriteables()))
                 .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
             similarityService,
             mapperRegistry,
-            () -> { throw new UnsupportedOperationException(); },
+            () -> {
+                throw new UnsupportedOperationException();
+            },
             new ProvidedIdFieldMapper(() -> true),
             new ScriptCompiler() {
                 @Override
                 public <T> T compile(Script script, ScriptContext<T> scriptContext) {
                     throw new UnsupportedOperationException();
                 }
-            }
+            },
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
         );
 
         try {

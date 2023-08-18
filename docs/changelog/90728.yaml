@@ -1,5 +1,0 @@
-pr: 90728
-summary: Add api to update trained model deployment `number_of_allocations`
-area: Machine Learning
-type: enhancement
-issues: []

@@ -13,7 +13,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -1256,14 +1255,12 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     private Document stringValueDoc(String stringValue) {
         Document doc = new Document();
         BytesRef bytes = new BytesRef(stringValue);
-        doc.add(new SortedSetDocValuesField("stringField", bytes));
         doc.add(new KeywordField("stringField", bytes, KeywordFieldMapper.Defaults.FIELD_TYPE));
         return doc;
     }
 
     private Document stringValueRollupDoc(String stringValue, long docCount) {
         Document doc = new Document();
-        doc.add(new SortedSetDocValuesField("stringfield.terms." + RollupField.VALUE, new BytesRef(stringValue)));
         doc.add(new Field("stringfield.terms." + RollupField.VALUE, new BytesRef(stringValue), KeywordFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new SortedNumericDocValuesField("stringfield.terms." + RollupField.COUNT_FIELD, docCount));
         return doc;
@@ -1311,7 +1308,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         buildIndex.accept(indexWriter);
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         try (AggregationContext context = createAggregationContext(indexSearcher, query, fieldType)) {

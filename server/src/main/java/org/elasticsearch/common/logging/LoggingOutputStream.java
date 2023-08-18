@@ -104,7 +104,7 @@ class LoggingOutputStream extends OutputStream {
     }
 
     // pkg private for testing
-    void log(String msg) {
+    protected void log(String msg) {
         logger.log(level, msg);
     }
 }

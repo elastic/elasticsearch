@@ -1,3 +1,8 @@
+pluginManagement {
+    includeBuild "../build-conventions"
+    includeBuild "../build-tools"
+}
+
 dependencyResolutionManagement {
     versionCatalogs {
         buildLibs {

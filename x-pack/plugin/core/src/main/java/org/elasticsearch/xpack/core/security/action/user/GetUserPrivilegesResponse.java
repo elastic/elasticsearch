@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -42,15 +43,15 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
 
     public GetUserPrivilegesResponse(StreamInput in) throws IOException {
         super(in);
-        cluster = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        configurableClusterPrivileges = Collections.unmodifiableSet(in.readSet(ConfigurableClusterPrivileges.READER));
-        index = Collections.unmodifiableSet(in.readSet(Indices::new));
-        application = Collections.unmodifiableSet(in.readSet(RoleDescriptor.ApplicationResourcePrivileges::new));
-        runAs = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        if (in.getVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)) {
-            remoteIndex = Collections.unmodifiableSet(in.readSet(RemoteIndices::new));
+        cluster = in.readImmutableSet(StreamInput::readString);
+        configurableClusterPrivileges = in.readImmutableSet(ConfigurableClusterPrivileges.READER);
+        index = in.readImmutableSet(Indices::new);
+        application = in.readImmutableSet(RoleDescriptor.ApplicationResourcePrivileges::new);
+        runAs = in.readImmutableSet(StreamInput::readString);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            remoteIndex = in.readImmutableSet(RemoteIndices::new);
         } else {
-            remoteIndex = Collections.emptySet();
+            remoteIndex = Set.of();
         }
     }
 
@@ -105,14 +106,14 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         out.writeCollection(index);
         out.writeCollection(application);
         out.writeCollection(runAs, StreamOutput::writeString);
-        if (out.getVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             out.writeCollection(remoteIndex);
         } else if (hasRemoteIndicesPrivileges()) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + RoleDescriptor.VERSION_REMOTE_INDICES
+                    + TransportVersion.V_8_8_0
                     + "] can't handle remote indices privileges and attempted to send to ["
-                    + out.getVersion()
+                    + out.getTransportVersion()
                     + "]"
             );
         }
@@ -191,12 +192,12 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
             // The use of TreeSet is to provide a consistent order that can be relied upon in tests
             indices = Collections.unmodifiableSet(new TreeSet<>(in.readSet(StreamInput::readString)));
             privileges = Collections.unmodifiableSet(new TreeSet<>(in.readSet(StreamInput::readString)));
-            fieldSecurity = Collections.unmodifiableSet(in.readSet(input -> {
+            fieldSecurity = in.readImmutableSet(input -> {
                 final String[] grant = input.readOptionalStringArray();
                 final String[] exclude = input.readOptionalStringArray();
                 return new FieldPermissionsDefinition.FieldGrantExcludeGroup(grant, exclude);
-            }));
-            queries = Collections.unmodifiableSet(in.readSet(StreamInput::readBytesReference));
+            });
+            queries = in.readImmutableSet(StreamInput::readBytesReference);
             this.allowRestrictedIndices = in.readBoolean();
         }
 

@@ -35,6 +35,11 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
     }
 
     @Override
+    protected SetPriorityAction mutateInstance(SetPriorityAction instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<SetPriorityAction> instanceReader() {
         return SetPriorityAction::new;
     }

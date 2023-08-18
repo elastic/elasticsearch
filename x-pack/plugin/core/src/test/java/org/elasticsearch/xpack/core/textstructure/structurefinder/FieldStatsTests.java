@@ -22,6 +22,11 @@ public class FieldStatsTests extends AbstractXContentSerializingTestCase<FieldSt
         return createTestFieldStats();
     }
 
+    @Override
+    protected FieldStats mutateInstance(FieldStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     static FieldStats createTestFieldStats() {
 
         long count = randomIntBetween(1, 100000);

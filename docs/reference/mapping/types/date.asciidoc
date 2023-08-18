@@ -13,6 +13,8 @@ JSON doesn't have a date data type, so dates in Elasticsearch can either be:
 Internally, dates are converted to UTC (if the time-zone is specified) and
 stored as a long number representing milliseconds-since-the-epoch.
 
+NOTE: Use the <<date_nanos,date_nanos>> field type if a nanosecond resolution is expected.
+
 Queries on dates are internally converted to range queries on this long
 representation, and the result of aggregations and stored fields is converted
 back to a string depending on the date format that is associated with the field.

@@ -1,0 +1,5 @@
+pr: 97159
+summary: Improve exists query rewrite
+area: Search
+type: enhancement
+issues: []

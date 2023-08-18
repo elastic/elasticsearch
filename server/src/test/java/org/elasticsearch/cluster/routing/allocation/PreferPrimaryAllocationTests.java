@@ -10,16 +10,18 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -41,18 +43,16 @@ public class PreferPrimaryAllocationTests extends ESAllocationTestCase {
         logger.info("create several indices with no replicas, and wait till all are allocated");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(0))
-            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(0))
+            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(10).numberOfReplicas(0))
+            .put(IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(10).numberOfReplicas(0))
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder()
+        RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test1"))
             .addAsNew(metadata.index("test2"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("adding two nodes and performing rerouting till all are allocated");
         clusterState = ClusterState.builder(clusterState)
@@ -66,7 +66,10 @@ public class PreferPrimaryAllocationTests extends ESAllocationTestCase {
 
         logger.info("increasing the number of replicas to 1, and perform a reroute (to get the replicas allocation going)");
         final String[] indices = { "test1", "test2" };
-        RoutingTable updatedRoutingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(1, indices).build();
+        RoutingTable updatedRoutingTable = RoutingTable.builder(
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            clusterState.routingTable()
+        ).updateNumberOfReplicas(1, indices).build();
         metadata = Metadata.builder(clusterState.metadata()).updateNumberOfReplicas(1, indices).build();
         clusterState = ClusterState.builder(clusterState).routingTable(updatedRoutingTable).metadata(metadata).build();
 
@@ -77,10 +80,12 @@ public class PreferPrimaryAllocationTests extends ESAllocationTestCase {
 
         logger.info("create a new index");
         metadata = Metadata.builder(clusterState.metadata())
-            .put(IndexMetadata.builder("new_index").settings(settings(Version.CURRENT)).numberOfShards(4).numberOfReplicas(0))
+            .put(IndexMetadata.builder("new_index").settings(settings(IndexVersion.current())).numberOfShards(4).numberOfReplicas(0))
             .build();
 
-        updatedRoutingTable = RoutingTable.builder(clusterState.routingTable()).addAsNew(metadata.index("new_index")).build();
+        updatedRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState.routingTable())
+            .addAsNew(metadata.index("new_index"))
+            .build();
 
         clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(updatedRoutingTable).build();
 

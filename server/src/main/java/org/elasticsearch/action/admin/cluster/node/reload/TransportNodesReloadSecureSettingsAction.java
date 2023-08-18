@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.reload;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -37,6 +39,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     NodesReloadSecureSettingsRequest.NodeRequest,
     NodesReloadSecureSettingsResponse.NodeResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportNodesReloadSecureSettingsAction.class);
+
     private final Environment environment;
     private final PluginsService pluginsService;
 
@@ -57,8 +61,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             actionFilters,
             NodesReloadSecureSettingsRequest::new,
             NodesReloadSecureSettingsRequest.NodeRequest::new,
-            ThreadPool.Names.GENERIC,
-            NodesReloadSecureSettingsResponse.NodeResponse.class
+            ThreadPool.Names.GENERIC
         );
         this.environment = environment;
         this.pluginsService = pluginService;
@@ -123,7 +126,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             final Settings settingsWithKeystore = Settings.builder().put(environment.settings(), false).setSecureSettings(keystore).build();
             final List<Exception> exceptions = new ArrayList<>();
             // broadcast the new settings object (with the open embedded keystore) to all reloadable plugins
-            pluginsService.filterPlugins(ReloadablePlugin.class).stream().forEach(p -> {
+            pluginsService.filterPlugins(ReloadablePlugin.class).forEach(p -> {
                 try {
                     p.reload(settingsWithKeystore);
                 } catch (final Exception e) {

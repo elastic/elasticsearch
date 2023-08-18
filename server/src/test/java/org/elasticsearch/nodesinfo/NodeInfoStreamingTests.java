@@ -12,6 +12,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.ingest.ProcessorInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -31,9 +33,12 @@ import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.search.aggregations.support.AggregationInfo;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
+import org.elasticsearch.transport.RemoteClusterServerInfo;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -45,7 +50,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -70,6 +74,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         assertThat(nodeInfo.getHostname(), equalTo(readNodeInfo.getHostname()));
         assertThat(nodeInfo.getVersion(), equalTo(readNodeInfo.getVersion()));
         compareJsonOutput(nodeInfo.getInfo(HttpInfo.class), readNodeInfo.getInfo(HttpInfo.class));
+        compareJsonOutput(nodeInfo.getInfo(RemoteClusterServerInfo.class), readNodeInfo.getInfo(RemoteClusterServerInfo.class));
         compareJsonOutput(nodeInfo.getInfo(JvmInfo.class), readNodeInfo.getInfo(JvmInfo.class));
         compareJsonOutput(nodeInfo.getInfo(ProcessInfo.class), readNodeInfo.getInfo(ProcessInfo.class));
         compareJsonOutput(nodeInfo.getSettings(), readNodeInfo.getSettings());
@@ -100,14 +105,11 @@ public class NodeInfoStreamingTests extends ESTestCase {
     }
 
     private static NodeInfo createNodeInfo() {
-        Build build = Build.CURRENT;
-        DiscoveryNode node = new DiscoveryNode(
-            "test_node",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            VersionUtils.randomVersion(random())
-        );
+        Build build = Build.current();
+        DiscoveryNode node = DiscoveryNodeUtils.builder("test_node")
+            .roles(emptySet())
+            .version(VersionUtils.randomVersion(random()), IndexVersion.ZERO, IndexVersionUtils.randomVersion())
+            .build();
         Settings settings = randomBoolean() ? null : Settings.builder().put("test", "setting").build();
         OsInfo osInfo = null;
         if (randomBoolean()) {
@@ -140,6 +142,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         profileAddresses.put("test_address", dummyBoundTransportAddress);
         TransportInfo transport = randomBoolean() ? null : new TransportInfo(dummyBoundTransportAddress, profileAddresses);
         HttpInfo httpInfo = randomBoolean() ? null : new HttpInfo(dummyBoundTransportAddress, randomNonNegativeLong());
+        RemoteClusterServerInfo remoteClusterServerInfo = randomBoolean() ? null : new RemoteClusterServerInfo(dummyBoundTransportAddress);
 
         PluginsAndModules pluginsAndModules = null;
         if (randomBoolean()) {
@@ -226,6 +229,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         }
         return new NodeInfo(
             VersionUtils.randomVersion(random()),
+            TransportVersionUtils.randomVersion(random()),
             build,
             node,
             settings,
@@ -235,6 +239,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
             threadPoolInfo,
             transport,
             httpInfo,
+            remoteClusterServerInfo,
             pluginsAndModules,
             ingestInfo,
             aggregationInfo,

@@ -57,6 +57,7 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -255,6 +256,11 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         }
 
         @Override
+        public Executor executor(ThreadPool threadPool) {
+            return TransportResponseHandler.TRANSPORT_WORKER;
+        }
+
+        @Override
         public void handleResponse(ShardActiveResponse response) {
             logger.trace("{} is {}active on node {}", shardId, response.shardActive ? "" : "not ", response.node);
             if (response.shardActive) {
@@ -426,10 +432,10 @@ public class IndicesStore implements ClusterStateListener, Closeable {
     }
 
     private static class ShardActiveRequest extends TransportRequest {
-        protected TimeValue timeout = null;
-        private ClusterName clusterName;
-        private String indexUUID;
-        private ShardId shardId;
+        private final TimeValue timeout;
+        private final ClusterName clusterName;
+        private final String indexUUID;
+        private final ShardId shardId;
 
         ShardActiveRequest(StreamInput in) throws IOException {
             super(in);

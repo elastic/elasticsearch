@@ -12,8 +12,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Requests;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -206,9 +204,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         String masterType = "masterprod";
         String childType = "variantsku";
         assertAcked(
-            prepareCreate(indexName).setSettings(
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
+            prepareCreate(indexName).setSettings(indexSettings(1, 0))
                 .setMapping(
                     addFieldMappings(
                         buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, masterType, childType),

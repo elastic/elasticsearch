@@ -68,6 +68,11 @@ public class ShardFollowNodeTaskStatusTests extends AbstractXContentSerializingT
     }
 
     @Override
+    protected ShardFollowNodeTaskStatus mutateInstance(ShardFollowNodeTaskStatus instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected void assertEqualInstances(final ShardFollowNodeTaskStatus expectedInstance, final ShardFollowNodeTaskStatus newInstance) {
         assertNotSame(expectedInstance, newInstance);
         assertThat(newInstance.getRemoteCluster(), equalTo(expectedInstance.getRemoteCluster()));

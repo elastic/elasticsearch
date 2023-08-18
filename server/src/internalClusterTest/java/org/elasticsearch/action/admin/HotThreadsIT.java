@@ -45,7 +45,7 @@ public class HotThreadsIT extends ESIntegTestCase {
         final AtomicBoolean hasErrors = new AtomicBoolean(false);
         for (int i = 0; i < iters; i++) {
             final String type;
-            NodesHotThreadsRequestBuilder nodesHotThreadsRequestBuilder = client().admin().cluster().prepareNodesHotThreads();
+            NodesHotThreadsRequestBuilder nodesHotThreadsRequestBuilder = clusterAdmin().prepareNodesHotThreads();
             if (randomBoolean()) {
                 TimeValue timeValue = new TimeValue(rarely() ? randomIntBetween(500, 5000) : randomIntBetween(20, 500));
                 nodesHotThreadsRequestBuilder.setInterval(timeValue);
@@ -126,7 +126,7 @@ public class HotThreadsIT extends ESIntegTestCase {
         assumeTrue("no support for hot_threads on FreeBSD", Constants.FREE_BSD == false);
 
         // First time, don't ignore idle threads:
-        NodesHotThreadsRequestBuilder builder = client().admin().cluster().prepareNodesHotThreads();
+        NodesHotThreadsRequestBuilder builder = clusterAdmin().prepareNodesHotThreads();
         builder.setIgnoreIdleThreads(false);
         builder.setThreads(Integer.MAX_VALUE);
         NodesHotThreadsResponse response = builder.execute().get();
@@ -142,7 +142,7 @@ public class HotThreadsIT extends ESIntegTestCase {
         }
 
         // Second time, do ignore idle threads:
-        builder = client().admin().cluster().prepareNodesHotThreads();
+        builder = clusterAdmin().prepareNodesHotThreads();
         builder.setThreads(Integer.MAX_VALUE);
 
         // Make sure default is true:
@@ -161,7 +161,7 @@ public class HotThreadsIT extends ESIntegTestCase {
 
     public void testTimestampAndParams() throws ExecutionException, InterruptedException {
 
-        NodesHotThreadsResponse response = client().admin().cluster().prepareNodesHotThreads().execute().get();
+        NodesHotThreadsResponse response = clusterAdmin().prepareNodesHotThreads().execute().get();
 
         if (Constants.FREE_BSD) {
             for (NodeHotThreads node : response.getNodesMap().values()) {

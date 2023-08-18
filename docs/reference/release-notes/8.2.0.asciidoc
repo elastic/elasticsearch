@@ -2,7 +2,11 @@
 == {es} version 8.2.0
 
 // Also see <<breaking-changes-8.2,Breaking changes in 8.2>>.
+[[known-issues-8.2.0]]
+[float]
+=== Known issues
 
+include::8.0.0.asciidoc[tag=jackson-filtering-bug]
 [[bug-8.2.0]]
 [float]
 === Bug fixes

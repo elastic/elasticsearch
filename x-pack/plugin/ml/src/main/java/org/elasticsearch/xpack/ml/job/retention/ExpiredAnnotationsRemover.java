@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
@@ -109,7 +109,7 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
         QueryBuilder query = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
             .filter(QueryBuilders.rangeQuery(Annotation.TIMESTAMP.getPreferredName()).lt(cutoffEpochMs).format("epoch_millis"))
-            .filter(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), XPackUser.NAME));
+            .filter(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), InternalUsers.XPACK_USER.principal()));
         DeleteByQueryRequest request = new DeleteByQueryRequest(AnnotationIndex.READ_ALIAS_NAME).setSlices(
             AbstractBulkByScrollRequest.AUTO_SLICES
         )
@@ -125,11 +125,8 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
     @Override
     void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
         ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(
-            LOGGER,
-            threadPool,
-            MachineLearning.UTILITY_THREAD_POOL_NAME,
-            listener,
-            false
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+            listener
         );
         latestBucketTime(client, getParentTaskId(), jobId, ActionListener.wrap(latestTime -> {
             if (latestTime == null) {

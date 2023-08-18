@@ -11,6 +11,8 @@
 include::../Versions.asciidoc[]
 include::links.asciidoc[]
 
+include::landing-page.asciidoc[]
+
 include::intro.asciidoc[]
 
 include::release-notes/highlights.asciidoc[]
@@ -39,7 +41,11 @@ include::query-dsl.asciidoc[]
 
 include::aggregations.asciidoc[]
 
+include::geospatial-analysis.asciidoc[]
+
 include::eql/eql.asciidoc[]
+
+include::esql/index.asciidoc[]
 
 include::sql/index.asciidoc[]
 

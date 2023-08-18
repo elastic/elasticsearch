@@ -15,6 +15,8 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
@@ -23,6 +25,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestDeleteAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
         + "document index requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.inference;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -166,7 +166,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     ) throws IOException {
         super(in, NAME);
         modelId = in.readString();
-        bucketPathMap = in.readMap(StreamInput::readString, StreamInput::readString);
+        bucketPathMap = in.readMap(StreamInput::readString);
         inferenceConfig = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
         this.modelLoadingService = modelLoadingService;
         this.model = null;
@@ -264,7 +264,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
 
         SetOnce<LocalModel> loadedModel = new SetOnce<>();
         BiConsumer<Client, ActionListener<?>> modelLoadAction = (client, listener) -> modelLoadingService.get()
-            .getModelForSearch(modelId, listener.delegateFailure((delegate, localModel) -> {
+            .getModelForAggregation(modelId, listener.delegateFailure((delegate, localModel) -> {
                 loadedModel.set(localModel);
 
                 boolean isLicensed = localModel.getLicenseLevel() == License.OperationMode.BASIC
@@ -379,7 +379,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_9_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_9_0;
     }
 }

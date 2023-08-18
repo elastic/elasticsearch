@@ -22,6 +22,11 @@ public class PutFilterActionResponseTests extends AbstractXContentSerializingTes
     }
 
     @Override
+    protected PutFilterAction.Response mutateInstance(PutFilterAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<PutFilterAction.Response> instanceReader() {
         return PutFilterAction.Response::new;
     }

@@ -46,7 +46,7 @@ If you specify an index in the request URI, you only need to specify the documen
 [[mget-security]]
 ===== Security
 
-See <<url-access-control>>.
+See <<api-url-access-control>>.
 
 [[multi-get-partial-responses]]
 ===== Partial responses

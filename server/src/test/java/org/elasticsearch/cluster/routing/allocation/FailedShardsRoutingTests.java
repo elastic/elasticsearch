@@ -12,8 +12,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -25,15 +27,16 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -57,13 +60,12 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> building initial routing table");
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
             .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("--> adding 2 nodes on same rack and do rerouting");
         clusterState = ClusterState.builder(clusterState)
@@ -173,15 +175,14 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
-
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(initialRoutingTable)
+        RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
             .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState)
@@ -263,15 +264,14 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
-
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(initialRoutingTable)
+        RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
             .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("Adding single node and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
@@ -315,15 +315,19 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
         int numberOfReplicas = scaledRandomIntBetween(2, 10);
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(numberOfReplicas))
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(numberOfReplicas)
+            )
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
-
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(initialRoutingTable)
+        RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
             .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("Adding {} nodes and performing rerouting", numberOfReplicas + 1);
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder();
@@ -382,15 +386,14 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
-
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(initialRoutingTable)
+        RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
             .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState)
@@ -440,15 +443,14 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
-
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(initialRoutingTable)
+        RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
             .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState)
@@ -553,15 +555,14 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         AllocationService allocation = createAllocationService(Settings.builder().build());
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(2))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
-
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
             .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         ShardId shardId = new ShardId(metadata.index("test").getIndex(), 0);
 
@@ -595,7 +596,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         );
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(2));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(1));
-        ShardRouting startedReplica = clusterState.getRoutingNodes().activeReplicaWithHighestVersion(shardId);
+        ShardRouting startedReplica = clusterState.getRoutingNodes().activePromotableReplicaWithHighestVersion(shardId);
 
         // fail the primary shard, check replicas get removed as well...
         ShardRouting primaryShardToFail = clusterState.routingTable().index("test").shard(0).primaryShard();
@@ -623,15 +624,14 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         AllocationService allocation = createAllocationService(Settings.builder().build());
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(2))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
-
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
             .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         // add 4 nodes
         clusterState = ClusterState.builder(clusterState)
@@ -679,15 +679,14 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         AllocationService allocation = createAllocationService(Settings.builder().build());
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(3))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(3))
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
-
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(initialRoutingTable)
+        RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
             .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         ShardId shardId = new ShardId(metadata.index("test").getIndex(), 0);
 
@@ -725,13 +724,15 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
                     .add(
                         newNode(
                             "node3-old",
-                            VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), null)
+                            VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), null),
+                            IndexVersionUtils.randomVersionBetween(random(), IndexVersion.MINIMUM_COMPATIBLE, null)
                         )
                     )
                     .add(
                         newNode(
                             "node4-old",
-                            VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), null)
+                            VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), null),
+                            IndexVersionUtils.randomVersionBetween(random(), IndexVersion.MINIMUM_COMPATIBLE, null)
                         )
                     )
             )
@@ -745,7 +746,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(4));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(0));
 
-        ShardRouting startedReplica = clusterState.getRoutingNodes().activeReplicaWithHighestVersion(shardId);
+        ShardRouting startedReplica = clusterState.getRoutingNodes().activePromotableReplicaWithHighestVersion(shardId);
         logger.info("--> all shards allocated, replica that should be promoted: {}", startedReplica);
 
         // fail the primary shard again and make sure the correct replica is promoted
@@ -776,7 +777,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
             );
         }
 
-        startedReplica = clusterState.getRoutingNodes().activeReplicaWithHighestVersion(shardId);
+        startedReplica = clusterState.getRoutingNodes().activePromotableReplicaWithHighestVersion(shardId);
         logger.info("--> failing primary shard a second time, should select: {}", startedReplica);
 
         // fail the primary shard again, and ensure the same thing happens

@@ -115,8 +115,9 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         }
 
         // <5> Final listener
-        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
-            deducedMappings -> { listener.onResponse(new Response(deducedMappings)); },
+        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
+            listener.onResponse(new Response(deducedMappings));
+        },
             deduceTargetMappingsException -> listener.onFailure(
                 new RuntimeException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS, deduceTargetMappingsException)
             )
@@ -127,7 +128,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             if (request.isDeferValidation()) {
                 deduceMappingsListener.onResponse(null);
             } else {
-                function.deduceMappings(client, config.getSource(), deduceMappingsListener);
+                function.deduceMappings(client, config.getHeaders(), config.getSource(), deduceMappingsListener);
             }
         }, listener::onFailure);
 
@@ -136,15 +137,14 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             if (request.isDeferValidation()) {
                 validateQueryListener.onResponse(true);
             } else {
-                function.validateQuery(client, config.getSource(), request.timeout(), validateQueryListener);
+                function.validateQuery(client, config.getHeaders(), config.getSource(), request.timeout(), validateQueryListener);
             }
         }, listener::onFailure);
 
         // <2> Validate transform function config
-        ActionListener<Boolean> validateSourceDestListener = ActionListener.wrap(
-            validateSourceDestResponse -> { function.validateConfig(validateConfigListener); },
-            listener::onFailure
-        );
+        ActionListener<Boolean> validateSourceDestListener = ActionListener.wrap(validateSourceDestResponse -> {
+            function.validateConfig(validateConfigListener);
+        }, listener::onFailure);
 
         // <1> Validate source and destination indices
         sourceDestValidator.validate(

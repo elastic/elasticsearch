@@ -43,7 +43,51 @@ docker pull {docker-repo}:{version}
 
 endif::[]
 
-Now that you have the {es} Docker image, you can start a
+[[docker-verify-signature]]
+==== Optional: Verify the {es} Docker image signature
+
+Although it's optional, we highly recommend verifying the signatures included with your downloaded Docker images to ensure that the images are valid.
+
+Elastic images are signed with https://docs.sigstore.dev/cosign/overview/[Cosign] which is part of the https://www.sigstore.dev/[Sigstore] project.
+
+Cosign supports container signing, verification, and storage in an OCI registry.
+
+ifeval::["{release-state}"=="unreleased"]
+
+WARNING: Version {version} of {es} has not yet been released, so no
+Docker image signature is currently available for this version.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
+Install the appropriate https://docs.sigstore.dev/cosign/installation/[Cosign application]
+for your operating system.
+
+The container image signature for {es} v{version} can be verified as follows:
+
+["source","sh",subs="attributes"]
+--------------------------------------------
+wget https://artifacts.elastic.co/cosign.pub <1>
+cosign verify --key cosign.pub {docker-repo}:{version} <2>
+--------------------------------------------
+<1> Download the Elastic public key to verify container signature
+<2> Verify the container against the Elastic public key
+
+The command prints the check results and the signature payload in JSON format:
+
+[source,sh]
+--------------------------------------------
+Verification for docker.elastic.co/elasticsearch/elasticsearch:{version} --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The signatures were verified against the specified public key
+--------------------------------------------
+
+endif::[]
+
+Now that you have verified the {es} Docker image signature, you can start a
 <<docker-cli-run-dev-mode,single-node>> or <<docker-compose-file,multi-node>>
 cluster.
 
@@ -403,14 +447,52 @@ sudo sysctl -w vm.max_map_count=262144
 
 ====== Windows with https://docs.docker.com/docker-for-windows/wsl[Docker Desktop WSL 2 backend]
 
-The `vm.max_map_count` setting must be set in the docker-desktop container:
+The `vm.max_map_count` setting must be set in the "docker-desktop" WSL instance before the
+ElasticSearch container will properly start. There are several ways to do this, depending
+on your version of Windows and your version of WSL.
+
+If you are on Windows 10 before version 22H2, or if you are on Windows 10 version 22H2 using the
+built-in version of WSL, you must either manually set it every time you restart Docker before starting
+your ElasticSearch container, or (if you do not wish to do so on every restart) you must globally set
+every WSL2 instance to have the `vm.max_map_count` changed. This is because these versions of WSL
+do not properly process the /etc/sysctl.conf file.
+
+To manually set it every time you reboot, you must run the following commands in a command prompt
+or PowerShell window every time you restart Docker:
 
 [source,sh]
 --------------------------------------------
-wsl -d docker-desktop
+wsl -d docker-desktop -u root
 sysctl -w vm.max_map_count=262144
 --------------------------------------------
 
+If you are on these versions of WSL and you do not want to have to run those commands every
+time you restart Docker, you can globally change every WSL distribution with this setting
+by modifying your %USERPROFILE%\.wslconfig as follows:
+
+[source,text]
+--------------------------------------------
+[wsl2]
+kernelCommandLine = "sysctl.vm.max_map_count=262144"
+--------------------------------------------
+
+This will cause all WSL2 VMs to have that setting assigned when they start.
+
+If you are on Windows 11, or Windows 10 version 22H2 and have installed the Microsoft Store
+version of WSL, you can modify the /etc/sysctl.conf within the "docker-desktop" WSL
+distribution, perhaps with commands like this:
+
+[source,sh]
+--------------------------------------------
+wsl -d docker-desktop -u root
+vi /etc/sysctl.conf
+--------------------------------------------
+
+and appending a line which reads:
+[source,text]
+--------------------------------------------
+vm.max_map_count = 262144
+--------------------------------------------
 
 ===== Configuration files must be readable by the `elasticsearch` user
 

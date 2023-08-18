@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
@@ -41,7 +41,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         super(in);
         realmName = textOrNull(in.readOptionalString());
         userName = textOrNull(in.readOptionalString());
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             ids = in.readOptionalStringArray();
         } else {
             final String id = in.readOptionalString();
@@ -49,7 +49,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         }
         validateIds(ids);
         name = textOrNull(in.readOptionalString());
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_4_0)) {
             ownedByAuthenticatedUser = in.readOptionalBoolean();
         } else {
             ownedByAuthenticatedUser = false;
@@ -209,7 +209,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         super.writeTo(out);
         out.writeOptionalString(realmName);
         out.writeOptionalString(userName);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeOptionalStringArray(ids);
         } else {
             if (ids != null) {
@@ -223,7 +223,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
             }
         }
         out.writeOptionalString(name);
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_4_0)) {
             out.writeOptionalBoolean(ownedByAuthenticatedUser);
         }
     }

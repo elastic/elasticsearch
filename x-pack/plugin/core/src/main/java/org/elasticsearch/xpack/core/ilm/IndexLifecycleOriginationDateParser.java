@@ -13,8 +13,8 @@ import org.elasticsearch.common.time.DateFormatter;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
-import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE;
+import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
+import static org.elasticsearch.index.IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE;
 
 public class IndexLifecycleOriginationDateParser {
 

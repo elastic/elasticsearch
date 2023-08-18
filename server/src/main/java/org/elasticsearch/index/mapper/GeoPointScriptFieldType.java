@@ -28,6 +28,7 @@ import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.field.GeoPointDocValuesField;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
@@ -214,6 +215,11 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
                     points.add(new GeoPoint(script.lats()[i], script.lons()[i]));
                 }
                 return formatter.apply(points);
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NEEDS_SOURCE;
             }
         };
     }

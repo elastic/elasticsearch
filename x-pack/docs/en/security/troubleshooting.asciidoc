@@ -107,7 +107,20 @@ The role definition might be missing or invalid.
 
 |======================
 
-To help track down these possibilities, add the following lines to the end of
+To help track down these possibilities, enable additional logging to troubleshoot further.
+You can enable debug logging by configuring the following persistent setting:
+
+[source, console]
+----
+PUT /_cluster/settings
+{
+  "persistent": {
+    "logger.org.elasticsearch.xpack.security.authc": "debug"
+  }
+}
+----
+
+Alternatively, you can add the following lines to the end of
 the `log4j2.properties` configuration file in the `ES_PATH_CONF`:
 
 [source,properties]
@@ -115,6 +128,9 @@ the `log4j2.properties` configuration file in the `ES_PATH_CONF`:
 logger.authc.name = org.elasticsearch.xpack.security.authc
 logger.authc.level = DEBUG
 ----------------
+
+Refer to <<configuring-logging-levels,configuring logging levels>> for more
+information.
 
 A successful authentication should produce debug statements that list groups and
 role mappings.
@@ -428,7 +444,7 @@ Kerberos/SPNEGO debug logging on JVM, add following JVM system properties:
 
 `-Dsun.security.spnego.debug=true`
 
-For more information about JVM system properties, see <<jvm-options>>.
+For more information about JVM system properties, see <<set-jvm-options>>.
 
 [[trb-security-saml]]
 === Common SAML issues
@@ -573,7 +589,7 @@ Identity Provider sent. In this example, {es} is configured as follows:
 xpack.security.authc.realms.saml.<saml-realm-name>.attributes.principal: AttributeName0
 ....
 This configuration means that {es} expects to find a SAML Attribute with the name `AttributeName0` or a `NameID` with the appropriate format in the SAML
-response so that <<saml-attribute-mapping,it can map it>> to the `principal` user property. The `principal` user property is a
+response so that <<saml-attributes-mapping,it can map it>> to the `principal` user property. The `principal` user property is a
 mandatory one, so if this mapping can't happen, the authentication fails.
 
 If you are attempting to map a `NameID`, make sure that the expected `NameID` format matches the one that is sent.
@@ -694,6 +710,32 @@ If you want your users to be able to use local credentials to authenticate to
 {kib} in addition to using the SAML realm for Single Sign-On, you must enable
 the `basic` `authProvider` in {kib}. The process is documented in the
 <<saml-kibana-basic, SAML Guide>>
+
+--
+
+. *Symptoms:*
++
+--
+No SAML request ID values are being passed from {kib} to {es}:
+
+....
+Caused by org.elasticsearch.ElasticsearchSecurityException: SAML content is in-response-to [_A1B2C3D4E5F6G8H9I0] but expected one of []
+....
+
+*Resolution:*
+This error indicates that {es} received a SAML response tied to a particular SAML request, but {kib}
+didn't explicitly specify ID of that request. This usually means that {kib} cannot find the user session where
+it previously stored the SAML request ID.
+
+To resolve this issue, ensure that in your {kib} configuration `xpack.security.sameSiteCookies` is not set to `Strict`.
+Depending on your configuration, you may be able to rely on the default value or explicitly set the value to `None`.
+
+For further information,
+please read https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite[MDN SameSite cookies]
+
+If you serve multiple {kib} installations behind a load balancer make sure to use the
+https://www.elastic.co/guide/en/kibana/current/production.html#load-balancing-kibana[same security configuration]
+for all installations.
 --
 
 *Logging:*

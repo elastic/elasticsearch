@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.metrics.Counters;
@@ -120,8 +120,8 @@ public class HealthApiFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_7_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_7_0;
     }
 
     public Map<String, Object> stats() {

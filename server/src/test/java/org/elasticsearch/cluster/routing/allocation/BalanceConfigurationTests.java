@@ -10,10 +10,11 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -25,7 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.index.IndexVersion;
 import org.hamcrest.Matchers;
 
 import java.util.stream.Collectors;
@@ -60,7 +61,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), replicaBalance);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), balanceThreshold);
 
-        AllocationService strategy = createAllocationService(settings.build(), new TestGatewayAllocator());
+        AllocationService strategy = createAllocationService(settings.build());
 
         ClusterState clusterState = initCluster(strategy);
         assertIndexBalance(
@@ -111,7 +112,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), replicaBalance);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), balanceThreshold);
 
-        AllocationService strategy = createAllocationService(settings.build(), new TestGatewayAllocator());
+        AllocationService strategy = createAllocationService(settings.build());
 
         ClusterState clusterState = initCluster(strategy);
         assertReplicaBalance(
@@ -146,11 +147,11 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
 
     private ClusterState initCluster(AllocationService strategy) {
         Metadata.Builder metadataBuilder = Metadata.builder();
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
 
         for (int i = 0; i < numberOfIndices; i++) {
             IndexMetadata.Builder index = IndexMetadata.builder("test" + i)
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(numberOfShards)
                 .numberOfReplicas(numberOfReplicas);
             metadataBuilder = metadataBuilder.put(index);
@@ -169,9 +170,11 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         for (int i = 0; i < numberOfNodes; i++) {
             nodes.add(newNode("node" + i));
         }
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).nodes(nodes).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(nodes)
+            .metadata(metadata)
+            .routingTable(initialRoutingTable)
+            .build();
         clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("restart all the primary shards, replicas will start initializing");
@@ -284,8 +287,8 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.2);
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 0.3);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), 2.0);
-        ClusterSettings service = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        BalancedShardsAllocator allocator = new BalancedShardsAllocator(settings.build(), service, WriteLoadForecaster.DEFAULT);
+        ClusterSettings service = new ClusterSettings(settings.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        BalancedShardsAllocator allocator = new BalancedShardsAllocator(service, WriteLoadForecaster.DEFAULT);
         assertThat(allocator.getIndexBalance(), Matchers.equalTo(0.2f));
         assertThat(allocator.getShardBalance(), Matchers.equalTo(0.3f));
         assertThat(allocator.getThreshold(), Matchers.equalTo(2.0f));

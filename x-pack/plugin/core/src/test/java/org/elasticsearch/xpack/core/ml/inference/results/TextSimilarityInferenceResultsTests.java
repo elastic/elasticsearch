@@ -23,6 +23,11 @@ public class TextSimilarityInferenceResultsTests extends InferenceResultsTestCas
     }
 
     @Override
+    protected TextSimilarityInferenceResults mutateInstance(TextSimilarityInferenceResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<TextSimilarityInferenceResults> instanceReader() {
         return TextSimilarityInferenceResults::new;
     }

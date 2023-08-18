@@ -101,7 +101,7 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
         int m = 0;
         int b = 0x80;
         for (int i = 0; i < prefixLength; i++) {
-            mask[m] |= b;
+            mask[m] |= (byte) b;
             b = b >> 1;
             if (b == 0) {
                 m++;
@@ -177,5 +177,10 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
         InternalIpPrefix reduced = (InternalIpPrefix) t.reduce(List.of(t), emptyReduceContextBuilder().forPartialReduction());
         assertThat(reduced.getBuckets().get(0).getDocCount(), equalTo(1L));
         assertThat(reduced.getBuckets().get(1).getDocCount(), equalTo(2L));
+    }
+
+    @Override
+    protected InternalIpPrefix mutateInstance(InternalIpPrefix instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

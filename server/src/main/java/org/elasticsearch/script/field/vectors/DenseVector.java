@@ -8,8 +8,6 @@
 
 package org.elasticsearch.script.field.vectors;
 
-import org.apache.lucene.util.BytesRef;
-
 import java.util.List;
 
 /**
@@ -160,13 +158,13 @@ public interface DenseVector {
         return (float) Math.sqrt(mag);
     }
 
-    static float getMagnitude(BytesRef vector, int dims) {
+    static float getMagnitude(byte[] vector, int dims) {
         int mag = 0;
         int i = 0;
-        int j = vector.offset;
-        while (i++ < dims) {
-            int elem = vector.bytes[j++];
+        while (i < dims) {
+            int elem = vector[i];
             mag += elem * elem;
+            i++;
         }
         return (float) Math.sqrt(mag);
     }

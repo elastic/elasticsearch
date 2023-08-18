@@ -33,6 +33,15 @@ public final class H3 {
 
     public static int MAX_H3_RES = Constants.MAX_H3_RES;
 
+    private static final long[] NORTH = new long[MAX_H3_RES + 1];
+    private static final long[] SOUTH = new long[MAX_H3_RES + 1];
+    static {
+        for (int res = 0; res <= H3.MAX_H3_RES; res++) {
+            NORTH[res] = H3.geoToH3(90, 0, res);
+            SOUTH[res] = H3.geoToH3(-90, 0, res);
+        }
+    }
+
     /**
      * Converts from <code>long</code> representation of an index to <code>String</code> representation.
      */
@@ -351,7 +360,59 @@ public final class H3 {
      * @return All neighbor indexes from the origin
      */
     public static long[] hexRing(long h3) {
-        return HexRing.hexRing(h3);
+        final long[] ring = new long[hexRingSize(h3)];
+        for (int i = 0; i < ring.length; i++) {
+            ring[i] = hexRingPosToH3(h3, i);
+            assert ring[i] >= 0;
+        }
+        return ring;
+    }
+
+    /**
+     * Returns the number of neighbor indexes.
+     *
+     * @param h3 Origin index
+     * @return the number of neighbor indexes from the origin
+     */
+    public static int hexRingSize(long h3) {
+        return H3Index.H3_is_pentagon(h3) ? 5 : 6;
+    }
+
+    /**
+     * Returns the number of neighbor indexes.
+     *
+     * @param h3Address Origin index
+     * @return the number of neighbor indexes from the origin
+     */
+    public static int hexRingSize(String h3Address) {
+        return hexRingSize(stringToH3(h3Address));
+    }
+
+    /**
+     * Returns the neighbor index at the given position.
+     *
+     * @param h3 Origin index
+     * @param ringPos position of the neighbour index
+     * @return the actual neighbour at the given position
+     */
+    public static long hexRingPosToH3(long h3, int ringPos) {
+        // for pentagons, we skip direction at position 2
+        final int pos = H3Index.H3_is_pentagon(h3) && ringPos >= 2 ? ringPos + 1 : ringPos;
+        if (pos < 0 || pos > 5) {
+            throw new IllegalArgumentException("invalid ring position");
+        }
+        return HexRing.h3NeighborInDirection(h3, HexRing.DIRECTIONS[pos].digit());
+    }
+
+    /**
+     * Returns the neighbor index at the given position.
+     *
+     * @param h3Address Origin index
+     * @param ringPos position of the neighbour index
+     * @return the actual neighbour at the given position
+     */
+    public static String hexRingPosToH3(String h3Address, int ringPos) {
+        return h3ToString(hexRingPosToH3(stringToH3(h3Address), ringPos));
     }
 
     /**
@@ -463,6 +524,52 @@ public final class H3 {
      */
     public static int h3ToNotIntersectingChildrenSize(String h3Address) {
         return h3ToNotIntersectingChildrenSize(stringToH3(h3Address));
+    }
+
+    /**
+     * Find the h3 index containing the North Pole at the given resolution.
+     *
+     * @param res the provided resolution.
+     *
+     * @return the h3 index containing the North Pole.
+     */
+    public static long northPolarH3(int res) {
+        checkResolution(res);
+        return NORTH[res];
+    }
+
+    /**
+     * Find the h3 address containing the North Pole at the given resolution.
+     *
+     * @param res the provided resolution.
+     *
+     * @return the h3 address containing the North Pole.
+     */
+    public static String northPolarH3Address(int res) {
+        return h3ToString(northPolarH3(res));
+    }
+
+    /**
+     * Find the h3 index containing the South Pole at the given resolution.
+     *
+     * @param res the provided resolution.
+     *
+     * @return the h3 index containing the South Pole.
+     */
+    public static long southPolarH3(int res) {
+        checkResolution(res);
+        return SOUTH[res];
+    }
+
+    /**
+     * Find the h3 address containing the South Pole at the given resolution.
+     *
+     * @param res the provided resolution.
+     *
+     * @return the h3 address containing the South Pole.
+     */
+    public static String southPolarH3Address(int res) {
+        return h3ToString(southPolarH3(res));
     }
 
     /**

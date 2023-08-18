@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.painless.action.PainlessContextAction;
 import org.elasticsearch.painless.action.PainlessExecuteAction;
 import org.elasticsearch.painless.spi.PainlessExtension;
@@ -147,7 +148,8 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         // this is a hack to bind the painless script engine in guice (all components are added to guice), so that
         // the painless context api. this is a temporary measure until transport actions do no require guice

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -49,9 +50,10 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     GetFeatureUpgradeStatusResponse> {
 
     /**
-     * This version is only valid for >=8.0.0 and should be changed on backport.
+     * Once all feature migrations for 8.x -> 9.x have been tested, we can bump this to Version.V_8_0_0
      */
-    public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_8_0_0;
+    public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_7_0_0;
+    public static final IndexVersion NO_UPGRADE_REQUIRED_INDEX_VERSION = IndexVersion.V_7_0_0;
 
     private final SystemIndices systemIndices;
     PersistentTasksService persistentTasksService;
@@ -77,6 +79,9 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
             GetFeatureUpgradeStatusResponse::new,
             ThreadPool.Names.SAME
         );
+
+        assert Version.CURRENT.major == 8 : "Once we begin working on 9.x, we need to update our migration classes";
+
         this.systemIndices = systemIndices;
         this.persistentTasksService = persistentTasksService;
     }
@@ -121,14 +126,14 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
 
         List<GetFeatureUpgradeStatusResponse.IndexInfo> indexInfos = getIndexInfos(state, feature);
 
-        Version minimumVersion = indexInfos.stream()
+        IndexVersion minimumVersion = indexInfos.stream()
             .map(GetFeatureUpgradeStatusResponse.IndexInfo::getVersion)
-            .min(Version::compareTo)
-            .orElse(Version.CURRENT);
+            .min(IndexVersion::compareTo)
+            .orElse(IndexVersion.current());
         GetFeatureUpgradeStatusResponse.UpgradeStatus initialStatus;
         if (featureName.equals(currentFeature)) {
             initialStatus = IN_PROGRESS;
-        } else if (minimumVersion.before(NO_UPGRADE_REQUIRED_VERSION)) {
+        } else if (minimumVersion.before(NO_UPGRADE_REQUIRED_INDEX_VERSION)) {
             initialStatus = MIGRATION_NEEDED;
         } else {
             initialStatus = NO_MIGRATION_NEEDED;

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Iterators;
@@ -157,15 +157,15 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.concat(
             Iterators.single((builder, params) -> builder.startArray(TYPE)),
-            entries.stream().<ToXContent>map(entry -> (builder, params) -> {
+            Iterators.map(entries.iterator(), entry -> (builder, params) -> {
                 builder.startObject();
                 {
                     builder.field("repository", entry.repository());
@@ -180,7 +180,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 }
                 builder.endObject();
                 return builder;
-            }).iterator(),
+            }),
             Iterators.single((builder, params) -> builder.endArray())
         );
     }

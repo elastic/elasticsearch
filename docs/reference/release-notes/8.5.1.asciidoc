@@ -10,6 +10,12 @@ Also see <<breaking-changes-8.5,Breaking changes in 8.5>>.
 
 include::8.4.0.asciidoc[tag=ml-pre-7-datafeeds-known-issue]
 
+include::8.4.0.asciidoc[tag=file-based-settings-deadlock-known-issue]
+
+include::8.0.0.asciidoc[tag=jackson-filtering-bug]
+
+include::8.4.0.asciidoc[tag=ingest-processor-log4j-cluster-instability-known-issue]
+
 [[bug-8.5.1]]
 [float]
 === Bug fixes

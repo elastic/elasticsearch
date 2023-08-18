@@ -45,6 +45,11 @@ public class AggregationProfileShardResultTests extends AbstractXContentSerializ
     }
 
     @Override
+    protected AggregationProfileShardResult mutateInstance(AggregationProfileShardResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected AggregationProfileShardResult doParseInstance(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         XContentParserUtils.ensureFieldName(parser, parser.nextToken(), AggregationProfileShardResult.AGGREGATIONS);

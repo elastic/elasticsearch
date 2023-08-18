@@ -19,11 +19,6 @@ In this type of scenario, the `file` realm is a convenient way out - you can
 define a new `admin` user in the `file` realm and use it to log in and reset the
 credentials of all other users.
 
-IMPORTANT: When you configure realms in `elasticsearch.yml`, only the realms you
-specify are used for authentication. To use the `file` realm you must explicitly
-include it in the realm chain. While it is possible to define multiple instances
-of some other realms, you can define only _one_ file realm per node.
-
 To define users, the {security-features} provide the
 <<users-command,users>> command-line tool. This tool enables you to add
 and remove users, assign user roles, and manage user passwords.

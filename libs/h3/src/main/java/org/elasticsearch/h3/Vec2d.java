@@ -87,19 +87,6 @@ final class Vec2d {
         { 2.361378999196363184, 0.266983896803167583, 4.455774101589558636 },  // face 19
     };
 
-    /**
-     * pi
-     */
-    private static final double M_PI = 3.14159265358979323846;
-    /**
-     * pi / 2.0
-     */
-    private static final double M_PI_2 = 1.5707963267948966;
-    /**
-     * 2.0 * PI
-     */
-    public static final double M_2PI = 6.28318530717958647692528676655900576839433;
-
     private final double x;  /// < x component
     private final double y;  /// < y component
 
@@ -109,7 +96,7 @@ final class Vec2d {
     }
 
     /**
-     * Determines the center point in spherical coordinates of a cell given by 2D
+     * Determines the center point in spherical coordinates of a cell given by this 2D
      * hex coordinates on a particular icosahedral face.
      *
      * @param face      The icosahedral face upon which the 2D hex coordinate system is
@@ -119,8 +106,24 @@ final class Vec2d {
      *                  grid relative to the specified resolution.
      */
     public LatLng hex2dToGeo(int face, int res, boolean substrate) {
+        return hex2dToGeo(this.x, this.y, face, res, substrate);
+    }
+
+    /**
+     * Determines the center point in spherical coordinates of a cell given by the provided 2D
+     * hex coordinates on a particular icosahedral face.
+     *
+     * @param x         The x component of the 2D hex coordinates.
+     * @param y         The y component of the 2D hex coordinates.
+     * @param face      The icosahedral face upon which the 2D hex coordinate system is
+     *                  centered.
+     * @param res       The H3 resolution of the cell.
+     * @param substrate Indicates whether or not this grid is actually a substrate
+     *                  grid relative to the specified resolution.
+     */
+    static LatLng hex2dToGeo(double x, double y, int face, int res, boolean substrate) {
         // calculate (r, theta) in hex2d
-        double r = v2dMag();
+        double r = Math.sqrt(x * x + y * y);
 
         if (r < Constants.EPSILON) {
             return faceCenterGeo[face];
@@ -155,7 +158,7 @@ final class Vec2d {
         // find theta as an azimuth
         theta = posAngleRads(faceAxesAzRadsCII[face][0] - theta);
         // now find the point at (r,theta) from the face center
-        return geoAzDistanceRads(faceCenterGeo[face], theta, r);
+        return Vec3d.faceCenterPoint[face].geoAzDistanceRads(theta, r);
     }
 
     /**
@@ -164,13 +167,13 @@ final class Vec2d {
      *
      */
     static CoordIJK hex2dToCoordIJK(double x, double y) {
-        double a1, a2;
-        double x1, x2;
-        int m1, m2;
-        double r1, r2;
+        final double a1, a2;
+        final double x1, x2;
+        final int m1, m2;
+        final double r1, r2;
 
         // quantize into the ij system and then normalize
-        int k = 0;
+        final int k = 0;
         int i;
         int j;
 
@@ -196,17 +199,17 @@ final class Vec2d {
                     j = m2;
                 } else {
                     i = m1;
-                    j = m2 + 1;
+                    j = Math.incrementExact(m2);
                 }
             } else {
                 if (r2 < (1.0 - r1)) {
                     j = m2;
                 } else {
-                    j = m2 + 1;
+                    j = Math.incrementExact(m2);
                 }
 
                 if ((1.0 - r1) <= r2 && r2 < (2.0 * r1)) {
-                    i = m1 + 1;
+                    i = Math.incrementExact(m1);
                 } else {
                     i = m1;
                 }
@@ -216,21 +219,21 @@ final class Vec2d {
                 if (r2 < (1.0 - r1)) {
                     j = m2;
                 } else {
-                    j = m2 + 1;
+                    j = Math.addExact(m2, 1);
                 }
 
                 if ((2.0 * r1 - 1.0) < r2 && r2 < (1.0 - r1)) {
                     i = m1;
                 } else {
-                    i = m1 + 1;
+                    i = Math.incrementExact(m1);
                 }
             } else {
                 if (r2 < (r1 / 2.0)) {
-                    i = m1 + 1;
+                    i = Math.incrementExact(m1);
                     j = m2;
                 } else {
-                    i = m1 + 1;
-                    j = m2 + 1;
+                    i = Math.incrementExact(m1);
+                    j = Math.incrementExact(m2);
                 }
             }
         }
@@ -240,19 +243,19 @@ final class Vec2d {
         if (x < 0.0) {
             if ((j % 2) == 0)  // even
             {
-                int axisi = j / 2;
-                int diff = i - axisi;
-                i = i - 2 * diff;
+                final int axisi = j / 2;
+                final int diff = Math.subtractExact(i, axisi);
+                i = Math.subtractExact(i, Math.multiplyExact(2, diff));
             } else {
-                int axisi = (j + 1) / 2;
-                int diff = i - axisi;
-                i = i - (2 * diff + 1);
+                final int axisi = Math.addExact(j, 1) / 2;
+                final int diff = Math.subtractExact(i, axisi);
+                i = Math.subtractExact(i, Math.addExact(Math.multiplyExact(2, diff), 1));
             }
         }
 
         if (y < 0.0) {
-            i = i - (2 * j + 1) / 2;
-            j = -1 * j;
+            i = Math.subtractExact(i, Math.addExact(Math.multiplyExact(2, j), 1) / 2);
+            j = Math.multiplyExact(-1, j);
         }
         final CoordIJK coordIJK = new CoordIJK(i, j, k);
         coordIJK.ijkNormalize();
@@ -297,15 +300,6 @@ final class Vec2d {
     }
 
     /**
-     * Calculates the magnitude of a 2D cartesian vector.
-     *
-     * @return The magnitude of the vector.
-     */
-    private double v2dMag() {
-        return Math.sqrt(x * x + y * y);
-    }
-
-    /**
      * Normalizes radians to a value between 0.0 and two PI.
      *
      * @param rads The input radians value.
@@ -313,106 +307,11 @@ final class Vec2d {
      */
     static double posAngleRads(double rads) {
         if (rads < 0.0) {
-            return rads + M_2PI;
-        } else if (rads >= M_2PI) {
-            return rads - M_2PI;
+            return rads + Constants.M_2PI;
+        } else if (rads >= Constants.M_2PI) {
+            return rads - Constants.M_2PI;
         } else {
             return rads;
         }
-    }
-
-    /**
-     * Computes the point on the sphere a specified azimuth and distance from
-     * another point.
-     *
-     * @param p1       The first spherical coordinates.
-     * @param az       The desired azimuth from p1.
-     * @param distance The desired distance from p1, must be non-negative.
-     *                 p1.
-     */
-    private static LatLng geoAzDistanceRads(LatLng p1, double az, double distance) {
-        if (distance < Constants.EPSILON) {
-            return p1;
-        }
-
-        double sinlat, sinlng, coslng;
-
-        az = posAngleRads(az);
-
-        double lat, lon;
-
-        // check for due north/south azimuth
-        if (az < Constants.EPSILON || Math.abs(az - M_PI) < Constants.EPSILON) {
-            if (az < Constants.EPSILON) {// due north
-                lat = p1.getLatRad() + distance;
-            } else { // due south
-                lat = p1.getLatRad() - distance;
-            }
-            if (Math.abs(lat - M_PI_2) < Constants.EPSILON) { // north pole
-                lat = M_PI_2;
-                lon = 0.0;
-            } else if (Math.abs(lat + M_PI_2) < Constants.EPSILON) { // south pole
-                lat = -M_PI_2;
-                lon = 0.0;
-            } else {
-                lon = constrainLng(p1.getLonRad());
-            }
-        } else { // not due north or south
-            final double sinDistance = FastMath.sin(distance);
-            final double cosDistance = FastMath.cos(distance);
-            final double sinP1Lat = FastMath.sin(p1.getLatRad());
-            final double cosP1Lat = FastMath.cos(p1.getLatRad());
-            sinlat = sinP1Lat * cosDistance + cosP1Lat * sinDistance * FastMath.cos(az);
-            if (sinlat > 1.0) {
-                sinlat = 1.0;
-            }
-            if (sinlat < -1.0) {
-                sinlat = -1.0;
-            }
-            lat = FastMath.asin(sinlat);
-            if (Math.abs(lat - M_PI_2) < Constants.EPSILON)  // north pole
-            {
-                lat = M_PI_2;
-                lon = 0.0;
-            } else if (Math.abs(lat + M_PI_2) < Constants.EPSILON)  // south pole
-            {
-                lat = -M_PI_2;
-                lon = 0.0;
-            } else {
-                final double cosLat = FastMath.cos(lat);
-                sinlng = FastMath.sin(az) * sinDistance / cosLat;
-                coslng = (cosDistance - sinP1Lat * FastMath.sin(lat)) / cosP1Lat / cosLat;
-                if (sinlng > 1.0) {
-                    sinlng = 1.0;
-                }
-                if (sinlng < -1.0) {
-                    sinlng = -1.0;
-                }
-                if (coslng > 1.0) {
-                    coslng = 1.0;
-                }
-                if (coslng < -1.0) {
-                    coslng = -1.0;
-                }
-                lon = constrainLng(p1.getLonRad() + FastMath.atan2(sinlng, coslng));
-            }
-        }
-        return new LatLng(lat, lon);
-    }
-
-    /**
-     * constrainLng makes sure longitudes are in the proper bounds
-     *
-     * @param lng The origin lng value
-     * @return The corrected lng value
-     */
-    private static double constrainLng(double lng) {
-        while (lng > M_PI) {
-            lng = lng - (2 * M_PI);
-        }
-        while (lng < -M_PI) {
-            lng = lng + (2 * M_PI);
-        }
-        return lng;
     }
 }

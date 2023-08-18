@@ -218,7 +218,10 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             }
             if (randomBoolean()) {
                 if (randomBoolean()) {
-                    Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]);
+                    org.elasticsearch.core.Streams.readFully(
+                        exchange.getRequestBody(),
+                        new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]
+                    );
                 } else {
                     Streams.readFully(exchange.getRequestBody());
                     exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
@@ -241,7 +244,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         httpServer.createContext("/upload/storage/v1/b/bucket/o", exchange -> {
             if (randomBoolean()) {
                 if (randomBoolean()) {
-                    Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, bytes.length - 1)]);
+                    org.elasticsearch.core.Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, bytes.length - 1)]);
                 } else {
                     Streams.readFully(exchange.getRequestBody());
                 }

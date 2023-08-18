@@ -40,6 +40,11 @@ public class ResumeFollowActionRequestTests extends AbstractXContentSerializingT
     }
 
     @Override
+    protected ResumeFollowAction.Request mutateInstance(ResumeFollowAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected ResumeFollowAction.Request createXContextTestInstance(XContentType type) {
         // follower index parameter is not part of the request body and is provided in the url path.
         // So this field cannot be used for creating a test instance for xcontent testing.
@@ -51,11 +56,6 @@ public class ResumeFollowActionRequestTests extends AbstractXContentSerializingT
     @Override
     protected ResumeFollowAction.Request doParseInstance(XContentParser parser) throws IOException {
         return ResumeFollowAction.Request.fromXContent(parser, null);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 
     static void generateFollowParameters(FollowParameters followParameters) {

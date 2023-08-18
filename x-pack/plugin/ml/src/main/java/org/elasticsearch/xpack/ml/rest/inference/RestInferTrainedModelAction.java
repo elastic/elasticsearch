@@ -11,12 +11,12 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -26,6 +26,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestInferTrainedModelAction extends BaseRestHandler {
 
     static final String PATH = BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_infer";
@@ -48,15 +49,12 @@ public class RestInferTrainedModelAction extends BaseRestHandler {
         }
         InferModelAction.Request.Builder request = InferModelAction.Request.parseRequest(modelId, restRequest.contentParser());
 
-        if (restRequest.hasParam(InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName())) {
+        if (restRequest.hasParam(InferModelAction.Request.TIMEOUT.getPreferredName())) {
             TimeValue inferTimeout = restRequest.paramAsTime(
-                InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName(),
-                InferTrainedModelDeploymentAction.Request.DEFAULT_TIMEOUT
+                InferModelAction.Request.TIMEOUT.getPreferredName(),
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
             );
             request.setInferenceTimeout(inferTimeout);
-        }
-        if (request.getUpdate() == null) {
-            request.setUpdate(new EmptyConfigUpdate());
         }
 
         return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(

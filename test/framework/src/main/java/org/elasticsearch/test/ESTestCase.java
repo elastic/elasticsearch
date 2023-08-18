@@ -32,19 +32,20 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -57,11 +58,13 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.HeaderWarningAppender;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -79,12 +82,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.IndicesModule;
@@ -150,6 +153,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -159,6 +164,9 @@ import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
@@ -178,7 +186,7 @@ import static org.hamcrest.Matchers.startsWith;
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
-@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
+@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class, NettyGlobalThreadsFilter.class })
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 // we suppress pretty much all the lucene codecs for now, except asserting
 // assertingcodec is the winner for a codec here: it finds bugs and gives clear exceptions.
@@ -413,13 +421,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @BeforeClass
     public static void setContentType() throws Exception {
-        Requests.CONTENT_TYPE = randomFrom(XContentType.values());
         Requests.INDEX_CONTENT_TYPE = randomFrom(XContentType.values());
     }
 
     @AfterClass
     public static void restoreContentType() {
-        Requests.CONTENT_TYPE = XContentType.SMILE;
         Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
     }
 
@@ -795,6 +801,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         return bytes;
     }
 
+    public static BytesReference randomBytesReference(int length) {
+        final var slices = new ArrayList<BytesReference>();
+        var remaining = length;
+        while (remaining > 0) {
+            final var sliceLen = between(1, remaining);
+            slices.add(new BytesArray(randomByteArrayOfLength(sliceLen)));
+            remaining -= sliceLen;
+        }
+        return CompositeBytesReference.of(slices.toArray(BytesReference[]::new));
+    }
+
     public static short randomShort() {
         return (short) random().nextInt();
     }
@@ -803,12 +820,26 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextInt();
     }
 
+    public static IntStream randomInts() {
+        return random().ints();
+    }
+
+    public static IntStream randomInts(long streamSize) {
+        return random().ints(streamSize);
+    }
+
     /**
      * @return a <code>long</code> between <code>0</code> and <code>Long.MAX_VALUE</code> (inclusive) chosen uniformly at random.
      */
     public static long randomNonNegativeLong() {
-        long randomLong = randomLong();
-        return randomLong == Long.MIN_VALUE ? 0 : Math.abs(randomLong);
+        return randomLong() & Long.MAX_VALUE;
+    }
+
+    /**
+     * @return an <code>int</code> between <code>0</code> and <code>Integer.MAX_VALUE</code> (inclusive) chosen uniformly at random.
+     */
+    public static int randomNonNegativeInt() {
+        return randomInt() & Integer.MAX_VALUE;
     }
 
     public static float randomFloat() {
@@ -817,6 +848,14 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static double randomDouble() {
         return random().nextDouble();
+    }
+
+    public static DoubleStream randomDoubles() {
+        return random().doubles();
+    }
+
+    public static DoubleStream randomDoubles(long streamSize) {
+        return random().doubles(streamSize);
     }
 
     /**
@@ -852,6 +891,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextLong();
     }
 
+    public static LongStream randomLongs() {
+        return random().longs();
+    }
+
+    public static LongStream randomLongs(long streamSize) {
+        return random().longs(streamSize);
+    }
+
     /**
      * Returns a random BigInteger uniformly distributed over the range 0 to (2^64 - 1) inclusive
      * Currently BigIntegers are only used for unsigned_long field type, where the max value is 2^64 - 1.
@@ -865,6 +912,11 @@ public abstract class ESTestCase extends LuceneTestCase {
     /** A random integer from 0..max (inclusive). */
     public static int randomInt(int max) {
         return RandomizedTest.randomInt(max);
+    }
+
+    /** A random byte size value. */
+    public static ByteSizeValue randomByteSizeValue() {
+        return ByteSizeValue.ofBytes(randomLongBetween(0L, Long.MAX_VALUE >> 16));
     }
 
     /** Pick a random object from the given array. The array must not be empty. */
@@ -910,6 +962,13 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static String randomAlphaOfLength(int codeUnits) {
         return RandomizedTest.randomAsciiOfLength(codeUnits);
+    }
+
+    /**
+     * Creates a valid random identifier such as node id or index name
+     */
+    public static String randomIdentifier() {
+        return randomAlphaOfLengthBetween(8, 12).toLowerCase(Locale.ROOT);
     }
 
     public static String randomUnicodeOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
@@ -1234,8 +1293,21 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /** Return consistent index settings for the provided index version. */
-    public static Settings.Builder settings(Version version) {
+    public static Settings.Builder settings(IndexVersion version) {
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
+    }
+
+    /** Return consistent index settings for the provided index version, shard- and replica-count. */
+    public static Settings.Builder indexSettings(IndexVersion indexVersionCreated, int shards, int replicas) {
+        return settings(indexVersionCreated).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
+    }
+
+    /** Return consistent index settings for the provided shard- and replica-count. */
+    public static Settings.Builder indexSettings(int shards, int replicas) {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
     }
 
     /**
@@ -1437,18 +1509,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Reader<T> reader
     ) throws IOException {
-        return copyWriteable(original, namedWriteableRegistry, reader, Version.CURRENT);
+        return copyWriteable(original, namedWriteableRegistry, reader, TransportVersion.current());
     }
 
     /**
      * Same as {@link #copyWriteable(Writeable, NamedWriteableRegistry, Writeable.Reader)} but also allows to provide
-     * a {@link Version} argument which will be used to write and read back the object.
+     * a {@link TransportVersion} argument which will be used to write and read back the object.
      */
     public static <T extends Writeable> T copyWriteable(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Reader<T> reader,
-        Version version
+        TransportVersion version
     ) throws IOException {
         return copyInstance(original, namedWriteableRegistry, (out, value) -> value.writeTo(out), reader, version);
     }
@@ -1462,12 +1534,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         NamedWriteableRegistry namedWriteableRegistry,
         Class<C> categoryClass
     ) throws IOException {
-        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, Version.CURRENT);
+        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, TransportVersion.current());
     }
 
     /**
      * Same as {@link #copyNamedWriteable(NamedWriteable, NamedWriteableRegistry, Class)} but also allows to provide
-     * a {@link Version} argument which will be used to write and read back the object.
+     * a {@link TransportVersion} argument which will be used to write and read back the object.
      * @return
      */
     @SuppressWarnings("unchecked")
@@ -1475,7 +1547,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
         Class<C> categoryClass,
-        Version version
+        TransportVersion version
     ) throws IOException {
         return copyInstance(
             original,
@@ -1491,13 +1563,13 @@ public abstract class ESTestCase extends LuceneTestCase {
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Writer<T> writer,
         Writeable.Reader<T> reader,
-        Version version
+        TransportVersion version
     ) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(version);
+            output.setTransportVersion(version);
             writer.write(output, original);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(version);
+                in.setTransportVersion(version);
                 return reader.read(in);
             }
         }
@@ -1630,11 +1702,12 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Creates an IndexAnalyzers with a single default analyzer
      */
     protected IndexAnalyzers createDefaultIndexAnalyzers() {
-        return new IndexAnalyzers(
-            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            Map.of(),
-            Map.of()
-        );
+        return (type, name) -> {
+            if (type == IndexAnalyzers.AnalyzerType.ANALYZER && "default".equals(name)) {
+                return Lucene.STANDARD_ANALYZER;
+            }
+            return null;
+        };
     }
 
     /**
@@ -1650,7 +1723,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static TestAnalysis createTestAnalysis(Index index, Settings nodeSettings, Settings settings, AnalysisPlugin... analysisPlugins)
         throws IOException {
-        Settings indexSettings = Settings.builder().put(settings).put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder()
+            .put(settings)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .build();
         return createTestAnalysis(IndexSettingsModule.newIndexSettings(index, indexSettings), nodeSettings, analysisPlugins);
     }
 
@@ -1663,7 +1739,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins), new StablePluginsRegistry());
         AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
         return new TestAnalysis(
-            analysisRegistry.build(indexSettings),
+            analysisRegistry.build(IndexCreationContext.CREATE_INDEX, indexSettings),
             analysisRegistry.buildTokenFilterFactories(indexSettings),
             analysisRegistry.buildTokenizerFactories(indexSettings),
             analysisRegistry.buildCharFilterFactories(indexSettings)
@@ -1824,7 +1900,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param message an additional message or link with information on the fix
      */
     protected void skipTestWaitingForLuceneFix(org.apache.lucene.util.Version luceneVersionWithFix, String message) {
-        final boolean currentVersionHasFix = Version.CURRENT.luceneVersion.onOrAfter(luceneVersionWithFix);
+        final boolean currentVersionHasFix = IndexVersion.current().luceneVersion().onOrAfter(luceneVersionWithFix);
         assumeTrue("Skipping test as it is waiting on a Lucene fix: " + message, currentVersionHasFix);
         fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
     }
@@ -1900,5 +1976,39 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         secureRandomFips.setSeed(seed); // DEFAULT/BCFIPS setSeed() is non-deterministic
         return secureRandomFips;
+    }
+
+    public static void safeAwait(CyclicBarrier barrier) {
+        try {
+            barrier.await(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("unexpected", e);
+        } catch (Exception e) {
+            throw new AssertionError("unexpected", e);
+        }
+    }
+
+    public static void safeAwait(CountDownLatch countDownLatch) {
+        try {
+            assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("unexpected", e);
+        }
+    }
+
+    public static void safeSleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("unexpected", e);
+        }
+    }
+
+    protected static boolean isTurkishLocale() {
+        return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
+            || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
     }
 }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.script.field.vectors;
 
-import org.apache.lucene.index.VectorValues;
+import org.apache.lucene.index.FloatVectorValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues;
@@ -18,12 +18,12 @@ import java.io.IOException;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 public class KnnDenseVectorDocValuesField extends DenseVectorDocValuesField {
-    protected VectorValues input; // null if no vectors
+    protected FloatVectorValues input; // null if no vectors
     protected float[] vector;
     protected final int dims;
 
-    public KnnDenseVectorDocValuesField(@Nullable VectorValues input, String name, ElementType elementType, int dims) {
-        super(name, elementType);
+    public KnnDenseVectorDocValuesField(@Nullable FloatVectorValues input, String name, int dims) {
+        super(name, ElementType.FLOAT);
         this.dims = dims;
         this.input = input;
     }

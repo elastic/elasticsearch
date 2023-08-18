@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
@@ -217,7 +217,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      */
     protected ValuesSourceAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        if (serializeTargetValueType(in.getVersion())) {
+        if (serializeTargetValueType(in.getTransportVersion())) {
             ValueType valueType = in.readOptionalWriteable(ValueType::readFromStream);
             assert valueType == null;
         }
@@ -242,7 +242,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (serializeTargetValueType(out.getVersion())) {
+        if (serializeTargetValueType(out.getTransportVersion())) {
             // TODO: deprecate this so we don't need to carry around a useless null in the wire format
             out.writeOptionalWriteable(null);
         }
@@ -275,7 +275,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      *
      * @param version For backwards compatibility, subclasses can change behavior based on the version
      */
-    protected boolean serializeTargetValueType(Version version) {
+    protected boolean serializeTargetValueType(TransportVersion version) {
         return false;
     }
 

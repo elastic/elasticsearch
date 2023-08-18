@@ -29,7 +29,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
@@ -110,7 +110,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-            .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             // we do this by default in core, but for watcher this isn't needed and only adds noise.
             .put("index.store.mock.check_index_on_close", false)
             // watcher settings that should work despite randomization
@@ -223,9 +223,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             String triggeredWatchIndexName;
             if (randomBoolean()) {
                 // Create an index to get the template
-                CreateIndexResponse response = client().admin()
-                    .indices()
-                    .prepareCreate(Watch.INDEX)
+                CreateIndexResponse response = indicesAdmin().prepareCreate(Watch.INDEX)
                     .setCause("Index to test aliases with .watches index")
                     .get();
                 assertAcked(response);
@@ -241,14 +239,12 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 if (randomBoolean()) {
                     builder.put("index.number_of_shards", scaledRandomIntBetween(1, 5));
                 }
-                assertAcked(client().admin().indices().prepareCreate(watchIndexName).setSettings(builder));
+                assertAcked(indicesAdmin().prepareCreate(watchIndexName).setSettings(builder));
             }
 
             // alias for .triggered-watches, ensuring the index template is set appropriately
             if (randomBoolean()) {
-                CreateIndexResponse response = client().admin()
-                    .indices()
-                    .prepareCreate(TriggeredWatchStoreField.INDEX_NAME)
+                CreateIndexResponse response = indicesAdmin().prepareCreate(TriggeredWatchStoreField.INDEX_NAME)
                     .setCause("Index to test aliases with .triggered-watches index")
                     .get();
                 assertAcked(response);
@@ -262,13 +258,13 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 logger.info("set alias for .triggered-watches index to [{}]", triggeredWatchIndexName);
             } else {
                 triggeredWatchIndexName = TriggeredWatchStoreField.INDEX_NAME;
-                assertAcked(client().admin().indices().prepareCreate(triggeredWatchIndexName));
+                assertAcked(indicesAdmin().prepareCreate(triggeredWatchIndexName));
             }
         }
     }
 
     public void replaceWatcherIndexWithRandomlyNamedIndex(String originalIndexOrAlias, String to) {
-        GetIndexResponse index = client().admin().indices().prepareGetIndex().setIndices(originalIndexOrAlias).get();
+        GetIndexResponse index = indicesAdmin().prepareGetIndex().setIndices(originalIndexOrAlias).get();
         MappingMetadata mapping = index.getMappings().get(index.getIndices()[0]);
 
         Settings settings = index.getSettings().get(index.getIndices()[0]);
@@ -278,9 +274,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         newSettings.remove("index.creation_date");
         newSettings.remove("index.version.created");
 
-        CreateIndexResponse createIndexResponse = client().admin()
-            .indices()
-            .prepareCreate(to)
+        CreateIndexResponse createIndexResponse = indicesAdmin().prepareCreate(to)
             .setMapping(mapping.sourceAsMap())
             .setSettings(newSettings)
             .get();
@@ -288,17 +282,17 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         ensureGreen(to);
 
         AtomicReference<String> originalIndex = new AtomicReference<>(originalIndexOrAlias);
-        boolean watchesIsAlias = client().admin().indices().prepareGetAliases(originalIndexOrAlias).get().getAliases().isEmpty() == false;
+        boolean watchesIsAlias = indicesAdmin().prepareGetAliases(originalIndexOrAlias).get().getAliases().isEmpty() == false;
         if (watchesIsAlias) {
-            GetAliasesResponse aliasesResponse = client().admin().indices().prepareGetAliases(originalIndexOrAlias).get();
+            GetAliasesResponse aliasesResponse = indicesAdmin().prepareGetAliases(originalIndexOrAlias).get();
             assertEquals(1, aliasesResponse.getAliases().size());
             aliasesResponse.getAliases().entrySet().forEach((aliasRecord) -> {
                 assertEquals(1, aliasRecord.getValue().size());
                 originalIndex.set(aliasRecord.getKey());
             });
         }
-        client().admin().indices().prepareDelete(originalIndex.get()).get();
-        client().admin().indices().prepareAliases().addAlias(to, originalIndexOrAlias).get();
+        indicesAdmin().prepareDelete(originalIndex.get()).get();
+        indicesAdmin().prepareAliases().addAlias(to, originalIndexOrAlias).get();
     }
 
     protected TimeWarp timeWarp() {
@@ -362,7 +356,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         final AtomicReference<SearchResponse> lastResponse = new AtomicReference<>();
         try {
             assertBusy(() -> {
-                ClusterState state = client().admin().cluster().prepareState().get().getState();
+                ClusterState state = clusterAdmin().prepareState().get().getState();
                 String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(
                     state,
                     IndicesOptions.lenientExpandOpen(),
@@ -430,7 +424,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             assertBusy(() -> {
                 // The watch_history index gets created in the background when the first watch is triggered
                 // so we to check first is this index is created and shards are started
-                ClusterState state = client().admin().cluster().prepareState().get().getState();
+                ClusterState state = clusterAdmin().prepareState().get().getState();
                 String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(
                     state,
                     IndicesOptions.lenientExpandOpen(),
@@ -468,7 +462,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     protected void assertWatchWithMinimumActionsCount(final String watchName, final ExecutionState recordState, final long recordCount)
         throws Exception {
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState().get().getState();
             String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(
                 state,
                 IndicesOptions.lenientExpandOpen(),

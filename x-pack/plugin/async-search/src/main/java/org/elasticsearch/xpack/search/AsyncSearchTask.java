@@ -58,6 +58,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
     private final Map<String, String> originHeaders;
 
+    private boolean ccsMinimizeRoundtrips;
     private boolean hasInitialized;
     private boolean hasCompleted;
     private long completionId;
@@ -225,7 +226,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             if (hasCompleted || waitForCompletion.getMillis() == 0) {
                 executeImmediately = true;
             } else {
-                // ensure that we consumes the listener only once
+                // ensure that we consume the listener only once
                 AtomicBoolean hasRun = new AtomicBoolean(false);
                 long id = completionId++;
                 final Cancellable cancellable;
@@ -365,6 +366,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     }
 
     class Listener extends SearchProgressActionListener {
+
         @Override
         protected void onQueryResult(int shardIndex) {
             checkCancellation();
@@ -403,6 +405,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         protected void onListShards(List<SearchShard> shards, List<SearchShard> skipped, Clusters clusters, boolean fetchPhase) {
             // best effort to cancel expired tasks
             checkCancellation();
+            ccsMinimizeRoundtrips = clusters.isCcsMinimizeRoundtrips();
             searchResponse.compareAndSet(
                 null,
                 new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, threadPool.getThreadContext())
@@ -433,6 +436,10 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase);
         }
 
+        /**
+         * Called when the final reduce of <b>local</b> shards is done.
+         * During a CCS search, there may still be shard searches in progress on remote clusters when this is called.
+         */
         @Override
         public void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggregations, int reducePhase) {
             // best effort to cancel expired tasks
@@ -442,7 +449,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
         @Override
         public void onResponse(SearchResponse response) {
-            searchResponse.get().updateFinalResponse(response);
+            searchResponse.get().updateFinalResponse(response, ccsMinimizeRoundtrips);
             executeCompletionListeners();
         }
 

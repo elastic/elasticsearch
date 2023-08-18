@@ -15,12 +15,14 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
@@ -67,9 +69,15 @@ import static org.mockito.Mockito.when;
 
 public class ReservedClusterStateServiceTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
+    private static <T extends ClusterStateTaskListener> MasterServiceTaskQueue<T> mockTaskQueue() {
+        return (MasterServiceTaskQueue<T>) mock(MasterServiceTaskQueue.class);
+    }
+
     public void testOperatorController() throws IOException {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.createTaskQueue(any(), any(), any())).thenReturn(mockTaskQueue());
         final ClusterName clusterName = new ClusterName("elasticsearch");
 
         ClusterState state = ClusterState.builder(clusterName).build();
@@ -486,6 +494,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         var state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         when(clusterService.state()).thenReturn(state);
+        when(clusterService.createTaskQueue(any(), any(), any())).thenReturn(mockTaskQueue());
 
         final var controller = spy(new ReservedClusterStateService(clusterService, List.of()));
 

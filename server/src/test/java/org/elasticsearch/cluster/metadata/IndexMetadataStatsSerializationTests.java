@@ -37,7 +37,7 @@ public class IndexMetadataStatsSerializationTests extends AbstractXContentSerial
     }
 
     @Override
-    protected IndexMetadataStats mutateInstance(IndexMetadataStats originalStats) throws IOException {
+    protected IndexMetadataStats mutateInstance(IndexMetadataStats originalStats) {
         final IndexWriteLoad originalWriteLoad = originalStats.writeLoad();
 
         final int newNumberOfShards;

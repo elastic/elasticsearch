@@ -9,14 +9,17 @@ package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertJapaneseTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.MPNetTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.XLMRobertaTokenization;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -312,11 +315,13 @@ public abstract class NlpTokenizer implements Releasable {
         if (span > trueMaxSeqLength) {
             throw new IllegalArgumentException(
                 Strings.format(
-                    "Unable to do sequence pair tokenization: the combined first sequence and span length [%d + %d = %d tokens] "
-                        + "is longer than the max sequence length [%d tokens]. Reduce the size of the [span] window.",
+                    "Unable to do sequence pair tokenization: the combined first sequence, span length and delimiting tokens"
+                        + " [%d + %d + %d = %d tokens] is longer than the max sequence length [%d tokens]."
+                        + " Reduce the size of the [span] window.",
                     tokenIdsSeq1.size(),
                     span,
-                    tokenIdsSeq1.size() + span,
+                    extraTokens,
+                    tokenIdsSeq1.size() + span + extraTokens,
                     maxSequenceLength()
                 )
             );
@@ -352,6 +357,19 @@ public abstract class NlpTokenizer implements Releasable {
             spanPrev = span;
             int prevSplitStart = splitStartPos;
             splitStartPos = splitEndPos - span;
+            if (splitStartPos <= prevSplitStart) {
+                // Tokenization is not progressing, the start pos has
+                // not moved forward leading to an infinite loop.
+                // In practice this is probably due to the span
+                // setting being very close to the 2nd sequence length
+                // and the sequence ending in a long word that tokenizes
+                // to a number of elements greater than the difference
+                // between span and 2nd sequence length
+                throw new IllegalStateException(
+                    "Tokenization cannot be satisfied with the current span setting. Consider decreasing the span setting"
+                );
+            }
+
             // try to back up our split so that it starts at the first whole word
             if (splitStartPos < tokenIdsSeq2.size()) {
                 while (splitStartPos > (prevSplitStart + 1)
@@ -374,6 +392,8 @@ public abstract class NlpTokenizer implements Releasable {
 
     public abstract String getMaskToken();
 
+    public abstract List<String> getVocabulary();
+
     public int getSpan() {
         return -1;
     }
@@ -382,17 +402,23 @@ public abstract class NlpTokenizer implements Releasable {
 
     public abstract InnerTokenization innerTokenize(String seq);
 
-    public static NlpTokenizer build(Vocabulary vocabulary, Tokenization params) {
+    public static NlpTokenizer build(Vocabulary vocabulary, Tokenization params) throws IOException {
         ExceptionsHelper.requireNonNull(params, TOKENIZATION);
         ExceptionsHelper.requireNonNull(vocabulary, VOCABULARY);
         if (params instanceof BertTokenization) {
             return BertTokenizer.builder(vocabulary.get(), params).build();
+        }
+        if (params instanceof BertJapaneseTokenization) {
+            return BertJapaneseTokenizer.builder(vocabulary.get(), params).build();
         }
         if (params instanceof MPNetTokenization) {
             return MPNetTokenizer.mpBuilder(vocabulary.get(), params).build();
         }
         if (params instanceof RobertaTokenization robertaTokenization) {
             return RobertaTokenizer.builder(vocabulary.get(), vocabulary.merges(), robertaTokenization).build();
+        }
+        if (params instanceof XLMRobertaTokenization xlmRobertaTokenization) {
+            return XLMRobertaTokenizer.builder(vocabulary.get(), vocabulary.scores(), xlmRobertaTokenization).build();
         }
         throw new IllegalArgumentException("unknown tokenization type [" + params.getName() + "]");
     }

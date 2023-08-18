@@ -58,12 +58,8 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         });
 
         // An empty request body means search for all keys
-        assertQuery(
-            API_KEY_ADMIN_AUTH_HEADER,
-            randomBoolean() ? "" : """
-                {"query":{"match_all":{}}}""",
-            apiKeys -> assertThat(apiKeys.size(), equalTo(6))
-        );
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER, randomBoolean() ? "" : """
+            {"query":{"match_all":{}}}""", apiKeys -> assertThat(apiKeys.size(), equalTo(6)));
 
         assertQuery(
             API_KEY_ADMIN_AUTH_HEADER,
@@ -113,9 +109,11 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 var subset = randomSubsetOf(randomIntBetween(1, 5), apiKeys);
                 assertQuery(
                     API_KEY_ADMIN_AUTH_HEADER,
-                        Strings.format("""
-                                { "query": { "ids": { "values": [%s] } } }""",
-                            subset.stream().map(m -> "\"" + m.get("id") + "\"").collect(Collectors.joining(","))),
+                    Strings.format(
+                        """
+                            { "query": { "ids": { "values": [%s] } } }""",
+                        subset.stream().map(m -> "\"" + m.get("id") + "\"").collect(Collectors.joining(","))
+                    ),
                     keys -> {
                         assertThat(keys, hasSize(subset.size()));
                         keys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
@@ -133,7 +131,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         // Search for fields that are not allowed in Query DSL but used internally by the service itself
         final String fieldName = randomFrom("doc_type", "api_key_invalidated");
         assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400, Strings.format("""
-                { "query": { "term": {"%s": "%s"} } }""", fieldName, randomAlphaOfLengthBetween(3, 8)));
+            { "query": { "term": {"%s": "%s"} } }""", fieldName, randomAlphaOfLengthBetween(3, 8)));
 
         // Search for api keys won't return other entities
         assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
@@ -165,9 +163,9 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final String invalidatedApiKeyId1 = createAndInvalidateApiKey("temporary-key-1", authHeader);
         final String queryString = randomFrom("""
             {"query": { "term": {"name": "temporary-key-1"} } }""", Strings.format("""
-                {"query":{"bool":{"must":[{"term":{"name":{"value":"temporary-key-1"}}},\
-                {"term":{"invalidated":{"value":"%s"}}}]}}}
-                """, randomBoolean()));
+            {"query":{"bool":{"must":[{"term":{"name":{"value":"temporary-key-1"}}},\
+            {"term":{"invalidated":{"value":"%s"}}}]}}}
+            """, randomBoolean()));
 
         assertQuery(authHeader, queryString, apiKeys -> {
             if (queryString.contains("""
@@ -229,9 +227,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
     public void testPagination() throws IOException, InterruptedException {
         final String authHeader = randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER);
         final int total = randomIntBetween(8, 12);
-        final List<String> apiKeyNames = IntStream.range(0, total)
-            .mapToObj(i -> Strings.format("k-%02d", i))
-            .toList();
+        final List<String> apiKeyNames = IntStream.range(0, total).mapToObj(i -> Strings.format("k-%02d", i)).toList();
         final List<String> apiKeyIds = new ArrayList<>(total);
         for (int i = 0; i < total; i++) {
             apiKeyIds.add(createApiKey(apiKeyNames.get(i), null, authHeader).v1());
@@ -261,8 +257,8 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 searchAfter.append(sortValues.get(0));
             }
             request2.setJsonEntity(Strings.format("""
-                    {"size":%s,"sort":["%s"],"search_after":[%s]}
-                    """, size, sortField, searchAfter));
+                {"size":%s,"sort":["%s"],"search_after":[%s]}
+                """, size, sortField, searchAfter));
             actualSize = collectApiKeys(apiKeyInfos, request2, total, size);
             if (actualSize == 0 && apiKeyInfos.size() < remaining) {
                 fail("fail to retrieve all API keys, expect [" + remaining + "] keys, got [" + apiKeyInfos + "]");
@@ -285,14 +281,8 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 equalTo(apiKeyInfos.stream().map(m -> (long) extractSortValues(m).get(0)).toList())
             );
         }
-        assertThat(
-            apiKeyInfos.stream().map(m -> (String) m.get("id")).toList(),
-            equalTo(apiKeyIds.subList(from, total))
-        );
-        assertThat(
-            apiKeyInfos.stream().map(m -> (String) m.get("name")).toList(),
-            equalTo(apiKeyNames.subList(from, total))
-        );
+        assertThat(apiKeyInfos.stream().map(m -> (String) m.get("id")).toList(), equalTo(apiKeyIds.subList(from, total)));
+        assertThat(apiKeyInfos.stream().map(m -> (String) m.get("name")).toList(), equalTo(apiKeyNames.subList(from, total)));
 
         // size can be zero, but total should still reflect the number of keys matched
         final Request request2 = new Request("GET", "/_security/_query/api_key");
@@ -378,41 +368,20 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
         final long startTime = Instant.now().toEpochMilli();
 
-        assertQuery(
-            authHeader,
-            """
-                {"query": {"exists": {"field": "expiration" }}}""",
-            apiKeys -> {
-                assertThat(
-                    apiKeys.stream().map(k -> (String) k.get("name")).toList(),
-                    containsInAnyOrder("test-exists-2", "test-exists-3")
-                );
-            }
-        );
+        assertQuery(authHeader, """
+            {"query": {"exists": {"field": "expiration" }}}""", apiKeys -> {
+            assertThat(apiKeys.stream().map(k -> (String) k.get("name")).toList(), containsInAnyOrder("test-exists-2", "test-exists-3"));
+        });
 
-        assertQuery(
-            authHeader,
-            """
-                {"query": {"exists": {"field": "metadata.value" }}}""",
-            apiKeys -> {
-                assertThat(
-                    apiKeys.stream().map(k -> (String) k.get("name")).toList(),
-                    containsInAnyOrder("test-exists-1", "test-exists-3")
-                );
-            }
-        );
+        assertQuery(authHeader, """
+            {"query": {"exists": {"field": "metadata.value" }}}""", apiKeys -> {
+            assertThat(apiKeys.stream().map(k -> (String) k.get("name")).toList(), containsInAnyOrder("test-exists-1", "test-exists-3"));
+        });
 
-        assertQuery(
-            authHeader,
-            """
-                {"query": {"exists": {"field": "metadata.label" }}}""",
-            apiKeys -> {
-                assertThat(
-                    apiKeys.stream().map(k -> (String) k.get("name")).toList(),
-                    containsInAnyOrder("test-exists-2", "test-exists-3")
-                );
-            }
-        );
+        assertQuery(authHeader, """
+            {"query": {"exists": {"field": "metadata.label" }}}""", apiKeys -> {
+            assertThat(apiKeys.stream().map(k -> (String) k.get("name")).toList(), containsInAnyOrder("test-exists-2", "test-exists-3"));
+        });
 
         // Create an invalidated API key
         createAndInvalidateApiKey("test-exists-4", authHeader);
@@ -424,46 +393,39 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         }
 
         // Find valid API keys (not invalidated nor expired)
-        assertQuery(
-            authHeader,
-            """
-                {
-                  "query": {
-                    "bool": {
-                      "must": {
-                        "term": {
-                          "invalidated": false
-                        }
-                      },
-                      "should": [
-                        {
-                          "range": {
-                            "expiration": {
-                              "gte": "now"
-                            }
-                          }
-                        },
-                        {
-                          "bool": {
-                            "must_not": {
-                              "exists": {
-                                "field": "expiration"
-                              }
-                            }
-                          }
-                        }
-                      ],
-                      "minimum_should_match": 1
+        assertQuery(authHeader, """
+            {
+              "query": {
+                "bool": {
+                  "must": {
+                    "term": {
+                      "invalidated": false
                     }
-                  }
-                }""",
-            apiKeys -> {
-                assertThat(
-                    apiKeys.stream().map(k -> (String) k.get("name")).toList(),
-                    containsInAnyOrder("test-exists-1", "test-exists-3")
-                );
-            }
-        );
+                  },
+                  "should": [
+                    {
+                      "range": {
+                        "expiration": {
+                          "gte": "now"
+                        }
+                      }
+                    },
+                    {
+                      "bool": {
+                        "must_not": {
+                          "exists": {
+                            "field": "expiration"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "minimum_should_match": 1
+                }
+              }
+            }""", apiKeys -> {
+            assertThat(apiKeys.stream().map(k -> (String) k.get("name")).toList(), containsInAnyOrder("test-exists-1", "test-exists-3"));
+        });
     }
 
     @SuppressWarnings("unchecked")

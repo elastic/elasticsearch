@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RequestValidators;
@@ -16,8 +17,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -26,11 +27,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -140,6 +143,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     public static final String CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY = "remote_cluster_name";
 
     public static final String REQUESTED_OPS_MISSING_METADATA_KEY = "es.requested_operations_missing";
+    public static final TransportVersion TRANSPORT_VERSION_ACTION_WITH_SHARD_ID = TransportVersion.V_8_500_010;
 
     private final boolean enabled;
     private final Settings settings;
@@ -185,7 +189,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         final IndexNameExpressionResolver expressionResolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         this.client = client;
         if (enabled == false) {
@@ -244,15 +249,12 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 DeleteInternalCcrRepositoryAction.INSTANCE,
                 DeleteInternalCcrRepositoryAction.TransportDeleteInternalRepositoryAction.class
             ),
-            new ActionHandler<>(PutCcrRestoreSessionAction.INSTANCE, PutCcrRestoreSessionAction.TransportPutCcrRestoreSessionAction.class),
-            new ActionHandler<>(
-                ClearCcrRestoreSessionAction.INSTANCE,
-                ClearCcrRestoreSessionAction.TransportDeleteCcrRestoreSessionAction.class
-            ),
-            new ActionHandler<>(
-                GetCcrRestoreFileChunkAction.INSTANCE,
-                GetCcrRestoreFileChunkAction.TransportGetCcrRestoreFileChunkAction.class
-            ),
+            new ActionHandler<>(PutCcrRestoreSessionAction.INTERNAL_INSTANCE, PutCcrRestoreSessionAction.InternalTransportAction.class),
+            new ActionHandler<>(PutCcrRestoreSessionAction.INSTANCE, PutCcrRestoreSessionAction.TransportAction.class),
+            new ActionHandler<>(ClearCcrRestoreSessionAction.INTERNAL_INSTANCE, ClearCcrRestoreSessionAction.InternalTransportAction.class),
+            new ActionHandler<>(ClearCcrRestoreSessionAction.INSTANCE, ClearCcrRestoreSessionAction.TransportAction.class),
+            new ActionHandler<>(GetCcrRestoreFileChunkAction.INTERNAL_INSTANCE, GetCcrRestoreFileChunkAction.InternalTransportAction.class),
+            new ActionHandler<>(GetCcrRestoreFileChunkAction.INSTANCE, GetCcrRestoreFileChunkAction.TransportAction.class),
             // stats action
             new ActionHandler<>(FollowStatsAction.INSTANCE, TransportFollowStatsAction.class),
             new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),
@@ -373,12 +375,15 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     @SuppressWarnings("HiddenField")
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (enabled == false) {
-            return Collections.emptyList();
-        }
-
         return Collections.singletonList(
-            new FixedExecutorBuilder(settings, CCR_THREAD_POOL_NAME, 32, 100, "xpack.ccr.ccr_thread_pool", false)
+            new FixedExecutorBuilder(
+                settings,
+                CCR_THREAD_POOL_NAME,
+                32,
+                100,
+                "xpack.ccr.ccr_thread_pool",
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            )
         );
     }
 

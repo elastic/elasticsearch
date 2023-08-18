@@ -67,10 +67,6 @@ public class PutLicenseResponse extends AcknowledgedResponse {
         return acknowledgeMessages;
     }
 
-    public String acknowledgeHeader() {
-        return acknowledgeHeader;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

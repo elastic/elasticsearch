@@ -1,0 +1,135 @@
+[role="xpack"]
+[[search-application-render-query]]
+=== Render Search Application Query
+
+preview::[]
+
+++++
+<titleabbrev>Render Search Application Query</titleabbrev>
+++++
+
+Given specified query parameters, creates an Elasticsearch query to run. Any unspecified template parameters will be
+assigned their default values if applicable. Returns the specific Elasticsearch query that would be generated and
+run by calling <<search-application-search,search application search>>.
+
+[[search-application-render-query-request]]
+==== {api-request-title}
+
+`POST _application/search_application/<name>/_render_query`
+
+[[search-application-render-query-prereqs]]
+==== {api-prereq-title}
+
+Requires read privileges on the backing alias of the search application.
+
+[[search-application-render-query-request-body]]
+==== {api-request-body-title}
+
+`params`::
+(Optional, map of strings to objects)
+Query parameters specific to this request, which will override any defaults specified in the template.
+
+[[search-application-render-query-response-codes]]
+==== {api-response-codes-title}
+
+`404`::
+Search Application `<name>` does not exist.
+
+[[search-application-render-query-example]]
+==== {api-examples-title}
+
+The following example renders a query for a search application called `my-app`. In this case, the `from` and `size`
+parameters are not specified, so default values are pulled from the search application template.
+
+////
+[source,console]
+----
+PUT /index1
+
+PUT _application/search_application/my-app
+{
+  "indices": ["index1"],
+  "template": {
+    "script": {
+      "lang": "mustache",
+      "source": """
+      {
+        "query": {
+          "multi_match": {
+            "query": "{{query_string}}",
+            "fields": [{{#text_fields}}"{{name}}^{{boost}}",{{/text_fields}}]
+          }
+        },
+        "explain": "{{explain}}",
+        "from": "{{from}}",
+        "size": "{{size}}"
+      }
+      """,
+      "params": {
+        "query_string": "*",
+        "text_fields": [
+          {"name": "title", "boost": 10},
+          {"name": "description", "boost": 5}
+        ],
+        "explain": false,
+        "from": 0,
+        "size": 10
+      }
+    }
+  }
+}
+----
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _application/search_application/my-app
+
+DELETE index1
+
+--------------------------------------------------
+// TEARDOWN
+
+////
+
+[source,console]
+----
+POST _application/search_application/my-app/_render_query
+{
+  "params": {
+    "query_string": "my first query",
+    "text_fields": [
+        {
+            "name": "title",
+            "boost": 10
+        },
+        {
+            "name": "text",
+            "boost": 1
+        }
+    ]
+  }
+}
+----
+
+A sample response:
+
+[source,console-result]
+----
+{
+    "from": 0,
+    "size": 10,
+    "query": {
+        "multi_match": {
+            "query": "my first query",
+            "fields": [
+                "text^1.0",
+                "title^10.0"
+            ]
+        }
+    },
+    "explain": false
+}
+----
+// TEST[continued]
+

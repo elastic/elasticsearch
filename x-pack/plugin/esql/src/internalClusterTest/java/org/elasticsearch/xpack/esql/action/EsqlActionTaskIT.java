@@ -197,7 +197,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
         CancelTasksRequest request = new CancelTasksRequest().setTargetTaskId(taskId).setReason("test cancel");
         request.setWaitForCompletion(false);
         client().admin().cluster().execute(CancelTasksAction.INSTANCE, request).actionGet();
-        scriptPermits.release(Integer.MAX_VALUE);
+        scriptPermits.release(Integer.MAX_VALUE / 2);
         request = new CancelTasksRequest().setTargetTaskId(taskId).setReason("test cancel");
         request.setWaitForCompletion(true);
         client().admin().cluster().execute(CancelTasksAction.INSTANCE, request).actionGet();

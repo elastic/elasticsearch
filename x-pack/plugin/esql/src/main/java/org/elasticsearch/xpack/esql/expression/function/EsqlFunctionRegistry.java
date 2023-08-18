@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
@@ -144,6 +145,8 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Now.class, Now::new, "now") },
             // conditional
             new FunctionDefinition[] { def(Case.class, Case::new, "case") },
+            // null
+            new FunctionDefinition[] { def(Coalesce.class, Coalesce::new, "coalesce"), },
             // IP
             new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
             // conversion functions

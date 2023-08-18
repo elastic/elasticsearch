@@ -18,7 +18,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -53,22 +52,7 @@ public class DriverTaskRunner {
                     new DriverRequest(driver),
                     parentTask,
                     TransportRequestOptions.EMPTY,
-                    new TransportResponseHandler.Empty() {
-                        @Override
-                        public Executor executor(ThreadPool threadPool) {
-                            return TRANSPORT_WORKER;
-                        }
-
-                        @Override
-                        public void handleResponse() {
-                            driverListener.onResponse(null);
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            driverListener.onFailure(exp);
-                        }
-                    }
+                    TransportResponseHandler.empty(TransportResponseHandler.TRANSPORT_WORKER, driverListener)
                 );
             }
         };

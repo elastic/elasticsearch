@@ -140,7 +140,11 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
             public void headerReceived(Header header) {
                 super.headerReceived(header);
 
-                if (false == header.isRequest() || header.isHandshake()) {
+                if (header.isRequest() == false) {
+                    throw new IllegalArgumentException("Remote cluster server cannot process response");
+                }
+
+                if (header.isHandshake()) {
                     return;
                 }
 

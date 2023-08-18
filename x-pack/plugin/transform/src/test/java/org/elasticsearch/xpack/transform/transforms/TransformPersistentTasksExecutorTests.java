@@ -58,7 +58,6 @@ import static org.mockito.Mockito.when;
 
 public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98564")
     public void testNodeVersionAssignment() {
         DiscoveryNodes.Builder nodes = buildNodes(false, true, true, true, true);
         ClusterState cs = buildClusterState(nodes);
@@ -90,7 +89,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98564")
     public void testNodeAssignmentProblems() {
         // no data nodes
         DiscoveryNodes.Builder nodes = buildNodes(false, false, false, false, true);
@@ -307,6 +305,9 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                             DiscoveryNodeRole.TRANSFORM_ROLE
                         )
                     )
+                    .attributes(
+                        Map.of(TransformConfigVersion.TRANSFORM_CONFIG_VERSION_NODE_ATTR, TransformConfigVersion.CURRENT.toString())
+                    )
                     .build()
             );
         }
@@ -336,6 +337,9 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     .roles(
                         Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE, DiscoveryNodeRole.TRANSFORM_ROLE)
                     )
+                    .attributes(
+                        Map.of(TransformConfigVersion.TRANSFORM_CONFIG_VERSION_NODE_ATTR, TransformConfigVersion.CURRENT.toString())
+                    )
                     .build()
             )
                 .add(
@@ -347,6 +351,9 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                                 DiscoveryNodeRole.TRANSFORM_ROLE
                             )
                         )
+                        .attributes(
+                            Map.of(TransformConfigVersion.TRANSFORM_CONFIG_VERSION_NODE_ATTR, TransformConfigVersion.CURRENT.toString())
+                        )
                         .build()
                 );
         }
@@ -355,6 +362,9 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             nodes.add(
                 DiscoveryNodeUtils.builder("current-data-node-with-0-tasks-transform-remote-disabled")
                     .roles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.TRANSFORM_ROLE))
+                    .attributes(
+                        Map.of(TransformConfigVersion.TRANSFORM_CONFIG_VERSION_NODE_ATTR, TransformConfigVersion.CURRENT.toString())
+                    )
                     .build()
             );
         }
@@ -363,6 +373,9 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             nodes.add(
                 DiscoveryNodeUtils.builder("current-data-node-with-transform-disabled")
                     .roles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
+                    .attributes(
+                        Map.of(TransformConfigVersion.TRANSFORM_CONFIG_VERSION_NODE_ATTR, TransformConfigVersion.CURRENT.toString())
+                    )
                     .build()
             );
         }

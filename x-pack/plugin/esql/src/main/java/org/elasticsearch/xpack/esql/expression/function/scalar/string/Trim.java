@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -67,13 +68,25 @@ public final class Trim extends UnaryScalarFunction implements Mappable {
     @Evaluator
     static BytesRef process(BytesRef val) {
         int offset = val.offset;
-        int length = val.length;
-        while ((offset < length) && ((val.bytes[offset] & 0xff) <= 0x20)) {
-            offset++;
+        UnicodeUtil.UTF8CodePoint codePoint = new UnicodeUtil.UTF8CodePoint();
+        while (offset < val.offset + val.length) {
+            codePoint = UnicodeUtil.codePointAt(val.bytes, offset, codePoint);
+            if (Character.isWhitespace(codePoint.codePoint) == false) {
+                break;
+            }
+            offset += codePoint.numBytes;
         }
-        while ((offset < length) && ((val.bytes[length - 1] & 0xff) <= 0x20)) {
-            length--;
+
+        int end = offset;
+        int i = offset;
+        while (i < val.offset + val.length) {
+            codePoint = UnicodeUtil.codePointAt(val.bytes, i, codePoint);
+            if (Character.isWhitespace(codePoint.codePoint) == false) {
+                end = i + codePoint.numBytes;
+            }
+            i += codePoint.numBytes;
         }
-        return new BytesRef(val.bytes, offset, length - (offset - val.offset));
+
+        return new BytesRef(val.bytes, offset, end - offset);
     }
 }

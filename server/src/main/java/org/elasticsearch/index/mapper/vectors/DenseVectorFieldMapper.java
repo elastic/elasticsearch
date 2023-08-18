@@ -79,7 +79,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; // maximum allowed number of dimensions
 
-    public static short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to vector
+    public static short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 3; // minimum number of dims for floats to be dynamically mapped to vector
     public static final int MAGNITUDE_BYTES = 4;
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
@@ -107,7 +107,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             XContentBuilder::field,
             Objects::toString
         ).setSerializerCheck((id, ic, v) -> v != null);
-        private final Parameter<Boolean> indexed;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final IndexVersion indexVersionCreated;
@@ -156,7 +155,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 Objects::toString
             );
 
-            similarity = Parameter.enumParam(
+            this.similarity = Parameter.enumParam(
                 "similarity",
                 false,
                 m -> VectorSimilarity.COSINE,
@@ -164,7 +163,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 VectorSimilarity.class
             );
 
-            indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, true);
 
             if (dims < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING || dims > MAX_DIMS_COUNT) {
                 throw new IllegalArgumentException(

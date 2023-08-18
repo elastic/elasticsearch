@@ -157,7 +157,9 @@ public final class JsonProcessor extends AbstractProcessor {
             if (conflictStrategy == ConflictStrategy.MERGE) {
                 recursiveMerge(new ContentPath(), ctx, map);
             } else {
-                ctx.putAll(map);
+                for (Map.Entry<String, Object> entry : map.entrySet()) {
+                    new WriteField(entry.getKey(), () -> ctx).set(entry.getValue());
+                }
             }
         } else {
             throw new IllegalArgumentException("cannot add non-map fields to root of document");

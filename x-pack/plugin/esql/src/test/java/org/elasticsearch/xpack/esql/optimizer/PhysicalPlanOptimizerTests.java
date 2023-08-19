@@ -1672,9 +1672,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * \_EvalExec[[1[INTEGER] AS x]]
      *   \_LimitExec[10000[INTEGER]]
      *     \_ExchangeExec[[],false]
-     *       \_ProjectExec[[<all-fields-projected>{r}#12]]
-     *         \_EvalExec[[null[NULL] AS <all-fields-projected>]]
-     *           \_EsQueryExec[test], query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10,"boost":1.0}}}}}][_doc{f}#13], limit[10000], sort[] estimatedRowSize[8]
+     *       \_ProjectExec[[&lt;all-fields-projected&gt;{r}#12]]
+     *         \_EvalExec[[null[NULL] AS &lt;all-fields-projected&gt;]]
+     *           \_EsQueryExec[test], query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10,"boost":1.0}}}}}]
+     *            [_doc{f}#13], limit[10000], sort[] estimatedRowSize[8]
      */
     public void testProjectAllFieldsWhenOnlyTheCountMatters() {
         var plan = optimizedPlan(physicalPlan("""

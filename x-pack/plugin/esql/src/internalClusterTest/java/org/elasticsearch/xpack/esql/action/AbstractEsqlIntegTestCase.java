@@ -27,7 +27,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "to better understand planning")
+@TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
 
     @After

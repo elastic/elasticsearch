@@ -520,3 +520,13 @@ emp_no:integer |   salary_change:double   |salary_change.int:integer|salary_chan
 10009          |null                      |null                     |null              
 10010          |[-6.77, 4.69, 5.05, 12.15]|[-6, 4, 5, 12]           |[-6, 4, 5, 12]               
 ;
+
+
+projectAllButConstant
+from employees | eval c = 1 | keep c | limit 2
+;
+
+c:i
+1
+1
+;

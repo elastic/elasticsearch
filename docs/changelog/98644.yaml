@@ -1,0 +1,12 @@
+pr: 98644
+summary: GA the data stream lifecycle
+area: Data streams
+type: feature
+issues: []
+highlight:
+  title: GA the data stream lifecycle
+  body: |-
+    This makes the data stream lifecycle generaly available. This will allow
+    data streams to take advantage of a native simplified and resilient
+    lifecycle implementation.
+  notable: true

@@ -51,12 +51,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>(
         "template",
         false,
-        a -> new Template(
-            (Settings) a[0],
-            (CompressedXContent) a[1],
-            (Map<String, AliasMetadata>) a[2],
-            DataStreamLifecycle.isFeatureEnabled() ? (DataStreamLifecycle) a[3] : null
-        )
+        a -> new Template((Settings) a[0], (CompressedXContent) a[1], (Map<String, AliasMetadata>) a[2], (DataStreamLifecycle) a[3])
     );
 
     static {
@@ -81,14 +76,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             }
             return aliasMap;
         }, ALIASES);
-        // We adjust the parser to ensure that the error message will be consistent with that of an unknown field.
-        if (DataStreamLifecycle.isFeatureEnabled()) {
-            PARSER.declareObject(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> DataStreamLifecycle.fromXContent(p),
-                LIFECYCLE
-            );
-        }
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataStreamLifecycle.fromXContent(p), LIFECYCLE);
     }
 
     @Nullable
@@ -110,11 +98,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
-        if (DataStreamLifecycle.isFeatureEnabled()) {
-            this.lifecycle = lifecycle;
-        } else {
-            this.lifecycle = null;
-        }
+        this.lifecycle = lifecycle;
     }
 
     public Template(@Nullable Settings settings, @Nullable CompressedXContent mappings, @Nullable Map<String, AliasMetadata> aliases) {

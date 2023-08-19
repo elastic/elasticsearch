@@ -1,6 +1,5 @@
 [role="xpack"]
 [[data-stream-lifecycle]]
-ifeval::["{release-state}"=="unreleased"]
 == Data stream lifecycle
 
 preview::[]
@@ -63,4 +62,3 @@ because it is applied on the data stream level and not on the individual backing
 include::tutorial-manage-new-data-stream.asciidoc[]
 
 include::tutorial-manage-existing-data-stream.asciidoc[]
-endif::[]

@@ -29,6 +29,8 @@ import java.util.List;
 
 public final class ValueSources {
 
+    public static final String MATCH_ONLY_TEXT = "match_only_text";
+
     private ValueSources() {}
 
     public static List<ValueSourceInfo> sources(
@@ -52,7 +54,7 @@ public final class ValueSources {
                 // for the field type name to avoid adding a dependency to the module
                 if (fieldType instanceof KeywordFieldMapper.KeywordFieldType
                     || fieldType instanceof TextFieldMapper.TextFieldType
-                    || "match_only_text".equals(fieldType.typeName())) {
+                    || MATCH_ONLY_TEXT.equals(fieldType.typeName())) {
                     ValuesSource vs = textValueSource(ctx, fieldType);
                     sources.add(new ValueSourceInfo(CoreValuesSourceType.KEYWORD, vs, elementType, ctx.getIndexReader()));
                     continue;

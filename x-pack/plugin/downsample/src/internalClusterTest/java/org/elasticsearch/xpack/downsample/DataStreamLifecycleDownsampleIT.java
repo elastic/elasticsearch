@@ -22,6 +22,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -51,8 +52,10 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -101,6 +104,112 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
             )
             .build();
 
+        putTSDBIndexTemplate("metrics-foo*", lifecycle);
+        indexDocuments(dataStreamName);
+
+        String firstGenerationBackingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String oneSecondDownsampleIndex = "downsample-1s-" + firstGenerationBackingIndex;
+        String tenSecondsDownsampleIndex = "downsample-10s-" + firstGenerationBackingIndex;
+
+        Set<String> witnessedDownsamplingIndices = new HashSet<>();
+        clusterService().addListener(event -> {
+            if (event.indicesCreated().contains(oneSecondDownsampleIndex)
+                || event.indicesDeleted().stream().anyMatch(index -> index.getName().equals(oneSecondDownsampleIndex))) {
+                witnessedDownsamplingIndices.add(oneSecondDownsampleIndex);
+            }
+            if (event.indicesCreated().contains(tenSecondsDownsampleIndex)) {
+                witnessedDownsamplingIndices.add(tenSecondsDownsampleIndex);
+            }
+        });
+
+        client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)).actionGet();
+
+        assertBusy(() -> {
+            // first downsampling round
+            assertThat(witnessedDownsamplingIndices.contains(oneSecondDownsampleIndex), is(true));
+        }, 30, TimeUnit.SECONDS);
+
+        assertBusy(() -> {
+            assertThat(witnessedDownsamplingIndices.size(), is(2));
+            assertThat(witnessedDownsamplingIndices.contains(oneSecondDownsampleIndex), is(true));
+            assertThat(witnessedDownsamplingIndices.contains(tenSecondsDownsampleIndex), is(true));
+        }, 30, TimeUnit.SECONDS);
+
+        assertBusy(() -> {
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                .actionGet();
+            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
+            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+
+            assertThat(backingIndices.size(), is(2));
+            String writeIndex = backingIndices.get(1).getName();
+            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
+            // the last downsampling round must remain in the data stream
+            assertThat(backingIndices.get(0).getName(), is(tenSecondsDownsampleIndex));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    @TestLogging(value = "org.elasticsearch.datastreams.lifecycle:TRACE", reason = "debugging")
+    public void testDownsamplingOnlyExecutesTheLastMatchingRound() throws Exception {
+        String dataStreamName = "metrics-bar";
+
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+            .downsampling(
+                new Downsampling(
+                    List.of(
+                        new Downsampling.Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("1s"))),
+                        // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
+                        // least 2 seconds since rollover. only the 10 seconds round should be executed.
+                        new Downsampling.Round(TimeValue.timeValueMillis(10), new DownsampleConfig(new DateHistogramInterval("10s")))
+                    )
+                )
+            )
+            .build();
+
+        putTSDBIndexTemplate("metrics-bar*", lifecycle);
+        indexDocuments(dataStreamName);
+
+        String firstGenerationBackingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String oneSecondDownsampleIndex = "downsample-1s-" + firstGenerationBackingIndex;
+        String tenSecondsDownsampleIndex = "downsample-10s-" + firstGenerationBackingIndex;
+
+        Set<String> witnessedDownsamplingIndices = new HashSet<>();
+        clusterService().addListener(event -> {
+            if (event.indicesCreated().contains(oneSecondDownsampleIndex)
+                || event.indicesDeleted().stream().anyMatch(index -> index.getName().equals(oneSecondDownsampleIndex))) {
+                witnessedDownsamplingIndices.add(oneSecondDownsampleIndex);
+            }
+            if (event.indicesCreated().contains(tenSecondsDownsampleIndex)) {
+                witnessedDownsamplingIndices.add(tenSecondsDownsampleIndex);
+            }
+        });
+
+        client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)).actionGet();
+
+        assertBusy(() -> {
+            assertThat(witnessedDownsamplingIndices.size(), is(1));
+            // only the ten seconds downsample round should've been executed
+            assertThat(witnessedDownsamplingIndices.contains(tenSecondsDownsampleIndex), is(true));
+        }, 30, TimeUnit.SECONDS);
+
+        assertBusy(() -> {
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                .actionGet();
+            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
+            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+
+            assertThat(backingIndices.size(), is(2));
+            String writeIndex = backingIndices.get(1).getName();
+            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
+            assertThat(backingIndices.get(0).getName(), is(tenSecondsDownsampleIndex));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    private static void putTSDBIndexTemplate(String pattern, DataStreamLifecycle lifecycle) throws IOException {
         Settings.Builder settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1));
 
@@ -120,42 +229,11 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
         putComposableIndexTemplate(
             "id1",
             CompressedXContent.fromJSON(Strings.toString(mapping)),
-            List.of("metrics-foo*"),
+            List.of(pattern),
             settings.build(),
             null,
             lifecycle
         );
-
-        indexDocuments(dataStreamName);
-
-        client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)).actionGet();
-
-        assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
-            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
-            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
-
-            assertThat(backingIndices.size(), is(2));
-            // first downsampling
-            assertThat(backingIndices.get(0).getName(), is("downsample-1s-.ds-metrics-foo-2023.08.17-000001"));
-        }, 30, TimeUnit.SECONDS);
-
-        assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
-            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
-            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
-
-            assertThat(backingIndices.size(), is(2));
-            String writeIndex = backingIndices.get(1).getName();
-            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
-            assertThat(backingIndices.get(0).getName(), is("downsample-10s-.ds-metrics-foo-2023.08.17-000001"));
-        }, 30, TimeUnit.SECONDS);
     }
 
     private void indexDocuments(String dataStreamName) {

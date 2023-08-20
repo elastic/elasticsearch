@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.downsample.DownsampleAction;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -57,7 +58,6 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -414,7 +414,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 DataStreamLifecycle.Downsampling.Round lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
 
                 for (DataStreamLifecycle.Downsampling.Round round : downsamplingRounds) {
-                    String downsampleIndexName = getDownsampleIndexName(backingIndex, round.config().getFixedInterval());
+                    String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
+                        DOWNSAMPLED_INDEX_PREFIX,
+                        backingIndex,
+                        round.config().getFixedInterval()
+                    );
                     IndexMetadata downsampleIndexMeta = metadata.index(downsampleIndexName);
                     if (downsampleIndexMeta != null) {
                         IndexMetadata.DownsampleTaskStatus downsampleStatus = INDEX_DOWNSAMPLE_STATUS.get(
@@ -476,17 +480,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     private static List<Index> getTargetIndices(DataStream dataStream, Set<Index> indicesToExcludeForRemainingRun) {
         return dataStream.getIndices().stream().filter(index -> indicesToExcludeForRemainingRun.contains(index) == false).toList();
-    }
-
-    static String getDownsampleIndexName(IndexMetadata sourceIndexMetadata, DateHistogramInterval fixedInterval) {
-        String downsampleSourceName = sourceIndexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
-        String sourceIndexName;
-        if (downsampleSourceName != null) {
-            sourceIndexName = downsampleSourceName;
-        } else {
-            sourceIndexName = sourceIndexMetadata.getIndex().getName();
-        }
-        return DOWNSAMPLED_INDEX_PREFIX + fixedInterval + "-" + sourceIndexName;
     }
 
     /**

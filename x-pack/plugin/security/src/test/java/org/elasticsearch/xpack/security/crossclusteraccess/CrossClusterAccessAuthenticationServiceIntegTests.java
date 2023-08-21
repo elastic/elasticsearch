@@ -170,7 +170,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             }
 
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            service.runAuthenticationForCredentialsHeader(
+            service.doTryAuthenticateCredentialsHeader(
                 threadContext,
                 Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, threadContext.getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY)),
                 future

@@ -146,16 +146,13 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
                 }
 
                 final ThreadContext threadContext = threadPool.getThreadContext();
-                final var contextPreservingActionListener = new ContextPreservingActionListener<Void>(
-                    threadContext.wrapRestorable(threadContext.newStoredContext()),
-                    ActionListener.wrap(ignored -> {}, this::shortCircuit)
-                );
-
                 try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
-                    crossClusterAccessAuthenticationService.runAuthenticationForCredentialsHeader(
-                        threadContext,
+                    crossClusterAccessAuthenticationService.tryAuthenticateCredentialsHeader(
                         header.getHeaders().v1(),
-                        contextPreservingActionListener
+                        new ContextPreservingActionListener<>(
+                            threadContext.wrapRestorable(threadContext.newStoredContext()),
+                            ActionListener.wrap(ignored -> {}, this::shortCircuit)
+                        )
                     );
                 }
             }

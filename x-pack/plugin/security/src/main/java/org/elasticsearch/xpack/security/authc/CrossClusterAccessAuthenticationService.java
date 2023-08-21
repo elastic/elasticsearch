@@ -111,7 +111,12 @@ public class CrossClusterAccessAuthenticationService {
         }
     }
 
-    public void runAuthenticationForCredentialsHeader(
+    public void tryAuthenticateCredentialsHeader(Map<String, String> headers, ActionListener<Void> listener) {
+        doTryAuthenticateCredentialsHeader(clusterService.threadPool().getThreadContext(), headers, listener);
+    }
+
+    // visibility for testing
+    public void doTryAuthenticateCredentialsHeader(
         ThreadContext threadContext,
         Map<String, String> headers,
         ActionListener<Void> listener
@@ -120,13 +125,13 @@ public class CrossClusterAccessAuthenticationService {
         try {
             apiKeyCredentials = getApiKeyCredentialsFromHeaders(headers);
         } catch (Exception ex) {
-            listener.onFailure(Exceptions.authenticationError("failed to parse credentials header", ex));
+            listener.onFailure(Exceptions.authenticationError("failed to parse cross cluster credentials header", ex));
             return;
         }
 
         apiKeyService.tryAuthenticate(threadContext, apiKeyCredentials, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {
-                logger.debug("Cross cluster credentials authentication successful for [{}]", apiKeyCredentials.principal());
+                logger.trace("Cross cluster credentials authentication successful for [{}]", apiKeyCredentials.principal());
                 listener.onResponse(null);
                 return;
             }
@@ -153,6 +158,7 @@ public class CrossClusterAccessAuthenticationService {
     }
 
     private ApiKeyService.ApiKeyCredentials getApiKeyCredentialsFromHeaders(Map<String, String> headers) {
+        apiKeyService.ensureEnabled();
         final String credentials = headers.get(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
         if (credentials == null) {
             throw requiredHeaderMissingException(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);

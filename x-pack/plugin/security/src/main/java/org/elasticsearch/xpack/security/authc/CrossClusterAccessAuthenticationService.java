@@ -115,6 +115,7 @@ public class CrossClusterAccessAuthenticationService {
         doTryAuthenticateCredentialsHeader(clusterService.threadPool().getThreadContext(), headers, listener);
     }
 
+    // visibility for testing
     public void doTryAuthenticateCredentialsHeader(
         ThreadContext threadContext,
         Map<String, String> headers,

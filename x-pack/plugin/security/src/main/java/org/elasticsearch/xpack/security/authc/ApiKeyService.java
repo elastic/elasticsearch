@@ -215,6 +215,10 @@ public class ApiKeyService {
 
     private volatile long lastExpirationRunMs;
 
+    // The API key secret is a Base64 encoded v4 UUID without padding. The UUID is 128 bits, i.e. 16 byte,
+    // which requires 22 digits of Base64 characters for encoding without padding.
+    // See also UUIDs.randomBase64UUIDSecureString
+    private static final int API_KEY_SECRET_LENGTH = 22;
     private static final long EVICTION_MONITOR_INTERVAL_SECONDS = 300L; // 5 minutes
     private static final long EVICTION_MONITOR_INTERVAL_NANOS = EVICTION_MONITOR_INTERVAL_SECONDS * 1_000_000_000L;
     private static final long EVICTION_WARNING_THRESHOLD = 15L * EVICTION_MONITOR_INTERVAL_SECONDS; // 15 eviction per sec = 4500 in 5 min
@@ -408,6 +412,7 @@ public class ApiKeyService {
         final Instant created = clock.instant();
         final Instant expiration = getApiKeyExpiration(created, request);
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
+        assert ApiKey.Type.CROSS_CLUSTER != request.getType() || API_KEY_SECRET_LENGTH == apiKey.length();
         final Version version = clusterService.state().nodes().getMinNodeVersion();
 
         computeHashForApiKey(apiKey, listener.delegateFailure((l, apiKeyHashChars) -> {
@@ -1245,9 +1250,13 @@ public class ApiKeyService {
                 if (colonIndex < 1) {
                     throw new IllegalArgumentException("invalid ApiKey value");
                 }
+                final int secretStartPos = colonIndex + 1;
+                if (ApiKey.Type.CROSS_CLUSTER == expectedType && API_KEY_SECRET_LENGTH != apiKeyCredChars.length - secretStartPos) {
+                    throw new IllegalArgumentException("invalid cross-cluster API key value");
+                }
                 return new ApiKeyCredentials(
                     new String(Arrays.copyOfRange(apiKeyCredChars, 0, colonIndex)),
-                    new SecureString(Arrays.copyOfRange(apiKeyCredChars, colonIndex + 1, apiKeyCredChars.length)),
+                    new SecureString(Arrays.copyOfRange(apiKeyCredChars, secretStartPos, apiKeyCredChars.length)),
                     expectedType
                 );
             } finally {

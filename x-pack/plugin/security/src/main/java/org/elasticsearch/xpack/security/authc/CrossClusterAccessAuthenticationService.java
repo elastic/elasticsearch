@@ -135,6 +135,7 @@ public class CrossClusterAccessAuthenticationService {
                 listener.onResponse(null);
                 return;
             }
+
             if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                 Exception e = (authResult.getException() != null)
                     ? authResult.getException()

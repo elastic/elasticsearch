@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
-import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCases;
+import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBuilder;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -32,7 +32,7 @@ public class GreatestTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = VaragsTestCases.anyNullIsNull(
+        List<TestCaseSupplier> suppliers = VaragsTestCaseBuilder.anyNullIsNull(
             t -> "Greatest" + t,
             s -> s.sorted(Comparator.<String>naturalOrder().reversed()).findFirst().get(),
             LongStream::max,
@@ -58,6 +58,6 @@ public class GreatestTests extends AbstractFunctionTestCase {
 
     @Override
     protected Greatest build(Source source, List<Expression> args) {
-        return new Greatest(Source.EMPTY, args.stream().toList());
+        return new Greatest(Source.EMPTY, args.get(0), args.subList(1, args.size()));
     }
 }

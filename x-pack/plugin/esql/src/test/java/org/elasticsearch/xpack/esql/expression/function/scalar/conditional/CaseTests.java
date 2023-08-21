@@ -81,7 +81,7 @@ public class CaseTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Case(Source.EMPTY, args.stream().toList());
+        return new Case(Source.EMPTY, args.get(0), args.subList(1, args.size()));
     }
 
     public void testEvalCase() {
@@ -158,12 +158,13 @@ public class CaseTests extends AbstractFunctionTestCase {
     }
 
     private static Case caseExpr(Object... args) {
-        return new Case(Source.synthetic("<case>"), Stream.of(args).<Expression>map(arg -> {
-            if (arg instanceof Expression e) {
-                return e;
-            }
-            return new Literal(Source.synthetic(arg == null ? "null" : arg.toString()), arg, EsqlDataTypes.fromJava(arg));
-        }).toList());
+        throw new UnsupportedOperationException("ASDFDSAF");
+//        return new Case(Source.synthetic("<case>"), Stream.of(args).<Expression>map(arg -> {
+//            if (arg instanceof Expression e) {
+//                return e;
+//            }
+//            return new Literal(Source.synthetic(arg == null ? "null" : arg.toString()), arg, EsqlDataTypes.fromJava(arg));
+//        }).toList());
     }
 
     private static TypeResolution resolveCase(Object... args) {

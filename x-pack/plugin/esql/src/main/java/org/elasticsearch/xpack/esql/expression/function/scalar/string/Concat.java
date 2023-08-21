@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -33,7 +34,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 /**
  * Join strings.
  */
-public class Concat extends ScalarFunction implements Mappable {
+public class Concat extends ScalarFunction implements Mappable, OptionalArgument {
     public Concat(Source source, Expression first, List<? extends Expression> rest) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }

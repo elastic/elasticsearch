@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -24,17 +25,18 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 
 /**
  * Returns the minimum value of multiple columns.
  */
-public class Least extends ScalarFunction implements Mappable {
+public class Least extends ScalarFunction implements Mappable, OptionalArgument {
     private DataType dataType;
 
-    public Least(Source source, List<Expression> expressions) {
-        super(source, expressions);
+    public Least(Source source, Expression first, List<Expression> rest) {
+        super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }
 
     @Override
@@ -77,12 +79,12 @@ public class Least extends ScalarFunction implements Mappable {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Least(source(), newChildren);
+        return new Least(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Least::new, children());
+        return NodeInfo.create(this, Least::new, children().get(0), children().subList(1, children().size()));
     }
 
     @Override

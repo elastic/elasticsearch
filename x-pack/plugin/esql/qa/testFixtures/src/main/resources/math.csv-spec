@@ -991,7 +991,7 @@ Infinity | true
 
 least
 // tag::least[]
-ROW a = 10, b=20
+ROW a = 10, b = 20
 | EVAL l = LEAST(a, b);
 // end::least[]
 
@@ -1018,7 +1018,7 @@ l:integer
 
 greatest
 // tag::greatest[]
-ROW a = 10, b=20
+ROW a = 10, b = 20
 | EVAL g = GREATEST(a, b);
 // end::greatest[]
 

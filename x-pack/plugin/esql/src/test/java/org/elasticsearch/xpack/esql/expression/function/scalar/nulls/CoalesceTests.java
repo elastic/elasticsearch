@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
-import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCases;
+import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBuilder;
 import org.elasticsearch.xpack.esql.planner.EvalMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -45,7 +45,7 @@ public class CoalesceTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(
-            new VaragsTestCases(
+            new VaragsTestCaseBuilder(
                 type -> "Coalesce",
                 strings -> Arrays.stream(strings)
                     .filter(s -> s != null)
@@ -76,7 +76,7 @@ public class CoalesceTests extends AbstractFunctionTestCase {
 
     @Override
     protected Coalesce build(Source source, List<Expression> args) {
-        return new Coalesce(Source.EMPTY, args.stream().toList());
+        return new Coalesce(Source.EMPTY, args.get(0), args.subList(1, args.size()));
     }
 
     public void testCoalesceIsLazy() {

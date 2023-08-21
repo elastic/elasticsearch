@@ -329,7 +329,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, Case.class, PlanNamedTypes::writeVararg, PlanNamedTypes::readVarag),
             of(ScalarFunction.class, CIDRMatch.class, PlanNamedTypes::writeCIDRMatch, PlanNamedTypes::readCIDRMatch),
             of(ScalarFunction.class, Coalesce.class, PlanNamedTypes::writeVararg, PlanNamedTypes::readVarag),
-            of(ScalarFunction.class, Concat.class, PlanNamedTypes::writeConcat, PlanNamedTypes::readConcat),
+            of(ScalarFunction.class, Concat.class, PlanNamedTypes::writeVararg, PlanNamedTypes::readVarag),
             of(ScalarFunction.class, DateExtract.class, PlanNamedTypes::writeDateExtract, PlanNamedTypes::readDateExtract),
             of(ScalarFunction.class, DateFormat.class, PlanNamedTypes::writeDateFormat, PlanNamedTypes::readDateFormat),
             of(ScalarFunction.class, DateParse.class, PlanNamedTypes::writeDateTimeParse, PlanNamedTypes::readDateTimeParse),
@@ -1130,29 +1130,24 @@ public final class PlanNamedTypes {
         out.writeExpression(bucket.to());
     }
 
-    static final Map<String, BiFunction<Source, List<Expression>, ScalarFunction>> VARARG_CTORS = Map.ofEntries(
+    static final Map<String, TriFunction<Source, Expression, List<Expression>, ScalarFunction>> VARARG_CTORS = Map.ofEntries(
         entry(name(Case.class), Case::new),
         entry(name(Coalesce.class), Coalesce::new),
+        entry(name(Concat.class), Concat::new),
         entry(name(Greatest.class), Greatest::new),
         entry(name(Least.class), Least::new)
     );
 
     static ScalarFunction readVarag(PlanStreamInput in, String name) throws IOException {
-        return VARARG_CTORS.get(name).apply(Source.EMPTY, in.readList(readerFromPlanReader(PlanStreamInput::readExpression)));
+        return VARARG_CTORS.get(name).apply(Source.EMPTY, in.readExpression(), in.readList(readerFromPlanReader(PlanStreamInput::readExpression)));
     }
 
     static void writeVararg(PlanStreamOutput out, ScalarFunction vararg) throws IOException {
-        out.writeCollection(vararg.children(), writerFromPlanWriter(PlanStreamOutput::writeExpression));
-    }
-
-    static Concat readConcat(PlanStreamInput in) throws IOException {
-        return new Concat(Source.EMPTY, in.readExpression(), in.readList(readerFromPlanReader(PlanStreamInput::readExpression)));
-    }
-
-    static void writeConcat(PlanStreamOutput out, Concat concat) throws IOException {
-        List<Expression> fields = concat.children();
-        out.writeExpression(fields.get(0));
-        out.writeCollection(fields.subList(1, fields.size()), writerFromPlanWriter(PlanStreamOutput::writeExpression));
+        out.writeExpression(vararg.children().get(0));
+        out.writeCollection(
+            vararg.children().subList(1, vararg.children().size()),
+            writerFromPlanWriter(PlanStreamOutput::writeExpression)
+        );
     }
 
     static CountDistinct readCountDistinct(PlanStreamInput in) throws IOException {

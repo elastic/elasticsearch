@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
-import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCases;
+import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBuilder;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -31,7 +31,7 @@ public class LeastTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = VaragsTestCases.anyNullIsNull(
+        List<TestCaseSupplier> suppliers = VaragsTestCaseBuilder.anyNullIsNull(
             t -> "Least" + t,
             s -> s.sorted().findFirst().get(),
             LongStream::min,
@@ -57,6 +57,6 @@ public class LeastTests extends AbstractFunctionTestCase {
 
     @Override
     protected Least build(Source source, List<Expression> args) {
-        return new Least(Source.EMPTY, args.stream().toList());
+        return new Least(Source.EMPTY, args.get(0), args.subList(1, args.size()));
     }
 }

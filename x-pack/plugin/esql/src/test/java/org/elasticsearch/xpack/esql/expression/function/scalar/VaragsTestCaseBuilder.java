@@ -31,14 +31,14 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Builds test cases for variable argument functions.
  */
-public class VaragsTestCases {
+public class VaragsTestCaseBuilder {
     public static List<AbstractFunctionTestCase.TestCaseSupplier> anyNullIsNull(
         Function<String, String> expectedEvaluatorPrefix,
         Function<Stream<String>, String> expectedStr,
         Function<LongStream, OptionalLong> expectedLong,
         Function<IntStream, OptionalInt> expectedInt
     ) {
-        return new VaragsTestCases(expectedEvaluatorPrefix, strings -> {
+        return new VaragsTestCaseBuilder(expectedEvaluatorPrefix, strings -> {
             if (Arrays.stream(strings).anyMatch(s -> s == null)) {
                 return nullValue();
             }
@@ -65,7 +65,7 @@ public class VaragsTestCases {
     private final Function<Long[], Matcher<Object>> expectedLong;
     private final Function<Integer[], Matcher<Object>> expectedInt;
 
-    public VaragsTestCases(
+    public VaragsTestCaseBuilder(
         Function<String, String> expectedEvaluatorPrefix,
         Function<String[], Matcher<Object>> expectedStr,
         Function<Long[], Matcher<Object>> expectedLong,

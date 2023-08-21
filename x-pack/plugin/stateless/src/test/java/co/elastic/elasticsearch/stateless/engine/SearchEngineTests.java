@@ -19,12 +19,15 @@ package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
+import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.store.Store;
@@ -33,7 +36,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -269,5 +274,94 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 );
             }
         }
+    }
+
+    /**
+     * Test that pruning file metadata in SearchDirectory works. We do this through 3 means:
+     * 1. Check that segments_N files are deleted as appropriate.
+     * 2. Check that checkIndex does not fail (i.e., check we still have consistent set of files).
+     * 3. Check that checkIndex does fail when removing one random (non-segments_N) file
+     *    (i.e., check that we removed all the necessary files).
+     */
+    public void testPruneFileMetadata() throws IOException {
+        final AtomicLong primaryTerm = new AtomicLong(randomLongBetween(1L, 1_000L));
+        final var indexConfig = indexConfig(Settings.EMPTY, Settings.EMPTY, primaryTerm::get);
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue, randomBoolean())
+        ) {
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            var generation = 2L;
+
+            assertThat(segmentNFiles(searchEngine), equalTo(Set.of(segmentsNFileName(generation))));
+
+            CheckIndex checkIndex = new CheckIndex(searchEngine.getEngineConfig().getStore().directory());
+            assertThat(checkIndex.checkIndex().clean, is(true));
+
+            int commits = between(1, 20);
+            Map<String, Engine.Searcher> searchers = new HashMap<>();
+            for (int i = 0; i < commits; ++i) {
+                indexEngine.index(randomDoc(String.valueOf(i)));
+                indexEngine.flush();
+                notifyCommits(indexEngine, searchEngine);
+                searchTaskQueue.runAllRunnableTasks();
+                generation++;
+
+                assertThat(segmentNFiles(searchEngine), equalTo(Sets.union(Set.of(segmentsNFileName(generation)), searchers.keySet())));
+                assertThat(checkIndex.checkIndex().clean, is(true));
+
+                if (randomBoolean()) {
+                    searchers.put(segmentsNFileName(generation), searchEngine.acquireSearcher("searcher#" + i));
+                }
+                if (randomBoolean() && searchers.isEmpty() == false) {
+                    var file = randomFrom(searchers.keySet());
+                    searchers.remove(file).close();
+                }
+            }
+            assertThat(indexEngine.getCurrentGeneration(), equalTo(generation));
+
+            IOUtils.close(searchers.values());
+
+            // commit once more to trigger file pruning.
+            indexEngine.index(randomDoc("final"));
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+            generation++;
+
+            assertThat(segmentNFiles(searchEngine), equalTo(Set.of(segmentsNFileName(generation))));
+            assertThat(checkIndex.checkIndex().clean, is(true));
+
+            List<String> files = listFiles(searchEngine);
+            String fileToRemove = randomValueOtherThan(segmentsNFileName(generation), () -> randomFrom(files));
+            SearchDirectory directory = SearchDirectory.unwrapDirectory(searchEngine.getEngineConfig().getStore().directory());
+            directory.retainFiles(
+                files.stream()
+                    .filter(f -> f.equals(fileToRemove) == false && f.startsWith(IndexFileNames.SEGMENTS))
+                    .collect(Collectors.toSet())
+            );
+
+            assertThat(checkIndex.checkIndex().clean, is(false));
+        }
+    }
+
+    private static List<String> listFiles(Engine engine) {
+        try {
+            return List.of(engine.getEngineConfig().getStore().directory().listAll());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static Set<String> segmentNFiles(SearchEngine searchEngine) throws IOException {
+        return listFiles(searchEngine).stream().filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).collect(Collectors.toSet());
+    }
+
+    private static String segmentsNFileName(long generation) {
+        return IndexFileNames.fileNameFromGeneration(IndexFileNames.SEGMENTS, "", generation);
     }
 }

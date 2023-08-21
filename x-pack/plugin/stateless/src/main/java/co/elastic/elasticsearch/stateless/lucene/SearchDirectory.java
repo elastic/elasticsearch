@@ -31,6 +31,7 @@ import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
@@ -107,7 +108,6 @@ public class SearchDirectory extends ByteSizeDirectory {
         assert blobContainer.get() != null : shardId + " must have the blob container set before any commit update";
         assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
         try {
-            // TODO: we only accumulate files as we see new commits, we need to start cleaning this map once we add deletes
             final Map<String, BlobLocation> updated = new HashMap<>(currentMetadata);
             long commitSize = 0L;
             for (var entry : newCommit.commitFiles().entrySet()) {
@@ -129,6 +129,25 @@ public class SearchDirectory extends ByteSizeDirectory {
             });
         } finally {
             assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
+        }
+    }
+
+    /**
+     * Removes superfluous files
+     * @param filesToRetain the files to retain
+     */
+    public void retainFiles(Set<String> filesToRetain) {
+        if (filesToRetain.containsAll(currentMetadata.keySet()) == false) {
+            assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
+            try {
+                final Map<String, BlobLocation> updated = new HashMap<>(currentMetadata);
+                updated.keySet().retainAll(filesToRetain);
+                assert updated.keySet().containsAll(filesToRetain)
+                    : "missing files [" + Sets.difference(filesToRetain, updated.keySet()) + "]";
+                currentMetadata = Map.copyOf(updated);
+            } finally {
+                assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
+            }
         }
     }
 

@@ -70,13 +70,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         ) {
             final var cacheKey = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
-            final var region0 = cacheService.get(cacheKey, size(250), 0, true).chunk;
+            final var region0 = cacheService.get(cacheKey, size(250), 0).chunk;
             assertEquals(size(100), region0.tracker.getLength());
             assertEquals(4, cacheService.freeRegionCount());
-            final var region1 = cacheService.get(cacheKey, size(250), 1, true).chunk;
+            final var region1 = cacheService.get(cacheKey, size(250), 1).chunk;
             assertEquals(size(100), region1.tracker.getLength());
             assertEquals(3, cacheService.freeRegionCount());
-            final var region2 = cacheService.get(cacheKey, size(250), 2, true).chunk;
+            final var region2 = cacheService.get(cacheKey, size(250), 2).chunk;
             assertEquals(size(50), region2.tracker.getLength());
             assertEquals(2, cacheService.freeRegionCount());
 
@@ -95,7 +95,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 (channel, channelPos, relativePos, length) -> 1,
                 (channel, channelPos, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
                 taskQueue.getThreadPool().generic(),
-                bytesReadFuture
+                bytesReadFuture,
+                e -> {}
             );
             synchronized (cacheService) {
                 assertFalse(region0.tryEvict());
@@ -130,17 +131,17 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         ) {
             final var cacheKey = generateCacheKey();
             assertEquals(2, cacheService.freeRegionCount());
-            final var region0 = cacheService.get(cacheKey, size(250), 0, true).chunk;
+            final var region0 = cacheService.get(cacheKey, size(250), 0).chunk;
             assertEquals(size(100), region0.tracker.getLength());
             assertEquals(1, cacheService.freeRegionCount());
-            final var region1 = cacheService.get(cacheKey, size(250), 1, true).chunk;
+            final var region1 = cacheService.get(cacheKey, size(250), 1).chunk;
             assertEquals(size(100), region1.tracker.getLength());
             assertEquals(0, cacheService.freeRegionCount());
             assertFalse(region0.isEvicted());
             assertFalse(region1.isEvicted());
 
             // acquire region 2, which should evict region 0 (oldest)
-            final var region2 = cacheService.get(cacheKey, size(250), 2, true).chunk;
+            final var region2 = cacheService.get(cacheKey, size(250), 2).chunk;
             assertEquals(size(50), region2.tracker.getLength());
             assertEquals(0, cacheService.freeRegionCount());
             assertTrue(region0.isEvicted());
@@ -169,9 +170,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var cacheKey1 = generateCacheKey();
             final var cacheKey2 = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
-            final var region0 = cacheService.get(cacheKey1, size(250), 0, true).chunk;
+            final var region0 = cacheService.get(cacheKey1, size(250), 0).chunk;
             assertEquals(4, cacheService.freeRegionCount());
-            final var region1 = cacheService.get(cacheKey2, size(250), 1, true).chunk;
+            final var region1 = cacheService.get(cacheKey2, size(250), 1).chunk;
             assertEquals(3, cacheService.freeRegionCount());
             assertFalse(region0.isEvicted());
             assertFalse(region1.isEvicted());
@@ -197,9 +198,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var cacheKey1 = generateCacheKey();
             final var cacheKey2 = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
-            final var region0 = cacheService.get(cacheKey1, size(250), 0, true).chunk;
+            final var region0 = cacheService.get(cacheKey1, size(250), 0).chunk;
             assertEquals(4, cacheService.freeRegionCount());
-            final var region1 = cacheService.get(cacheKey2, size(250), 1, true).chunk;
+            final var region1 = cacheService.get(cacheKey2, size(250), 1).chunk;
             assertEquals(3, cacheService.freeRegionCount());
             assertFalse(region0.isEvicted());
             assertFalse(region1.isEvicted());
@@ -224,9 +225,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var cacheKey1 = generateCacheKey();
             final var cacheKey2 = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
-            final var region0 = cacheService.get(cacheKey1, size(250), 0, true).chunk;
+            final var region0 = cacheService.get(cacheKey1, size(250), 0).chunk;
             assertEquals(4, cacheService.freeRegionCount());
-            final var region1 = cacheService.get(cacheKey2, size(250), 1, true).chunk;
+            final var region1 = cacheService.get(cacheKey2, size(250), 1).chunk;
             assertEquals(3, cacheService.freeRegionCount());
 
             assertEquals(0, cacheService.getFreq(region0));
@@ -235,16 +236,16 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             taskQueue.advanceTime();
             taskQueue.runAllRunnableTasks();
 
-            final var region0Again = cacheService.get(cacheKey1, size(250), 0, true).chunk;
+            final var region0Again = cacheService.get(cacheKey1, size(250), 0).chunk;
             assertSame(region0Again, region0);
             assertEquals(1, cacheService.getFreq(region0));
             assertEquals(0, cacheService.getFreq(region1));
 
             taskQueue.advanceTime();
             taskQueue.runAllRunnableTasks();
-            cacheService.get(cacheKey1, size(250), 0, true);
+            cacheService.get(cacheKey1, size(250), 0);
             assertEquals(2, cacheService.getFreq(region0));
-            cacheService.get(cacheKey1, size(250), 0, true);
+            cacheService.get(cacheKey1, size(250), 0);
             assertEquals(2, cacheService.getFreq(region0));
 
             // advance 2 ticks (decay only starts after 2 ticks)
@@ -301,8 +302,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                                 SharedBlobCacheService<String>.CacheFileRegion cacheFileRegion = cacheService.get(
                                     cacheKeys[i],
                                     fileLength,
-                                    regions[i],
-                                    true
+                                    regions[i]
                                 ).chunk;
                                 if (cacheFileRegion.tryIncRef()) {
                                     if (yield[i] == 0) {
@@ -387,10 +387,22 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 // A cancelled download should not take up space in the cache
                 final var cacheKey = generateCacheKey();
                 assertEquals(2, cacheService.freeRegionCount());
-                cacheService.maybeFetchFullEntry(cacheKey, size(200), (ch, chPos, relPos, len, updater) -> {
-                    throw new RuntimeException("cancelled");
-                });
+                cacheService.maybeFetchFullEntry(
+                    cacheKey,
+                    size(200),
+                    (ch, chPos, relPos, len, updater) -> { throw new RuntimeException("cancelled"); }
+                );
                 assertBusy(() -> assertEquals(2, cacheService.freeRegionCount()));
+            }
+            {
+                // a download that would use up all regions should not run
+                final var cacheKey = generateCacheKey();
+                assertEquals(2, cacheService.freeRegionCount());
+                var configured = cacheService.maybeFetchFullEntry(cacheKey, size(500), (ch, chPos, relPos, len, update) -> {
+                    throw new AssertionError("Should never reach here");
+                });
+                assertFalse(configured);
+                assertEquals(2, cacheService.freeRegionCount());
             }
         }
 

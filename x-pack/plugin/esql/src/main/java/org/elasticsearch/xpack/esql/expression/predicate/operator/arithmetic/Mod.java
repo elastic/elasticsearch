@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.SUB;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MOD;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 
 public class Mod extends EsqlArithmeticOperation {
@@ -22,7 +22,7 @@ public class Mod extends EsqlArithmeticOperation {
             source,
             left,
             right,
-            SUB,
+            MOD,
             ModIntsEvaluator::new,
             ModLongsEvaluator::new,
             ModUnsignedLongsEvaluator::new,

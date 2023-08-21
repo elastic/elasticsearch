@@ -240,9 +240,9 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         return targetFulfillingClusterClient.performRequest(request);
     }
 
-    // TODO centralize common usage of this across all tests
     protected static String randomEncodedApiKey() {
-        return Base64.getEncoder().encodeToString((UUIDs.base64UUID() + ":" + UUIDs.base64UUID()).getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder()
+            .encodeToString((UUIDs.base64UUID() + ":" + UUIDs.randomBase64UUIDSecureString()).getBytes(StandardCharsets.UTF_8));
     }
 
     protected record TestClusterConfigProviders(LocalClusterConfigProvider server, LocalClusterConfigProvider client) {}

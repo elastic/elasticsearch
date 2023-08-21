@@ -970,6 +970,5 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertThat(((FieldMapper) update.getRoot().getMapper("mapsToFloatTooBig")).fieldType().typeName(), equalTo("float"));
         assertThat(((FieldMapper) update.getRoot().getMapper("mapsToDenseVector")).fieldType().typeName(), equalTo("dense_vector"));
         DenseVectorFieldMapper dvFieldMapper = ((DenseVectorFieldMapper) update.getRoot().getMapper("mapsToDenseVector"));
-        assertThat(dvFieldMapper.fieldType().getVectorDimensions(), equalTo(Short.toUnsignedInt(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING)));
     }
 }

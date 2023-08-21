@@ -79,7 +79,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; // maximum allowed number of dimensions
 
-    public static short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 3; // minimum number of dims for floats to be dynamically mapped to vector
+    public static short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to vector
     public static final int MAGNITUDE_BYTES = 4;
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
@@ -96,7 +96,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return elementType;
         }, m -> toType(m).elementType, XContentBuilder::field, Objects::toString);
 
-        // This is defined as updateable because it can be updated once, from [null] to any value,
+        // This is defined as updatable because it can be updated once, from [null] to a valid dim size,
         // by a dynamic mapping update. Once it has been set, however, the value cannot be changed.
         private final Parameter<Integer> dims = new Parameter<>("dims", true, () -> null, (n, c, o) -> {
             if (o instanceof Integer == false) {
@@ -163,12 +163,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, true);
 
-            if (dims < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING || dims > MAX_DIMS_COUNT) {
-                throw new IllegalArgumentException(
-                    "dims must be in the range [" + MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING + ", " + MAX_DIMS_COUNT + "]"
-                );
-            }
-
             validateParams();
         }
 
@@ -194,19 +188,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             "Field [index_options] can only be specified for a field of type [dense_vector] when it is indexed"
                         );
                     }
-                }
-            });
-            dims.addValidator(dims -> {
-                if (dims != null && (dims > MAX_DIMS_COUNT) || (dims < 1)) {
-                    throw new MapperParsingException(
-                        "The number of dimensions for field ["
-                            + name
-                            + "] should be in the range [1, "
-                            + MAX_DIMS_COUNT
-                            + "] but was ["
-                            + dims
-                            + "]"
-                    );
                 }
             });
         }
@@ -1015,7 +996,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return similarity;
         }
 
-        public int getVectorDimensions() {
+        int getVectorDimensions() {
             return dims;
         }
 

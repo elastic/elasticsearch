@@ -115,11 +115,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean supportsParsingObject() {
-        return true;
-    }
-
-    @Override
     public void parse(DocumentParserContext context) {
         throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
     }

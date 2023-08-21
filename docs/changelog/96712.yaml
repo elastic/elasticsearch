@@ -1,5 +1,0 @@
-pr: 96712
-summary: "Adjust ECS dynamic templates to support `subobjects: false`"
-area: Data streams
-type: enhancement
-issues: []

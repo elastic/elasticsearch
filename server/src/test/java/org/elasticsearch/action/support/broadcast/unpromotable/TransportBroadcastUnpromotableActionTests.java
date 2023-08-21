@@ -115,7 +115,9 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         THREAD_POOL = null;
     }
 
-    private class TestTransportBroadcastUnpromotableAction extends TransportBroadcastUnpromotableAction<TestBroadcastUnpromotableRequest> {
+    private class TestTransportBroadcastUnpromotableAction extends TransportBroadcastUnpromotableAction<
+        TestBroadcastUnpromotableRequest,
+        ActionResponse.Empty> {
 
         TestTransportBroadcastUnpromotableAction(ShardStateAction shardStateAction) {
             super(
@@ -138,6 +140,20 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
             assert false : "not reachable in these tests";
         }
 
+        @Override
+        protected ActionResponse.Empty combineUnpromotableShardResponses(List<ActionResponse.Empty> empties) {
+            return ActionResponse.Empty.INSTANCE;
+        }
+
+        @Override
+        protected ActionResponse.Empty readResponse(StreamInput in) {
+            return ActionResponse.Empty.INSTANCE;
+        }
+
+        @Override
+        protected ActionResponse.Empty emptyResponse() {
+            return ActionResponse.Empty.INSTANCE;
+        }
     }
 
     private static class TestBroadcastUnpromotableRequest extends BroadcastUnpromotableRequest {

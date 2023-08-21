@@ -129,6 +129,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
+    public static final String SERVERLESS_BUILD_FLAVOR = "serverless";
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
@@ -185,6 +186,8 @@ public abstract class ESRestTestCase extends ESTestCase {
      * A client for the running Elasticsearch cluster configured to take test administrative actions like remove all indexes after the test
      * completes
      */
+    private static Boolean isServerless;
+
     private static RestClient adminClient;
     private static Boolean hasXPack;
     private static Boolean hasIlm;
@@ -196,6 +199,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     @Before
     public void initClient() throws IOException {
         if (client == null) {
+            assert isServerless == null;
             assert adminClient == null;
             assert clusterHosts == null;
             assert hasXPack == null;
@@ -221,34 +225,42 @@ public abstract class ESRestTestCase extends ESTestCase {
             client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
             adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
 
+            isServerless = false;
             hasXPack = false;
             hasIlm = false;
             hasRollups = false;
             hasCcr = false;
             hasShutdown = false;
             nodeVersions = new TreeSet<>();
-            Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
-            Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
-            for (Map.Entry<?, ?> node : nodes.entrySet()) {
-                Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
-                nodeVersions.add(Version.fromString(nodeInfo.get("version").toString()));
-                for (Object module : (List<?>) nodeInfo.get("modules")) {
-                    Map<?, ?> moduleInfo = (Map<?, ?>) module;
-                    final String moduleName = moduleInfo.get("name").toString();
-                    if (moduleName.startsWith("x-pack")) {
-                        hasXPack = true;
-                    }
-                    if (moduleName.equals("x-pack-ilm")) {
-                        hasIlm = true;
-                    }
-                    if (moduleName.equals("x-pack-rollup")) {
-                        hasRollups = true;
-                    }
-                    if (moduleName.equals("x-pack-ccr")) {
-                        hasCcr = true;
-                    }
-                    if (moduleName.equals("x-pack-shutdown")) {
-                        hasShutdown = true;
+            Map<?, ?> rootInfoResponse = entityAsMap(adminClient.performRequest(new Request("GET", "/")));
+            Map<?, ?> versionInfo = (Map<?, ?>) rootInfoResponse.get("version");
+            String buildFlavor = (String) versionInfo.get("build_flavor");
+            if(SERVERLESS_BUILD_FLAVOR.equals(buildFlavor)) {
+                isServerless = true;
+            } else {
+                Map<?, ?> nodePluginsResponse = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
+                Map<?, ?> nodes = (Map<?, ?>) nodePluginsResponse.get("nodes");
+                for (Map.Entry<?, ?> node : nodes.entrySet()) {
+                    Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
+                    nodeVersions.add(Version.fromString(nodeInfo.get("version").toString()));
+                    for (Object module : (List<?>) nodeInfo.get("modules")) {
+                        Map<?, ?> moduleInfo = (Map<?, ?>) module;
+                        final String moduleName = moduleInfo.get("name").toString();
+                        if (moduleName.startsWith("x-pack")) {
+                            hasXPack = true;
+                        }
+                        if (moduleName.equals("x-pack-ilm")) {
+                            hasIlm = true;
+                        }
+                        if (moduleName.equals("x-pack-rollup")) {
+                            hasRollups = true;
+                        }
+                        if (moduleName.equals("x-pack-ccr")) {
+                            hasCcr = true;
+                        }
+                        if (moduleName.equals("x-pack-shutdown")) {
+                            hasShutdown = true;
+                        }
                     }
                 }
             }
@@ -411,6 +423,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         try {
             IOUtils.close(client, adminClient);
         } finally {
+            isServerless = null;
             clusterHosts = null;
             client = null;
             adminClient = null;

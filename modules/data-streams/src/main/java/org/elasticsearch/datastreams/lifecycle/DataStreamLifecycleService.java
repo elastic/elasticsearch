@@ -442,16 +442,23 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             // and delete the source index.
                             if (dataStream.getIndices().contains(downsampleIndexMeta.getIndex()) == false) {
                                 affectedIndices.add(backingIndex.getIndex());
-                                ReplaceSourceWithDownsampleIndexTask task = new ReplaceSourceWithDownsampleIndexTask(
-                                    dataStream.getName(),
-                                    index.getName(),
-                                    downsampleIndexName,
-                                    null
-                                );
                                 clusterStateChangesDeduplicator.executeOnce(
-                                    task,
+                                    new ReplaceSourceWithDownsampleIndexTask(
+                                        dataStream.getName(),
+                                        index.getName(),
+                                        downsampleIndexName,
+                                        null
+                                    ),
                                     new ErrorRecordingActionListener(indexName, errorStore),
-                                    (req, reqListener) -> replaceSourceWithDownsampleIndexAndDeleteSource(task, reqListener)
+                                    (req, reqListener) -> replaceSourceWithDownsampleIndexAndDeleteSource(
+                                        new ReplaceSourceWithDownsampleIndexTask(
+                                            dataStream.getName(),
+                                            index.getName(),
+                                            downsampleIndexName,
+                                            reqListener
+                                        ),
+                                        reqListener
+                                    )
                                 );
                                 break;
                             }
@@ -727,8 +734,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             task.getDownsampleIndex(),
             task.getDataStreamName()
         );
-        // TODO this is not nice but will make it nicer
-        task.setListener(listener);
         swapSourceWithDownsampleIndexQueue.submitTask("data-stream-lifecycle-replace-source-with-downsample", task, null);
     }
 

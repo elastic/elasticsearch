@@ -2092,7 +2092,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 searcher.search(termQuery, new TotalHitCountCollectorManager());
                 assertBusy(
                     () -> assertEquals(
-                        "The number of slices should be 1 as FETCH is does not support parallel collection.",
+                        "The number of slices should be 1 as FETCH does not support parallel collection.",
                         1,
                         executor.getCompletedTaskCount() - priorExecutorTaskCount
                     )
@@ -2106,7 +2106,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 searcher.search(termQuery, new TotalHitCountCollectorManager());
                 assertBusy(
                     () -> assertEquals(
-                        "The number of slices should be 1 as NONE is does not support parallel collection.",
+                        "The number of slices should be 1 as NONE does not support parallel collection.",
                         1,
                         executor.getCompletedTaskCount() - priorExecutorTaskCount
                     )

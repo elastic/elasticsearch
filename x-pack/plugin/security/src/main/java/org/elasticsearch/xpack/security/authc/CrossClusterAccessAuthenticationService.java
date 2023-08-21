@@ -111,7 +111,7 @@ public class CrossClusterAccessAuthenticationService {
         }
     }
 
-    public void tryAuthenticateCredentialsHeaderOnly(
+    public void runAuthenticationForCredentialsHeader(
         ThreadContext threadContext,
         Map<String, String> headers,
         ActionListener<Void> listener

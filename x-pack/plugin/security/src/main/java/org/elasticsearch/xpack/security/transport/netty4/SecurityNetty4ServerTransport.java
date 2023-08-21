@@ -152,7 +152,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
                 );
 
                 try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
-                    crossClusterAccessAuthenticationService.tryAuthenticateCredentialsHeaderOnly(
+                    crossClusterAccessAuthenticationService.runAuthenticationForCredentialsHeader(
                         threadContext,
                         header.getHeaders().v1(),
                         contextPreservingActionListener

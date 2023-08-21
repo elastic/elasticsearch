@@ -466,7 +466,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     } else if (round.equals(lastRound)) {
                         // no maintenance needed for previously started downsampling actions, so kick off the last matching round
                         affectedIndices.add(index);
-                        // call the downsampling API through dedup
                         DownsampleAction.Request request = new DownsampleAction.Request(
                             indexName,
                             downsampleIndexName,

@@ -21,6 +21,15 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 
+/**
+ * Cluster service task (batched) executor that executes the replacement of data stream backing index with its
+ * downsampled index.
+ * After the task is executed the executor issues a delete API call for the source index however, it doesn't
+ * hold up the task listener (nb we notify the listener before we call the delete API so we don't introduce
+ * weird partial failure scenarios - if the delete API fails the
+ * {@link org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService} will retry on the next run so the source index will get
+ * deleted)
+ */
 public class ReplaceBackingWithDownsampleIndexExecutor extends SimpleBatchedExecutor<ReplaceSourceWithDownsampleIndexTask, Void> {
     private static final Logger LOGGER = LogManager.getLogger(ReplaceSourceWithDownsampleIndexTask.class);
     private final Client client;

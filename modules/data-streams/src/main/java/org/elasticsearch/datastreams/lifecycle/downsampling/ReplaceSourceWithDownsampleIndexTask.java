@@ -31,7 +31,7 @@ import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_I
 /**
  * Cluster state task that replaces a source index in a data stream with its downsample index.
  * In the process it will configure the origination date for the downsample index (so it can
- * have a correct generation time) and deletes the source index.
+ * have a correct generation time).
  */
 public class ReplaceSourceWithDownsampleIndexTask implements ClusterStateTaskListener {
     private static final Logger LOGGER = LogManager.getLogger(ReplaceSourceWithDownsampleIndexTask.class);

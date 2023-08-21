@@ -111,7 +111,7 @@ public class Case extends ScalarFunction implements Mappable {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new EsqlIllegalArgumentException("case does not support scripting");
+        throw new EsqlUnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

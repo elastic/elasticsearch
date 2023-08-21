@@ -64,7 +64,7 @@ public class Abs extends UnaryScalarFunction implements Mappable {
         if (dataType() == DataTypes.INTEGER) {
             return () -> new AbsIntEvaluator(field.get());
         }
-        throw new EsqlIllegalArgumentException("unsupported data type [" + dataType() + "]");
+        throw EsqlUnsupportedOperationException.unsupportedDataType(dataType());
     }
 
     @Override

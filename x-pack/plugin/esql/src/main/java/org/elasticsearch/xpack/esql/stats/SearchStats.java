@@ -102,7 +102,7 @@ public class SearchStats {
                     if (min[0] == null) {
                         min[0] = localMin;
                     } else {
-                        throw new EsqlIllegalArgumentException("Don't know how to compare with previous min");
+                        throw new EsqlUnsupportedOperationException("Don't know how to compare with previous min");
                     }
                 }
 
@@ -125,7 +125,7 @@ public class SearchStats {
                     if (max[0] == null) {
                         max[0] = localMax;
                     } else {
-                        throw new EsqlIllegalArgumentException("Don't know how to compare with previous max");
+                        throw new EsqlUnsupportedOperationException("Don't know how to compare with previous max");
                     }
                 }
             }, true);

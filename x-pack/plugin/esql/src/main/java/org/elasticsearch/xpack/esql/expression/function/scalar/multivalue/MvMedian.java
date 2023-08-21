@@ -52,7 +52,7 @@ public class MvMedian extends AbstractMultivalueFunction {
             case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
                 ? () -> new MvMedianUnsignedLongEvaluator(fieldEval.get())
                 : () -> new MvMedianLongEvaluator(fieldEval.get());
-            default -> throw new EsqlIllegalArgumentException("unsupported type [" + field().dataType().typeName() + "]");
+            default -> throw EsqlUnsupportedOperationException.unsupportedDataType(field().dataType());
         };
     }
 

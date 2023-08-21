@@ -163,7 +163,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
         if (operatorFactory != null) {
             return source.with(operatorFactory, layout.build());
         }
-        throw new EsqlIllegalArgumentException("no operator factory");
+        throw new EsqlUnsupportedOperationException("no operator factory");
     }
 
     /***

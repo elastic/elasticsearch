@@ -162,7 +162,7 @@ public class Pow extends ScalarFunction implements OptionalArgument, Mappable {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new EsqlIllegalArgumentException("functions do not support scripting");
+        throw new EsqlUnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

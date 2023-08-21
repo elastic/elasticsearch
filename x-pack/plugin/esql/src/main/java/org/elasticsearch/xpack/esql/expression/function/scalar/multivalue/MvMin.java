@@ -45,7 +45,7 @@ public class MvMin extends AbstractMultivalueFunction {
             case INT -> () -> new MvMinIntEvaluator(fieldEval.get());
             case LONG -> () -> new MvMinLongEvaluator(fieldEval.get());
             case NULL -> () -> EvalOperator.CONSTANT_NULL;
-            default -> throw new EsqlIllegalArgumentException("unsupported type [" + field().dataType().typeName() + "]");
+            default -> throw EsqlUnsupportedOperationException.unsupportedDataType(field().dataType());
         };
     }
 

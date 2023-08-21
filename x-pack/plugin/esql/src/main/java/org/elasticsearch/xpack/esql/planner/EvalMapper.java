@@ -230,7 +230,7 @@ public final class EvalMapper {
                     yield positions -> LongBlock.newConstantBlockWith(v, positions);
                 }
                 case NULL -> Block::constantNullBlock;
-                case DOC, UNKNOWN -> throw new EsqlIllegalArgumentException("can't eval to doc or unknown");
+                case DOC, UNKNOWN -> throw new EsqlUnsupportedOperationException("can't eval to doc or unknown");
             };
         }
     }

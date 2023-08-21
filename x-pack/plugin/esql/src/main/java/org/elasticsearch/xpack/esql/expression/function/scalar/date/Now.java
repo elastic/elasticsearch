@@ -83,6 +83,6 @@ public class Now extends ConfigurationFunction implements Mappable {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new EsqlIllegalArgumentException("now does not support scripting");
+        throw new EsqlUnsupportedOperationException("functions do not support scripting");
     }
 }

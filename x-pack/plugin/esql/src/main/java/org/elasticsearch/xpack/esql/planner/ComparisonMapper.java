@@ -109,7 +109,7 @@ abstract class ComparisonMapper<T extends BinaryComparison> extends EvalMapper.E
         this.longs = longs;
         this.doubles = doubles;
         this.keywords = keywords;
-        this.bools = (lhs, rhs) -> { throw new EsqlIllegalArgumentException("bool unsupported"); };
+        this.bools = (lhs, rhs) -> { throw EsqlUnsupportedOperationException.unsupportedDataType(DataTypes.BOOLEAN); };
     }
 
     @Override

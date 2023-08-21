@@ -22,6 +22,6 @@ public abstract class LeafExec extends PhysicalPlan {
 
     @Override
     public final LeafExec replaceChildren(List<PhysicalPlan> newChildren) {
-        throw new EsqlIllegalArgumentException("this type of node doesn't have any children to replace");
+        throw new EsqlUnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 }

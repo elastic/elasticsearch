@@ -75,7 +75,7 @@ public class PlanNameRegistry {
         V read(PlanStreamInput in, String name) throws IOException;
 
         default V read(PlanStreamInput in) throws IOException {
-            throw new EsqlIllegalArgumentException("should not reach here");
+            throw new EsqlUnsupportedOperationException("should not reach here");
         }
     }
 

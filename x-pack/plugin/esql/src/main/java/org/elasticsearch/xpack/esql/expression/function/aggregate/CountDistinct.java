@@ -88,6 +88,6 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         if (type == DataTypes.KEYWORD || type == DataTypes.IP) {
             return new CountDistinctBytesRefAggregatorFunctionSupplier(bigArrays, inputChannels, precision);
         }
-        throw new EsqlIllegalArgumentException("unsupported type [" + type.typeName() + "]");
+        throw EsqlUnsupportedOperationException.unsupportedDataType(type);
     }
 }

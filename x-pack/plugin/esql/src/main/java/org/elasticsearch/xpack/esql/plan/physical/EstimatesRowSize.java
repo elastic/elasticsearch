@@ -113,12 +113,12 @@ public interface EstimatesRowSize {
                 }
                 yield 50; // wild estimate for the size of a string.
             }
-            case DOC -> throw new EsqlIllegalArgumentException("can't load a doc with field extraction");
+            case DOC -> throw new EsqlUnsupportedOperationException("can't load a [doc] with field extraction");
             case DOUBLE -> Double.BYTES;
             case INT -> Integer.BYTES;
             case LONG -> Long.BYTES;
             case NULL -> 0;
-            case UNKNOWN -> throw new EsqlIllegalArgumentException("unknown can't be the result of field extraction");
+            case UNKNOWN -> throw new EsqlUnsupportedOperationException("[unknown] can't be the result of field extraction");
         };
     }
 }

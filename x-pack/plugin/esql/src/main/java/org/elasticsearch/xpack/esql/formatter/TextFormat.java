@@ -50,12 +50,12 @@ public enum TextFormat implements MediaType {
 
         @Override
         protected Character delimiter() {
-            throw new EsqlIllegalArgumentException("plain text does not specify a delimiter character");
+            throw new EsqlUnsupportedOperationException("plain text does not specify a delimiter character");
         }
 
         @Override
         protected String eol() {
-            throw new EsqlIllegalArgumentException("plain text does not specify an end of line character");
+            throw new EsqlUnsupportedOperationException("plain text does not specify an end of line character");
         }
 
         @Override

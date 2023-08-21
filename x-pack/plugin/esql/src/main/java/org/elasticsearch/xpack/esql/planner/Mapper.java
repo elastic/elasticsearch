@@ -108,7 +108,7 @@ public class Mapper {
             return plan;
         }
 
-        throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");
+        throw new EsqlUnsupportedOperationException("unsupported logical plan node [" + p.nodeName() + "]");
     }
 
     private static boolean isPipelineBreaker(LogicalPlan p) {
@@ -174,7 +174,7 @@ public class Mapper {
             return map(aggregate, child);
         }
 
-        throw new EsqlIllegalArgumentException("unsupported unary logical plan node [" + p.nodeName() + "]");
+        throw new EsqlUnsupportedOperationException("unsupported unary logical plan node [" + p.nodeName() + "]");
     }
 
     private PhysicalPlan map(Aggregate aggregate, PhysicalPlan child) {

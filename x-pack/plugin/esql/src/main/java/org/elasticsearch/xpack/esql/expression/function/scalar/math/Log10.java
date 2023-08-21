@@ -49,7 +49,7 @@ public class Log10 extends UnaryScalarFunction implements Mappable {
             return () -> new Log10LongEvaluator(eval);
         }
 
-        throw new EsqlIllegalArgumentException("unsupported type [" + fieldType.typeName() + "]");
+        throw EsqlUnsupportedOperationException.unsupportedDataType(fieldType);
     }
 
     @Evaluator(extraName = "Double")

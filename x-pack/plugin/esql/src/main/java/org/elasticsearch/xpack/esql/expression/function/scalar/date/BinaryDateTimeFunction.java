@@ -46,7 +46,7 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new EsqlIllegalArgumentException("binary datetime functions do not support scripting");
+        throw new EsqlUnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

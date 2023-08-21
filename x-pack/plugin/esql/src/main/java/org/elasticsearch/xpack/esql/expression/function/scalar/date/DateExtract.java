@@ -53,7 +53,7 @@ public class DateExtract extends ConfigurationFunction implements Mappable {
             ChronoField chrono = chronoField();
             if (chrono == null) {
                 BytesRef field = (BytesRef) children().get(1).fold();
-                throw new EsqlIllegalArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
+                throw new EsqlUnsupportedOperationException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
             }
             return () -> new DateExtractConstantEvaluator(fieldEvaluator.get(), chrono, configuration().zoneId());
         }
@@ -104,7 +104,7 @@ public class DateExtract extends ConfigurationFunction implements Mappable {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new EsqlIllegalArgumentException("date_extract does not support scripting");
+        throw new EsqlUnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

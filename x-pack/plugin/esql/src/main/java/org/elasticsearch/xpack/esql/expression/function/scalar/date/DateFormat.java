@@ -130,6 +130,6 @@ public class DateFormat extends ConfigurationFunction implements OptionalArgumen
 
     @Override
     public ScriptTemplate asScript() {
-        throw new EsqlIllegalArgumentException("date_format does not support scripting");
+        throw new EsqlUnsupportedOperationException("functions do not support scripting");
     }
 }

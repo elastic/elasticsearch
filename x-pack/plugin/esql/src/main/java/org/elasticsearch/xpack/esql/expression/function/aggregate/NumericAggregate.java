@@ -72,7 +72,7 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
         if (type == DataTypes.DOUBLE) {
             return doubleSupplier(bigArrays, inputChannels);
         }
-        throw new EsqlIllegalArgumentException("unsupported type [" + type.typeName() + "]");
+        throw EsqlUnsupportedOperationException.unsupportedDataType(type);
     }
 
     protected abstract AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels);

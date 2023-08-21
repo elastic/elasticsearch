@@ -182,7 +182,7 @@ public class EnrichLookupService {
                     QueryList queryList = QueryList.termQueryList(fieldType, searchExecutionContext, inputBlock);
                     yield new EnrichQuerySourceOperator(queryList, searchExecutionContext.getIndexReader());
                 }
-                default -> throw new EsqlIllegalArgumentException("unsupported match type " + matchType);
+                default -> throw new EsqlUnsupportedOperationException("unsupported match type " + matchType);
             };
             List<Operator> intermediateOperators = new ArrayList<>(extractFields.size() + 2);
             final ElementType[] mergingTypes = new ElementType[extractFields.size()];

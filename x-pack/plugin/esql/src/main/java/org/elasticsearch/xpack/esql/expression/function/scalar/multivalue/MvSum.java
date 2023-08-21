@@ -47,7 +47,7 @@ public class MvSum extends AbstractMultivalueFunction {
                 ? () -> new MvSumUnsignedLongEvaluator(source(), fieldEval.get())
                 : () -> new MvSumLongEvaluator(source(), fieldEval.get());
             case NULL -> () -> EvalOperator.CONSTANT_NULL;
-            default -> throw new EsqlIllegalArgumentException("unsupported type [" + field().dataType().typeName() + "]");
+            default -> throw EsqlUnsupportedOperationException.unsupportedDataType(field().dataType());
         };
     }
 

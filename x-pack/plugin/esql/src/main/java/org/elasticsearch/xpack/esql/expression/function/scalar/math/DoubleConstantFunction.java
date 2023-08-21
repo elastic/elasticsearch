@@ -36,7 +36,7 @@ public abstract class DoubleConstantFunction extends ScalarFunction {
 
     @Override
     public final ScriptTemplate asScript() {
-        throw new EsqlIllegalArgumentException("functions do not support scripting");
+        throw new EsqlUnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

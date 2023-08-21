@@ -20,7 +20,6 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.io.IOException;
@@ -102,7 +101,7 @@ public class SearchStats {
                     if (min[0] == null) {
                         min[0] = localMin;
                     } else {
-                        throw new EsqlUnsupportedOperationException("Don't know how to compare with previous min");
+                        throw new EsqlIllegalArgumentException("Don't know how to compare with previous min");
                     }
                 }
 
@@ -125,7 +124,7 @@ public class SearchStats {
                     if (max[0] == null) {
                         max[0] = localMax;
                     } else {
-                        throw new EsqlUnsupportedOperationException("Don't know how to compare with previous max");
+                        throw new EsqlIllegalArgumentException("Don't know how to compare with previous max");
                     }
                 }
             }, true);

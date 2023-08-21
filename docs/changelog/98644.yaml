@@ -14,5 +14,7 @@ highlight:
     of the whole shard). With the shard and index maintenance tasks being 
     handled automatically to ensure optimum performance, and trade-off between
     indexing and searching, you'll be able to focus on the business related 
-    lifecycle aspects like data retention.
+    lifecycle aspects like data retention. The automatic maintenance tasks will
+    automatically be available for any new data stream that's not managed by 
+    ILM.
   notable: true

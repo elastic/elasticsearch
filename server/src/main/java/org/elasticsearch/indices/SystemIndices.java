@@ -700,7 +700,7 @@ public class SystemIndices {
     public Map<String, SystemIndexDescriptor.MappingsVersion> getMappingsVersions() {
         return getSystemIndexDescriptors().stream()
             .filter(SystemIndexDescriptor::isAutomaticallyManaged)
-            .collect(Collectors.toMap(SystemIndexDescriptor::getIndexPattern, SystemIndexDescriptor::getMappingsVersion));
+            .collect(Collectors.toMap(SystemIndexDescriptor::getPrimaryIndex, SystemIndexDescriptor::getMappingsVersion));
     }
 
     /**

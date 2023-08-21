@@ -286,8 +286,8 @@ public class SystemIndicesTests extends ESTestCase {
         );
 
         Map<String, SystemIndexDescriptor.MappingsVersion> mappingsVersions = systemIndices.getMappingsVersions();
-        assertThat(mappingsVersions.get(".managed-*"), notNullValue());
-        assertThat(mappingsVersions.get(".managed-*").version(), equalTo(3));
+        assertThat(mappingsVersions.get(".managed-primary"), notNullValue());
+        assertThat(mappingsVersions.get(".managed-primary").version(), equalTo(3));
         assertThat(mappingsVersions.keySet(), not(contains("unmanaged")));
     }
 }

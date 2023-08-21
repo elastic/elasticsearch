@@ -32,23 +32,22 @@ import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.netty4.Netty4MessageInboundHandler;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
-import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
-import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 
 public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
     private static final Logger logger = LogManager.getLogger(SecurityNetty4ServerTransport.class);
     @Nullable
     private final IPFilter authenticator;
-    private final ApiKeyService apiKeyService;
+
+    private final CrossClusterAccessAuthenticationService crossClusterAccessAuthenticationService;
 
     public SecurityNetty4ServerTransport(
         final Settings settings,
@@ -61,7 +60,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
         @Nullable final IPFilter authenticator,
         final SSLService sslService,
         final SharedGroupFactory sharedGroupFactory,
-        final ApiKeyService apiKeyService
+        final CrossClusterAccessAuthenticationService crossClusterAccessAuthenticationService
     ) {
         super(
             settings,
@@ -75,7 +74,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
             sharedGroupFactory
         );
         this.authenticator = authenticator;
-        this.apiKeyService = apiKeyService;
+        this.crossClusterAccessAuthenticationService = crossClusterAccessAuthenticationService;
     }
 
     @Override
@@ -125,7 +124,9 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
     @Override
     protected Netty4MessageInboundHandler getNetty4MessageInboundHandler(String name) {
-        if (remoteClusterPortEnabled == false || REMOTE_CLUSTER_PROFILE.equals(name) == false || apiKeyService == null) {
+        if (remoteClusterPortEnabled == false
+            || REMOTE_CLUSTER_PROFILE.equals(name) == false
+            || crossClusterAccessAuthenticationService == null) {
             return super.getNetty4MessageInboundHandler(name);
         }
 
@@ -148,20 +149,6 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
                     return;
                 }
 
-                final String credentials = header.getHeaders().v1().get(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
-                final ApiKeyService.ApiKeyCredentials apiKeyCredentials;
-                if (credentials != null) {
-                    apiKeyCredentials = ApiKeyService.getCredentialsFromHeader(credentials, ApiKey.Type.CROSS_CLUSTER);
-                } else {
-                    apiKeyCredentials = null;
-                }
-
-                if (apiKeyCredentials == null) {
-                    logger.warn("No credential is found");
-                    shortCircuit(new ElasticsearchSecurityException("No credential is found", RestStatus.UNAUTHORIZED));
-                    return;
-                }
-
                 final ThreadContext threadContext = threadPool.getThreadContext();
                 final var contextPreservingActionListener = new ContextPreservingActionListener<AuthenticationResult<User>>(
                     threadContext.wrapRestorable(threadContext.newStoredContext()),
@@ -180,7 +167,11 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
                 );
 
                 try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
-                    apiKeyService.tryAuthenticate(threadContext, apiKeyCredentials, contextPreservingActionListener);
+                    crossClusterAccessAuthenticationService.tryAuthenticateCredentialsHeaderOnly(
+                        threadContext,
+                        header,
+                        contextPreservingActionListener
+                    );
                 }
             }
         };

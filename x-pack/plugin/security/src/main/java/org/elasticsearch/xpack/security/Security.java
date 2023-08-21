@@ -538,6 +538,8 @@ public class Security extends Plugin
     private final SetOnce<IPFilter> ipFilter = new SetOnce<>();
     private final SetOnce<AuthenticationService> authcService = new SetOnce<>();
     private final SetOnce<ApiKeyService> apiKeyServiceRef = new SetOnce<>();
+
+    private final SetOnce<CrossClusterAccessAuthenticationService> crossClusterAccessAuthcServiceRef = new SetOnce<>();
     private final SetOnce<SecondaryAuthenticator> secondayAuthc = new SetOnce<>();
     private final SetOnce<AuditTrailService> auditTrailService = new SetOnce<>();
     private final SetOnce<SecurityContext> securityContext = new SetOnce<>();
@@ -995,11 +997,13 @@ public class Security extends Plugin
         final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = new RemoteClusterCredentialsResolver(settings);
 
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
+
         final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService = new CrossClusterAccessAuthenticationService(
             clusterService,
-            apiKeyService,
+            apiKeyServiceRef.get(),
             authcService.get()
         );
+        crossClusterAccessAuthcServiceRef.set(crossClusterAccessAuthcService);
         components.add(crossClusterAccessAuthcService);
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
@@ -1624,7 +1628,7 @@ public class Security extends Plugin
                         ipFilter,
                         getSslService(),
                         getNettySharedGroupFactory(settings),
-                        apiKeyServiceRef.get()
+                        crossClusterAccessAuthcServiceRef.get()
                     )
                 );
                 return transportReference.get();

@@ -83,7 +83,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
 
         try (var ignored = threadContext.stashContext()) {
             final String randomApiKey = Base64.getEncoder()
-                .encodeToString((UUIDs.base64UUID() + ":" + UUIDs.base64UUID()).getBytes(StandardCharsets.UTF_8));
+                .encodeToString((UUIDs.base64UUID() + ":" + UUIDs.randomBase64UUIDSecureString()).getBytes(StandardCharsets.UTF_8));
             threadContext.putHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, ApiKeyService.withApiKeyPrefix(randomApiKey));
             authenticateAndAssertExpectedErrorMessage(
                 service,

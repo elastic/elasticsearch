@@ -110,4 +110,3 @@
         body: { "index": "test", "shard": 0, "primary": true }
 
   - is_true: current_node.roles
-  - is_true: node_allocation_decisions

@@ -40,7 +40,6 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;

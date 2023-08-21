@@ -7,7 +7,7 @@
 | EVAL avg_salary = ROUND(avg_salary)
 | EVAL lang_code = TO_STRING(languages)
 | ENRICH languages_policy ON lang_code WITH lang = language_name
-| WHERE NOT IS_NULL(lang)
+| WHERE lang IS NOT NULL
 | KEEP avg_salary, lang
 | SORT avg_salary ASC
 | LIMIT 3

@@ -53,6 +53,7 @@ booleanExpression
     | left=booleanExpression operator=AND right=booleanExpression                #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
+    | valueExpression IS NOT? NULL                                               #isNull
     ;
 
 regexBooleanExpression
@@ -204,11 +205,11 @@ numericValue
     ;
 
 decimalValue
-    : DECIMAL_LITERAL
+    : (PLUS | MINUS)? DECIMAL_LITERAL
     ;
 
 integerValue
-    : INTEGER_LITERAL
+    : (PLUS | MINUS)? INTEGER_LITERAL
     ;
 
 string
@@ -237,6 +238,5 @@ enrichCommand
     ;
 
 enrichWithClause
-
     : (newName=sourceIdentifier ASSIGN)? enrichField=sourceIdentifier
     ;

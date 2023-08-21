@@ -1197,7 +1197,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 creationAndRolloverTimes,
                 Settings.builder()
                     .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()),
                 DataStreamLifecycle.newBuilder().dataRetention(0).build()
             );
             Metadata metadata = builder.build();
@@ -1329,7 +1329,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 creationAndRolloverTimes,
                 Settings.builder()
                     .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()),
                 new DataStreamLifecycle()
             );
             Metadata metadataIlm = builderWithIlm.build();
@@ -1349,7 +1349,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                     creationAndRolloverTimes,
                     Settings.builder()
                         .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(IndexSettings.PREFER_ILM, false),
                     new DataStreamLifecycle()
                 );

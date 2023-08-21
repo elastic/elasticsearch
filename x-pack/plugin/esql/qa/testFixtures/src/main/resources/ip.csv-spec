@@ -105,7 +105,7 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 isNull
-from hosts | where is_null(ip0) | keep ip0, ip1;
+from hosts | where ip0 is null | keep ip0, ip1;
 
 ip0:ip         |ip1:ip
 null           |[127.0.0.1, 127.0.0.2, 127.0.0.3]
@@ -149,7 +149,7 @@ eth1           |beta           |127.0.0.1      |127.0.0.2
 ;
 
 cidrMatchNullField
-from hosts | where is_null(cidr_match(ip0, "127.0.0.2/32")) | keep card, host, ip0, ip1;
+from hosts | where cidr_match(ip0, "127.0.0.2/32") is null | keep card, host, ip0, ip1;
 
 card:keyword   |host:keyword   |ip0:ip                                                                           |ip1:ip
 eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1

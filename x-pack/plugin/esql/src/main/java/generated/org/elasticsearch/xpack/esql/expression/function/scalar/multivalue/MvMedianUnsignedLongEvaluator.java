@@ -26,8 +26,14 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
     return "MvMedian";
   }
 
+  /**
+   * Evaluate blocks containing at least one multivalued field.
+   */
   @Override
   public Block evalNullable(Block fieldVal) {
+    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+      return evalAscendingNullable(fieldVal);
+    }
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
     LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
@@ -50,8 +56,14 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
     return builder.build();
   }
 
+  /**
+   * Evaluate blocks containing at least one multivalued field.
+   */
   @Override
   public Vector evalNotNullable(Block fieldVal) {
+    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+      return evalAscendingNotNullable(fieldVal);
+    }
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
     long[] values = new long[positionCount];
@@ -65,6 +77,44 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
         MvMedian.processUnsignedLong(work, value);
       }
       long result = MvMedian.finishUnsignedLong(work);
+      values[p] = result;
+    }
+    return new LongArrayVector(values, positionCount);
+  }
+
+  /**
+   * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
+   */
+  private Block evalAscendingNullable(Block fieldVal) {
+    LongBlock v = (LongBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
+    MvMedian.Longs work = new MvMedian.Longs();
+    for (int p = 0; p < positionCount; p++) {
+      int valueCount = v.getValueCount(p);
+      if (valueCount == 0) {
+        builder.appendNull();
+        continue;
+      }
+      int first = v.getFirstValueIndex(p);
+      long result = MvMedian.ascendingUnsignedLong(v, first, valueCount);
+      builder.appendLong(result);
+    }
+    return builder.build();
+  }
+
+  /**
+   * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
+   */
+  private Vector evalAscendingNotNullable(Block fieldVal) {
+    LongBlock v = (LongBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    long[] values = new long[positionCount];
+    MvMedian.Longs work = new MvMedian.Longs();
+    for (int p = 0; p < positionCount; p++) {
+      int valueCount = v.getValueCount(p);
+      int first = v.getFirstValueIndex(p);
+      long result = MvMedian.ascendingUnsignedLong(v, first, valueCount);
       values[p] = result;
     }
     return new LongArrayVector(values, positionCount);

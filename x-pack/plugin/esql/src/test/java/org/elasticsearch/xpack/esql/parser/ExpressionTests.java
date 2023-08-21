@@ -63,17 +63,17 @@ public class ExpressionTests extends ESTestCase {
     public void testNumberLiterals() {
         assertEquals(l(123, INTEGER), whereExpression("123"));
         assertEquals(l(123, INTEGER), whereExpression("+123"));
-        assertEquals(new Neg(null, l(123, INTEGER)), whereExpression("-123"));
+        assertEquals(l(-123, INTEGER), whereExpression("-123"));
         assertEquals(l(123.123, DOUBLE), whereExpression("123.123"));
         assertEquals(l(123.123, DOUBLE), whereExpression("+123.123"));
-        assertEquals(new Neg(null, l(123.123, DOUBLE)), whereExpression("-123.123"));
+        assertEquals(l(-123.123, DOUBLE), whereExpression("-123.123"));
         assertEquals(l(0.123, DOUBLE), whereExpression(".123"));
         assertEquals(l(0.123, DOUBLE), whereExpression("0.123"));
         assertEquals(l(0.123, DOUBLE), whereExpression("+0.123"));
-        assertEquals(new Neg(null, l(0.123, DOUBLE)), whereExpression("-0.123"));
+        assertEquals(l(-0.123, DOUBLE), whereExpression("-0.123"));
         assertEquals(l(12345678901L, LONG), whereExpression("12345678901"));
         assertEquals(l(12345678901L, LONG), whereExpression("+12345678901"));
-        assertEquals(new Neg(null, l(12345678901L, LONG)), whereExpression("-12345678901"));
+        assertEquals(l(-12345678901L, LONG), whereExpression("-12345678901"));
         assertEquals(l(123e12, DOUBLE), whereExpression("123e12"));
         assertEquals(l(123e-12, DOUBLE), whereExpression("123e-12"));
         assertEquals(l(123E12, DOUBLE), whereExpression("123E12"));
@@ -81,10 +81,10 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testMinusSign() {
-        assertEquals(new Neg(null, l(123, INTEGER)), whereExpression("+(-123)"));
-        assertEquals(new Neg(null, l(123, INTEGER)), whereExpression("+(+(-123))"));
+        assertEquals(l(-123, INTEGER), whereExpression("+(-123)"));
+        assertEquals(l(-123, INTEGER), whereExpression("+(+(-123))"));
         // we could do better here. ES SQL is smarter and accounts for the number of minuses
-        assertEquals(new Neg(null, new Neg(null, l(123, INTEGER))), whereExpression("-(-123)"));
+        assertEquals(new Neg(null, l(-123, INTEGER)), whereExpression("-(-123)"));
     }
 
     public void testStringLiterals() {
@@ -330,11 +330,11 @@ public class ExpressionTests extends ESTestCase {
         );
         assertThat(
             whereExpression("10 days > 5 hours and 1/5 minutes > 8 seconds * 3 and -1 minutes > foo"),
-            equalTo(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-(1 minute) > foo)"))
+            equalTo(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-1 minute > foo)"))
         );
         assertThat(
             whereExpression("10 DAYS > 5 HOURS and 1/5 MINUTES > 8 SECONDS * 3 and -1 MINUTES > foo"),
-            equalTo(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-(1 minute) > foo)"))
+            equalTo(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-1 minute > foo)"))
         );
     }
 
@@ -383,19 +383,20 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(l(Duration.ofHours(value), TIME_DURATION), whereExpression(value + "hour"));
         assertEquals(l(Duration.ofHours(value), TIME_DURATION), whereExpression(value + " hours"));
 
-        assertEquals(new Neg(EMPTY, l(Duration.ofHours(value), TIME_DURATION)), whereExpression("-" + value + " hours"));
+        assertEquals(l(Duration.ofHours(-value), TIME_DURATION), whereExpression("-" + value + " hours"));
     }
 
     public void testDatePeriodLiterals() {
         int value = randomInt(Integer.MAX_VALUE);
+        int weeksValue = randomInt(Integer.MAX_VALUE / 7);
 
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0 day"));
         assertEquals(l(Period.ofDays(value), DATE_PERIOD), whereExpression(value + "day"));
         assertEquals(l(Period.ofDays(value), DATE_PERIOD), whereExpression(value + " days"));
 
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0week"));
-        assertEquals(l(Period.ofDays(value * 7), DATE_PERIOD), whereExpression(value + "week"));
-        assertEquals(l(Period.ofDays(value * 7), DATE_PERIOD), whereExpression(value + " weeks"));
+        assertEquals(l(Period.ofDays(weeksValue * 7), DATE_PERIOD), whereExpression(weeksValue + "week"));
+        assertEquals(l(Period.ofDays(weeksValue * 7), DATE_PERIOD), whereExpression(weeksValue + " weeks"));
 
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0 month"));
         assertEquals(l(Period.ofMonths(value), DATE_PERIOD), whereExpression(value + "month"));
@@ -405,7 +406,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + "year"));
         assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + " years"));
 
-        assertEquals(new Neg(EMPTY, l(Period.ofYears(value), DATE_PERIOD)), whereExpression("-" + value + " years"));
+        assertEquals(l(Period.ofYears(-value), DATE_PERIOD), whereExpression("-" + value + " years"));
     }
 
     public void testUnknownNumericQualifier() {
@@ -414,6 +415,40 @@ public class ExpressionTests extends ESTestCase {
 
     public void testQualifiedDecimalLiteral() {
         assertParsingException(() -> whereExpression("1.1 hours"), "extraneous input 'hours' expecting <EOF>");
+    }
+
+    public void testOverflowingValueForDuration() {
+        for (String unit : List.of("milliseconds", "seconds", "minutes", "hours")) {
+            assertParsingException(
+                () -> parse("row x = 9223372036854775808 " + unit), // unsigned_long (Long.MAX_VALUE + 1)
+                "line 1:10: Number [9223372036854775808] outside of [" + unit + "] range"
+            );
+            assertParsingException(
+                () -> parse("row x = 18446744073709551616 " + unit), // double (UNSIGNED_LONG_MAX + 1)
+                "line 1:10: Number [18446744073709551616] outside of [" + unit + "] range"
+            );
+        }
+        assertParsingException(
+            () -> parse("row x = 153722867280912931 minutes"), // Long.MAX_VALUE / 60 + 1
+            "line 1:10: Number [153722867280912931] outside of [minutes] range"
+        );
+        assertParsingException(
+            () -> parse("row x = 2562047788015216 hours"), // Long.MAX_VALUE / 3600 + 1
+            "line 1:10: Number [2562047788015216] outside of [hours] range"
+        );
+    }
+
+    public void testOverflowingValueForPeriod() {
+        for (String unit : List.of("days", "weeks", "months", "years")) {
+            assertParsingException(
+                () -> parse("row x = 2147483648 " + unit), // long (Integer.MAX_VALUE + 1)
+                "line 1:10: Number [2147483648] outside of [" + unit + "] range"
+            );
+        }
+        assertParsingException(
+            () -> parse("row x = 306783379 weeks"), // Integer.MAX_VALUE / 7 + 1
+            "line 1:10: Number [306783379] outside of [weeks] range"
+        );
     }
 
     public void testWildcardProjectKeepPatterns() {

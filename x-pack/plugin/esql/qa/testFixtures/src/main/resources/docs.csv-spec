@@ -399,38 +399,6 @@ Saniya         |Kalloufi       |2.1          |6.9
 // end::round-result[]
 ;
 
-docsIsNull
-// tag::isNull[]
-FROM employees
-| KEEP first_name, last_name
-| WHERE IS_NULL(first_name)
-// end::isNull[]
-| LIMIT 3;
-
-// tag::isNull-result[]
-first_name:keyword | last_name:keyword
-null           |Demeyer
-null           |Joslin
-null           |Reistad
-// end::isNull-result[]
-;
-
-docsNotIsNull
-// tag::notIsNull[]
-FROM employees
-| KEEP first_name, last_name
-| WHERE NOT IS_NULL(first_name)
-// end::notIsNull[]
-| LIMIT 3;
-
-// tag::notIsNull-result[]
-first_name:keyword | last_name:keyword
-Georgi         |Facello
-Bezalel        |Simmel
-Parto          |Bamford
-// end::notIsNull-result[]
-;
-
 dateParse
 // tag::dateParse[]
 ROW date_string = "2022-05-06"

@@ -62,12 +62,14 @@ public class ExchangeServiceTests extends ESTestCase {
 
     private TestThreadPool threadPool;
 
+    private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
+
     @Before
     public void setThreadPool() {
         int numThreads = randomBoolean() ? 1 : between(2, 16);
         threadPool = new TestThreadPool(
             "test",
-            new FixedExecutorBuilder(Settings.EMPTY, "esql_test_executor", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(Settings.EMPTY, ESQL_TEST_EXECUTOR, numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
         );
     }
 
@@ -84,7 +86,7 @@ public class ExchangeServiceTests extends ESTestCase {
         ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(2, threadPool::relativeTimeInMillis);
         ExchangeSink sink1 = sinkExchanger.createExchangeSink();
         ExchangeSink sink2 = sinkExchanger.createExchangeSink();
-        ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(3, threadPool.executor("esql_test_executor"));
+        ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(3, threadPool.executor(ESQL_TEST_EXECUTOR));
         assertThat(sourceExchanger.refCount(), equalTo(1));
         ExchangeSource source = sourceExchanger.createExchangeSource();
         assertThat(sourceExchanger.refCount(), equalTo(2));
@@ -279,7 +281,7 @@ public class ExchangeServiceTests extends ESTestCase {
         new DriverRunner() {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.executor("esql_test_executor"), driver, between(1, 10000), listener);
+                Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
             }
         }.runToCompletion(drivers, future);
         future.actionGet(TimeValue.timeValueMinutes(1));
@@ -289,7 +291,7 @@ public class ExchangeServiceTests extends ESTestCase {
     }
 
     public void testConcurrentWithHandlers() {
-        var sourceExchanger = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor("esql_test_executor"));
+        var sourceExchanger = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor(ESQL_TEST_EXECUTOR));
         List<ExchangeSinkHandler> sinkHandlers = new ArrayList<>();
         Supplier<ExchangeSink> exchangeSink = () -> {
             final ExchangeSinkHandler sinkHandler;
@@ -327,17 +329,17 @@ public class ExchangeServiceTests extends ESTestCase {
 
     public void testConcurrentWithTransportActions() throws Exception {
         MockTransportService node0 = newTransportService();
-        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool);
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR);
         exchange0.registerTransportHandler(node0);
         MockTransportService node1 = newTransportService();
-        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool);
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR);
         exchange1.registerTransportHandler(node1);
         AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
 
         try (exchange0; exchange1; node0; node1) {
             String exchangeId = "exchange";
             Task task = new Task(1, "", "", "", null, Collections.emptyMap());
-            ExchangeSourceHandler sourceHandler = exchange0.createSourceHandler(exchangeId, randomExchangeBuffer(), "esql_test_executor");
+            ExchangeSourceHandler sourceHandler = exchange0.createSourceHandler(exchangeId, randomExchangeBuffer(), ESQL_TEST_EXECUTOR);
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomExchangeBuffer());
             sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, node1.getLocalNode()), randomIntBetween(1, 5));
             final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
@@ -349,10 +351,10 @@ public class ExchangeServiceTests extends ESTestCase {
     public void testFailToRespondPage() throws Exception {
         Settings settings = Settings.builder().build();
         MockTransportService node0 = newTransportService();
-        ExchangeService exchange0 = new ExchangeService(settings, threadPool);
+        ExchangeService exchange0 = new ExchangeService(settings, threadPool, ESQL_TEST_EXECUTOR);
         exchange0.registerTransportHandler(node0);
         MockTransportService node1 = newTransportService();
-        ExchangeService exchange1 = new ExchangeService(settings, threadPool);
+        ExchangeService exchange1 = new ExchangeService(settings, threadPool, ESQL_TEST_EXECUTOR);
         exchange1.registerTransportHandler(node1);
         AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
         final int maxSeqNo = randomIntBetween(1000, 5000);
@@ -386,7 +388,7 @@ public class ExchangeServiceTests extends ESTestCase {
         try (exchange0; exchange1; node0; node1) {
             String exchangeId = "exchange";
             Task task = new Task(1, "", "", "", null, Collections.emptyMap());
-            ExchangeSourceHandler sourceHandler = exchange0.createSourceHandler(exchangeId, randomIntBetween(1, 128), "esql_test_executor");
+            ExchangeSourceHandler sourceHandler = exchange0.createSourceHandler(exchangeId, randomIntBetween(1, 128), ESQL_TEST_EXECUTOR);
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomIntBetween(1, 128));
             sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, node1.getLocalNode()), randomIntBetween(1, 5));
             Exception err = expectThrows(

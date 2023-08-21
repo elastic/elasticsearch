@@ -121,7 +121,10 @@ class ScrollDataExtractor implements DataExtractor {
         SearchResponse searchResponse = executeSearchRequest(buildSearchRequest(startTimestamp));
         logger.debug("[{}] Search response was obtained", context.jobId);
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        return processSearchResponse(searchResponse);
+        scrollId = searchResponse.getScrollId();
+        SearchHit hits[] = searchResponse.getHits().getHits();
+        searchResponse = null;
+        return processAndConsumeSearchHits(hits);
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
@@ -166,18 +169,36 @@ class ScrollDataExtractor implements DataExtractor {
         return searchRequestBuilder;
     }
 
-    private InputStream processSearchResponse(SearchResponse searchResponse) throws IOException {
+    /**
+     * Utility class to convert ByteArrayOutputStream to ByteArrayInputStream without copying the underlying buffer.
+     */
+    private static class ConvertableByteArrayOutputStream extends ByteArrayOutputStream {
+        public ByteArrayInputStream resetThisAndGetByteArrayInputStream() {
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(buf, 0, count);
+            buf = new byte[0];
+            count = 0;
+            return inputStream;
+        }
+    }
 
-        scrollId = searchResponse.getScrollId();
-        if (searchResponse.getHits().getHits().length == 0) {
+    /**
+     * IMPORTANT: This is not an idempotent method. This method changes the input array by setting each element to <code>null</code>.
+     */
+    private InputStream processAndConsumeSearchHits(SearchHit hits[]) throws IOException {
+
+        if (hits == null || hits.length == 0) {
             hasNext = false;
             clearScroll();
             return null;
         }
 
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        ConvertableByteArrayOutputStream outputStream = new ConvertableByteArrayOutputStream();
+
+        SearchHit lastHit = hits[hits.length - 1];
+        lastTimestamp = context.extractedFields.timeFieldValue(lastHit);
         try (SearchHitToJsonProcessor hitProcessor = new SearchHitToJsonProcessor(context.extractedFields, outputStream)) {
-            for (SearchHit hit : searchResponse.getHits().getHits()) {
+            for (int i = 0; i < hits.length; i++) {
+                SearchHit hit = hits[i];
                 if (isCancelled) {
                     Long timestamp = context.extractedFields.timeFieldValue(hit);
                     if (timestamp != null) {
@@ -191,11 +212,12 @@ class ScrollDataExtractor implements DataExtractor {
                     }
                 }
                 hitProcessor.process(hit);
+                // hack to remove the reference from object. This object can be big and consume alot of memory.
+                // We are removing it as soon as we process it.
+                hits[i] = null;
             }
-            SearchHit lastHit = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length - 1];
-            lastTimestamp = context.extractedFields.timeFieldValue(lastHit);
         }
-        return new ByteArrayInputStream(outputStream.toByteArray());
+        return outputStream.resetThisAndGetByteArrayInputStream();
     }
 
     private InputStream continueScroll() throws IOException {
@@ -213,7 +235,10 @@ class ScrollDataExtractor implements DataExtractor {
         }
         logger.debug("[{}] Search response was obtained", context.jobId);
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        return processSearchResponse(searchResponse);
+        scrollId = searchResponse.getScrollId();
+        SearchHit hits[] = searchResponse.getHits().getHits();
+        searchResponse = null;
+        return processAndConsumeSearchHits(hits);
     }
 
     void markScrollAsErrored() {

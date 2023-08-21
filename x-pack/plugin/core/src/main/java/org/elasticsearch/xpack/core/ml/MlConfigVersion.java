@@ -141,7 +141,7 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
     public static final MlConfigVersion V_8_9_0 = registerMlConfigVersion(8_09_00_99, "C50F56AB-4DB8-48A5-9467-4F5B07365C5C");
 
     // This constant should never be tested externally - it's considered the same as V_10 externally
-    public static final MlConfigVersion V_8_10_0 = registerMlConfigVersion(8_10_00_99, "9315A548-D81B-4FE7-8C0D-0DA81EA00F9E");
+    private static final MlConfigVersion V_8_10_0 = registerMlConfigVersion(8_10_00_99, "9315A548-D81B-4FE7-8C0D-0DA81EA00F9E");
 
     /*
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW ML CONFIG VERSIONS

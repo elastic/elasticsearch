@@ -15,6 +15,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 public class Iterators {
 
@@ -116,6 +117,40 @@ public class Iterators {
         }
     }
 
+    public static <T> Iterator<T> forRange(int lowerBoundInclusive, int upperBoundExclusive, IntFunction<T> fn) {
+        assert lowerBoundInclusive <= upperBoundExclusive : lowerBoundInclusive + " vs " + upperBoundExclusive;
+        if (upperBoundExclusive <= lowerBoundInclusive) {
+            return Collections.emptyIterator();
+        } else {
+            return new IntRangeIterator<>(lowerBoundInclusive, upperBoundExclusive, Objects.requireNonNull(fn));
+        }
+    }
+
+    private static final class IntRangeIterator<T> implements Iterator<T> {
+        private final IntFunction<T> fn;
+        private final int upperBoundExclusive;
+        private int index;
+
+        IntRangeIterator(int lowerBoundInclusive, int upperBoundExclusive, IntFunction<T> fn) {
+            this.fn = fn;
+            this.index = lowerBoundInclusive;
+            this.upperBoundExclusive = upperBoundExclusive;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return index < upperBoundExclusive;
+        }
+
+        @Override
+        public T next() {
+            if (index >= upperBoundExclusive) {
+                throw new NoSuchElementException();
+            }
+            return fn.apply(index++);
+        }
+    }
+
     public static <T, U> Iterator<U> map(Iterator<? extends T> input, Function<T, U> fn) {
         if (input.hasNext()) {
             return new MapIterator<>(input, fn);
@@ -142,6 +177,11 @@ public class Iterators {
         public U next() {
             return fn.apply(input.next());
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> Iterator<T> flatten(Iterator<Iterator<T>> input) {
+        return (Iterator<T>) flatMap(input, i -> i);
     }
 
     public static <T, U> Iterator<? extends U> flatMap(Iterator<? extends T> input, Function<T, Iterator<? extends U>> fn) {

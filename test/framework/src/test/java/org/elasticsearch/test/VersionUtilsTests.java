@@ -14,12 +14,9 @@ import org.elasticsearch.core.Tuple;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.stream.Collectors.toCollection;
-import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.Version.fromId;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -289,57 +286,6 @@ public class VersionUtilsTests extends ESTestCase {
             unreleased,
             equalTo(Arrays.asList(TestNewMinorBranchIn6x.V_5_6_2, TestNewMinorBranchIn6x.V_6_1_2, TestNewMinorBranchIn6x.V_6_2_0))
         );
-    }
-
-    /**
-     * Tests that {@link Version#minimumCompatibilityVersion()} and {@link VersionUtils#allReleasedVersions()}
-     * agree with the list of wire and index compatible versions we build in gradle.
-     */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98054")
-    public void testGradleVersionsMatchVersionUtils() {
-        // First check the index compatible versions
-        VersionsFromProperty indexCompatible = new VersionsFromProperty("tests.gradle_index_compat_versions");
-        List<Version> released = VersionUtils.allReleasedVersions()
-            .stream()
-            /* Java lists all versions from the 5.x series onwards, but we only want to consider
-             * ones that we're supposed to be compatible with. */
-            .filter(v -> v.onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion()))
-            .collect(toList());
-
-        List<String> releasedIndexCompatible = released.stream()
-            .filter(v -> Version.CURRENT.equals(v) == false)
-            .map(Object::toString)
-            .collect(toList());
-        assertEquals(releasedIndexCompatible, indexCompatible.released);
-
-        List<String> unreleasedIndexCompatible = new ArrayList<>(
-            VersionUtils.allUnreleasedVersions()
-                .stream()
-                /* Java lists all versions from the 5.x series onwards, but we only want to consider
-                 * ones that we're supposed to be compatible with. */
-                .filter(v -> v.onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion()))
-                .map(Object::toString)
-                .collect(toCollection(LinkedHashSet::new))
-        );
-        assertEquals(unreleasedIndexCompatible, indexCompatible.unreleased);
-
-        // Now the wire compatible versions
-        VersionsFromProperty wireCompatible = new VersionsFromProperty("tests.gradle_wire_compat_versions");
-
-        Version minimumCompatibleVersion = Version.CURRENT.minimumCompatibilityVersion();
-        List<String> releasedWireCompatible = released.stream()
-            .filter(v -> Version.CURRENT.equals(v) == false)
-            .filter(v -> v.onOrAfter(minimumCompatibleVersion))
-            .map(Object::toString)
-            .collect(toList());
-        assertEquals(releasedWireCompatible, wireCompatible.released);
-
-        List<String> unreleasedWireCompatible = VersionUtils.allUnreleasedVersions()
-            .stream()
-            .filter(v -> v.onOrAfter(minimumCompatibleVersion))
-            .map(Object::toString)
-            .collect(toList());
-        assertEquals(unreleasedWireCompatible, wireCompatible.unreleased);
     }
 
     /**

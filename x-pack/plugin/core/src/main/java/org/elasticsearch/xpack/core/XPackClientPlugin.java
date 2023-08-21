@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleShardStatus;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
+import org.elasticsearch.xpack.core.esql.EsqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.frozen.FrozenIndicesFeatureSetUsage;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
@@ -411,7 +412,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             TermsEnumAction.INSTANCE,
             // TSDB Downsampling
             DownsampleIndexerAction.INSTANCE,
-            org.elasticsearch.xpack.core.downsample.DownsampleAction.INSTANCE
+            org.elasticsearch.action.downsample.DownsampleAction.INSTANCE
         );
     }
 
@@ -448,6 +449,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             new NamedWriteableRegistry.Entry(RoleMapperExpression.class, ExceptExpression.NAME, ExceptExpression::new),
             // eql
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.EQL, EqlFeatureSetUsage::new),
+            // esql
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ESQL, EsqlFeatureSetUsage::new),
             // sql
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SQL, SqlFeatureSetUsage::new),
             // watcher

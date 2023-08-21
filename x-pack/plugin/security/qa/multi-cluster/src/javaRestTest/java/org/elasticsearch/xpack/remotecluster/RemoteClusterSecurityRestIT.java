@@ -12,6 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
@@ -25,11 +26,14 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -50,6 +54,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
     private static final AtomicBoolean SSL_ENABLED_REF = new AtomicBoolean();
     private static final AtomicBoolean NODE1_RCS_SERVER_ENABLED = new AtomicBoolean();
     private static final AtomicBoolean NODE2_RCS_SERVER_ENABLED = new AtomicBoolean();
+    private static final AtomicInteger INVALID_SECRET_LENGTH = new AtomicInteger();
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
@@ -108,6 +113,14 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 }
                 return (String) REST_API_KEY_MAP_REF.get().get("encoded");
             })
+            // Define a remote with invalid API key secret length
+            .keystore(
+                "cluster.remote.invalid_secret_length.credentials",
+                () -> Base64.getEncoder()
+                    .encodeToString(
+                        (UUIDs.base64UUID() + ":" + randomAlphaOfLength(INVALID_SECRET_LENGTH.get())).getBytes(StandardCharsets.UTF_8)
+                    )
+            )
             .rolesFile(Resource.fromClasspath("roles.yml"))
             .user(REMOTE_METRIC_USER, PASS.toString(), "read_remote_shared_metrics", false)
             .build();
@@ -121,6 +134,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
         SSL_ENABLED_REF.set(usually());
         NODE1_RCS_SERVER_ENABLED.set(randomBoolean());
         NODE2_RCS_SERVER_ENABLED.set(randomBoolean());
+        INVALID_SECRET_LENGTH.set(randomValueOtherThan(22, () -> randomIntBetween(0, 99)));
     })).around(fulfillingCluster).around(queryCluster);
 
     public void testCrossClusterSearch() throws Exception {
@@ -354,6 +368,24 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                         + "] has type [rest]"
                 )
             );
+
+            // Check invalid cross-cluster API key length is rejected
+            updateClusterSettings(
+                randomBoolean()
+                    ? Settings.builder()
+                        .put("cluster.remote.invalid_secret_length.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .build()
+                    : Settings.builder()
+                        .put("cluster.remote.invalid_secret_length.mode", "proxy")
+                        .put("cluster.remote.invalid_secret_length.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .build()
+            );
+            final ResponseException exception6 = expectThrows(
+                ResponseException.class,
+                () -> performRequestWithRemoteSearchUser(new Request("GET", "/invalid_secret_length:*/_search"))
+            );
+            assertThat(exception6.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+            assertThat(exception6.getMessage(), containsString("invalid cross-cluster API key value"));
         }
     }
 

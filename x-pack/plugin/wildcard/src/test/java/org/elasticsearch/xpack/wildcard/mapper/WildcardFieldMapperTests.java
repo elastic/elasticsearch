@@ -42,7 +42,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -1145,18 +1144,6 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             doc.add(field);
         }
         iw.addDocument(doc);
-    }
-
-    protected IndexSettings createIndexSettings(Version version) {
-        return new IndexSettings(
-            IndexMetadata.builder("_index")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .creationDate(System.currentTimeMillis())
-                .build(),
-            Settings.EMPTY
-        );
     }
 
     static String randomABString(int minLength) {

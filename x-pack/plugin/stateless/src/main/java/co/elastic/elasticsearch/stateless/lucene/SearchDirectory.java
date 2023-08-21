@@ -132,6 +132,14 @@ public class SearchDirectory extends ByteSizeDirectory {
         }
     }
 
+    /**
+     * For test usage only.
+     */
+    void setMetadata(Map<String, BlobLocation> blobLocations) {
+        assert currentMetadata.isEmpty();
+        currentMetadata = Map.copyOf(blobLocations);
+    }
+
     // TODO this method works because we never prune old commits files
     public OptionalLong getPrimaryTerm(String segmentsFileName) throws FileNotFoundException {
         final BlobLocation location = currentMetadata.get(segmentsFileName);

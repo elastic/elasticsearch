@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.util.List;
@@ -127,6 +128,12 @@ public class RemoteClusterPortSettings {
     public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE = Setting.byteSizeSetting(
         REMOTE_CLUSTER_PREFIX + "tcp.receive_buffer_size",
         TransportSettings.TCP_RECEIVE_BUFFER_SIZE,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> MAX_HEADER_SIZE = Setting.byteSizeSetting(
+        REMOTE_CLUSTER_PREFIX + "max_header_size",
+        new ByteSizeValue(16, ByteSizeUnit.KB),
         Setting.Property.NodeScope
     );
 

@@ -30,6 +30,9 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.InboundAggregator;
+import org.elasticsearch.transport.InboundDecoder;
+import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportSettings;
@@ -147,18 +150,16 @@ public class SecurityNetty4Transport extends Netty4Transport {
     }
 
     @Override
-    protected Bootstrap getClientBootstrap(ConnectionProfile connectionProfile) {
-        final Bootstrap bootstrap = super.getClientBootstrap(connectionProfile);
-        if (false == REMOTE_CLUSTER_PROFILE.equals(connectionProfile.getTransportProfile())
-            || remoteClusterClientBootstrapOptions.isEmpty()) {
-            return bootstrap;
-        }
-
-        logger.trace("reconfiguring client bootstrap for remote cluster client connection");
-        // Only client connections to a new RCS remote cluster can have transport profile of _remote_cluster
-        // All other client connections use the default transport profile regardless of the transport profile used on the server side.
-        remoteClusterClientBootstrapOptions.configure(bootstrap);
-        return bootstrap;
+    protected InboundPipeline getInboundPipeline(boolean isRemoteClusterChannel) {
+        return new InboundPipeline(
+            getStatsTracker(),
+            threadPool::relativeTimeInMillis,
+            isRemoteClusterChannel
+                ? new InboundDecoder(recycler, RemoteClusterPortSettings.MAX_HEADER_SIZE.get(settings))
+                : new InboundDecoder(recycler),
+            new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
+            this::inboundMessage
+        );
     }
 
     @Override

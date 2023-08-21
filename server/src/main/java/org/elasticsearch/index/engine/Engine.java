@@ -30,7 +30,6 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -154,9 +153,9 @@ public abstract class Engine implements Closeable {
      */
     public static IndexVersion readIndexVersion(String esVersion) {
         if (esVersion.contains(".")) {
-            // Version-style
-            Version v = Version.fromString(esVersion);
-            assert v.before(Version.V_8_11_0);
+            // backwards-compatible Version-style
+            org.elasticsearch.Version v = org.elasticsearch.Version.fromString(esVersion);
+            assert v.before(org.elasticsearch.Version.V_8_11_0);
             return IndexVersion.fromId(v.id);
         } else {
             return IndexVersion.fromId(Integer.parseInt(esVersion));

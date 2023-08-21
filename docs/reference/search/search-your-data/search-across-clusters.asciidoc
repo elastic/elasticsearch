@@ -676,10 +676,10 @@ were searched across all clusters and that all were successful.
 
 Failures during a {ccs} can result in one of two conditions:
 
-1. partial results (2xx HTTP status code)
-2. a failed search (4xx or 5xx HTTP status code)
+. partial results (2xx HTTP status code)
+. a failed search (4xx or 5xx HTTP status code)
 
-The failures will be present in the search response in both cases.
+Failure details will be present in the search response in both cases.
 
 A search will be failed if a cluster marked with `skip_unavailable`=`false`
 is unavailable, disconnects during the search, or has search failures on
@@ -690,10 +690,10 @@ section and the `_clusters` section of the response.
 
 A failed search will have an additional top-level `errors` entry in the response.
 
-Here is an example of a cluster with partial results due to search failure
-a one shard. The query would be similar to ones shown previously. We
-use the `_async_search/status` endpoint here to show the completion status
-and not show the hits.
+Here is an example of a search with partial results due to a failure on one shard
+of one cluster. The search would be similar to ones shown previously. The
+`_async_search/status` endpoint is used here to show the completion status and
+not show the hits.
 
 [source,console]
 --------------------------------------------------
@@ -824,10 +824,12 @@ its status is `skipped` and since `cluster_two` is marked as `skip_unavailable`=
 its status is `failed`. Since there was a `failed` cluster, a top level `error`
 is also present and this returns an HTTP status of 500 (not shown).
 
+If you want the search to still return results even when a cluster is
+unavailable, set `skip_unavailable`=`true` for all the remote clusters.
 
 [source,console]
 --------------------------------------------------
-GET /_async_search/status/FjktRGJ1Y2w1U0phLTRhZnVyeUZ2MVEbWEJyeVBPQldTV3FGZGdIeUVabXBldzo5NzA4
+GET /_async_search/FjktRGJ1Y2w1U0phLTRhZnVyeUZ2MVEbWEJyeVBPQldTV3FGZGdIeUVabXBldzo5NzA4
 --------------------------------------------------
 // TEST[continued s/FjktRGJ1Y2w1U0phLTRhZnVyeUZ2MVEbWEJyeVBPQldTV3FGZGdIeUVabXBldzo5NzA4/\${body.id}/]
 
@@ -934,7 +936,7 @@ configuration as `skip_unavailable`=`false`.
 [[exclude-problematic-clusters]]
 === Excluding clusters or indices from a {ccs}
 
-If you use a wildcard to include large list of clusters and/or indices,
+If you use a wildcard to include a large list of clusters and/or indices,
 you can explicitly exclude one or more clusters or indices with a `-` minus
 sign in front of the cluster or index.
 
@@ -1001,8 +1003,8 @@ contacted and told to search any indexes matching `my-index-*` except for
 [[ccs-async-search-minimize-roundtrips-false]]
 === Using async search for {ccs} with ccs_minimize_roundtrips=false
 
-The `_shards` and `_clusters` section of the response behave slightly
-differently when `ccs_minimize_roundtrips` is `false` in asynchronous searches.
+The `_shards` and `_clusters` section of the response behave
+differently when `ccs_minimize_roundtrips` is `false`.
 
 Key differences are:
 
@@ -1016,7 +1018,7 @@ long-running search compared to when minimize roundtrips is used.
 . The `_cluster` section starts off listing all of its shard counts, since
 they are also obtained before the query phase begins.
 
-Example using the same set up as in the previous section (`ccs_minimize_roundtrips=true`):
+Example using the same setup as in the previous section (`ccs_minimize_roundtrips=true`):
 
 [source,console]
 --------------------------------------------------
@@ -1195,6 +1197,25 @@ network roundtrips, and sets the parameter `ccs_minimize_roundtrips` to `false`.
 
 [discrete]
 [[ccs-min-roundtrips]]
+==== Considerations for choosing whether to minimize roundtrips in a {ccs}
+
+For cross-cluster searches that query a large number of shards, the minimize roundtrips
+option typically provides much better performance. This is especially true if the clusters
+being searched have high network latency (e.g., distant geographic regions).
+
+However, not minimizing roundtrips allows you to get back incremental results of
+any aggregations in your query when using async-search while the search is still
+running.
+
+By default, synchronous searches minimize roundtrips, while asynchronous searches
+do not. You can override the default by using the `ccs_minimize_roundtrips` parameter,
+setting it to either `true` or `false`, as shown in several examples earlier in this
+document.
+
+
+[discrete]
+[[ccs-min-roundtrips-true]]
+
 ==== Minimize network roundtrips
 
 Here's how {ccs} works when you minimize network roundtrips.
@@ -1307,8 +1328,8 @@ on the same version of {es}. If you need to maintain clusters with different
 versions, you can:
 
 * Maintain a dedicated cluster for {ccs}. Keep this cluster on the earliest
-version needed to search the other clusters. For example, if you have 7.17 and 8.x clusters, you can maintain a dedicated 7.17 cluster to use
-as the local cluster for {ccs}.
+version needed to search the other clusters. For example, if you have 7.17 and 8.x clusters,
+you can maintain a dedicated 7.17 cluster to use as the local cluster for {ccs}.
 
 * Keep each cluster no more than one minor version apart. This lets you use any
 cluster as the local cluster when running a {ccs}.

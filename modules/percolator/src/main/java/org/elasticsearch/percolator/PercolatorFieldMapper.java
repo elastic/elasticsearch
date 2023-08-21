@@ -395,7 +395,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean parsesObject() {
+    protected boolean supportsParsingObject() {
         return true;
     }
 

@@ -168,7 +168,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * If that's the case we can provide the entire object to the FieldMapper otherwise its
      * name becomes part of the dotted field name of each internal value.
      */
-    protected boolean parsesObject() {
+    protected boolean supportsParsingObject() {
         return false;
     }
 

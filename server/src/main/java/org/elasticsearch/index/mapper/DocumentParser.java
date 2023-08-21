@@ -427,7 +427,7 @@ public final class DocumentParser {
     private static boolean canToBeFlatten(DocumentParserContext context, FieldMapper fieldMapper) {
         return context.parser().currentToken() == XContentParser.Token.START_OBJECT
             && context.parent().subobjects() == false
-            && fieldMapper.parsesObject() == false;
+            && fieldMapper.supportsParsingObject() == false;
     }
 
     private static void throwOnUnrecognizedMapperType(Mapper mapper) {

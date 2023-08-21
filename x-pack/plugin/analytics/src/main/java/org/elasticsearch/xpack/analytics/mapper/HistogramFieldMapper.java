@@ -279,7 +279,7 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean parsesObject() {
+    protected boolean supportsParsingObject() {
         return true;
     }
 

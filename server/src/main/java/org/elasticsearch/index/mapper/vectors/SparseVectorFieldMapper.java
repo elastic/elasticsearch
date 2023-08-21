@@ -115,7 +115,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean parsesObject() {
+    protected boolean supportsParsingObject() {
         return true;
     }
 

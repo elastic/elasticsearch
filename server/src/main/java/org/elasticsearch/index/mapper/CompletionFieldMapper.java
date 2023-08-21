@@ -377,7 +377,7 @@ public class CompletionFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean parsesObject() {
+    protected boolean supportsParsingObject() {
         return true;
     }
 

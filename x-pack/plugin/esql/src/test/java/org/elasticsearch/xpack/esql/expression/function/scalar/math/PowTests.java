@@ -120,6 +120,17 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                     .withWarning("java.lang.ArithmeticException: integer overflow")
             ),
             new TestCaseSupplier(
+                "long overflow case",
+                () -> new TestCase(
+                    List.of(new TypedData(Long.MAX_VALUE, DataTypes.LONG, "base"), new TypedData(2, DataTypes.INTEGER, "exp")),
+                    "PowLongEvaluator[base=CastLongToDoubleEvaluator[v=Attribute[channel=0]], "
+                        + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.LONG,
+                    equalTo(null)
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("java.lang.ArithmeticException: long overflow")
+            ),
+            new TestCaseSupplier(
                 "pow(2, 0.5) == sqrt(2)",
                 () -> new TestCase(
                     List.of(new TypedData(2, DataTypes.INTEGER, "base"), new TypedData(0.5, DataTypes.DOUBLE, "exp")),

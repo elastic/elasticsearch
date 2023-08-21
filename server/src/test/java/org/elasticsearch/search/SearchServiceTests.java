@@ -2081,22 +2081,19 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testIsParallelCollectionSupportedForResults() {
+    public void testIsParallelCollectionSupportedForResults() throws Exception {
         SearchSourceBuilder searchSourceBuilderOrNull = randomBoolean() ? null : new SearchSourceBuilder();
         for (var resultsType : ResultsType.values()) {
-            // The following exhaustive switch expression is used to enforce totality checking of the ResultsType enum.
-            Runnable boilerplateForExhaustiveSwitch = switch (resultsType) {
-                case NONE, FETCH -> () -> assertFalse(
+            switch (resultsType) {
+                case NONE, FETCH -> assertFalse(
                     "NONE and FETCH phases do not support parallel collection.",
                     SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderOrNull, randomBoolean())
                 );
-                case DFS -> () -> {
-                    assertTrue(
-                        "DFS phase always supports parallel collection.",
-                        SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderOrNull, randomBoolean())
-                    );
-                };
-                case QUERY -> () -> {
+                case DFS -> assertTrue(
+                    "DFS phase always supports parallel collection.",
+                    SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderOrNull, randomBoolean())
+                );
+                case QUERY -> {
                     SearchSourceBuilder searchSourceBuilderNoAgg = new SearchSourceBuilder();
                     assertTrue(
                         "Parallel collection should be supported for the query phase when no agg is present.",
@@ -2146,9 +2143,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                             true
                         )
                     );
-                };
-            };
-            boilerplateForExhaustiveSwitch.run();
+                }
+                default -> throw new UnsupportedOperationException("Untested ResultsType added, please add new testcases.");
+            }
         }
     }
 

@@ -292,7 +292,7 @@ public class PyTorchResultProcessor {
     }
 
     /**
-     * Waits for specified amount of time for the processor complete.
+     * Waits for specified amount of time for the processor to complete.
      *
      * @param timeout the maximum time to wait
      * @param unit the time unit of the timeout

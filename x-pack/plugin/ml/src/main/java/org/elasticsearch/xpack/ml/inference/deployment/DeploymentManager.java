@@ -505,7 +505,7 @@ public class DeploymentManager {
             }
         }
 
-        synchronized void stopProcessAfterCompletingPendingWork() {
+        private synchronized void stopProcessAfterCompletingPendingWork() {
             logger.debug(() -> format("[%s] Stopping process after completing its pending work", task.getDeploymentId()));
             prepareInternalStateForShutdown();
 
@@ -549,7 +549,7 @@ public class DeploymentManager {
 
                 process.get().close();
             } catch (IOException e) {
-                logger.error(() -> "[" + task.getDeploymentId() + "] Failed to stop process gracefully attempting to kill it", e);
+                logger.error(format("[%s] Failed to stop process gracefully, attempting to kill it", task.getDeploymentId()), e);
                 killProcessIfPresent();
             }
         }

@@ -227,6 +227,13 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         loadingModels.addAll(loadingToRetry);
     }
 
+    /**
+     * Stop the deployment after waiting for the currently queued work to complete.
+     *
+     * @param task the deployment task to stop
+     * @param reason the reason the task is being stopped
+     * @param listener a listener to call once the native process and associated workers have stopped
+     */
     public void gracefullyStopDeploymentAndNotify(
         TrainedModelDeploymentTask task,
         String reason,
@@ -243,9 +250,9 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     }
 
     public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason, ActionListener<AcknowledgedResponse> listener) {
-        // Removing the entry from the map to avoid the possibility of a node shutdown triggering a concurrent graceful shutdown of the
-        // process while we are attempting a forceful shutdown
-        // The graceful shutdown will only occur if there is an entry in the map
+        // Removing the entry from the map to avoid the possibility of a node shutdown triggering a concurrent graceful stopping of the
+        // process while we are attempting to forcefully stop the native process
+        // The graceful stopping will only occur if there is an entry in the map
         deploymentIdToTask.remove(task.getDeploymentId());
 
         ActionListener<Void> notifyDeploymentOfStopped = updateRoutingStateToStoppedListener(task.getDeploymentId(), reason, listener);
@@ -353,7 +360,9 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     }
 
                     if (shouldLoadModel(routingInfo, trainedModelAssignment.getDeploymentId(), isResetMode)) {
-                        prepareModelToLoad(createStartTrainedModelDeploymentTaskParams(trainedModelAssignment, currentNode));
+                        prepareModelToLoad(
+                            createStartTrainedModelDeploymentTaskParams(trainedModelAssignment, routingInfo.getCurrentAllocations())
+                        );
                     }
                 }
 
@@ -361,7 +370,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     gracefullyStopDeployment(trainedModelAssignment.getDeploymentId(), currentNode);
                 }
             } else {
-                stopUnroutedDeployment(trainedModelAssignment.getDeploymentId(), currentNode);
+                stopUnreferencedDeployment(trainedModelAssignment.getDeploymentId(), currentNode);
             }
         }
 
@@ -408,15 +417,13 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
     private static StartTrainedModelDeploymentAction.TaskParams createStartTrainedModelDeploymentTaskParams(
         TrainedModelAssignment trainedModelAssignment,
-        String currentNode
+        int currentAllocations
     ) {
-        RoutingInfo routingInfo = trainedModelAssignment.getNodeRoutingTable().get(currentNode);
-
         return new StartTrainedModelDeploymentAction.TaskParams(
             trainedModelAssignment.getTaskParams().getModelId(),
             trainedModelAssignment.getDeploymentId(),
             trainedModelAssignment.getTaskParams().getModelBytes(),
-            routingInfo.getCurrentAllocations(),
+            currentAllocations,
             trainedModelAssignment.getTaskParams().getThreadsPerAllocation(),
             trainedModelAssignment.getTaskParams().getQueueCapacity(),
             trainedModelAssignment.getTaskParams().getCacheSize().orElse(null),
@@ -470,7 +477,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         });
     }
 
-    private void stopUnroutedDeployment(String deploymentId, String currentNode) {
+    private void stopUnreferencedDeployment(String deploymentId, String currentNode) {
         // This model is not routed to the current node at all
         TrainedModelDeploymentTask task = deploymentIdToTask.remove(deploymentId);
         if (task == null) {

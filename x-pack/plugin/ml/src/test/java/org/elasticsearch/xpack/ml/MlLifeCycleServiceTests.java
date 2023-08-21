@@ -181,7 +181,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         assertThat(isNodeSafeToShutdown("node-4", clusterState, shutdownStartTime, clock), is(true)); // has no ML tasks
     }
 
-    public void testIsNodeSafeToShutdownReturnsFalseWhenStartingAllocationExists() {
+    public void testIsNodeSafeToShutdownReturnsFalseWhenStartingDeploymentExists() {
         String nodeId = "node-1";
         ClusterState currentState = ClusterState.builder(new ClusterName("test"))
             .metadata(
@@ -202,10 +202,10 @@ public class MlLifeCycleServiceTests extends ESTestCase {
 
         Clock clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
 
-        assertThat(isNodeSafeToShutdown("node-1", currentState, null, clock), is(false));
+        assertFalse(isNodeSafeToShutdown("node-1", currentState, null, clock));
     }
 
-    public void testIsNodeSafeToShutdownReturnsFalseWhenStoppingAndStoppedAllocationsExist() {
+    public void testIsNodeSafeToShutdownReturnsFalseWhenStoppingAndStoppedDeploymentsExist() {
         String nodeId = "node-1";
         ClusterState currentState = ClusterState.builder(new ClusterName("test"))
             .metadata(
@@ -231,10 +231,10 @@ public class MlLifeCycleServiceTests extends ESTestCase {
 
         Clock clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
 
-        assertThat(isNodeSafeToShutdown("node-1", currentState, null, clock), is(false));
+        assertFalse(isNodeSafeToShutdown("node-1", currentState, null, clock));
     }
 
-    public void testIsNodeSafeToShutdownReturnsTrueWhenStoppedAllocationsExist() {
+    public void testIsNodeSafeToShutdownReturnsTrueWhenStoppedDeploymentsExist() {
         String nodeId = "node-1";
         ClusterState currentState = ClusterState.builder(new ClusterName("test"))
             .metadata(

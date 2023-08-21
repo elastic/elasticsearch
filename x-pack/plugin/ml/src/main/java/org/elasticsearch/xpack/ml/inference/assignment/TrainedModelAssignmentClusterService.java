@@ -955,8 +955,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 }
                 for (var nodeId : exitingShutDownNodes) {
                     if (trainedModelAssignment.isRoutedToNode(nodeId)
-                        // If the route is stopping then it's draining its queue so let that happen and don't try to rebalance until it has
-                        // completely finished
+                        // If the route is stopping then it's draining its queue or being forced to stop so let that continue
+                        // and don't try to rebalance until it has completely finished
                         && trainedModelAssignment.getNodeRoutingTable().get(nodeId).getState() != RoutingState.STOPPING) {
                         logger.debug(
                             () -> format(

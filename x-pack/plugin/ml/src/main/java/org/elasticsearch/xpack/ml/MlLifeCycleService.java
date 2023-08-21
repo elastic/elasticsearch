@@ -108,10 +108,10 @@ public class MlLifeCycleService {
             return true;
         }
 
-        boolean nodeHasRunningAllocations = nodeHasRunningAllocations(nodeId, state);
+        boolean nodeHasRunningDeployments = nodeHasRunningDeployments(nodeId, state);
 
         logger.debug(
-            () -> format("Checking shutdown safety for node id [%s], has running allocations: %s", nodeId, nodeHasRunningAllocations)
+            () -> format("Checking shutdown safety for node id [%s], has running deployments: %s", nodeId, nodeHasRunningDeployments)
         );
 
         PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
@@ -119,10 +119,10 @@ public class MlLifeCycleService {
         // persistent task means closed), but these don't need to be relocated to another node.
         return MlTasks.nonFailedJobTasksOnNode(tasks, nodeId).isEmpty()
             && MlTasks.nonFailedSnapshotUpgradeTasksOnNode(tasks, nodeId).isEmpty()
-            && nodeHasRunningAllocations == false;
+            && nodeHasRunningDeployments == false;
     }
 
-    private static boolean nodeHasRunningAllocations(String nodeId, ClusterState state) {
+    private static boolean nodeHasRunningDeployments(String nodeId, ClusterState state) {
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(state);
 
         return metadata.allAssignments().values().stream().anyMatch(assignment -> {
@@ -137,7 +137,7 @@ public class MlLifeCycleService {
                     )
                 );
 
-                // A routing could exist in the stopped state if the allocation has successfully drained any remaining requests
+                // A routing could exist in the stopped state if the deployment has successfully drained any remaining requests
                 return routingInfo.getState() != RoutingState.STOPPED;
             }
 

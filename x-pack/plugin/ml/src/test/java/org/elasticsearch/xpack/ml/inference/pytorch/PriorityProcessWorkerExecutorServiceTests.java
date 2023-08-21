@@ -244,33 +244,4 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
             // do nothing
         }
     }
-
-    private static class ShutdownExecutorAfterWorkRunnable extends AbstractInitializableRunnable {
-
-        PriorityProcessWorkerExecutorService executor;
-
-        ShutdownExecutorAfterWorkRunnable(PriorityProcessWorkerExecutorService executor) {
-            this.executor = executor;
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            executor.shutdown();
-            fail(e.getMessage());
-        }
-
-        @Override
-        protected void doRun() {
-            try {
-                executor.awaitTerminationAfterCompletingWork(1, TimeUnit.SECONDS);
-            } catch (Exception e) {
-                fail("Worker executor service did not shutdown");
-            }
-        }
-
-        @Override
-        public void init() {
-            // do nothing
-        }
-    }
 }

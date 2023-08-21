@@ -100,8 +100,6 @@ class TrainedModelAssignmentRebalancer {
             boolean foundShuttingDownNodeForAssignment = false;
 
             String existingDeploymentId = existingAssignment.getDeploymentId();
-            // TODO this may be overkill, based on my limited testing, the builder will always have the assignment so maybe that's
-            // guaranteed and we don't need to check?
             TrainedModelAssignment.Builder assignmentBuilder = builder.hasModelDeployment(existingAssignment.getDeploymentId())
                 ? builder.getAssignment(existingDeploymentId)
                 : TrainedModelAssignment.Builder.fromAssignment(existingAssignment)

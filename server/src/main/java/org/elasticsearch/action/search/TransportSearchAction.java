@@ -450,6 +450,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return false;
         }
         if (searchRequest.scroll() != null) {
+            System.err.println("JJJ scroll in play - so shouldMinimizeRoundtrips=false");
             return false;
         }
         if (searchRequest.pointInTimeBuilder() != null) {

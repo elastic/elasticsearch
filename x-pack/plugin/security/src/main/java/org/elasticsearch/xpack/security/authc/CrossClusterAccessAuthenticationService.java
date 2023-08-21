@@ -19,10 +19,13 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -106,6 +109,70 @@ public class CrossClusterAccessAuthenticationService {
                 }, listener::onFailure))
             );
         }
+    }
+
+    public void tryAuthenticateCredentialsHeader(Map<String, String> headers, ActionListener<Void> listener) {
+        doTryAuthenticateCredentialsHeader(clusterService.threadPool().getThreadContext(), headers, listener);
+    }
+
+    public void doTryAuthenticateCredentialsHeader(
+        ThreadContext threadContext,
+        Map<String, String> headers,
+        ActionListener<Void> listener
+    ) {
+        final ApiKeyService.ApiKeyCredentials apiKeyCredentials;
+        try {
+            apiKeyCredentials = getApiKeyCredentialsFromHeaders(headers);
+        } catch (Exception ex) {
+            listener.onFailure(Exceptions.authenticationError("failed to parse cross cluster credentials header", ex));
+            return;
+        }
+
+        apiKeyService.tryAuthenticate(threadContext, apiKeyCredentials, ActionListener.wrap(authResult -> {
+            if (authResult.isAuthenticated()) {
+                logger.trace("Cross cluster credentials authentication successful for [{}]", apiKeyCredentials.principal());
+                listener.onResponse(null);
+                return;
+            }
+
+            if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
+                Exception e = (authResult.getException() != null)
+                    ? authResult.getException()
+                    : Exceptions.authenticationError(authResult.getMessage());
+                logger.debug(() -> "API key service terminated authentication", e);
+                listener.onFailure(e);
+            } else {
+                if (authResult.getMessage() != null) {
+                    if (authResult.getException() != null) {
+                        logger.warn(
+                            () -> format("Authentication using apikey failed - %s", authResult.getMessage()),
+                            authResult.getException()
+                        );
+                    } else {
+                        logger.warn("Authentication using apikey failed - {}", authResult.getMessage());
+                    }
+                }
+                listener.onFailure(Exceptions.authenticationError(authResult.getMessage(), authResult.getException()));
+            }
+        }, e -> listener.onFailure(Exceptions.authenticationError("failed to authenticate cross cluster credentials", e))));
+    }
+
+    private ApiKeyService.ApiKeyCredentials getApiKeyCredentialsFromHeaders(Map<String, String> headers) {
+        apiKeyService.ensureEnabled();
+        final String credentials = headers.get(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
+        if (credentials == null) {
+            throw requiredHeaderMissingException(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
+        }
+        return CrossClusterAccessHeaders.parseCredentialsHeader(credentials);
+    }
+
+    public static IllegalArgumentException requiredHeaderMissingException(String headerKey) {
+        return new IllegalArgumentException(
+            "Cross cluster requests through the dedicated remote cluster server port require transport header ["
+                + headerKey
+                + "] but none found. "
+                + "Please ensure you have configured remote cluster credentials on the cluster originating the request."
+        );
     }
 
     public AuthenticationService getAuthenticationService() {

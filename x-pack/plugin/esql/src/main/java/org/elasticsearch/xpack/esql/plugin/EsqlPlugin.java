@@ -106,7 +106,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         );
         return List.of(
             new PlanExecutor(indexResolver, new EnrichPolicyResolver(clusterService, indexResolver, threadPool)),
-            new ExchangeService(clusterService.getSettings(), threadPool)
+            new ExchangeService(clusterService.getSettings(), threadPool, EsqlPlugin.ESQL_THREAD_POOL_NAME)
         );
     }
 

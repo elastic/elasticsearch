@@ -12,7 +12,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
-public class DateTrunc extends BinaryDateTimeFunction implements Mappable {
+public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper {
 
     public DateTrunc(Source source, Expression field, Expression interval) {
         super(source, field, interval);
@@ -65,7 +65,7 @@ public class DateTrunc extends BinaryDateTimeFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Evaluator

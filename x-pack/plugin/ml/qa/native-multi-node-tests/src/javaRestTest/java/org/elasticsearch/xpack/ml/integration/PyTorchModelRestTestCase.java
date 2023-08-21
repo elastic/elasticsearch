@@ -191,11 +191,26 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
     }
 
     protected void createPassThroughModel(String modelId) throws IOException {
+        createPassThroughModel(modelId, 0, 0);
+    }
+
+    protected void createPassThroughModel(String modelId, long perDeploymentMemoryBytes, long perAllocationMemoryBytes) throws IOException {
         Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
-        request.setJsonEntity("""
+        String metadata;
+        if (perDeploymentMemoryBytes > 0 && perAllocationMemoryBytes > 0) {
+            metadata = Strings.format("""
+                "metadata": {
+                  "per_deployment_memory_bytes": %d,
+                  "per_allocation_memory_bytes": %d
+                },""", perDeploymentMemoryBytes, perAllocationMemoryBytes);
+        } else {
+            metadata = "";
+        }
+        request.setJsonEntity(Strings.format("""
             {
                "description": "simple model for testing",
                "model_type": "pytorch",
+                %s
                "inference_config": {
                  "pass_through": {
                    "tokenization": {
@@ -205,7 +220,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
                    }
                  }
                }
-             }""");
+             }""", metadata));
         client().performRequest(request);
     }
 
@@ -288,6 +303,11 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
 
     protected Response getTrainedModelStats(String modelId) throws IOException {
         Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
+        return client().performRequest(request);
+    }
+
+    protected Response getTrainedModelConfigs(String modelId) throws IOException {
+        Request request = new Request("GET", "/_ml/trained_models/" + modelId);
         return client().performRequest(request);
     }
 

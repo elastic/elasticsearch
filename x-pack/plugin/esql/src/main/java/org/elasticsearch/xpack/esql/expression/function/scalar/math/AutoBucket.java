@@ -12,15 +12,15 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
-import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -52,7 +52,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
  *     in the above case we'll pick month long buckets, yielding 12 buckets.
  * </p>
  */
-public class AutoBucket extends ScalarFunction implements Mappable {
+public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
     // That way you never end up with more than the target number of buckets.
     private static final Rounding LARGEST_HUMAN_DATE_ROUNDING = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY).build();
@@ -96,7 +96,7 @@ public class AutoBucket extends ScalarFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Override

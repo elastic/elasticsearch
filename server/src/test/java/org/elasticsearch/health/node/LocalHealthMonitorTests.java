@@ -61,6 +61,8 @@ public class LocalHealthMonitorTests extends ESTestCase {
     private ClusterService clusterService;
     private DiscoveryNode node;
     private DiscoveryNode frozenNode;
+    private DiscoveryNode searchNode;
+    private DiscoveryNode searchAndIndexNode;
     private HealthMetadata healthMetadata;
     private ClusterState clusterState;
     private Client client;
@@ -93,8 +95,17 @@ public class LocalHealthMonitorTests extends ESTestCase {
             .name("frozen-node")
             .roles(Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))
             .build();
-        clusterState = ClusterStateCreationUtils.state(node, node, node, new DiscoveryNode[] { node, frozenNode })
-            .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+        searchNode = DiscoveryNodeUtils.builder("search-node").name("search-node").roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE)).build();
+        searchAndIndexNode = DiscoveryNodeUtils.builder("search-and-index-node")
+            .name("search-and-index-node")
+            .roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.INDEX_ROLE))
+            .build();
+        clusterState = ClusterStateCreationUtils.state(
+            node,
+            node,
+            node,
+            new DiscoveryNode[] { node, frozenNode, searchNode, searchAndIndexNode }
+        ).copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
 
         // Set-up cluster service
         clusterService = mock(ClusterService.class);
@@ -297,6 +308,39 @@ public class LocalHealthMonitorTests extends ESTestCase {
         LocalHealthMonitor.DiskCheck diskMonitor = new LocalHealthMonitor.DiskCheck(nodeService);
         DiskHealthInfo diskHealth = diskMonitor.getHealth(healthMetadata, clusterStateFrozenLocalNode);
         assertThat(diskHealth, equalTo(new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD)));
+    }
+
+    public void testSearchNodeGreenDiskStatus() {
+        // Search-only nodes behave like frozen nodes -- they are RED at 95% full, GREEN otherwise.
+        initializeIncreasedDiskSpaceUsage();
+        ClusterState clusterStateSearchLocalNode = clusterState.copyAndUpdate(
+            b -> b.nodes(DiscoveryNodes.builder().add(node).add(searchNode).localNodeId(searchNode.getId()).build())
+        );
+        LocalHealthMonitor.DiskCheck diskMonitor = new LocalHealthMonitor.DiskCheck(nodeService);
+        DiskHealthInfo diskHealth = diskMonitor.getHealth(healthMetadata, clusterStateSearchLocalNode);
+        assertThat(diskHealth, equalTo(GREEN));
+    }
+
+    public void testSearchNodeRedDiskStatus() {
+        // Search-only nodes behave like frozen nodes -- they are RED at 95% full, GREEN otherwise.
+        simulateDiskOutOfSpace();
+        ClusterState clusterStateSearchLocalNode = clusterState.copyAndUpdate(
+            b -> b.nodes(DiscoveryNodes.builder().add(node).add(searchNode).localNodeId(searchNode.getId()).build())
+        );
+        LocalHealthMonitor.DiskCheck diskMonitor = new LocalHealthMonitor.DiskCheck(nodeService);
+        DiskHealthInfo diskHealth = diskMonitor.getHealth(healthMetadata, clusterStateSearchLocalNode);
+        assertThat(diskHealth, equalTo(new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD)));
+    }
+
+    public void testSearchAndIndexNodesYellowDiskStatus() {
+        // A search role mixed with another data node role behaves like an ordinary data node -- YELLOW at 90% full.
+        initializeIncreasedDiskSpaceUsage();
+        ClusterState clusterStateSearchLocalNode = clusterState.copyAndUpdate(
+            b -> b.nodes(DiscoveryNodes.builder().add(node).add(searchAndIndexNode).localNodeId(searchAndIndexNode.getId()).build())
+        );
+        LocalHealthMonitor.DiskCheck diskMonitor = new LocalHealthMonitor.DiskCheck(nodeService);
+        DiskHealthInfo diskHealth = diskMonitor.getHealth(healthMetadata, clusterStateSearchLocalNode);
+        assertThat(diskHealth, equalTo(new DiskHealthInfo(HealthStatus.YELLOW, DiskHealthInfo.Cause.NODE_OVER_HIGH_THRESHOLD)));
     }
 
     public void testYellowStatusForNonDataNode() {

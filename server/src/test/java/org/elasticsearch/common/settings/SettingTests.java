@@ -526,7 +526,9 @@ public class SettingTests extends ESTestCase {
         assertTrue(setting.match("foo.bar.baz"));
         assertFalse(setting.match("foo.baz.bar"));
 
-        ClusterSettings.SettingUpdater<Settings> predicateSettingUpdater = setting.newUpdater(ref::set, logger, (s) -> assertFalse(true));
+        ClusterSettings.SettingUpdater<Settings> predicateSettingUpdater = setting.newUpdater(ref::set, logger, (s) -> {
+            throw randomBoolean() ? new RuntimeException("anything") : new IllegalArgumentException("illegal");
+        });
         try {
             predicateSettingUpdater.apply(
                 Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build(),
@@ -542,7 +544,9 @@ public class SettingTests extends ESTestCase {
         AtomicReference<Settings> ref = new AtomicReference<>(null);
         Setting<Settings> setting = Setting.groupSetting("foo.bar.", Property.Filtered, Property.Dynamic);
 
-        ClusterSettings.SettingUpdater<Settings> predicateSettingUpdater = setting.newUpdater(ref::set, logger, (s) -> assertFalse(true));
+        ClusterSettings.SettingUpdater<Settings> predicateSettingUpdater = setting.newUpdater(ref::set, logger, (s) -> {
+            throw randomBoolean() ? new RuntimeException("anything") : new IllegalArgumentException("illegal");
+        });
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> predicateSettingUpdater.apply(

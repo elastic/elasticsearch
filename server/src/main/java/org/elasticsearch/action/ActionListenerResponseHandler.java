@@ -66,6 +66,6 @@ public class ActionListenerResponseHandler<Response extends TransportResponse> i
 
     @Override
     public String toString() {
-        return super.toString() + "/" + listener;
+        return getClass().getSimpleName() + '[' + listener + ']';
     }
 }

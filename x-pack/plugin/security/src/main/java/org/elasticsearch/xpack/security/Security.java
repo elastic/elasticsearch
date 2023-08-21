@@ -543,6 +543,7 @@ public class Security extends Plugin
     private final SetOnce<ThreadContext> threadContext = new SetOnce<>();
     private final SetOnce<TokenService> tokenService = new SetOnce<>();
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
+    private final SetOnce<CrossClusterAccessAuthenticationService> crossClusterAccessAuthcServiceRef = new SetOnce<>();
 
     private final SetOnce<SharedGroupFactory> sharedGroupFactory = new SetOnce<>();
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
@@ -998,6 +999,7 @@ public class Security extends Plugin
             apiKeyService,
             authcService.get()
         );
+        crossClusterAccessAuthcServiceRef.set(crossClusterAccessAuthcService);
         components.add(crossClusterAccessAuthcService);
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
@@ -1008,7 +1010,7 @@ public class Security extends Plugin
                 getSslService(),
                 securityContext.get(),
                 destructiveOperations,
-                crossClusterAccessAuthcService,
+                crossClusterAccessAuthcServiceRef.get(),
                 remoteClusterCredentialsResolver,
                 getLicenseState()
             )

@@ -578,6 +578,19 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
     }
 
+    public void testGetCredentialsFromHeaderFailsForInvalidCrossClusterApiKeySecretLength() {
+        final String id = randomAlphaOfLength(20);
+        final String key = randomAlphaOfLength(randomValueOtherThan(22, () -> randomIntBetween(0, 99)));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ApiKeyService.getCredentialsFromHeader(
+                "ApiKey " + Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8)),
+                ApiKey.Type.CROSS_CLUSTER
+            )
+        );
+        assertThat(e.getMessage(), containsString("invalid cross-cluster API key value"));
+    }
+
     public void testAuthenticateWithApiKey() throws Exception {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         final ApiKeyService service = createApiKeyService(settings);

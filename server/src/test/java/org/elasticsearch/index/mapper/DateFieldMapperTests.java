@@ -54,6 +54,11 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected Object getSampleObjectForDocument() {
+        throw new UnsupportedOperationException("date Field doesn't support object parsing.");
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "date");
     }

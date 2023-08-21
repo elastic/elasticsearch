@@ -42,6 +42,11 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     @Override
+    protected Object getSampleObjectForDocument() {
+        throw new UnsupportedOperationException("geo_shape Field doesn't support object parsing.");
+    }
+
+    @Override
     protected boolean supportsSearchLookup() {
         return false;
     }

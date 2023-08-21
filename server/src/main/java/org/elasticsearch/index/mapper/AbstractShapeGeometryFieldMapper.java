@@ -17,6 +17,10 @@ import java.util.function.Function;
  * Base class for {@link GeoShapeFieldMapper}
  */
 public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeometryFieldMapper<T> {
+    @Override
+    protected boolean supportsParsingObject() {
+        return false;
+    }
 
     public static Parameter<Explicit<Boolean>> coerceParam(Function<FieldMapper, Explicit<Boolean>> initializer, boolean coerceByDefault) {
         return Parameter.explicitBoolParam("coerce", true, initializer, coerceByDefault);

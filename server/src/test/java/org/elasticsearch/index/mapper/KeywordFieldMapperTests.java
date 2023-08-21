@@ -88,6 +88,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         return "value";
     }
 
+    @Override
+    protected Object getSampleObjectForDocument() {
+        throw new UnsupportedOperationException("keyword Field doesn't support object parsing.");
+    }
+
     public final void testExistsQueryDocValuesDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

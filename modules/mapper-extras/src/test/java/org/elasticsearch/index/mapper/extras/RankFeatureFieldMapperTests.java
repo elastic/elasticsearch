@@ -43,6 +43,11 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected Object getSampleObjectForDocument() {
+        throw new UnsupportedOperationException("token_count Field doesn't support object parsing.");
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("positive_score_impact", b -> b.field("positive_score_impact", false));
     }

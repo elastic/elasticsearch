@@ -717,6 +717,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected Object getSampleObjectForDocument() {
+        throw new UnsupportedOperationException("wildcard Field doesn't support object parsing.");
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
         checker.registerUpdateCheck(b -> b.field("ignore_above", 256), m -> assertEquals(256, ((WildcardFieldMapper) m).ignoreAbove()));

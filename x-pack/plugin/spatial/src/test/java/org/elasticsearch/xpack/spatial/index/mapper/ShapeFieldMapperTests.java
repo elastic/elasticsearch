@@ -40,6 +40,11 @@ import static org.hamcrest.Matchers.isA;
 public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
 
     @Override
+    protected Object getSampleObjectForDocument() {
+        throw new UnsupportedOperationException("shape Field doesn't support object parsing.");
+    }
+
+    @Override
     protected String getFieldName() {
         return "shape";
     }

@@ -104,6 +104,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected abstract Object getSampleValueForDocument();
 
     /**
+     * Returns a sample object for the field or exception if the field does not support parsing objects
+     */
+    protected abstract Object getSampleObjectForDocument();
+
+    /**
      * Returns a sample value for the field, to be used when querying the field. Normally this is the same format as
      * what is indexed as part of a document, and returned by {@link #getSampleValueForDocument()}, but there
      * are cases where fields are queried differently frow how they are indexed e.g. token_count or runtime fields
@@ -1064,23 +1069,24 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return true;
     }
 
-    public final void testSupportsParsingObject() throws IOException {
+    public void testSupportsParsingObject() throws IOException {
         DocumentMapper mapper = createMapperService(fieldMapping(this::minimalMapping)).documentMapper();
-
-        try {
-            mapper.parse(source(b -> {
+        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+        if (fieldMapper.supportsParsingObject()) {
+            Object sampleValueForDocument = getSampleObjectForDocument();
+            assertThat(sampleValueForDocument, instanceOf(Map.class));
+            SourceToParse source = source(builder -> {
+                builder.field("field");
+                builder.value(sampleValueForDocument);
+            });
+            ParsedDocument doc = mapper.parse(source);
+            assertNotNull(doc);
+        } else {
+            expectThrows(Exception.class, () -> mapper.parse(source(b -> {
                 b.startObject("field");
                 b.endObject();
-            }));
-            assertTrue(false);
-        } catch (DocumentParsingException exception) {
-            StringBuilder expectedException = new StringBuilder("failed to parse field [field] of type [");
-            expectedException.append(mapper.mappers().getMapper("field").typeName());
-            expectedException.append("]");
-            if (mapper.sourceMapper().supportsParsingObject() == false) {
-                expectedException.append(" in document with id '1'. Preview of field's value: 'null'");
-            }
-            assertTrue(exception.getMessage().contains(expectedException.toString()));
+            })));
+            expectThrows(UnsupportedOperationException.class, this::getSampleObjectForDocument);
         }
     }
 

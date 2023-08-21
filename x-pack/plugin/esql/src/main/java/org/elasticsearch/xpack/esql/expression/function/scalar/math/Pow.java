@@ -83,9 +83,6 @@ public class Pow extends ScalarFunction implements OptionalArgument, Mappable {
 
     private static double validateAsDouble(double base, double exponent) {
         double result = Math.pow(base, exponent);
-        if (Double.isNaN(result)) {
-            throw new ArithmeticException("invalid result: pow(" + base + ", " + exponent + ")");
-        }
         return result;
     }
 

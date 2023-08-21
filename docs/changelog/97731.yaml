@@ -1,0 +1,27 @@
+pr: 97731
+summary: Cross-cluster search provides details about search on each cluster
+area: Search
+type: enhancement
+issues: []
+highlight:
+  title: Cross-cluster search provides details about search on each cluster
+  body: |-
+    Previously with cross-cluster searches using ccs_minimize_roundtrips=true,
+    when an error was returned, it was unclear which cluster caused the problem.
+    We have improved the search response for both synchronous and asynchronous
+    searches to have status and error details in the `_clusters` section, listing
+    each cluster involved in the search by name (alias). It includes
+    status info, shard accounting counts and error information that
+    are updated incrementally as the search progresses. In case of errors or partial
+    results, you can use this information to determine to what extent the search
+    results might be usable and if any follow-up action is needed to reduce errors.
+
+    The search on each cluster can be in one of 5 states: `RUNNING`,
+    `SUCCESSFUL` (all shards were successfully searched), `PARTIAL` (some shard
+    searches failed, but at least one succeeded and partial data has been returned),
+    `SKIPPED` (no shards were successfully searched on a cluster marked with
+    skip_unavailable=true), and `FAILED` (no shards were successfully searched on a
+    cluster marked with skip_unavailable=false).
+
+    Kibana users can access this information by viewing the search response in the Inspect flyout.
+  notable: true

@@ -52,7 +52,7 @@
  *     </li>
  *     <li>
  *         Find a function in this package similar to the one you are working on and copy it to build
- *         yours. There's come ceremony required in each function class to make it constant foldable
+ *         yours. There's some ceremony required in each function class to make it constant foldable
  *         and return the right types. Take a stab at these, but don't worry too much about getting
  *         it right.
  *     </li>
@@ -75,7 +75,11 @@
  *     <li>
  *         Rerun the {@code CsvTests}. They should find your function and maybe even pass. Add a
  *         few more tests in the csv-spec tests. They run quickly so it isn't a big deal having
- *         half a dozen of them per function.
+ *         half a dozen of them per function. In fact, it's useful to add more complex combinations
+ *         of things here, just to catch any accidental strange interactions. For example, it is
+ *         probably a good idea to have your function passes as a parameter to another function
+ *         like {@code EVAL foo=MOST(0, MY_FUNCTION(emp_no))}. And likely useful to try the reverse
+ *         like {@code EVAL foo=MY_FUNCTION(MOST(languages + 10000, emp_no)}.
  *     </li>
  *     <li>
  *         Now it's time to make a unit test! The infrastructure for these is under some flux at
@@ -87,7 +91,7 @@
  *         {@code ./gradlew -p x-pack/plugin/esql/ spotlessApply}
  *     </li>
  *     <li>
- *         Now you can run all of the ESQL tests liks CI:
+ *         Now you can run all of the ESQL tests like CI:
  *         {@code ./gradlew -p x-pack/plugin/esql/ check}
  *     </li>
  *     <li>

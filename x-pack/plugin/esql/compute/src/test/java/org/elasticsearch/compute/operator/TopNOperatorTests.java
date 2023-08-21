@@ -53,9 +53,9 @@ import static org.elasticsearch.compute.data.ElementType.BYTES_REF;
 import static org.elasticsearch.compute.data.ElementType.DOUBLE;
 import static org.elasticsearch.compute.data.ElementType.INT;
 import static org.elasticsearch.compute.data.ElementType.LONG;
-import static org.elasticsearch.compute.operator.TopNOperator.DEFAULT_ENCODER;
 import static org.elasticsearch.compute.operator.TopNOperator.BYTESREF_FIXED_LENGTH_ENCODER;
 import static org.elasticsearch.compute.operator.TopNOperator.BYTESREF_UTF8_ENCODER;
+import static org.elasticsearch.compute.operator.TopNOperator.DEFAULT_ENCODER;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -523,7 +523,13 @@ public class TopNOperatorTests extends OperatorTestCase {
             Driver driver = new Driver(
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
-                List.of(new TopNOperator(topCount, List.of(new TopNOperator.SortOrder(0, false, false, BYTESREF_UTF8_ENCODER)), randomPageSize())),
+                List.of(
+                    new TopNOperator(
+                        topCount,
+                        List.of(new TopNOperator.SortOrder(0, false, false, BYTESREF_UTF8_ENCODER)),
+                        randomPageSize()
+                    )
+                ),
                 new PageConsumerOperator(page -> readInto(actualTop, page)),
                 () -> {}
             )
@@ -591,7 +597,13 @@ public class TopNOperatorTests extends OperatorTestCase {
             Driver driver = new Driver(
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
-                List.of(new TopNOperator(topCount, List.of(new TopNOperator.SortOrder(0, false, false, BYTESREF_UTF8_ENCODER)), randomPageSize())),
+                List.of(
+                    new TopNOperator(
+                        topCount,
+                        List.of(new TopNOperator.SortOrder(0, false, false, BYTESREF_UTF8_ENCODER)),
+                        randomPageSize()
+                    )
+                ),
                 new PageConsumerOperator(page -> readInto(actualTop, page)),
                 () -> {}
             )

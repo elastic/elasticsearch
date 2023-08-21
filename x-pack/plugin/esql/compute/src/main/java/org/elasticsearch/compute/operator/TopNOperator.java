@@ -35,6 +35,9 @@ import java.util.List;
  * For now, the only values that have a special "treatment" when it comes to encoding are the text-based ones (text, keyword, ip, version).
  * For each "special" encoding there is should be new TopNEncoder implementation. See {@link UTF8TopNEncoder} for encoding regular
  * "text" and "keyword" data types. See LocalExecutionPlanner for which data type uses which encoder.
+ *
+ * This Operator will not be able to sort binary values (encoded as BytesRef) because the bytes used as separator and "null"s can appear
+ * as valid bytes inside a binary value.
  */
 public class TopNOperator implements Operator {
 
@@ -128,17 +131,12 @@ public class TopNOperator implements Operator {
         int nDocs;
 
         ElementType[] idToType;
-        final BitSet blockIsUnordered;
 
         RowFactory(Page page) {
             size = page.getBlockCount();
             idToType = new ElementType[size];
-            blockIsUnordered = new BitSet(size);
             for (int i = 0; i < size; i++) {
                 Block block = page.getBlock(i);
-                if (block.mvOrdering() == Block.MvOrdering.UNORDERED) {
-                    blockIsUnordered.set(i);
-                }
                 switch (block.elementType()) {
                     case LONG -> nLongs++;
                     case INT -> nInts++;
@@ -174,7 +172,6 @@ public class TopNOperator implements Operator {
                 result.idToType = idToType;
                 result.docs = new int[nDocs * 3];
                 result.numberOfValues = new int[size];
-                result.blockIsUnordered = blockIsUnordered;
                 result.orderByCompositeKeyAscending = new BitSet();
             } else {
                 result = spare;
@@ -184,6 +181,7 @@ public class TopNOperator implements Operator {
                 result.orderByCompositeKey = new BytesRefBuilder();
                 result.orderByCompositeKeyAscending.clear();
             }
+            result.blockIsUnordered = new BitSet(size);
 
             int lastLongFirstValueIndex = 0;
             int lastIntFirstValueIndex = 0;
@@ -194,6 +192,9 @@ public class TopNOperator implements Operator {
 
             for (int i = 0; i < size; i++) {
                 Block block = origin.getBlock(i);
+                if (block.mvOrdering() == Block.MvOrdering.UNORDERED) {
+                    result.blockIsUnordered.set(i);
+                }
                 if (block.isNull(rowNum)) {
                     result.nullValues[i] = true;
                 } else {
@@ -429,7 +430,6 @@ public class TopNOperator implements Operator {
         }
     }
 
-    // the encoder is, for now, specific to BytesRef blocks/data (text, keyword, IP fields)
     public record SortOrder(int channel, boolean asc, boolean nullsFirst, TopNEncoder encoder) {
 
         public SortOrder(int channel, boolean asc, boolean nullsFirst) {

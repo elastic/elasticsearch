@@ -11,6 +11,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 
+/**
+ * Defines a default BytesRef encoding behavior for all block types, leaving text based types for concrete implementations.
+ */
 public interface TopNEncoder {
 
     default void encodeLong(long value, BytesRefBuilder bytesRefBuilder) {

@@ -396,9 +396,7 @@ public final class DocumentParser {
             context = context.createChildContext(objectMapper);
             parseObjectOrNested(context);
         } else if (mapper instanceof FieldMapper fieldMapper) {
-            if (fieldMapper.parsesObject()) {
-                fieldMapper.parse(context);
-            } else if (canToBeFlatten(context)) {
+            if (canToBeFlatten(context, fieldMapper)) {
                 // remove the last path and add it as suffix to the dottedFieldName
                 String suffix = context.path().remove();
                 context.path().addDottedFieldName(suffix);
@@ -426,8 +424,10 @@ public final class DocumentParser {
         }
     }
 
-    private static boolean canToBeFlatten(DocumentParserContext context) {
-        return context.parser().currentToken() == XContentParser.Token.START_OBJECT && context.parent().subobjects() == false;
+    private static boolean canToBeFlatten(DocumentParserContext context, FieldMapper fieldMapper) {
+        return context.parser().currentToken() == XContentParser.Token.START_OBJECT
+            && context.parent().subobjects() == false
+            && fieldMapper.parsesObject() == false;
     }
 
     private static void throwOnUnrecognizedMapperType(Mapper mapper) {

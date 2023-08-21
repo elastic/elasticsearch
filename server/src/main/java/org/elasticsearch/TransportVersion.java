@@ -177,7 +177,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     public static final TransportVersion V_8_500_061 = registerTransportVersion(8_500_061, "4e07f830-8be4-448c-851e-62b3d2f0bf0a");
     public static final TransportVersion V_8_500_062 = registerTransportVersion(8_500_062, "09CD9C9B-3207-4B40-8756-B7A12001A885");
     public static final TransportVersion V_8_500_063 = registerTransportVersion(8_500_063, "31dedced-0055-4f34-b952-2f6919be7488");
-    public static final TransportVersion V_8_500_064 = registerTransportVersion(8_500_062, "3a795175-5e6f-40ff-90fe-5571ea8ab04e");
+    public static final TransportVersion V_8_500_064 = registerTransportVersion(8_500_064, "3a795175-5e6f-40ff-90fe-5571ea8ab04e");
 
     /*
      * STOP! READ THIS FIRST! No, really,

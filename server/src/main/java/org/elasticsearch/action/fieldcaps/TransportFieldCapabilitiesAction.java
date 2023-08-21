@@ -339,12 +339,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             boolean multiTypes = typeMapBuilder.size() + unmapped.map(f -> 1).orElse(0) > 1;
             responseMap.put(
                 entry.getKey(),
-                Stream.concat(
-                    typeMapBuilder.entrySet()
-                        .stream()
-                        .map(e -> Map.<String, Function<Boolean, FieldCapabilities>>entry(e.getKey(), e.getValue()::build)),
-                    unmapped.stream().map(f -> Map.entry("unmapped", f))
-                ).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().apply(multiTypes)))
+                Collections.unmodifiableMap(
+                    Stream.concat(
+                        typeMapBuilder.entrySet()
+                            .stream()
+                            .map(e -> Map.<String, Function<Boolean, FieldCapabilities>>entry(e.getKey(), e.getValue()::build)),
+                        unmapped.stream().map(f -> Map.entry("unmapped", f))
+                    ).collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().apply(multiTypes)))
+                )
             );
         }
         return Collections.unmodifiableMap(responseMap);

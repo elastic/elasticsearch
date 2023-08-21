@@ -105,8 +105,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     public void stop(String reason, boolean waitForCompletion, ActionListener<AcknowledgedResponse> listener) {
 
         if (waitForCompletion) {
-            // TODO call graceful stop here
-            trainedModelAssignmentNodeService.stopDeploymentAndNotify(this, reason, listener);
+            trainedModelAssignmentNodeService.gracefullyStopDeploymentAndNotify(this, reason, listener);
         } else {
             trainedModelAssignmentNodeService.stopDeploymentAndNotify(this, reason, listener);
         }
@@ -134,6 +133,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         logger.info("[{}] task cancelled due to reason [{}]", getDeploymentId(), reason);
         stop(
             reason,
+            true,
             ActionListener.wrap(
                 acknowledgedResponse -> {},
                 e -> logger.error(() -> "[" + getDeploymentId() + "] error stopping the deployment after task cancellation", e)

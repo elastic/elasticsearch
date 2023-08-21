@@ -101,7 +101,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
             listener.onResponse(null);
             return null;
-        }).when(deploymentManager).stopAfterCompletingPendingWork(any(), any());
+        }).when(deploymentManager).stopAfterCompletingPendingWork(any());
 
         doAnswer(invocationOnMock -> {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
@@ -231,7 +231,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         // Only one model should be loaded, the other should be stopped
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(loadingDeploymentId, modelToLoad));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(stoppedLoadingDeploymentId, stoppedModelToLoad));
-        trainedModelAssignmentNodeService.getTask(stoppedLoadingDeploymentId).stop("testing", ActionListener.noop());
+        trainedModelAssignmentNodeService.getTask(stoppedLoadingDeploymentId).stop("testing", false, ActionListener.noop());
         trainedModelAssignmentNodeService.loadQueuedModels();
 
         assertBusy(() -> {
@@ -416,7 +416,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             fail("Failed waiting for the stop process call to complete");
         }
 
-        verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(stopParamsCapture.capture(), any());
+        verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(stopParamsCapture.capture());
         assertThat(stopParamsCapture.getValue().getModelId(), equalTo(modelOne));
         assertThat(stopParamsCapture.getValue().getDeploymentId(), equalTo(deploymentOne));
         verify(trainedModelAssignmentService, times(1)).updateModelAssignmentState(
@@ -460,7 +460,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
 
         trainedModelAssignmentNodeService.clusterChanged(event);
 
-        verify(deploymentManager, never()).stopAfterCompletingPendingWork(any(), any());
+        verify(deploymentManager, never()).stopAfterCompletingPendingWork(any());
         verify(trainedModelAssignmentService, never()).updateModelAssignmentState(
             any(UpdateTrainedModelAssignmentRoutingInfoAction.Request.class),
             any()
@@ -502,7 +502,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(taskParams);
         trainedModelAssignmentNodeService.clusterChanged(event);
 
-        verify(deploymentManager, never()).stopAfterCompletingPendingWork(any(), any());
+        verify(deploymentManager, never()).stopAfterCompletingPendingWork(any());
         verify(trainedModelAssignmentService, never()).updateModelAssignmentState(
             any(UpdateTrainedModelAssignmentRoutingInfoAction.Request.class),
             any()

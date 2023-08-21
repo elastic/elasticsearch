@@ -672,7 +672,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             )
         );
 
-        stopDeployment(modelId, true);
+        stopDeployment(modelId, true, false);
     }
 
     public void testStopWithModelAliasUsedDeploymentByIngestProcessor() throws IOException {
@@ -704,7 +704,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                     + " by ingest processors; use force to stop the deployment"
             )
         );
-        stopDeployment(modelId, true);
+        stopDeployment(modelId, true, false);
     }
 
     public void testInferenceProcessorWithModelAlias() throws IOException {

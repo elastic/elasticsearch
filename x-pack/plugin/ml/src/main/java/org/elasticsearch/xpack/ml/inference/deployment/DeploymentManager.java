@@ -252,7 +252,7 @@ public class DeploymentManager {
         }
     }
 
-    public void stopAfterCompletingPendingWork(TrainedModelDeploymentTask task, ActionListener<Void> listener) {
+    public void stopAfterCompletingPendingWork(TrainedModelDeploymentTask task) {
         ProcessContext processContext = processContextByAllocation.remove(task.getId());
         if (processContext != null) {
             logger.info(
@@ -264,8 +264,6 @@ public class DeploymentManager {
         } else {
             logger.warn("[{}] No process context to stop gracefully", task.getDeploymentId());
         }
-
-        listener.onResponse(null);
     }
 
     public void infer(

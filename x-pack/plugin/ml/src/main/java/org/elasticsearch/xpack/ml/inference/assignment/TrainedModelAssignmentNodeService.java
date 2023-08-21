@@ -59,6 +59,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_ACTION;
@@ -226,18 +227,29 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         loadingModels.addAll(loadingToRetry);
     }
 
-    public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason, ActionListener<AcknowledgedResponse> listener) {
-        final RoutingInfoUpdate updateToStopped = RoutingInfoUpdate.updateStateAndReason(
-            new RoutingStateAndReason(RoutingState.STOPPED, reason)
-        );
+    public void gracefullyStopDeploymentAndNotify(
+        TrainedModelDeploymentTask task,
+        String reason,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        deploymentIdToTask.remove(task.getDeploymentId());
 
-        ActionListener<Void> notifyDeploymentOfStopped = ActionListener.wrap(
-            _void -> updateStoredState(task.getDeploymentId(), updateToStopped, listener),
-            failed -> { // if we failed to stop the process, something strange is going on, but we should still notify of stop
-                logger.warn(() -> "[" + task.getDeploymentId() + "] failed to stop due to error", failed);
-                updateStoredState(task.getDeploymentId(), updateToStopped, listener);
-            }
+        logger.debug(() -> format("[%s] Gracefully stopping deployment", task.getDeploymentId()));
+        stopDeploymentAfterCompletingPendingWorkAsync(
+            task,
+            reason,
+            updateRoutingStateToStoppedListener(task.getDeploymentId(), reason, listener)
         );
+    }
+
+    public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason, ActionListener<AcknowledgedResponse> listener) {
+        // Removing the entry from the map to avoid the possibility of a node shutdown triggering a concurrent graceful shutdown of the
+        // process while we are attempting a forceful shutdown
+        // The graceful shutdown will only occur if there is an entry in the map
+        deploymentIdToTask.remove(task.getDeploymentId());
+
+        ActionListener<Void> notifyDeploymentOfStopped = updateRoutingStateToStoppedListener(task.getDeploymentId(), reason, listener);
+
         updateStoredState(
             task.getDeploymentId(),
             RoutingInfoUpdate.updateStateAndReason(new RoutingStateAndReason(RoutingState.STOPPING, reason)),
@@ -431,32 +443,28 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
         ActionListener<AcknowledgedResponse> routingStateListener = ActionListener.wrap(
             r -> logger.debug(() -> format("[%s] Gracefully stopped deployment for node %s", task.getDeploymentId(), currentNode)),
-            e -> logger.error(
-                () -> format("[%s] Failed to update routing state to stopped for node %s", task.getDeploymentId(), currentNode),
-                e
-            )
+            e -> logger.error(() -> format("[%s] Failed to gracefully stop deployment for node %s", task.getDeploymentId(), currentNode), e)
         );
 
-        logger.debug(() -> format("[%s] Gracefully stopping deployment for node %s", task.getDeploymentId(), currentNode));
-        stopDeploymentAfterCompletingPendingWorkAsync(task, updateRoutingStateToStoppedListener(task, currentNode, routingStateListener));
+        gracefullyStopDeploymentAndNotify(task, NODE_IS_SHUTTING_DOWN, routingStateListener);
     }
 
     private ActionListener<Void> updateRoutingStateToStoppedListener(
-        TrainedModelDeploymentTask task,
-        String currentNode,
+        String deploymentId,
+        String reason,
         ActionListener<AcknowledgedResponse> listener
     ) {
         final RoutingInfoUpdate updateToStopped = RoutingInfoUpdate.updateStateAndReason(
-            new RoutingStateAndReason(RoutingState.STOPPED, NODE_IS_SHUTTING_DOWN)
+            new RoutingStateAndReason(RoutingState.STOPPED, reason)
         );
 
         return ActionListener.wrap(_void -> {
-            logger.debug(() -> format("[%s] Updating routing state to stopped for node %s", task.getDeploymentId(), currentNode));
-            updateStoredState(task.getDeploymentId(), updateToStopped, listener);
+            logger.debug(() -> format("[%s] Updating routing state to stopped", deploymentId));
+            updateStoredState(deploymentId, updateToStopped, listener);
         }, e -> {
             // if we failed to stop the process, something strange is going on, but we should set the routing state to stopped
-            logger.warn(() -> format("[%s] Failed to stop gracefully due to error", task.getDeploymentId()), e);
-            updateStoredState(task.getDeploymentId(), updateToStopped, listener);
+            logger.warn(() -> format("[%s] Failed to stop deployment due to error", deploymentId), e);
+            updateStoredState(deploymentId, updateToStopped, listener);
         });
     }
 
@@ -479,6 +487,15 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     }
 
     private void stopDeploymentAsync(TrainedModelDeploymentTask task, String reason, ActionListener<Void> listener) {
+        stopDeploymentHelper(task, reason, deploymentManager::stopDeployment, listener);
+    }
+
+    private void stopDeploymentHelper(
+        TrainedModelDeploymentTask task,
+        String reason,
+        Consumer<TrainedModelDeploymentTask> stopDeployment,
+        ActionListener<Void> listener
+    ) {
         if (stopped) {
             return;
         }
@@ -486,7 +503,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
-                deploymentManager.stopDeployment(task);
+                stopDeployment.accept(task);
                 taskManager.unregister(task);
                 deploymentIdToTask.remove(task.getDeploymentId());
                 listener.onResponse(null);
@@ -496,25 +513,12 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         });
     }
 
-    private void stopDeploymentAfterCompletingPendingWorkAsync(TrainedModelDeploymentTask task, ActionListener<Void> listener) {
-        if (stopped) {
-            return;
-        }
-        task.markAsStopped(NODE_IS_SHUTTING_DOWN);
-
-        ActionListener<Void> stoppedProcessListener = ActionListener.wrap(_void -> {
-            taskManager.unregister(task);
-            deploymentIdToTask.remove(task.getDeploymentId());
-            listener.onResponse(null);
-        }, listener::onFailure);
-
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            try {
-                deploymentManager.stopAfterCompletingPendingWork(task, stoppedProcessListener);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
+    private void stopDeploymentAfterCompletingPendingWorkAsync(
+        TrainedModelDeploymentTask task,
+        String reason,
+        ActionListener<Void> listener
+    ) {
+        stopDeploymentHelper(task, reason, deploymentManager::stopAfterCompletingPendingWork, listener);
     }
 
     private void updateNumberOfAllocations(TrainedModelAssignmentMetadata assignments) {

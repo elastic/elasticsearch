@@ -4,8 +4,6 @@
 <titleabbrev>Delete Data Stream Lifecycle</titleabbrev>
 ++++
 
-preview::[]
-
 Deletes the lifecycle from a set of data streams.
 
 [[delete-lifecycle-api-prereqs]]

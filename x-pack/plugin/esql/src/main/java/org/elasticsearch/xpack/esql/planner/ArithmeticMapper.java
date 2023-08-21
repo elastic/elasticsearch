@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;

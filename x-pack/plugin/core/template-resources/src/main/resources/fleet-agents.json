@@ -270,21 +270,23 @@
               "type": "keyword"
             },
             "metadata": {
-              "scheduled_at": {
-                "type": "date"
-              },
-              "download_percent": {
-                "type": "double"
-              },
-              "failed_state": {
-                "type": "keyword"
-              },
-              "error_msg": {
-                "type": "text",
-                "fields": {
-                  "keyword": {
-                    "type": "keyword",
-                    "ignore_above": 1024
+              "properties": {
+                "scheduled_at": {
+                  "type": "date"
+                },
+                "download_percent": {
+                  "type": "double"
+                },
+                "failed_state": {
+                  "type": "keyword"
+                },
+                "error_msg": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
                   }
                 }
               }

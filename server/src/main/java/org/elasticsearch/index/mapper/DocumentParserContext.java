@@ -539,7 +539,7 @@ public abstract class DocumentParserContext {
     public void postProcessDynamicMappers() {
         List<Mapper> postProcessedMappers = new ArrayList<>();
 
-        Map<String, Integer> dynamicDenseVectorFieldNameToDimCount = dynamicMappers.stream()
+        Map<String, Long> dynamicDenseVectorFieldNameToDimCount = dynamicMappers.stream()
             .filter(subClassObj -> subClassObj instanceof NumberFieldMapper)
             .map(NumberFieldMapper.class::cast)
             .filter(m -> "float".equals(m.typeName()))
@@ -547,7 +547,7 @@ public abstract class DocumentParserContext {
             .entrySet()
             .stream()
             .filter(e -> e.getValue() >= MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING && e.getValue() <= MAX_DIMS_COUNT)
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().intValue()));
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         if (dynamicDenseVectorFieldNameToDimCount.isEmpty()) {
             return;
@@ -555,7 +555,7 @@ public abstract class DocumentParserContext {
 
         for (Mapper mapper : dynamicMappers) {
             if (dynamicDenseVectorFieldNameToDimCount.containsKey(mapper.name())) {
-                int size = dynamicDenseVectorFieldNameToDimCount.get(mapper.name());
+                int size = dynamicDenseVectorFieldNameToDimCount.get(mapper.name()).intValue();
                 DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
                     mapper.name(),
                     indexSettings().getIndexVersionCreated(),

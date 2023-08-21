@@ -79,7 +79,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; // maximum allowed number of dimensions
 
-    public static short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to vector
+    public static short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 3; // minimum number of dims for floats to be dynamically mapped to vector
     public static final int MAGNITUDE_BYTES = 4;
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
@@ -95,7 +95,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             return elementType;
         }, m -> toType(m).elementType, XContentBuilder::field, Objects::toString);
-        private final Parameter<Integer> dims;
+
+        // This is defined as updateable because it can be updated once, from [null] to any value,
+        // by a dynamic mapping update. Once it has been set, however, the value cannot be changed.
+        private final Parameter<Integer> dims = new Parameter<>("dims", true, () -> null, (n, c, o) -> {
+            if (o instanceof Integer == false) {
+                throw new MapperParsingException("Property [value] on field [" + n + "] must be an integer but got [" + o + "]");
+            }
+            Integer dims = ((Integer) o);
+            if (dims < 1 || dims > MAX_DIMS_COUNT) {
+                throw new MapperParsingException("Property [value] on field [" + n + "] must be in range [1, " + MAX_DIMS_COUNT +
+                    "] but got [" + dims + "]");
+            }
+            return dims;
+        }, m -> toType(m).fieldType().dims, XContentBuilder::field, Object::toString);
+
         private final Parameter<Boolean> indexed;
         private final Parameter<VectorSimilarity> similarity;
         private final Parameter<IndexOptions> indexOptions = new Parameter<>(
@@ -113,6 +127,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public Builder(String name, IndexVersion indexVersionCreated) {
             super(name);
+            dims.setSerializerCheck((id, ic, v) -> v != null);
+            dims.setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
+
             this.indexVersionCreated = indexVersionCreated;
             final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexedByDefault);
@@ -128,32 +145,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 VectorSimilarity.class
             ).acceptsNull().setSerializerCheck((id, ic, v) -> v != null);
 
-            this.dims = new Parameter<>(
-                "dims",
-                false,
-                () -> null,
-                (n, c, o) -> XContentMapValues.nodeIntegerValue(o),
-                m -> toType(m).dims,
-                XContentBuilder::field,
-                Objects::toString
-            );
-
             validateParams();
         }
 
         public Builder(String name, IndexVersion indexVersionCreated, int dims) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
-
-            this.dims = new Parameter<>(
-                "dims",
-                false,
-                () -> dims,
-                (n, c, o) -> dims,
-                m -> toType(m).dims,
-                XContentBuilder::field,
-                Objects::toString
-            );
+            this.dims.setValue(dims);
 
             this.similarity = Parameter.enumParam(
                 "similarity",
@@ -199,10 +197,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
             });
             dims.addValidator(dims -> {
-                if (dims == null) {
-                    throw new MapperParsingException("Missing required parameter [dims] for field [" + name + "]");
-                }
-                if ((dims > MAX_DIMS_COUNT) || (dims < 1)) {
+                if (dims != null && (dims > MAX_DIMS_COUNT) || (dims < 1)) {
                     throw new MapperParsingException(
                         "The number of dimensions for field ["
                             + name
@@ -1030,7 +1025,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     private final ElementType elementType;
-    private final int dims;
+    private final Integer dims;
     private final boolean indexed;
     private final VectorSimilarity similarity;
     private final IndexOptions indexOptions;
@@ -1040,7 +1035,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         String simpleName,
         MappedFieldType mappedFieldType,
         ElementType elementType,
-        int dims,
+        Integer dims,
         boolean indexed,
         VectorSimilarity similarity,
         IndexOptions indexOptions,
@@ -1154,7 +1149,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexCreatedVersion, dims).init(this);
+        return new Builder(simpleName(), indexCreatedVersion).init(this);
     }
 
     @Override

@@ -21,6 +21,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
@@ -33,8 +34,6 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.engine.CompletionStatsCache;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
 import org.elasticsearch.index.engine.Engine;
@@ -55,10 +54,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -89,10 +89,11 @@ public class SearchEngine extends Engine {
     private final SearchDirectory directory;
 
     private volatile SegmentInfos segmentInfos;
+    private volatile long currentGeneration;
     private volatile long maxSequenceNumber = SequenceNumbers.NO_OPS_PERFORMED;
     private volatile long processedLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
 
-    private final Map<PrimaryTermAndGeneration, Long> acquiredPrimaryTermAndGenerations = new ConcurrentHashMap<>();
+    private final Map<DirectoryReader, PrimaryTermAndGeneration> openReaders = new ConcurrentHashMap<>();
 
     public SearchEngine(EngineConfig config) {
         super(config);
@@ -108,8 +109,50 @@ public class SearchEngine extends Engine {
                 new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(directory, config.getLeafSorter()), Lucene.SOFT_DELETES_FIELD),
                 shardId
             );
-            readerManager = new ElasticsearchReaderManager(directoryReader);
+            IndexCommit initialCommit = directoryReader.getIndexCommit();
+            OptionalLong primaryTerm = directory.getPrimaryTerm(initialCommit.getSegmentsFileName());
+            // do not consider the empty commit an open reader (no data to delete from object store)
+            if (primaryTerm.isPresent()) {
+                final ElasticsearchDirectoryReader finalDirectoryReader = directoryReader;
+                ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> openReaders.remove(finalDirectoryReader));
+                openReaders.put(directoryReader, new PrimaryTermAndGeneration(primaryTerm.getAsLong(), initialCommit.getGeneration()));
+            }
+            readerManager = new ElasticsearchReaderManager(directoryReader) {
+                private SegmentInfos previousSegmentInfos;
+
+                @Override
+                protected ElasticsearchDirectoryReader refreshIfNeeded(ElasticsearchDirectoryReader referenceToRefresh) throws IOException {
+                    SegmentInfos segmentInfosCopy = segmentInfos;
+                    if (segmentInfosCopy != previousSegmentInfos) {
+                        List<IndexCommit> indexCommits = DirectoryReader.listCommits(directory);
+                        assert indexCommits.stream().filter(c -> c.getGeneration() == segmentInfosCopy.getGeneration()).count() == 1;
+                        Optional<IndexCommit> first = indexCommits.stream()
+                            .filter(c -> c.getGeneration() == segmentInfosCopy.getGeneration())
+                            .findFirst();
+                        assert first.isPresent();
+                        ElasticsearchDirectoryReader next = (ElasticsearchDirectoryReader) DirectoryReader.openIfChanged(
+                            referenceToRefresh,
+                            first.get()
+                        );
+                        if (next != null) {
+                            ElasticsearchDirectoryReader.addReaderCloseListener(next, ignored -> openReaders.remove(next));
+                            openReaders.put(
+                                next,
+                                new PrimaryTermAndGeneration(
+                                    directory.getPrimaryTerm(segmentInfosCopy.getSegmentsFileName()).getAsLong(),
+                                    segmentInfosCopy.getGeneration()
+                                )
+                            );
+                        }
+                        previousSegmentInfos = segmentInfosCopy;
+                        return next;
+                    } else {
+                        return null;
+                    }
+                }
+            };
             this.segmentInfos = store.readLastCommittedSegmentsInfo();
+            this.currentGeneration = segmentInfos.getGeneration();
             this.setSequenceNumbers(segmentInfos);
             this.readerManager = readerManager;
             for (ReferenceManager.RefreshListener refreshListener : config.getExternalRefreshListener()) {
@@ -126,9 +169,8 @@ public class SearchEngine extends Engine {
     }
 
     long getCurrentGeneration() {
-        final SegmentInfos current = this.segmentInfos;
-        assert current.getGeneration() > 0 : current;
-        return current.getGeneration();
+        assert this.currentGeneration > 0 : currentGeneration;
+        return this.currentGeneration;
     }
 
     // visible for testing
@@ -137,7 +179,7 @@ public class SearchEngine extends Engine {
     }
 
     public Set<PrimaryTermAndGeneration> getAcquiredPrimaryTermAndGenerations() {
-        return Set.copyOf(acquiredPrimaryTermAndGenerations.keySet());
+        return Set.copyOf(openReaders.values());
     }
 
     public void onCommitNotification(StatelessCompoundCommit commit, ActionListener<Void> listener) {
@@ -160,11 +202,20 @@ public class SearchEngine extends Engine {
                 assert batchSize > 0 : batchSize;
 
                 final SegmentInfos current = segmentInfos;
+                assert current.getGeneration() == currentGeneration
+                    : "segment info generation ["
+                        + current.getGeneration()
+                        + "] not in sync with current generation ["
+                        + currentGeneration
+                        + "]";
+
+                final OptionalLong optionalPrimaryTerm = directory.getPrimaryTerm(current.getSegmentsFileName());
+                final long currentPrimaryTerm = optionalPrimaryTerm.orElse(-1);
                 StatelessCompoundCommit latestCommit = null;
                 for (int i = batchSize; i > 0; i--) {
                     StatelessCompoundCommit commit = commitNotifications.poll();
                     assert commit != null;
-                    if (commit.generation() < current.getGeneration()) { // TODO also compare primary terms
+                    if (commit.primaryTerm() < currentPrimaryTerm || commit.generation() < current.getGeneration()) {
                         logger.trace(
                             "notification for commit generation [{}] is older than current generation [{}], ignoring",
                             commit.generation(),
@@ -172,7 +223,9 @@ public class SearchEngine extends Engine {
                         );
                         continue;
                     }
-                    if (latestCommit == null || commit.generation() > latestCommit.generation()) {
+                    if (latestCommit == null
+                        || commit.primaryTerm() > latestCommit.primaryTerm()
+                        || (commit.primaryTerm() == latestCommit.primaryTerm() && commit.generation() > latestCommit.generation())) {
                         latestCommit = commit;
                     }
                 }
@@ -196,7 +249,13 @@ public class SearchEngine extends Engine {
                     final SegmentInfos next = Lucene.readSegmentInfos(directory);
                     setSequenceNumbers(next);
 
+                    segmentInfos = next;
+
                     readerManager.maybeRefreshBlocking();
+
+                    // must be after refresh for `addOrExecuteSegmentGenerationListener to work.
+                    currentGeneration = segmentInfos.getGeneration();
+
                     var reader = readerManager.acquire();
                     try {
                         assert reader.getIndexCommit().getGeneration() == notification.generation()
@@ -212,8 +271,6 @@ public class SearchEngine extends Engine {
                                 + "] must be higher than previous generation ["
                                 + current.getGeneration()
                                 + ']';
-
-                        segmentInfos = next;
                         logger.debug("segments updated from generation [{}] to [{}]", current.getGeneration(), next.getGeneration());
                         callSegmentGenerationListeners(reader.getIndexCommit().getGeneration());
                     } finally {
@@ -353,47 +410,6 @@ public class SearchEngine extends Engine {
         Function<Searcher, Searcher> searcherWrapper
     ) {
         return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
-    }
-
-    @Override
-    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
-        return super.acquireSearcherSupplier(wrapper.andThen(searcher -> {
-            final var releasable = acquirePrimaryTermAndGeneration(searcher.getDirectoryReader());
-            return new Searcher(
-                searcher.source(),
-                searcher.getIndexReader(),
-                searcher.getSimilarity(),
-                searcher.getQueryCache(),
-                searcher.getQueryCachingPolicy(),
-                () -> Releasables.close(searcher, releasable)
-            );
-        }), scope);
-    }
-
-    Releasable acquirePrimaryTermAndGeneration(DirectoryReader directoryReader) {
-        try {
-            var indexCommit = directoryReader.getIndexCommit();
-            assert SearchDirectory.unwrapDirectory(indexCommit.getDirectory()) == directory;
-            var primaryTerm = directory.getPrimaryTerm(indexCommit.getSegmentsFileName());
-            if (primaryTerm.isEmpty()) {
-                return () -> {};
-            }
-
-            final var key = new PrimaryTermAndGeneration(primaryTerm.getAsLong(), indexCommit.getGeneration());
-            var refCount = acquiredPrimaryTermAndGenerations.compute(key, (ignored, value) -> value != null ? value + 1L : 1L);
-            logger.trace("acquired {} (refCount={})", key, refCount);
-
-            return () -> {
-                var newRefCount = acquiredPrimaryTermAndGenerations.compute(key, (ignored, value) -> {
-                    assert value != null : key;
-                    return value > 1L ? value - 1L : null;
-                });
-                logger.trace("released {} (refCount={})", key, newRefCount);
-            };
-        } catch (IOException e) {
-            assert false : e;
-            throw new UncheckedIOException("Failed to acquire primary term and generation", e);
-        }
     }
 
     @Override

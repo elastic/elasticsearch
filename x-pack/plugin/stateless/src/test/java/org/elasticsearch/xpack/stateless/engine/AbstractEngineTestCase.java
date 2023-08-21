@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+import co.elastic.elasticsearch.stateless.lucene.SearchDirectoryTestUtils;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -259,8 +260,11 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         };
     }
 
-    protected SearchEngine newSearchEngineFromIndexEngine(IndexEngine indexEngine, DeterministicTaskQueue deterministicTaskQueue)
-        throws IOException {
+    protected SearchEngine newSearchEngineFromIndexEngine(
+        IndexEngine indexEngine,
+        DeterministicTaskQueue deterministicTaskQueue,
+        boolean copyInitialMetadata
+    ) throws IOException {
         var shardId = indexEngine.getEngineConfig().getShardId();
         var indexSettings = indexEngine.getEngineConfig().getIndexSettings();
         var threadPool = deterministicTaskQueue.getThreadPool();
@@ -273,6 +277,14 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         );
         var directory = new SearchDirectory(cache, shardId);
         directory.setBlobContainer(primaryTerm -> storeBlobContainer(indexEngine.getEngineConfig().getStore()));
+        if (copyInitialMetadata) {
+            Store.MetadataSnapshot latestMetadata = indexEngine.getEngineConfig().getStore().getMetadata(null);
+            Map<String, BlobLocation> blobLocations = collectBlobLocations(
+                indexEngine.getEngineConfig().getPrimaryTermSupplier().getAsLong(),
+                latestMetadata
+            );
+            SearchDirectoryTestUtils.setMetadata(directory, blobLocations);
+        }
         var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
         final EngineConfig searchConfig = new EngineConfig(
             shardId,
@@ -412,23 +424,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                             primaryTerm,
                             0,
                             "fake_node_ephemeral_id",
-                            store.getMetadata(indexCommitRef.getIndexCommit())
-                                .fileMetadataMap()
-                                .entrySet()
-                                .stream()
-                                .collect(
-                                    Collectors.toMap(
-                                        Map.Entry::getKey,
-                                        entry -> new BlobLocation(
-                                            primaryTerm,
-
-                                            entry.getKey(),
-                                            entry.getValue().length(),
-                                            0,
-                                            entry.getValue().length()
-                                        )
-                                    )
-                                )
+                            collectBlobLocations(primaryTerm, store.getMetadata(indexCommitRef.getIndexCommit()))
                         )
                     )
                 );
@@ -445,6 +441,25 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
 
         @Override
         public void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit) {}
+    }
+
+    private static Map<String, BlobLocation> collectBlobLocations(long primaryTerm, Store.MetadataSnapshot metadata) {
+        return metadata.fileMetadataMap()
+            .entrySet()
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey,
+                    entry -> new BlobLocation(
+                        primaryTerm,
+
+                        entry.getKey(),
+                        entry.getValue().length(),
+                        0,
+                        entry.getValue().length()
+                    )
+                )
+            );
     }
 
     /**

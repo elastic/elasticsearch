@@ -37,9 +37,18 @@ public class DocumentMapper {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().name();
         this.mappingLookup = MappingLookup.fromMapping(mapping);
-        this.mappingSource = source;
-        assert mapping.toCompressedXContent().equals(source)
-            : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
+        if (sourceMapper().isSynthetic() && source.string().contains("\"_source\":{\"mode\":\"synthetic\"}") == false) {
+            /*
+             * Indexes built at v.8.7 were missing an explicit entry for synthetic_source.
+             * This got restored in v.8.9 (and patched in v.8.8) to avoid confusion. The change is only restricted to
+             * mapping printout, it has no functional effect as the synthetic source already applies.
+             */
+            this.mappingSource = mapping.toCompressedXContent();
+        } else {
+            assert mapping.toCompressedXContent().equals(source)
+                : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
+            this.mappingSource = source;
+        }
     }
 
     public Mapping mapping() {

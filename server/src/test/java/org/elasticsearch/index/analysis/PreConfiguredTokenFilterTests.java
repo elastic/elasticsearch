@@ -132,8 +132,7 @@ public class PreConfiguredTokenFilterTests extends ESTestCase {
         );
         assertSame(tff_v1_1, tff_v1_2);
 
-        int beforeAll = IndexVersionUtils.getFirstVersion().id() - 100;
-        IndexVersion version2 = IndexVersion.fromId((beforeAll / 1_000_000) * 1_000_000);
+        IndexVersion version2 = IndexVersionUtils.getPreviousMajorVersion(IndexVersionUtils.getFirstVersion());
         IndexSettings indexSettings2 = IndexSettingsModule.newIndexSettings(
             "test",
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version2).build()

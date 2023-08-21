@@ -1776,7 +1776,7 @@ public final class OptimizerRules {
 
         // default implementation nullifies all nullable expressions
         protected Expression nullify(Expression exp, Expression nullExp) {
-            return exp.nullable() == Nullability.TRUE ? new Literal(exp.source(), null, DataTypes.NULL) : exp;
+            return exp.nullable() == Nullability.TRUE ? Literal.of(exp, null) : exp;
         }
 
         // placeholder for non-null

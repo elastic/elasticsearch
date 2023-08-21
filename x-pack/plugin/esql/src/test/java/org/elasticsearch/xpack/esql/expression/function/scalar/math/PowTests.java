@@ -108,22 +108,35 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                     equalTo((int) Math.pow(base, 2))
                 );
             }),
-            new TestCaseSupplier("pow(2, 0.5) == sqrt(2)", () -> {
-                return new TestCase(
+            new TestCaseSupplier(
+                "integer overflow case",
+                () -> new TestCase(
+                    List.of(new TypedData(Integer.MAX_VALUE, DataTypes.INTEGER, "base"), new TypedData(2, DataTypes.INTEGER, "exp")),
+                    "PowIntEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], "
+                        + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.INTEGER,
+                    equalTo(null)
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("java.lang.ArithmeticException: integer overflow")
+            ),
+            new TestCaseSupplier(
+                "pow(2, 0.5) == sqrt(2)",
+                () -> new TestCase(
                     List.of(new TypedData(2, DataTypes.INTEGER, "base"), new TypedData(0.5, DataTypes.DOUBLE, "exp")),
                     "PowDoubleEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], exponent=Attribute[channel=1]]",
                     DataTypes.DOUBLE,
                     equalTo(Math.sqrt(2))
-                );
-            }),
-            new TestCaseSupplier("pow(2.0, 0.5) == sqrt(2)", () -> {
-                return new TestCase(
+                )
+            ),
+            new TestCaseSupplier(
+                "pow(2.0, 0.5) == sqrt(2)",
+                () -> new TestCase(
                     List.of(new TypedData(2d, DataTypes.DOUBLE, "base"), new TypedData(0.5, DataTypes.DOUBLE, "exp")),
                     "PowDoubleEvaluator[base=Attribute[channel=0], exponent=Attribute[channel=1]]",
                     DataTypes.DOUBLE,
                     equalTo(Math.sqrt(2))
-                );
-            }),
+                )
+            ),
             new TestCaseSupplier("pow(integer, double)", () -> {
                 int base = randomIntBetween(-1000, 1000);
                 double exp = randomDoubleBetween(-10.0, 10.0, true);

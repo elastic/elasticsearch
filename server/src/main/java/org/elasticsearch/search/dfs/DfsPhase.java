@@ -195,17 +195,25 @@ public class DfsPhase {
     }
 
     static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher) throws IOException {
-        CollectorManager<? extends Collector, TopDocs> cm = TopScoreDocCollector.createSharedManager(k, null, Integer.MAX_VALUE);
-
-        if (profilers != null) {
-            ProfileCollectorManager<TopDocs> ipcm = new ProfileCollectorManager<>(cm, CollectorResult.REASON_SEARCH_TOP_HITS);
-            QueryProfiler knnProfiler = profilers.getDfsProfiler().addQueryProfiler(ipcm);
-            cm = ipcm;
+        CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = TopScoreDocCollector.createSharedManager(
+            k,
+            null,
+            Integer.MAX_VALUE
+        );
+        final TopDocs topDocs;
+        if (profilers == null) {
+            topDocs = searcher.search(knnQuery, topDocsCollectorManager);
+        } else {
+            QueryProfiler knnProfiler = profilers.getDfsProfiler().addQueryProfiler();
             // Set the current searcher profiler to gather query profiling information for gathering top K docs
             searcher.setProfiler(knnProfiler);
+            ProfileCollectorManager<TopDocs> ipcm = new ProfileCollectorManager<>(
+                topDocsCollectorManager,
+                CollectorResult.REASON_SEARCH_TOP_HITS
+            );
+            topDocs = searcher.search(knnQuery, ipcm);
+            knnProfiler.setCollectorResult(ipcm.getCollectorTree());
         }
-        TopDocs topDocs = searcher.search(knnQuery, cm);
-
         // Set profiler back after running KNN searches
         if (profilers != null) {
             searcher.setProfiler(profilers.getCurrentQueryProfiler());

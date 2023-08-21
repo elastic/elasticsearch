@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -657,19 +656,26 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 metrics.contains(Metric.ROUTING_TABLE),
                 (builder, params) -> builder.startObject("routing_table").startObject("indices"),
                 routingTable().iterator(),
-                indexRoutingTable -> Iterators.single((builder, params) -> {
-                    builder.startObject(indexRoutingTable.getIndex().getName());
-                    builder.startObject("shards");
-                    for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
-                        IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
-                        builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
-                        for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
-                            indexShardRoutingTable.shard(copy).toXContent(builder, params);
-                        }
-                        builder.endArray();
-                    }
-                    return builder.endObject().endObject();
-                }),
+                indexRoutingTable -> Iterators.concat(
+                    Iterators.single(
+                        (builder, params) -> builder.startObject(indexRoutingTable.getIndex().getName()).startObject("shards")
+                    ),
+                    Iterators.flatten(Iterators.<Iterator<ToXContent>>forRange(0, indexRoutingTable.size(), shardId -> {
+                        final var indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                        return Iterators.concat(
+                            Iterators.single(
+                                (builder, params) -> builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()))
+                            ),
+                            Iterators.forRange(
+                                0,
+                                indexShardRoutingTable.size(),
+                                copy -> (builder, params) -> indexShardRoutingTable.shard(copy).toXContent(builder, params)
+                            ),
+                            Iterators.single((builder, params) -> builder.endArray())
+                        );
+                    })),
+                    Iterators.single((builder, params) -> builder.endObject().endObject())
+                ),
                 (builder, params) -> builder.endObject().endObject()
             ),
 

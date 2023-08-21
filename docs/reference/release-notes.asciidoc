@@ -6,11 +6,8 @@
 
 This section summarizes the changes in each release.
 
-<<<<<<< HEAD
 * <<release-notes-8.10.0>>
-=======
 * <<release-notes-8.9.1>>
->>>>>>> 7985f8ef0f7 (Update docs for v8.9.1 release (#98416))
 * <<release-notes-8.9.0>>
 * <<release-notes-8.8.2>>
 * <<release-notes-8.8.1>>

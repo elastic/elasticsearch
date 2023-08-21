@@ -41,6 +41,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -57,7 +58,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
         try (
             var indexEngine = newIndexEngine(indexConfig);
-            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue, false)
         ) {
             assertThat("Index engine recovery executes 2 commits", indexEngine.getCurrentGeneration(), equalTo(2L));
             assertThat("Search engine recovery executes 1 commit", searchEngine.getCurrentGeneration(), equalTo(1L));
@@ -108,7 +109,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             }
 
             final var searchTaskQueue = new DeterministicTaskQueue();
-            try (var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)) {
+            try (var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue, false)) {
                 notifyCommits(indexEngine, searchEngine);
                 searchTaskQueue.runAllRunnableTasks();
 
@@ -187,15 +188,15 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
         try (
             var indexEngine = newIndexEngine(indexConfig);
-            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue, randomBoolean())
         ) {
             notifyCommits(indexEngine, searchEngine);
             searchTaskQueue.runAllRunnableTasks();
 
             var gen = new PrimaryTermAndGeneration(primaryTerm.get(), 2L);
 
-            // no initial active searchers
-            assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), empty());
+            // initial commit acquired
+            assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(gen));
             assertThat(searchEngine.getCurrentGeneration(), equalTo(indexEngine.getCurrentGeneration()));
 
             {
@@ -214,10 +215,21 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
                 Collections.shuffle(searchers, random());
 
+                indexEngine.index(randomDoc("a"));
+                indexEngine.flush();
+
+                var gen2 = new PrimaryTermAndGeneration(primaryTerm.get(), gen.generation() + 1);
+
+                notifyCommits(indexEngine, searchEngine);
+                searchTaskQueue.runAllRunnableTasks();
+
                 var it = searchers.iterator();
                 while (it.hasNext()) {
                     IOUtils.close(it.next());
-                    assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), it.hasNext() ? contains(gen) : empty());
+                    assertThat(
+                        searchEngine.getAcquiredPrimaryTermAndGenerations(),
+                        it.hasNext() ? containsInAnyOrder(gen, gen2) : contains(gen2)
+                    );
                 }
             }
 
@@ -232,14 +244,8 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
                     indexEngine.index(randomDoc(String.valueOf(i)));
                     indexEngine.flush();
-
-                    if (randomBoolean()) {
-                        notifyCommits(indexEngine, searchEngine);
-                        searchTaskQueue.runAllRunnableTasks();
-
-                        var key = new PrimaryTermAndGeneration(primaryTerm.get(), indexEngine.getCurrentGeneration());
-                        searchers.put(key, searchEngine.acquireSearcher("searcher#" + i));
-                    }
+                    notifyCommits(indexEngine, searchEngine);
+                    searchTaskQueue.runAllRunnableTasks();
 
                     if (randomBoolean() && searchers.isEmpty() == false) {
                         var key = randomFrom(searchers.keySet());
@@ -248,11 +254,19 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                         IOUtils.close(searchers.remove(key));
                         assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), not(hasItem(key)));
                     }
+
+                    if (randomBoolean()) {
+                        var key = new PrimaryTermAndGeneration(primaryTerm.get(), indexEngine.getCurrentGeneration());
+                        searchers.put(key, searchEngine.acquireSearcher("searcher#" + i));
+                    }
                 }
 
-                assertThat(indexEngine.getCurrentGeneration(), equalTo(2L + newGenerations));
+                assertThat(indexEngine.getCurrentGeneration(), equalTo(2L + newGenerations + 1L));
                 IOUtils.close(searchers.values());
-                assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), empty());
+                assertThat(
+                    searchEngine.getAcquiredPrimaryTermAndGenerations(),
+                    contains(new PrimaryTermAndGeneration(primaryTerm.get(), indexEngine.getCurrentGeneration()))
+                );
             }
         }
     }

@@ -104,7 +104,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -698,7 +697,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         var searchShardEngineOrNull = findSearchShard(resolveIndex(indexName), 0).getEngineOrNull();
         assertThat(searchShardEngineOrNull, instanceOf(SearchEngine.class));
         var searchEngine = (SearchEngine) searchShardEngineOrNull;
-        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), empty());
+        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(latestPrimaryTermAndGeneration.get()));
 
         indexDocs(indexName, 100);
         flushAndRefresh(indexName);
@@ -742,11 +741,18 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
         clearScroll(thirdScroll.getScrollId());
 
-        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(secondScrollPrimaryTermAndGeneration));
+        indexDocs(indexName, 1);
+        flushAndRefresh(indexName);
+
+        assertThat(thirdScrollPrimaryTermAndGeneration, not(equalTo(latestPrimaryTermAndGeneration.get())));
+        assertThat(
+            searchEngine.getAcquiredPrimaryTermAndGenerations(),
+            containsInAnyOrder(secondScrollPrimaryTermAndGeneration, latestPrimaryTermAndGeneration.get())
+        );
 
         clearScroll(secondScroll.getScrollId());
 
-        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), empty());
+        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(latestPrimaryTermAndGeneration.get()));
     }
 
     public void testSearchNotInterruptedByNewCommit() throws Exception {

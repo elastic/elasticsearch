@@ -51,7 +51,6 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED;
@@ -67,7 +66,6 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private final SslConfiguration defaultSslConfiguration;
     private final Map<String, SslConfiguration> profileConfigurations;
     private final boolean transportSslEnabled;
-    private final boolean remoteClusterPortEnabled;
     private final boolean remoteClusterServerSslEnabled;
     private final SslConfiguration remoteClusterClientSslConfiguration;
     private final RemoteClusterClientBootstrapOptions remoteClusterClientBootstrapOptions;
@@ -96,7 +94,6 @@ public class SecurityNetty4Transport extends Netty4Transport {
         this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.sslService = sslService;
         this.transportSslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
-        this.remoteClusterPortEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         this.remoteClusterServerSslEnabled = REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings);
         this.profileConfigurations = Collections.unmodifiableMap(ProfileConfigurations.get(settings, sslService, true));
         this.defaultSslConfiguration = this.profileConfigurations.get(TransportSettings.DEFAULT_PROFILE);

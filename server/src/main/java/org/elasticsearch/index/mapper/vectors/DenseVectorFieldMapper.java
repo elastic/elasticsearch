@@ -104,8 +104,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             Integer dims = ((Integer) o);
             if (dims < 1 || dims > MAX_DIMS_COUNT) {
-                throw new MapperParsingException("Property [value] on field [" + n + "] must be in range [1, " + MAX_DIMS_COUNT +
-                    "] but got [" + dims + "]");
+                throw new MapperParsingException(
+                    "Property [value] on field [" + n + "] must be in range [1, " + MAX_DIMS_COUNT + "] but got [" + dims + "]"
+                );
             }
             return dims;
         }, m -> toType(m).fieldType().dims, XContentBuilder::field, Object::toString);

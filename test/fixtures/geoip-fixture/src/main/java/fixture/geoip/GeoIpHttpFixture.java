@@ -112,6 +112,10 @@ public class GeoIpHttpFixture extends ExternalResource {
             GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/GeoLite2-Country.mmdb"),
             source.resolve("GeoLite2-Country.mmdb")
         );
+        Files.copy(
+            GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/MyCustomGeoLite2-City.mmdb"),
+            source.resolve("MyCustomGeoLite2-City.mmdb")
+        );
 
         new GeoIpCli().main(
             new String[] { "-s", source.toAbsolutePath().toString(), "-t", target.toAbsolutePath().toString() },

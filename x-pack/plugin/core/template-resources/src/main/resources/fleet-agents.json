@@ -6,7 +6,8 @@
     "_doc" : {
       "dynamic": false,
       "_meta": {
-        "version": "${fleet.version}"
+        "version": "${fleet.version}",
+        "managed_index_mappings_version": ${fleet.managed.index.version}
       },
       "properties": {
         "access_api_key_id": {
@@ -58,8 +59,15 @@
           }
         },
         "components": {
-          "type": "object",
-          "enabled": false
+          "type": "nested",
+          "properties": {
+            "id": {
+              "type": "keyword"
+            },
+            "status": {
+              "type": "keyword"
+            }
+          }
         },
         "last_updated": {
           "type": "date"

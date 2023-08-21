@@ -117,24 +117,20 @@ public class CrossClusterAccessAuthenticationService {
         ActionListener<AuthenticationResult<User>> listener
     ) {
         final String credentials = headers.get(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
-
-        final ApiKeyService.ApiKeyCredentials apiKeyCredentials;
-        if (credentials != null) {
-            apiKeyCredentials = ApiKeyService.getCredentialsFromHeader(credentials, ApiKey.Type.CROSS_CLUSTER);
-        } else {
-            apiKeyCredentials = null;
+        if (credentials == null) {
+            throw requiredHeaderMissingException(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
         }
-
-        if (apiKeyCredentials == null) {
-            throw new IllegalArgumentException(
-                "Cross cluster requests through the dedicated remote cluster server port require transport header ["
-                    + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY
-                    + "] but none found. "
-                    + "Please ensure you have configured remote cluster credentials on the cluster originating the request."
-            );
-        }
-
+        final ApiKeyService.ApiKeyCredentials apiKeyCredentials = CrossClusterAccessHeaders.parseCredentialsHeader(credentials);
         apiKeyService.tryAuthenticate(threadContext, apiKeyCredentials, listener);
+    }
+
+    public static IllegalArgumentException requiredHeaderMissingException(String headerKey) {
+        return new IllegalArgumentException(
+            "Cross cluster requests through the dedicated remote cluster server port require transport header ["
+                + headerKey
+                + "] but none found. "
+                + "Please ensure you have configured remote cluster credentials on the cluster originating the request."
+        );
     }
 
     public AuthenticationService getAuthenticationService() {

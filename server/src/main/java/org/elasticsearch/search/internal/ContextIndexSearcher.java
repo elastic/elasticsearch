@@ -37,19 +37,21 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.apache.lucene.util.ThreadInterruptedException;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.CombinedBitSet;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.profile.Timer;
+import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.profile.query.ProfileWeight;
 import org.elasticsearch.search.profile.query.QueryProfileBreakdown;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.profile.query.QueryTimingType;
+import org.elasticsearch.search.query.QueryPhaseCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -57,11 +59,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
-import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -78,13 +83,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     // make sure each slice has at least 10% of the documents as a way to limit memory usage and
     // to keep the error margin of terms aggregation low
-    private static final double MINIMUM_DOCS_PERCENT_PER_SLICE = 0.1;
+    static final double MINIMUM_DOCS_PERCENT_PER_SLICE = 0.1;
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
     private final MutableQueryTimeout cancellable;
 
-    private final QueueSizeBasedExecutor queueSizeBasedExecutor;
     private final LeafSlice[] leafSlices;
     // don't create slices with less than this number of docs
     private final int minimumDocsPerSlice;
@@ -99,16 +103,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCachingPolicy queryCachingPolicy,
         boolean wrapWithExitableDirectoryReader
     ) throws IOException {
-        this(
-            reader,
-            similarity,
-            queryCache,
-            queryCachingPolicy,
-            new MutableQueryTimeout(),
-            Integer.MAX_VALUE,
-            wrapWithExitableDirectoryReader,
-            null
-        );
+        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader, null, -1, -1);
     }
 
     /** constructor for concurrent search */
@@ -117,9 +112,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         Similarity similarity,
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
-        int minimumDocsPerSlice,
         boolean wrapWithExitableDirectoryReader,
-        ThreadPoolExecutor executor
+        Executor executor,
+        int maximumNumberOfSlices,
+        int minimumDocsPerSlice
     ) throws IOException {
         this(
             reader,
@@ -127,40 +123,53 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             queryCache,
             queryCachingPolicy,
             new MutableQueryTimeout(),
-            minimumDocsPerSlice,
             wrapWithExitableDirectoryReader,
-            executor
+            executor,
+            maximumNumberOfSlices,
+            minimumDocsPerSlice
         );
     }
 
-    private ContextIndexSearcher(
+    ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
         MutableQueryTimeout cancellable,
-        int minimumDocsPerSlice,
         boolean wrapWithExitableDirectoryReader,
-        ThreadPoolExecutor executor
+        Executor executor,
+        int maximumNumberOfSlices,
+        int minimumDocsPerSlice
     ) throws IOException {
         // we need to pass the executor up so it can potentially be used as a sliceExecutor by knn search
-        super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
+        super(
+            wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader,
+            wrapExecutor(executor)
+        );
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
-        this.queueSizeBasedExecutor = executor != null ? new QueueSizeBasedExecutor(executor) : null;
         this.minimumDocsPerSlice = minimumDocsPerSlice;
-        if (executor != null) {
-            this.leafSlices = computeSlices(
-                getLeafContexts(),
-                queueSizeBasedExecutor.threadPoolExecutor.getMaximumPoolSize(),
-                minimumDocsPerSlice
-            );
-            assert (this.leafSlices.length <= executor.getMaximumPoolSize());
-        } else {
+        if (executor == null) {
             this.leafSlices = null;
+        } else {
+            // we offload to the executor unconditionally, including requests that don't support concurrency
+            this.leafSlices = computeSlices(getLeafContexts(), maximumNumberOfSlices, minimumDocsPerSlice);
+            assert this.leafSlices.length <= maximumNumberOfSlices : "more slices created than the maximum allowed";
         }
+    }
+
+    /*
+     * This is a hack to work around QueueSizeBasedExecutor conditionally executing on the caller thread based on queue size.
+     * We'd rather simply offload all the tasks to the executor when provided. See https://github.com/apache/lucene/issues/12498 .
+     * We override all of that already for the collection part, but we can't do that for the query rewrite part that affects knn.
+     */
+    private static Executor wrapExecutor(Executor executor) {
+        if (executor instanceof ThreadPoolExecutor) {
+            return executor::execute;
+        }
+        return executor;
     }
 
     // package private for testing
@@ -254,18 +263,29 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
+     * Returns the slices created by this {@link ContextIndexSearcher}, different from those created by the base class and
+     * returned by {@link IndexSearcher#getSlices()}. The former are used for parallelizing the collection, while the latter are used
+     * for now to parallelize rewrite (e.g. knn query rewrite)
+     */
+    final LeafSlice[] getSlicesForCollection() {
+        return leafSlices;
+    }
+
+    /**
      * Each computed slice contains at least 10% of the total data in the leaves with a
      * minimum given by the <code>minDocsPerSlice</code> parameter and the final number
      * of {@link LeafSlice} will be equal or lower than the max number of slices.
      */
-    /* pkg private for testing */
-    static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int maxSliceNum, int minDocsPerSlice) {
+    public static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int maxSliceNum, int minDocsPerSlice) {
         if (maxSliceNum < 1) {
             throw new IllegalArgumentException("maxSliceNum must be >= 1 (got " + maxSliceNum + ")");
         }
+        if (maxSliceNum == 1) {
+            return new LeafSlice[] { new LeafSlice(new ArrayList<>(leaves)) };
+        }
         // total number of documents to be searched
         final int numDocs = leaves.stream().mapToInt(l -> l.reader().maxDoc()).sum();
-        // percentage of documents per slice, minumum 10%
+        // percentage of documents per slice, minimum 10%
         final double percentageDocsPerThread = Math.max(MINIMUM_DOCS_PERCENT_PER_SLICE, 1.0 / maxSliceNum);
         // compute slices
         return computeSlices(leaves, Math.max(minDocsPerSlice, (int) (percentageDocsPerThread * numDocs)));
@@ -333,12 +353,25 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
-     * Similar to the lucene implementation but it will wait for all threads to fisinsh before returning even if an error is thrown.
-     * In that case, other exceptions will be ignored and the first exception is thrown after all threads are finished.
+     * Similar to the lucene implementation, with the following changes made:
+     * 1) it will wait for all threads to finish before returning when an exception is thrown. In that case, subsequent exceptions will be
+     * ignored and the first exception is re-thrown after all tasks are completed.
+     * 2) Tasks are cancelled on exception, as well as on timeout, to prevent needless computation
+     * 3) collection is unconditionally offloaded to the executor when set, even when there is a single slice or the request does not
+     * support concurrent collection. The executor is not set only when concurrent search has been explicitly disabled at the cluster level.
+     * 4) postCollection is performed after each segment is collected. This is needed for aggregations, performed by search worker threads
+     * so it can be parallelized. Also, it needs to happen in the same thread where doc_values are read, as it consumes them and Lucene
+     * does not allow consuming them from a different thread.
+     * 5) handles the ES TimeExceededException
      * */
     private <C extends Collector, T> T search(Weight weight, CollectorManager<C, T> collectorManager, C firstCollector) throws IOException {
-        if (queueSizeBasedExecutor == null || leafSlices.length <= 1) {
+        // the executor will be null only when concurrency is disabled at the cluster level
+        if (getExecutor() == null) {
             search(leafContexts, weight, firstCollector);
+            return collectorManager.reduce(Collections.singletonList(firstCollector));
+        } else if (leafSlices.length == 0) {
+            assert leafContexts.isEmpty();
+            doAggregationPostCollection(firstCollector);
             return collectorManager.reduce(Collections.singletonList(firstCollector));
         } else {
             final List<C> collectors = new ArrayList<>(leafSlices.length);
@@ -351,26 +384,63 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     throw new IllegalStateException("CollectorManager does not always produce collectors with the same score mode");
                 }
             }
-            final List<FutureTask<C>> listTasks = new ArrayList<>();
+            final List<RunnableFuture<C>> listTasks = new ArrayList<>();
             for (int i = 0; i < leafSlices.length; ++i) {
                 final LeafReaderContext[] leaves = leafSlices[i].leaves;
                 final C collector = collectors.get(i);
-                FutureTask<C> task = new FutureTask<>(() -> {
-                    search(Arrays.asList(leaves), weight, collector);
-                    return collector;
-                });
+                AtomicInteger state = new AtomicInteger(0);
+                RunnableFuture<C> task = new FutureTask<>(() -> {
+                    if (state.compareAndSet(0, 1)) {
+                        // A slice throws exception or times out: cancel all the tasks, to prevent slices that haven't started yet from
+                        // starting and performing needless computation.
+                        // TODO we will also want to cancel tasks that have already started, reusing the timeout mechanism
+                        try {
+                            search(Arrays.asList(leaves), weight, collector);
+                            if (timeExceeded) {
+                                for (Future<?> future : listTasks) {
+                                    FutureUtils.cancel(future);
+                                }
+                            }
+                        } catch (Exception e) {
+                            for (Future<?> future : listTasks) {
+                                FutureUtils.cancel(future);
+                            }
+                            throw e;
+                        }
+                        return collector;
+                    }
+                    throw new CancellationException();
+                }) {
+                    @Override
+                    public boolean cancel(boolean mayInterruptIfRunning) {
+                        /*
+                        Future#get (called down below after submitting all tasks) throws CancellationException for a cancelled task while
+                        it is still running. It's important to make sure that search does not leave any tasks behind when it returns.
+                        Overriding cancel ensures that tasks that are already started are left alone once cancelled, so Future#get will
+                        wait for them to finish instead of throwing CancellationException.
+                        Tasks that are cancelled before they are started won't start (same behaviour as the original implementation).
+                         */
+                        return state.compareAndSet(0, -1);
+                    }
 
+                    @Override
+                    public boolean isCancelled() {
+                        return state.get() == -1;
+                    }
+                };
                 listTasks.add(task);
             }
             logger.trace("Collecting using " + listTasks.size() + " tasks.");
 
-            queueSizeBasedExecutor.invokeAll(listTasks);
+            for (Runnable task : listTasks) {
+                getExecutor().execute(task);
+            }
             RuntimeException exception = null;
             final List<C> collectedCollectors = new ArrayList<>();
+            boolean cancellation = false;
             for (Future<C> future : listTasks) {
                 try {
                     collectedCollectors.add(future.get());
-                    // TODO: when there is an exception, it would be great to cancel the queries / threads
                 } catch (InterruptedException e) {
                     if (exception == null) {
                         exception = new ThreadInterruptedException(e);
@@ -379,16 +449,24 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     }
                 } catch (ExecutionException e) {
                     if (exception == null) {
-                        if (e.getCause() instanceof RuntimeException runtimeException) {
-                            exception = runtimeException;
+                        if (e.getCause() instanceof CancellationException) {
+                            // thrown by the manual cancellation implemented above - we cancel on exception and we will throw the root cause
+                            cancellation = true;
                         } else {
-                            exception = new RuntimeException(e.getCause());
+                            if (e.getCause() instanceof RuntimeException runtimeException) {
+                                exception = runtimeException;
+                            } else if (e.getCause() instanceof IOException ioException) {
+                                throw ioException;
+                            } else {
+                                exception = new RuntimeException(e.getCause());
+                            }
                         }
                     } else {
                         // we ignore further exceptions
                     }
                 }
             }
+            assert cancellation == false || exception != null || timeExceeded : "cancellation without an exception or timeout?";
             if (exception != null) {
                 throw exception;
             }
@@ -405,8 +483,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
         } catch (@SuppressWarnings("unused") TimeExceededException e) {
             timeExceeded = true;
+        } finally {
+            doAggregationPostCollection(collector);
         }
+    }
 
+    private void doAggregationPostCollection(Collector collector) throws IOException {
+        if (collector instanceof QueryPhaseCollector queryPhaseCollector) {
+            queryPhaseCollector.doPostCollection();
+        } else if (collector instanceof InternalProfileCollector profilerCollector) {
+            profilerCollector.doPostCollection();
+        }
     }
 
     /**  If the search has timed out following Elasticsearch custom implementation */
@@ -573,54 +660,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
         public void clear() {
             runnables.clear();
-        }
-    }
-
-    private static class QueueSizeBasedExecutor {
-        private static final double LIMITING_FACTOR = 1.5;
-
-        private final ThreadPoolExecutor threadPoolExecutor;
-
-        QueueSizeBasedExecutor(ThreadPoolExecutor threadPoolExecutor) {
-            this.threadPoolExecutor = threadPoolExecutor;
-        }
-
-        public void invokeAll(Collection<? extends Runnable> tasks) {
-            int i = 0;
-
-            for (Runnable task : tasks) {
-                boolean shouldExecuteOnCallerThread = false;
-
-                // Execute last task on caller thread
-                if (i == tasks.size() - 1) {
-                    shouldExecuteOnCallerThread = true;
-                }
-
-                if (threadPoolExecutor.getQueue().size() >= (threadPoolExecutor.getMaximumPoolSize() * LIMITING_FACTOR)) {
-                    shouldExecuteOnCallerThread = true;
-                }
-
-                processTask(task, shouldExecuteOnCallerThread);
-
-                ++i;
-            }
-        }
-
-        protected void processTask(final Runnable task, final boolean shouldExecuteOnCallerThread) {
-            if (task == null) {
-                throw new IllegalArgumentException("Input is null");
-            }
-
-            if (shouldExecuteOnCallerThread == false) {
-                try {
-                    threadPoolExecutor.execute(task);
-
-                    return;
-                } catch (@SuppressWarnings("unused") RejectedExecutionException e) {
-                    // Execute on caller thread
-                }
-            }
-            task.run();
         }
     }
 }

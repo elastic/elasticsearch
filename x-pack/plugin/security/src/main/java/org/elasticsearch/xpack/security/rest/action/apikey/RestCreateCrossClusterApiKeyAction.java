@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
 import java.util.List;
@@ -75,6 +76,7 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final CreateCrossClusterApiKeyRequest createCrossClusterApiKeyRequest = PARSER.parse(request.contentParser(), null);
+        createCrossClusterApiKeyRequest.setRefreshPolicy(ApiKeyService.defaultCreateDocRefreshPolicy(settings));
         return channel -> client.execute(
             CreateCrossClusterApiKeyAction.INSTANCE,
             createCrossClusterApiKeyRequest,

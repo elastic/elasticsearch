@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ShutdownPersistentTasksStatus;
 import org.elasticsearch.cluster.metadata.ShutdownPluginsStatus;
@@ -38,6 +39,9 @@ import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ilm.ErrorStep;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,6 +54,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus.NODE_ALLOCATION_DECISION_KEY;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 
 public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     GetShutdownStatusAction.Request,
@@ -278,6 +283,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 }
                 return hasShardCopyOnOtherNode == false;
             })
+            // If ILM is shrinking the index this shard is part of, it'll look like it's unmovable, but we can just wait for ILM to finish
+            .filter(pair -> isIlmRestrictingShardMovement(currentState, pair.v1()) == false)
             .peek(pair -> {
                 logger.debug(
                     "node [{}] shutdown of type [{}] stalled: found shard [{}][{}] from index [{}] with negative decision: [{}]",
@@ -319,6 +326,29 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         } else {
             return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.IN_PROGRESS, totalRemainingShards);
         }
+    }
+
+    private static boolean isIlmRestrictingShardMovement(ClusterState currentState, ShardRouting pair) {
+        if (OperationMode.STOPPED.equals(currentILMMode(currentState)) == false) {
+            LifecycleExecutionState ilmState = currentState.metadata().index(pair.index()).getLifecycleExecutionState();
+            // Specifically, if 1) ILM is running, 2) ILM is currently shrinking the index this shard is part of, and 3) it hasn't
+            // errored out, we can disregard this shard under the assumption that ILM will get it movable eventually
+            boolean ilmWillMoveShardEventually = ilmState != null
+                && ShrinkAction.NAME.equals(ilmState.action())
+                && ErrorStep.NAME.equals(ilmState.step()) == false;
+            if (ilmWillMoveShardEventually) {
+                logger.debug(
+                    format(
+                        "shard [%s] [%s] of index [%s] cannot move, but ILM is shrinking that index so assuming it will move",
+                        pair.shardId().getId(),
+                        pair.primary() ? "primary" : "replica",
+                        pair.index().getName()
+                    )
+                );
+            }
+            return ilmWillMoveShardEventually;
+        }
+        return false;
     }
 
     private static boolean hasShardCopyOnAnotherNode(ClusterState clusterState, ShardRouting shardRouting, Set<String> shuttingDownNodes) {

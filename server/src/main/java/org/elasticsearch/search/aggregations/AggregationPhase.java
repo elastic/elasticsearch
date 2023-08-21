@@ -72,6 +72,7 @@ public class AggregationPhase {
         searcher.setProfiler(context);
         try {
             searcher.search(context.rewrittenQuery(), collector);
+            collector.postCollection();
         } catch (IOException e) {
             throw new AggregationExecutionException("Could not perform time series aggregation", e);
         }
@@ -113,7 +114,6 @@ public class AggregationPhase {
             final List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
             for (Aggregator aggregator : aggregators) {
                 try {
-                    aggregator.postCollection();
                     aggregations.add(aggregator.buildTopLevel());
                 } catch (IOException e) {
                     throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);

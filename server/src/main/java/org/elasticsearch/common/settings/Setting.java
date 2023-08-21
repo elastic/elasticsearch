@@ -1208,7 +1208,7 @@ public class Setting<T> implements ToXContentObject {
                     Settings previousSettings = get(previous);
                     try {
                         validator.accept(currentSettings);
-                    } catch (Exception | AssertionError e) {
+                    } catch (Exception e) {
                         String err = "illegal value can't update ["
                             + key
                             + "]"
@@ -1266,7 +1266,7 @@ public class Setting<T> implements ToXContentObject {
                 T inst = get(current);
                 accept.accept(inst);
                 return inst;
-            } catch (Exception | AssertionError e) {
+            } catch (Exception e) {
                 if (isFiltered()) {
                     throw new IllegalArgumentException("illegal value can't update [" + key + "]");
                 } else {

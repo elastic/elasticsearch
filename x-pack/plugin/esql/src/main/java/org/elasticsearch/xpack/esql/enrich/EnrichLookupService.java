@@ -49,7 +49,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -146,11 +145,7 @@ public class EnrichLookupService {
                 lookupRequest,
                 parentTask,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(
-                    listener.map(r -> r.page),
-                    LookupResponse::new,
-                    TransportResponseHandler.TRANSPORT_WORKER
-                )
+                new ActionListenerResponseHandler<>(listener.map(r -> r.page), LookupResponse::new, executor)
             );
         }
     }

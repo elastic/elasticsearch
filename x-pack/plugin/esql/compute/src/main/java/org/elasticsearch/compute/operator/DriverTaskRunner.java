@@ -16,9 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -37,10 +35,12 @@ import java.util.concurrent.Executor;
 public class DriverTaskRunner {
     public static final String ACTION_NAME = "internal:data/read/esql/compute";
     private final TransportService transportService;
+    private final Executor executor;
 
-    public DriverTaskRunner(TransportService transportService, Executor executor) {
+    public DriverTaskRunner(TransportService transportService, String executorName) {
         this.transportService = transportService;
-        transportService.registerRequestHandler(ACTION_NAME, ThreadPool.Names.SAME, DriverRequest::new, new DriverRequestHandler(executor));
+        this.executor = transportService.getThreadPool().executor(executorName);
+        transportService.registerRequestHandler(ACTION_NAME, executorName, DriverRequest::new, new DriverRequestHandler(executor));
     }
 
     public void executeDrivers(Task parentTask, List<Driver> drivers, ActionListener<Void> listener) {
@@ -53,22 +53,7 @@ public class DriverTaskRunner {
                     new DriverRequest(driver),
                     parentTask,
                     TransportRequestOptions.EMPTY,
-                    new TransportResponseHandler.Empty() {
-                        @Override
-                        public Executor executor(ThreadPool threadPool) {
-                            return TRANSPORT_WORKER;
-                        }
-
-                        @Override
-                        public void handleResponse() {
-                            driverListener.onResponse(null);
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            driverListener.onFailure(exp);
-                        }
-                    }
+                    TransportResponseHandler.empty(executor, driverListener)
                 );
             }
         };

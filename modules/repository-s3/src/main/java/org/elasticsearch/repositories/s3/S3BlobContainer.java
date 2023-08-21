@@ -668,6 +668,22 @@ class S3BlobContainer extends AbstractBlobContainer {
             for (MultipartUpload multipartUpload : multipartUploads) {
                 final var observedUploadId = multipartUpload.getUploadId();
                 if (observedUploadId.equals(targetUploadId)) {
+                    final var currentTimeMillis = blobStore.getThreadPool().absoluteTimeInMillis();
+                    final var ageMillis = currentTimeMillis - multipartUpload.getInitiated().toInstant().toEpochMilli();
+                    final var expectedAgeRangeMillis = blobStore.getCompareAndExchangeTimeToLive().millis();
+                    if (ageMillis < -expectedAgeRangeMillis || ageMillis > expectedAgeRangeMillis) {
+                        logger.warn(
+                            """
+                                compare-and-exchange of blob [{}:{}] was initiated at [{}={}] \
+                                which deviates from local node epoch time [{}] by more than the warn threshold of [{}ms]""",
+                            bucket,
+                            blobKey,
+                            multipartUpload.getInitiated(),
+                            multipartUpload.getInitiated().toInstant().toEpochMilli(),
+                            currentTimeMillis,
+                            expectedAgeRangeMillis
+                        );
+                    }
                     found = true;
                 } else if (observedUploadId.compareTo(targetUploadId) < 0) {
                     uploadIndex += 1;

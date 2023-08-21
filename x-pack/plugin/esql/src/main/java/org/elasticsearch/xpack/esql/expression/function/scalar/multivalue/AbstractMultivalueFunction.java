@@ -11,8 +11,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -21,7 +21,7 @@ import java.util.function.Supplier;
 /**
  * Base class for functions that reduce multivalued fields into single valued fields.
  */
-public abstract class AbstractMultivalueFunction extends UnaryScalarFunction implements Mappable {
+public abstract class AbstractMultivalueFunction extends UnaryScalarFunction implements EvaluatorMapper {
     protected AbstractMultivalueFunction(Source source, Expression field) {
         super(source, field);
     }
@@ -43,7 +43,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
 
     @Override
     public final Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Override

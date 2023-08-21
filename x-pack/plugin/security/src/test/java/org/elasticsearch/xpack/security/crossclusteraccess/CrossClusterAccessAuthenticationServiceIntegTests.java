@@ -19,13 +19,11 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
@@ -45,7 +43,6 @@ import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.C
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityIntegTestCase {
 
@@ -172,14 +169,14 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
                 new AuthenticationContextSerializer().writeToContext(AuthenticationTestHelper.builder().build(), threadContext);
             }
 
-            final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
             service.tryAuthenticateCredentialsHeaderOnly(
                 threadContext,
                 Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, threadContext.getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY)),
                 future
             );
-            var actual = future.actionGet();
-            assertThat(actual.isAuthenticated(), is(true));
+            // Assert nothing thrown
+            future.actionGet();
             // TODO assert it's the actual key
         }
     }

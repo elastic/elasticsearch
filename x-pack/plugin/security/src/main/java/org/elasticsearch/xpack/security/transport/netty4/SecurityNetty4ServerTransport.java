@@ -11,7 +11,6 @@ import io.netty.channel.ChannelHandler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -23,7 +22,6 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Header;
 import org.elasticsearch.transport.InboundAggregator;
@@ -32,9 +30,7 @@ import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.netty4.Netty4MessageInboundHandler;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -150,20 +146,9 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
                 }
 
                 final ThreadContext threadContext = threadPool.getThreadContext();
-                final var contextPreservingActionListener = new ContextPreservingActionListener<AuthenticationResult<User>>(
+                final var contextPreservingActionListener = new ContextPreservingActionListener<Void>(
                     threadContext.wrapRestorable(threadContext.newStoredContext()),
-                    ActionListener.wrap(authenticationResult -> {
-                        if (false == authenticationResult.isAuthenticated()) {
-                            logger.warn("authentication failed [{}]", authenticationResult.getMessage());
-                            shortCircuit(
-                                authenticationResult.getException() != null
-                                    ? authenticationResult.getException()
-                                    : new ElasticsearchSecurityException(authenticationResult.getMessage(), RestStatus.UNAUTHORIZED)
-                            );
-                        } else {
-                            logger.info("authentication successful");
-                        }
-                    }, this::shortCircuit)
+                    ActionListener.wrap(ignored -> {}, this::shortCircuit)
                 );
 
                 try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {

@@ -110,9 +110,7 @@ public class ModelPackageConfigTests extends AbstractBWCSerializationTestCase<Mo
 
     @Override
     protected ModelPackageConfig mutateInstanceForVersion(ModelPackageConfig instance, TransportVersion version) {
-        ModelPackageConfig.Builder builder = new ModelPackageConfig.Builder(instance);
-        return builder.build();
-        // return instance;
+        return instance;
     }
 
     private static Map<String, Object> randomInferenceConfigAsMap() {

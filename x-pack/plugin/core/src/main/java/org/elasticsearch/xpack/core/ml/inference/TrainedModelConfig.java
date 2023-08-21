@@ -104,7 +104,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField PER_ALLOCATION_MEMORY_BYTES = new ParseField("per_allocation_memory_bytes");
 
     public static final TransportVersion VERSION_3RD_PARTY_CONFIG_ADDED = TransportVersion.V_8_0_0;
-    public static final TransportVersion VERSION_ALLOCATION_MEMORY_ADDED = TransportVersion.V_8_500_061;
+    public static final TransportVersion VERSION_ALLOCATION_MEMORY_ADDED = TransportVersion.V_8_500_064;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);

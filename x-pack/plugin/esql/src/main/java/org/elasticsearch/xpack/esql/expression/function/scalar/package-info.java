@@ -20,14 +20,14 @@
  *     <li>Fork the <a href="github.com/elastic/elasticsearch">Elasticsearch repo</a>.</li>
  *     <li>Clone your fork locally.</li>
  *     <li>Add Elastic's remote, it should look a little like:
- *         {@code<pre>
+ *         <pre>{@code
  * [remote "elastic"]
  * url = git@github.com:elastic/elasticsearch.git
  * fetch = +refs/heads/*:refs/remotes/elastic/*
  * [remote "nik9000"]
  * url = git@github.com:nik9000/elasticsearch.git
  * fetch = +refs/heads/*:refs/remotes/nik9000/*
- *         </pre>}
+ *         }</pre>
  *     </li>
  *     <li>
  *         Feel free to use {@code git} as a scratch pad. We're going to squash all commits
@@ -84,11 +84,11 @@
  *     </li>
  *     <li>
  *         Once you are happy with the tests run the auto formatter:
- *         {@code<pre>./gradlew -p x-pack/plugin/esql/ spotlessApply</pre>}
+ *         {@code ./gradlew -p x-pack/plugin/esql/ spotlessApply}
  *     </li>
  *     <li>
  *         Now you can run all of the ESQL tests liks CI:
- *         {@code<pre>./gradlew -p x-pack/plugin/esql/ check</pre>}
+ *         {@code ./gradlew -p x-pack/plugin/esql/ check}
  *     </li>
  *     <li>
  *         Now it's time to write some docs! Open {@code docs/reference/esql/esql-functions.asciidoc}
@@ -101,7 +101,7 @@
  *     <li>
  *         It's important that any examples you add to the docs be included from the csv-spec file.
  *         That looks like:
- *         {@code<pre>
+ *         <pre>{@code
  * [source.merge.styled,esql]
  * ----
  * include::{esql-specs}/math.csv-spec[tag=mv_min]
@@ -110,7 +110,7 @@
  * |===
  * include::{esql-specs}/math.csv-spec[tag=mv_min-result]
  * |===
- *         </pre>}
+ *         }</pre>
  *         This includes the bit of the csv-spec file fenced by {@code // tag::mv_min[]}. You'll
  *         want a fence descriptive for your function. Consider the non-includes lines to be
  *         asciidoc ceremony to make the result look right in the rendered docs.
@@ -118,9 +118,9 @@
  *     <li>
  *          Build the docs by cloning the <a href="https://github.com/elastic/docs">docs repo</a>
  *          and running:
- *          {@code<pre>
+ *          <pre>{@code
  * ../docs/build_docs --doc docs/reference/index.asciidoc --resource x-pack/docs/ --open --chunk 1
- *          </pre>}
+ *          }</pre>
  *          from the elasticsearch directory. The first time you run the docs build it does a bunch
  *          of things with docker to get itself ready. Hopefully you can sit back and watch the show.
  *          It won't need to do it a second time unless some poor soul updates the Dockerfile in the
@@ -144,9 +144,9 @@
  *     <li>
  *         CI might fail for random looking reasons. The first thing you should do is merge {@code main}
  *         into your PR branch. That's usually just:
- *         {@code<pre>
+ *         <pre>{@code
  * git checkout main && git pull elastic main && git checkout mybranch && git merge main
- *         </pre>}
+ *         }</pre>
  *         Don't worry about the commit message. It'll get squashed away in the merge.
  *     </li>
  * </ol>

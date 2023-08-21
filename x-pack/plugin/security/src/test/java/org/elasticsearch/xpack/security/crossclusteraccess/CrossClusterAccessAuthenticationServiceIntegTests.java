@@ -12,8 +12,10 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
@@ -22,14 +24,17 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeadersTests;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -155,7 +160,9 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             service.doTryAuthenticateCredentialsHeader(
                 threadContext,
-                withRandomizedHeaders(Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, encodedCrossClusterAccessApiKey)),
+                withRandomizedAdditionalSecurityHeaders(
+                    Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, encodedCrossClusterAccessApiKey)
+                ),
                 future
             );
             future.actionGet();
@@ -177,7 +184,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             tryAuthenticateAndAssertExpectedErrorMessage(
                 service,
                 threadContext,
-                Map.of(),
+                withRandomizedAdditionalSecurityHeaders(Map.of()),
                 msg -> assertThat(
                     msg,
                     containsString(
@@ -195,7 +202,9 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             tryAuthenticateAndAssertExpectedErrorMessage(
                 service,
                 threadContext,
-                Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, ApiKeyService.withApiKeyPrefix("abc")),
+                withRandomizedAdditionalSecurityHeaders(
+                    Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, ApiKeyService.withApiKeyPrefix("abc"))
+                ),
                 msg -> assertThat(
                     msg,
                     containsString(
@@ -209,7 +218,9 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
 
         try (var ignored = threadContext.stashContext()) {
             addRandomizedHeaders(threadContext, encodedCrossClusterAccessApiKeyWithId.encoded);
-            Map<String, String> headers = Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, encodedRestApiKeyWithId.encoded);
+            Map<String, String> headers = withRandomizedAdditionalSecurityHeaders(
+                Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, encodedRestApiKeyWithId.encoded)
+            );
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             service.doTryAuthenticateCredentialsHeader(threadContext, headers, future);
             final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
@@ -226,7 +237,9 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
                 Base64.getEncoder()
                     .encodeToString((UUIDs.base64UUID() + ":" + UUIDs.randomBase64UUIDSecureString()).getBytes(StandardCharsets.UTF_8))
             );
-            Map<String, String> headers = Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, wrongApiKeyWithCorrectId);
+            Map<String, String> headers = withRandomizedAdditionalSecurityHeaders(
+                Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, wrongApiKeyWithCorrectId)
+            );
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             service.doTryAuthenticateCredentialsHeader(threadContext, headers, future);
             final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
@@ -235,26 +248,32 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         }
     }
 
-    private Map<String, String> withRandomizedHeaders(Map<String, String> headers) {
+    private Map<String, String> withRandomizedAdditionalSecurityHeaders(Map<String, String> headers) throws IOException {
         var map = new HashMap<>(headers);
         if (randomBoolean()) {
             map.put(
                 "Authorization",
-                ApiKeyService.withApiKeyPrefix(
-                    Base64.getEncoder()
-                        .encodeToString((UUIDs.base64UUID() + ":" + UUIDs.randomBase64UUIDSecureString()).getBytes(StandardCharsets.UTF_8))
+                randomFrom(
+                    CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
+                    UsernamePasswordToken.basicAuthHeaderValue(
+                        SecuritySettingsSource.TEST_USER_NAME,
+                        new SecureString(SecuritySettingsSource.TEST_USER_NAME.toCharArray())
+                    ),
+                    UsernamePasswordToken.basicAuthHeaderValue("user", new SecureString(randomAlphaOfLength(20).toCharArray()))
                 )
             );
+        }
+        if (randomBoolean()) {
+            map.put(AuthenticationField.AUTHENTICATION_KEY, AuthenticationTestHelper.builder().build().encode());
         }
         return Map.copyOf(map);
     }
 
     private void addRandomizedHeaders(ThreadContext threadContext, String validEncodedApiKey) throws IOException {
-        // No headers in thread context should have an impact on tryAuthenticate
+        // Headers in thread context should have no impact on tryAuthenticate
         if (randomBoolean()) {
             new CrossClusterAccessHeaders(
                 validEncodedApiKey,
-                // Valid or invalid subject info doesn't matter
                 randomFrom(
                     new CrossClusterAccessSubjectInfo(AuthenticationTestHelper.builder().build(), RoleDescriptorsIntersection.EMPTY),
                     new CrossClusterAccessSubjectInfo(
@@ -272,9 +291,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             new AuthenticationContextSerializer().writeToContext(AuthenticationTestHelper.builder().build(), threadContext);
         }
         if (randomBoolean()) {
-            final String randomApiKey = Base64.getEncoder()
-                .encodeToString((UUIDs.base64UUID() + ":" + UUIDs.randomBase64UUIDSecureString()).getBytes(StandardCharsets.UTF_8));
-            threadContext.putHeader("Authorization", randomApiKey);
+            threadContext.putHeader("Authorization", CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader());
         }
     }
 

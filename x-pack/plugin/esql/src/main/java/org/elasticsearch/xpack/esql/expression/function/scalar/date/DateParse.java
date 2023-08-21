@@ -112,7 +112,7 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Mappa
                 DateFormatter formatter = toFormatter(format.fold(), zone);
                 return () -> new DateParseConstantEvaluator(source(), fieldEvaluator.get(), formatter);
             } catch (IllegalArgumentException e) {
-                throw new EsqlIllegalArgumentException(e, "invalid date patter for [{}]: {}", sourceText(), e.getMessage());
+                throw new EsqlIllegalArgumentException(e, "invalid date pattern for [{}]: {}", sourceText(), e.getMessage());
             }
         }
         Supplier<EvalOperator.ExpressionEvaluator> formatEvaluator = toEvaluator.apply(format);

@@ -40,12 +40,14 @@ public class AsyncOperatorTests extends ESTestCase {
 
     private TestThreadPool threadPool;
 
+    private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
+
     @Before
     public void setThreadPool() {
         int numThreads = randomBoolean() ? 1 : between(2, 16);
         threadPool = new TestThreadPool(
             "test",
-            new FixedExecutorBuilder(Settings.EMPTY, "esql_test_executor", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(Settings.EMPTY, ESQL_TEST_EXECUTOR, numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
         );
     }
 
@@ -120,7 +122,7 @@ public class AsyncOperatorTests extends ESTestCase {
             outputOperator,
             () -> assertFalse(it.hasNext())
         );
-        Driver.start(threadPool.executor("esql_test_executor"), driver, between(1, 10000), future);
+        Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), future);
         future.actionGet();
     }
 
@@ -200,7 +202,7 @@ public class AsyncOperatorTests extends ESTestCase {
                 }
             };
             TimeValue delay = TimeValue.timeValueMillis(randomIntBetween(0, 50));
-            threadPool.schedule(command, delay, "esql_test_executor");
+            threadPool.schedule(command, delay, ESQL_TEST_EXECUTOR);
         }
     }
 }

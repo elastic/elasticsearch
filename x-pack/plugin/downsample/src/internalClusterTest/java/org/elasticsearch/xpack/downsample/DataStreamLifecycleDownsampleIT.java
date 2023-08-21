@@ -209,6 +209,100 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    @TestLogging(value = "org.elasticsearch.datastreams.lifecycle:TRACE", reason = "debugging")
+    public void testUpdateDownsampleRound() throws Exception {
+        // we'll test updating the data lifecycle to add an earlier downsampling round to an already executed lifecycle
+        // we expect the earlier round to be ignored
+        String dataStreamName = "metrics-baz";
+
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+            .downsampling(
+                new Downsampling(
+                    List.of(
+                        new Downsampling.Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("1s"))),
+                        // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
+                        // least 2 seconds since rollover. only the 10 seconds round should be executed.
+                        new Downsampling.Round(TimeValue.timeValueMillis(10), new DownsampleConfig(new DateHistogramInterval("10s")))
+                    )
+                )
+            )
+            .build();
+
+        putTSDBIndexTemplate("metrics-baz*", lifecycle);
+        indexDocuments(dataStreamName);
+
+        String firstGenerationBackingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String oneSecondDownsampleIndex = "downsample-1s-" + firstGenerationBackingIndex;
+        String tenSecondsDownsampleIndex = "downsample-10s-" + firstGenerationBackingIndex;
+
+        Set<String> witnessedDownsamplingIndices = new HashSet<>();
+        clusterService().addListener(event -> {
+            if (event.indicesCreated().contains(oneSecondDownsampleIndex)
+                || event.indicesDeleted().stream().anyMatch(index -> index.getName().equals(oneSecondDownsampleIndex))) {
+                witnessedDownsamplingIndices.add(oneSecondDownsampleIndex);
+            }
+            if (event.indicesCreated().contains(tenSecondsDownsampleIndex)) {
+                witnessedDownsamplingIndices.add(tenSecondsDownsampleIndex);
+            }
+        });
+
+        client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)).actionGet();
+
+        assertBusy(() -> {
+            assertThat(witnessedDownsamplingIndices.size(), is(1));
+            // only the ten seconds downsample round should've been executed
+            assertThat(witnessedDownsamplingIndices.contains(tenSecondsDownsampleIndex), is(true));
+        }, 30, TimeUnit.SECONDS);
+
+        assertBusy(() -> {
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                .actionGet();
+            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
+            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+
+            assertThat(backingIndices.size(), is(2));
+            String writeIndex = backingIndices.get(1).getName();
+            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
+            assertThat(backingIndices.get(0).getName(), is(tenSecondsDownsampleIndex));
+        }, 30, TimeUnit.SECONDS);
+
+        // update the lifecycle so that it only has one round, for the same `after` parameter as before, but a different interval
+        // the different interval should yield a different downsample index name so we expect the data stream lifecycle to get the previous
+        // `10s` interval downsample index, downsample it to `30s` and replace it in the data stream instead of the `10s` one.
+        DataStreamLifecycle updatedLifecycle = DataStreamLifecycle.newBuilder()
+            .downsampling(
+                new Downsampling(
+                    List.of(new Downsampling.Round(TimeValue.timeValueMillis(10), new DownsampleConfig(new DateHistogramInterval("30s"))))
+                )
+            )
+            .build();
+
+        client().execute(
+            PutDataStreamLifecycleAction.INSTANCE,
+            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, updatedLifecycle)
+        );
+
+        String thirtySecondsDownsampleIndex = "downsample-30s-" + firstGenerationBackingIndex;
+
+        assertBusy(() -> {
+            assertThat(indexExists(tenSecondsDownsampleIndex), is(false));
+
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                .actionGet();
+            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
+            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+
+            assertThat(backingIndices.size(), is(2));
+            String writeIndex = backingIndices.get(1).getName();
+            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
+            assertThat(backingIndices.get(0).getName(), is(thirtySecondsDownsampleIndex));
+        }, 30, TimeUnit.SECONDS);
+    }
+
     private static void putTSDBIndexTemplate(String pattern, DataStreamLifecycle lifecycle) throws IOException {
         Settings.Builder settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1));

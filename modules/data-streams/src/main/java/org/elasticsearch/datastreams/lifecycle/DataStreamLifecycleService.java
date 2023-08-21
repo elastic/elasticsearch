@@ -414,6 +414,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 DataStreamLifecycle.Downsampling.Round lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
 
                 for (DataStreamLifecycle.Downsampling.Round round : downsamplingRounds) {
+                    // the downsample index name for each round is deterministic
                     String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
                         DOWNSAMPLED_INDEX_PREFIX,
                         backingIndex,
@@ -425,7 +426,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             downsampleIndexMeta.getSettings()
                         );
                         if (downsampleStatus.equals(UNKNOWN) && round.equals(lastRound)) {
-                            // target downsampling index exists and it's not a downsampling index (name clash?)
+                            // target downsampling index exists and is not a downsampling index (name clash?)
                             // we fail now but perhaps we should just randomise the name?
                             errorStore.recordError(
                                 backingIndex.getIndex().getName(),

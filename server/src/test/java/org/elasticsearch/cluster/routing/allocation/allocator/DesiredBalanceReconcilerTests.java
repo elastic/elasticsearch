@@ -1052,7 +1052,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
     public void testDoNotAllocateIgnoredShards() {
 
-        var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        final var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
         final var index = indexMetadata.getIndex();
         final var shardId = new ShardId(index, 0);
 

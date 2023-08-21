@@ -1,8 +1,8 @@
 ---
 "Help":
   - skip:
-      version: " - 8.9.99"
-      reason:  dense vector stats were added in 8.10.0
+      version: " - 8.10.99"
+      reason:  dataset size was added in 8.11.0
   - do:
       cat.shards:
         help: true
@@ -184,6 +184,10 @@
 
 ---
 "Test cat shards sort":
+  - skip:
+      version: " - 8.10.99"
+      reason:  dataset size was added in 8.11.0
+
   - do:
       indices.create:
         index: foo
@@ -222,6 +226,7 @@
   - do:
       cat.shards:
         h: [index, dataset]
+        s: [docs]
         index: "foo,bar"
 
   - match:

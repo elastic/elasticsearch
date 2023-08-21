@@ -136,7 +136,7 @@ public class ClusterStateTests extends ESTestCase {
             clusterState,
             builder,
             new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)),
-            37
+            41
         );
         builder.endObject();
 
@@ -393,7 +393,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 37);
+        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 41);
         builder.endObject();
 
         assertEquals(
@@ -644,7 +644,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 37);
+        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 41);
         builder.endObject();
 
         assertEquals(

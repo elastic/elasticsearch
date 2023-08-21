@@ -1,9 +1,10 @@
 pr: 98204
-summary: Enable parallel knn search across segments
+summary: Introduce executor for concurrent search
 area: Search
 type: feature
 issues: []
 highlight:
+  title: Enable parallel knn search across segments
   body: |-
     Elasticsearch has until now performed search sequentially across the
     segments within each shard. This change makes knn queries faster on shards

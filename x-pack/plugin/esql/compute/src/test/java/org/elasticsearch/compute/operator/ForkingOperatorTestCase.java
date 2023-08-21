@@ -43,6 +43,9 @@ import static org.hamcrest.Matchers.startsWith;
  * shape of "single", "initial", "intermediate", and "final" modes.
  */
 public abstract class ForkingOperatorTestCase extends OperatorTestCase {
+
+    private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
+
     protected abstract Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode);
 
     @Override
@@ -159,7 +162,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         var runner = new DriverRunner() {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.executor("esql_test_executor"), driver, between(1, 10000), listener);
+                Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -181,7 +184,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         var runner = new DriverRunner() {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.executor("esql_test_executor"), driver, between(1, 1000), listener);
+                Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), listener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -200,10 +203,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         Collection<List<Page>> splitInput = randomSplits(input, randomIntBetween(2, 4));
 
         ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(randomIntBetween(2, 10), threadPool::relativeTimeInMillis);
-        ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(
-            randomIntBetween(1, 4),
-            threadPool.executor("esql_test_executor")
-        );
+        ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(randomIntBetween(1, 4), threadPool.executor(ESQL_TEST_EXECUTOR));
         sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1);
 
         Iterator<? extends Operator> intermediateOperatorItr;
@@ -342,7 +342,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         int numThreads = randomBoolean() ? 1 : between(2, 16);
         threadPool = new TestThreadPool(
             "test",
-            new FixedExecutorBuilder(Settings.EMPTY, "esql_test_executor", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(Settings.EMPTY, ESQL_TEST_EXECUTOR, numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
         );
     }
 

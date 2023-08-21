@@ -43,6 +43,9 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.InboundAggregator;
+import org.elasticsearch.transport.InboundDecoder;
+import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.NetworkTraceFlag;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
@@ -374,7 +377,17 @@ public class Netty4Transport extends TcpTransport {
             pipeline.addLast("logging", ESLoggingHandler.INSTANCE);
         }
         pipeline.addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()));
-        pipeline.addLast("dispatcher", new Netty4MessageInboundHandler(this, recycler));
+        pipeline.addLast("dispatcher", new Netty4MessageInboundHandler(this, getInboundPipeline()));
+    }
+
+    protected InboundPipeline getInboundPipeline() {
+        return new InboundPipeline(
+            getStatsTracker(),
+            threadPool::relativeTimeInMillis,
+            new InboundDecoder(recycler),
+            new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
+            this::inboundMessage
+        );
     }
 
     private static void addClosedExceptionLogger(Channel channel) {

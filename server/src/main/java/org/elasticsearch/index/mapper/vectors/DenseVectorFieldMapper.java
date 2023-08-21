@@ -95,23 +95,27 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             return elementType;
         }, m -> toType(m).elementType, XContentBuilder::field, Objects::toString);
-
         // This is defined as updatable because it can be updated once, from [null] to a valid dim size,
         // by a dynamic mapping update. Once it has been set, however, the value cannot be changed.
         private final Parameter<Integer> dims = new Parameter<>("dims", true, () -> null, (n, c, o) -> {
             if (o instanceof Integer == false) {
-                throw new MapperParsingException("Property [value] on field [" + n + "] must be an integer but got [" + o + "]");
+                throw new MapperParsingException("Property [dims] on field [" + n + "] must be an integer but got [" + o + "]");
             }
-            Integer dims = ((Integer) o);
+            int dims = XContentMapValues.nodeIntegerValue(o);
             if (dims < 1 || dims > MAX_DIMS_COUNT) {
                 throw new MapperParsingException(
-                    "Property [value] on field [" + n + "] must be in range [1, " + MAX_DIMS_COUNT + "] but got [" + dims + "]"
+                    "The number of dimensions for field ["
+                        + n
+                        + "] should be in the range [1, "
+                        + MAX_DIMS_COUNT
+                        + "] but was ["
+                        + dims
+                        + "]"
                 );
             }
             return dims;
-        }, m -> toType(m).fieldType().dims, XContentBuilder::field, Object::toString);
-
-        private final Parameter<Boolean> indexed;
+        }, m -> toType(m).fieldType().dims, XContentBuilder::field, Object::toString).setSerializerCheck((id, ic, v) -> v != null)
+            .setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
         private final Parameter<VectorSimilarity> similarity;
         private final Parameter<IndexOptions> indexOptions = new Parameter<>(
             "index_options",
@@ -122,15 +126,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             XContentBuilder::field,
             Objects::toString
         ).setSerializerCheck((id, ic, v) -> v != null);
+        private final Parameter<Boolean> indexed;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final IndexVersion indexVersionCreated;
 
         public Builder(String name, IndexVersion indexVersionCreated) {
             super(name);
-            dims.setSerializerCheck((id, ic, v) -> v != null);
-            dims.setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
-
             this.indexVersionCreated = indexVersionCreated;
             final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexedByDefault);
@@ -145,34 +147,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 (Supplier<VectorSimilarity>) () -> indexedByDefault && indexed.getValue() ? VectorSimilarity.COSINE : null,
                 VectorSimilarity.class
             ).acceptsNull().setSerializerCheck((id, ic, v) -> v != null);
-
-            validateParams();
-        }
-
-        public Builder(String name, IndexVersion indexVersionCreated, int dims) {
-            super(name);
-            this.indexVersionCreated = indexVersionCreated;
-            this.dims.setValue(dims);
-
-            this.similarity = Parameter.enumParam(
-                "similarity",
-                false,
-                m -> VectorSimilarity.COSINE,
-                VectorSimilarity.COSINE,
-                VectorSimilarity.class
-            );
-
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, true);
-
-            validateParams();
-        }
-
-        private void validateParams() {
-            this.indexed.requiresParameter(similarity);
-            this.similarity.setSerializerCheck((id, ic, v) -> v != null);
-            this.similarity.requiresParameter(indexed);
-            this.indexOptions.requiresParameter(indexed);
-            this.indexOptions.setSerializerCheck((id, ic, v) -> v != null);
             this.indexed.addValidator(v -> {
                 if (v) {
                     if (similarity.getValue() == null) {
@@ -191,6 +165,30 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
             });
+        }
+
+        public Builder(String name, IndexVersion indexVersionCreated, int dims) {
+            super(name);
+
+            final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
+            if (indexedByDefault == false) {
+                throw new UnsupportedOperationException("Dynamic dim size is not supported for index version " + indexVersionCreated);
+            }
+
+            this.indexVersionCreated = indexVersionCreated;
+
+            this.dims.setValue(dims);
+
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+            this.indexed.alwaysSerialize();
+
+            this.similarity = Parameter.enumParam(
+                "similarity",
+                false,
+                m -> toType(m).similarity,
+                (Supplier<VectorSimilarity>) () -> indexed.getValue() ? VectorSimilarity.COSINE : null,
+                VectorSimilarity.class
+            ).acceptsNull().setSerializerCheck((id, ic, v) -> v != null);
         }
 
         @Override

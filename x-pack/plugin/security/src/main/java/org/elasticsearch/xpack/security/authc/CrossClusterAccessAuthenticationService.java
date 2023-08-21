@@ -15,11 +15,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.transport.Header;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
 import java.util.List;
@@ -106,6 +109,32 @@ public class CrossClusterAccessAuthenticationService {
                 }, listener::onFailure))
             );
         }
+    }
+
+    public void tryAuthenticateCredentialsHeaderOnly(
+        ThreadContext threadContext,
+        Header header,
+        ActionListener<AuthenticationResult<User>> listener
+    ) {
+        final String credentials = header.getHeaders().v1().get(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
+
+        final ApiKeyService.ApiKeyCredentials apiKeyCredentials;
+        if (credentials != null) {
+            apiKeyCredentials = ApiKeyService.getCredentialsFromHeader(credentials, ApiKey.Type.CROSS_CLUSTER);
+        } else {
+            apiKeyCredentials = null;
+        }
+
+        if (apiKeyCredentials == null) {
+            throw new IllegalArgumentException(
+                "Cross cluster requests through the dedicated remote cluster server port require transport header ["
+                    + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY
+                    + "] but none found. "
+                    + "Please ensure you have configured remote cluster credentials on the cluster originating the request."
+            );
+        }
+
+        apiKeyService.tryAuthenticate(threadContext, apiKeyCredentials, listener);
     }
 
     public AuthenticationService getAuthenticationService() {

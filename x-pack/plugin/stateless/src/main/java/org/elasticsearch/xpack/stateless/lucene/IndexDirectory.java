@@ -257,6 +257,7 @@ public class IndexDirectory extends ByteSizeDirectory {
     public void updateCommit(StatelessCompoundCommit commit) {
         synchronized (this) {
             cacheDirectory.updateCommit(commit);
+            // TODO: we need to also clean the map in SearchDirectory for indexing shards.
             if (localFiles.isEmpty()) {
                 // create references for first commit files if they are not known
                 commit.commitFiles().keySet().forEach(file -> localFiles.putIfAbsent(file, new LocalFileRef(file) {

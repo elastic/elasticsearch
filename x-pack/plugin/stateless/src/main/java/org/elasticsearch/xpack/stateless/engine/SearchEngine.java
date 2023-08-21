@@ -54,6 +54,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +68,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * {@link Engine} implementation for search shards
@@ -93,7 +95,7 @@ public class SearchEngine extends Engine {
     private volatile long maxSequenceNumber = SequenceNumbers.NO_OPS_PERFORMED;
     private volatile long processedLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
 
-    private final Map<DirectoryReader, PrimaryTermAndGeneration> openReaders = new ConcurrentHashMap<>();
+    private final Map<DirectoryReader, OpenReaderInfo> openReaders = new ConcurrentHashMap<>();
 
     public SearchEngine(EngineConfig config) {
         super(config);
@@ -115,7 +117,13 @@ public class SearchEngine extends Engine {
             if (primaryTerm.isPresent()) {
                 final ElasticsearchDirectoryReader finalDirectoryReader = directoryReader;
                 ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> openReaders.remove(finalDirectoryReader));
-                openReaders.put(directoryReader, new PrimaryTermAndGeneration(primaryTerm.getAsLong(), initialCommit.getGeneration()));
+                openReaders.put(
+                    directoryReader,
+                    new OpenReaderInfo(
+                        new PrimaryTermAndGeneration(primaryTerm.getAsLong(), initialCommit.getGeneration()),
+                        initialCommit.getFileNames()
+                    )
+                );
             }
             readerManager = new ElasticsearchReaderManager(directoryReader) {
                 private SegmentInfos previousSegmentInfos;
@@ -138,9 +146,12 @@ public class SearchEngine extends Engine {
                             ElasticsearchDirectoryReader.addReaderCloseListener(next, ignored -> openReaders.remove(next));
                             openReaders.put(
                                 next,
-                                new PrimaryTermAndGeneration(
-                                    directory.getPrimaryTerm(segmentInfosCopy.getSegmentsFileName()).getAsLong(),
-                                    segmentInfosCopy.getGeneration()
+                                new OpenReaderInfo(
+                                    new PrimaryTermAndGeneration(
+                                        directory.getPrimaryTerm(segmentInfosCopy.getSegmentsFileName()).getAsLong(),
+                                        segmentInfosCopy.getGeneration()
+                                    ),
+                                    first.get().getFileNames()
                                 )
                             );
                         }
@@ -179,7 +190,7 @@ public class SearchEngine extends Engine {
     }
 
     public Set<PrimaryTermAndGeneration> getAcquiredPrimaryTermAndGenerations() {
-        return Set.copyOf(openReaders.values());
+        return openReaders.values().stream().map(OpenReaderInfo::primaryTermAndGeneration).collect(Collectors.toSet());
     }
 
     public void onCommitNotification(StatelessCompoundCommit commit, ActionListener<Void> listener) {
@@ -271,6 +282,14 @@ public class SearchEngine extends Engine {
                                 + "] must be higher than previous generation ["
                                 + current.getGeneration()
                                 + ']';
+
+                        Set<String> filesToRetain = openReaders.values()
+                            .stream()
+                            .map(OpenReaderInfo::files)
+                            .flatMap(Collection::stream)
+                            .collect(Collectors.toSet());
+                        directory.retainFiles(filesToRetain);
+
                         logger.debug("segments updated from generation [{}] to [{}]", current.getGeneration(), next.getGeneration());
                         callSegmentGenerationListeners(reader.getIndexCommit().getGeneration());
                     } finally {
@@ -718,4 +737,11 @@ public class SearchEngine extends Engine {
         return new UnsupportedOperationException("Search engine does not support this operation");
     }
 
+    private record OpenReaderInfo(PrimaryTermAndGeneration primaryTermAndGeneration, Collection<String> files) {
+
+        private OpenReaderInfo(PrimaryTermAndGeneration primaryTermAndGeneration, Collection<String> files) {
+            this.primaryTermAndGeneration = primaryTermAndGeneration;
+            this.files = Set.copyOf(files);
+        }
+    }
 }

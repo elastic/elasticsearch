@@ -137,7 +137,7 @@ public interface ChunkedRestResponseBody {
 
     /**
      * Create a chunked response body to be written to a specific {@link RestChannel} from a stream of text chunks, each represented as a
-     * consumers of a {@link Writer}.
+     * consumer of a {@link Writer}.
      */
     static ChunkedRestResponseBody fromTextChunks(String contentType, Iterator<CheckedConsumer<Writer, IOException>> chunkIterator) {
         return new ChunkedRestResponseBody() {

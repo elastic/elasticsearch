@@ -1163,14 +1163,15 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         assertEquals(
             Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE),
-            explanation.getCurrentNode().getRoles());
+            explanation.getCurrentNode().getRoles()
+        );
 
         try (XContentParser parser = getParser(explanation)) {
             // Fast-forward to the "current_node" object, which contains "roles".
             do {
                 parser.nextToken();
                 assertNotEquals(Token.END_OBJECT, parser.currentToken());
-            // The START_OBJECT has a null currentName(), so check for that before de-referencing.
+                // The START_OBJECT has a null currentName(), so check for that before de-referencing.
             } while (parser.currentName() == null || (parser.currentName().equals("current_node")) == false);
             assertEquals(Token.START_OBJECT, parser.nextToken());
 

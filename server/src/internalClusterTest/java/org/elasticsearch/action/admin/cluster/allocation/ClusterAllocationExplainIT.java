@@ -1154,7 +1154,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
     public void testExplainRolesOutput() throws Exception {
         logger.info("--> starting 1 node with 'roles' setting specified");
-        Settings roleSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data_hot", "ingest")).build();
+        Settings roleSettings = Settings.builder().putList("node.roles", List.of("master", "data_hot", "ingest")).build();
         internalCluster().startNode(Settings.builder().put(roleSettings).build());
         prepareIndex(1, 0);
 
@@ -1183,7 +1183,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
             // Check that the "roles" reported are those explicitly set via the node Settings.
             // Note: list() implicitly consumes the parser START_ARRAY and END_ARRAY tokens.
-            assertEquals(Arrays.asList("data_hot", "ingest", "master"), parser.list());
+            assertEquals(List.of("data_hot", "ingest", "master"), parser.list());
         }
     }
 

@@ -96,8 +96,8 @@
 ---
 "Cluster allocation explanation response includes node's roles":
   - skip:
-      version: " - 8.9.99"
-      reason: The roles field was introduced in 8.10.0
+      version: " - 8.10.99"
+      reason: The roles field was introduced in 8.11.0
 
   - do:
       indices.create:
@@ -110,3 +110,4 @@
         body: { "index": "test", "shard": 0, "primary": true }
 
   - is_true: current_node.roles
+  - is_true: node_allocation_decisions

@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.transport.Header;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
@@ -26,6 +25,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -113,10 +113,10 @@ public class CrossClusterAccessAuthenticationService {
 
     public void tryAuthenticateCredentialsHeaderOnly(
         ThreadContext threadContext,
-        Header header,
+        Map<String, String> headers,
         ActionListener<AuthenticationResult<User>> listener
     ) {
-        final String credentials = header.getHeaders().v1().get(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
+        final String credentials = headers.get(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
 
         final ApiKeyService.ApiKeyCredentials apiKeyCredentials;
         if (credentials != null) {

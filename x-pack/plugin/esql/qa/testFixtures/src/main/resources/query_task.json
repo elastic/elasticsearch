@@ -1,0 +1,14 @@
+{
+  "node" : "2j8UKw1bRO283PMwDugNNg",
+  "id" : 5326,
+  "type" : "transport",
+  "action" : "indices:data/read/esql",
+  "description" : "FROM test | STATS MAX(d) by a, b",  <1>
+  "start_time" : "2023-07-31T15:46:32.328Z",
+  "start_time_in_millis" : 1690818392328,
+  "running_time" : "41.7ms",                           <2>
+  "running_time_in_nanos" : 41770830,
+  "cancellable" : true,
+  "cancelled" : false,
+  "headers" : { }
+}

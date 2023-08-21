@@ -45,6 +45,8 @@ include::geospatial-analysis.asciidoc[]
 
 include::eql/eql.asciidoc[]
 
+include::esql/index.asciidoc[]
+
 include::sql/index.asciidoc[]
 
 include::scripting.asciidoc[]

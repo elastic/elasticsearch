@@ -1285,7 +1285,9 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             1,
             1024,
             ByteSizeValue.ofBytes(modelSize),
-            Priority.LOW
+            Priority.LOW,
+            0,
+            0
         );
     }
 
@@ -1313,7 +1315,9 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             threadsPerAllocation,
             1024,
             ByteSizeValue.ofBytes(modelSize),
-            Priority.NORMAL
+            Priority.NORMAL,
+            0L,
+            0L
         );
     }
 

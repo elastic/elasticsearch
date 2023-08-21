@@ -1,0 +1,12 @@
+[[esql-agg-sum]]
+=== `SUM`
+The sum of a numeric field.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=sum]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=sum-result]
+|===

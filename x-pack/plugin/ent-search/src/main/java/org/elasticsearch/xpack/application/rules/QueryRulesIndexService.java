@@ -63,6 +63,7 @@ public class QueryRulesIndexService {
     public static final String QUERY_RULES_ALIAS_NAME = ".query-rules";
     public static final String QUERY_RULES_CONCRETE_INDEX_NAME = ".query-rules-1";
     public static final String QUERY_RULES_INDEX_NAME_PATTERN = ".query-rules-*";
+    private static final int QUERY_RULES_INDEX_MAPPINGS_VERSION = 1;
     private final Client clientWithOrigin;
     private final ClusterSettings clusterSettings;
 
@@ -107,6 +108,7 @@ public class QueryRulesIndexService {
             {
                 builder.startObject("_meta");
                 builder.field("version", Version.CURRENT.toString());
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, QUERY_RULES_INDEX_MAPPINGS_VERSION);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");

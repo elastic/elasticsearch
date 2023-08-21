@@ -17,6 +17,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
+
 public class CreateCrossClusterApiKeyRequestTests extends AbstractWireSerializingTestCase<CreateCrossClusterApiKeyRequest> {
 
     private String access;
@@ -35,12 +39,14 @@ public class CreateCrossClusterApiKeyRequestTests extends AbstractWireSerializin
 
     @Override
     protected CreateCrossClusterApiKeyRequest createTestInstance() {
-        return new CreateCrossClusterApiKeyRequest(
+        CreateCrossClusterApiKeyRequest request = new CreateCrossClusterApiKeyRequest(
             randomAlphaOfLengthBetween(3, 8),
             roleDescriptorBuilder,
             randomExpiration(),
             randomMetadata()
         );
+        request.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL, NONE));
+        return request;
     }
 
     @Override

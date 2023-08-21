@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -34,6 +35,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.query.ThrowingQueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
@@ -79,10 +81,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
-/**
- * This IT test copies the setup and general approach that the {@code CrossClusterSearchIT} test
- * used for testing synchronous CCS.
- */
 @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98272")
 public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
@@ -936,7 +934,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         assertNotNull("TaskCancelledException should be in the causal chain", cause);
         ShardSearchFailure[] shardFailures = searchResponseAfterCompletion.getSearchResponse().getShardFailures();
         assertThat(shardFailures.length, greaterThan(0));
-        String json = Strings.toString(searchResponseAfterCompletion.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
+        String json = Strings.toString(
+            ChunkedToXContent.wrapAsToXContent(searchResponseAfterCompletion)
+                .toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
+        );
         assertThat(json, containsString("task cancelled [by user request]"));
     }
 

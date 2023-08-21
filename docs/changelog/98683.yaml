@@ -1,0 +1,5 @@
+pr: 98683
+summary: Revert "Add mappings for enrich fields"
+area: Ingest Node
+type: bug
+issues: []

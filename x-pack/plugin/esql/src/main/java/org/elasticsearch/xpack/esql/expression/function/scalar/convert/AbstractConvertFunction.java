@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.planner.Mappable;
@@ -44,7 +45,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
         DataType sourceType = field().dataType();
         var evaluator = evaluators().get(sourceType);
         if (evaluator == null) {
-            throw EsqlIllegalArgumentException.illegalDataType(sourceType);
+            throw EsqlUnsupportedOperationException.unsupportedDataType(sourceType);
         }
         return () -> evaluator.apply(fieldEval.get(), source());
     }

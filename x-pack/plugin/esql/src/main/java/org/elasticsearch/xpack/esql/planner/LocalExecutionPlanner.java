@@ -200,7 +200,7 @@ public class LocalExecutionPlanner {
             return planExchangeSink(exchangeSink, context);
         }
 
-        throw new EsqlIllegalArgumentException("unknown physical plan node [" + node.nodeName() + "]");
+        throw new EsqlUnsupportedOperationException("unknown physical plan node [" + node.nodeName() + "]");
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
@@ -344,7 +344,7 @@ public class LocalExecutionPlanner {
         if (topNExec.limit() instanceof Literal literal) {
             limit = Integer.parseInt(literal.value().toString());
         } else {
-            throw new EsqlIllegalArgumentException("limit only supported with literal values");
+            throw new EsqlUnsupportedOperationException("limit only supported with literal values");
         }
 
         // TODO Replace page size with passing estimatedRowSize down

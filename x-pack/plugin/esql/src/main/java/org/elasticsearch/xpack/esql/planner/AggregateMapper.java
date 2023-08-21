@@ -159,7 +159,7 @@ public class AggregateMapper {
             return (List<IntermediateStateDesc>) lookup(aggDef.aggClazz(), aggDef.type(), aggDef.grouping()).invokeExact();
         } catch (Throwable t) {
             // invokeExact forces us to handle any Throwable thrown by lookup.
-            throw new EsqlUnsupportedOperationException(t);
+            throw new EsqlIllegalArgumentException(t);
         }
     }
 
@@ -173,7 +173,7 @@ public class AggregateMapper {
                     MethodType.methodType(List.class)
                 );
         } catch (IllegalAccessException | NoSuchMethodException | ClassNotFoundException e) {
-            throw new EsqlUnsupportedOperationException(e);
+            throw new EsqlIllegalArgumentException(e);
         }
     }
 

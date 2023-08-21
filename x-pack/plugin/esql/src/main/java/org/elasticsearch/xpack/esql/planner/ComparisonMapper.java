@@ -142,7 +142,7 @@ abstract class ComparisonMapper<T extends BinaryComparison> extends EvalMapper.E
         if (leftType == DataTypes.DATETIME) {
             return () -> longs.apply(leftEval.get(), rightEval.get());
         }
-        throw new EsqlIllegalArgumentException("resolved type for [" + bc + "] but didn't implement mapping");
+        throw new EsqlUnsupportedOperationException("resolved type for [" + bc + "] but didn't implement mapping");
     }
 
     static Supplier<EvalOperator.ExpressionEvaluator> castToEvaluator(

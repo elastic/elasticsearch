@@ -155,7 +155,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         overlapping.putAll(findConflictingV1Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
         overlapping.putAll(findConflictingV2Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
 
-        if (request.includeDefaults() && DataStreamLifecycle.isFeatureEnabled()) {
+        if (request.includeDefaults()) {
             listener.onResponse(
                 new SimulateIndexTemplateResponse(
                     template,
@@ -305,7 +305,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
 
         Settings settings = Settings.builder().put(templateSettings).put(additionalSettings.build()).build();
         DataStreamLifecycle lifecycle = resolveLifecycle(simulatedState.metadata(), matchingTemplate);
-        if (DataStreamLifecycle.isFeatureEnabled() && template.getDataStreamTemplate() != null && lifecycle == null) {
+        if (template.getDataStreamTemplate() != null && lifecycle == null) {
             lifecycle = DataStreamLifecycle.DEFAULT;
         }
         return new Template(settings, mergedMapping, aliasesByName, lifecycle);

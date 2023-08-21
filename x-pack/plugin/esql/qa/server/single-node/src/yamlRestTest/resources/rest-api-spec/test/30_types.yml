@@ -71,6 +71,35 @@ multivalued keyword:
   - match: {values.0.0: [diamonds, jack, of]}
 
 ---
+keyword no doc_values:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              card:
+                type: keyword
+                doc_values: false
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "card": ["jack", "of", "diamonds"] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: {columns.0.name: card}
+  - match: {columns.0.type: keyword}
+  - length: {values: 1}
+  - match: {values.0.0: [diamonds, jack, of]}
+
+---
 wildcard:
   - do:
       indices.create:

@@ -55,7 +55,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -73,6 +72,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -86,6 +86,7 @@ public class ComputeService {
     private final SearchService searchService;
     private final BigArrays bigArrays;
     private final TransportService transportService;
+    private final Executor esqlExecutor;
     private final DriverTaskRunner driverRunner;
     private final ExchangeService exchangeService;
     private final EnrichLookupService enrichLookupService;
@@ -107,7 +108,8 @@ public class ComputeService {
             DataNodeRequest::new,
             new DataNodeRequestHandler()
         );
-        this.driverRunner = new DriverTaskRunner(transportService, threadPool.executor(ESQL_THREAD_POOL_NAME));
+        this.esqlExecutor = threadPool.executor(ESQL_THREAD_POOL_NAME);
+        this.driverRunner = new DriverTaskRunner(transportService, ESQL_THREAD_POOL_NAME);
         this.exchangeService = exchangeService;
         this.enrichLookupService = enrichLookupService;
     }
@@ -195,6 +197,7 @@ public class ComputeService {
                     targetNode.node(),
                     sessionId,
                     queryPragmas.exchangeBufferSize(),
+                    esqlExecutor,
                     ActionListener.wrap(unused -> {
                         var remoteSink = exchangeService.newRemoteSink(rootTask, sessionId, transportService, targetNode.node);
                         exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
@@ -204,11 +207,7 @@ public class ComputeService {
                             new DataNodeRequest(sessionId, configuration, targetNode.shardIds, targetNode.aliasFilters, dataNodePlan),
                             rootTask,
                             TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(
-                                targetNodeListener,
-                                DataNodeResponse::new,
-                                TransportResponseHandler.TRANSPORT_WORKER
-                            )
+                            new ActionListenerResponseHandler<>(targetNodeListener, DataNodeResponse::new, esqlExecutor)
                         );
                     }, targetNodeListener::onFailure)
                 );
@@ -376,11 +375,7 @@ public class ComputeService {
                 searchShardsRequest,
                 parentTask,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(
-                    preservingContextListener,
-                    SearchShardsResponse::new,
-                    TransportResponseHandler.TRANSPORT_WORKER
-                )
+                new ActionListenerResponseHandler<>(preservingContextListener, SearchShardsResponse::new, esqlExecutor)
             );
         }
     }

@@ -18,6 +18,7 @@ import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
@@ -42,6 +43,8 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public interface JwtSignatureValidator extends Releasable {
@@ -355,18 +358,18 @@ public interface JwtSignatureValidator extends Releasable {
         final String id = jwt.getHeader().getKeyID();
         final JWSAlgorithm alg = jwt.getHeader().getAlgorithm();
 
-        tracer.append("Validating signature for a JWT [{}] against [{}] possible JWKs. Filtering down possible JWKs...",
-            jwt.getParsedString(), jwks.size(), alg.getName());
+
+        tracer.append("Filtering [{}] possible JWKs to verifying signature for JWT [{}].",  jwks.size(), getSafePrintableJWT(jwt));
 
         // If JWT has optional kid header, and realm JWKs have optional kid attribute, any mismatches JWT.kid vs JWK.kid can be ignored.
         // Keep any JWKs if JWK optional kid attribute is missing. Keep all JWKs if JWT optional kid header is missing.
         final List<JWK> jwksKid = jwks.stream().filter(j -> ((id == null) || (j.getKeyID() == null) || (id.equals(j.getKeyID())))).toList();
-        tracer.append("[{}] JWKs remain after filtering out for KID [{}].", jwksKid.size(), id);
+        tracer.append("[{}] JWKs remain after filtering for KID [{}].", jwksKid.size(), id);
 
         // JWT has mandatory alg header. If realm JWKs have optional alg attribute, any mismatches JWT.alg vs JWK.alg can be ignored.
         // Keep any JWKs if JWK optional alg attribute is missing.
         final List<JWK> jwksAlg = jwksKid.stream().filter(j -> (j.getAlgorithm() == null) || (alg.equals(j.getAlgorithm()))).toList();
-        tracer.append("[{}] JWKs remain after filtering out algorithm name [{}].", jwksAlg.size(), alg.getName());
+        tracer.append("[{}] JWKs remain after filtering for algorithm name [{}].", jwksAlg.size(), alg.getName());
 
         // PKC Example: Realm has five PKC JWKs RSA-2048, RSA-3072, EC-P256, EC-P384, and EC-P512. JWT alg allows ignoring some.
         // - If JWT alg is RS256, only RSA-2048 and RSA-3072 are valid for a JWT RS256 signature. Ignore three EC JWKs.
@@ -378,25 +381,24 @@ public interface JwtSignatureValidator extends Releasable {
         // - If JWT alg is HS256, all are valid for a JWT HS256 signature. Don't ignore any HMAC JWKs.
         // - If JWT alg is HS384, only 384, 400, 512, and 1000 are valid for a JWT HS384 signature. Ignore two HMAC JWKs.
         // - If JWT alg is HS512, only 512 and 1000 are valid for a JWT HS512 signature. Ignore four HMAC JWKs.
-        final List<JWK> jwksStrength = jwksAlg.stream().filter(j -> JwkValidateUtil.isMatch(j, alg.getName())).toList();
-        tracer.append("[{}] JWKs remain after filtering out configured algorithms.", jwksStrength.size());
+        final List<JWK> jwksConfigured = jwksAlg.stream().filter(j -> JwkValidateUtil.isMatch(j, alg.getName())).toList();
+        tracer.append("[{}] JWKs remain after filtering for configured algorithms.", jwksConfigured.size());
         tracer.flush();
 
         // No JWKs passed the kid, alg, and strength checks, so nothing left to use in verifying the JWT signature
-        if (jwksStrength.isEmpty()) {
+        if (jwksConfigured.isEmpty()) {
             throw new ElasticsearchException("Signature verification was not attempted since there are not any JWKs " +
-                "available after filtering out incompatible keys.");
+                "available after filtering for incompatible keys.");
         }
 
         int attempt = 0;
-        int maxAttempts = jwksStrength.size();
-        //TODO: append JWT token here
-        tracer.append("Attempting to verify signature for JWT [{}].",  jwt.getParsedString());
-        for (final JWK jwk : jwksStrength) {
+        int maxAttempts = jwksConfigured.size();
+        tracer.append("Attempting to verify signature for JWT [{}] against [{}] possible JWKs.",  getSafePrintableJWT(jwt), maxAttempts);
+        for (final JWK jwk : jwksConfigured) {
             attempt++;
             if (jwt.verify(createJwsVerifier(jwk))) {
                 tracer.append(
-                    "Attempt [{}/{}] -> JWT signature verification succeeded with kid=[{}], alg=[{}], kty=[{}], use=[{}], key_ops=[{}]",
+                    "Attempt [{}/{}] -> JWT signature verification succeeded with jwk/kid=[{}], jwk/alg=[{}], jwk/kty=[{}], jwk/use=[{}], jwk/key_ops=[{}]",
                     attempt,
                     maxAttempts,
                     jwk.getKeyID(),
@@ -409,7 +411,7 @@ public interface JwtSignatureValidator extends Releasable {
                 return;
             } else {
                 tracer.append(
-                    "Attempt [{}/{}] -> JWT signature verification failed with kid=[{}], alg=[{}], kty=[{}], use=[{}], key_ops=[{}]",
+                    "Attempt [{}/{}] -> JWT signature verification failed with jwk/kid=[{}], jwk/alg=[{}], jwk/kty=[{}], jwk/use=[{}], jwk/key_ops=[{}]",
                     attempt,
                     maxAttempts,
                     jwk.getKeyID(),
@@ -422,7 +424,7 @@ public interface JwtSignatureValidator extends Releasable {
         }
         tracer.flush();
 //TODO: fix this message
-        throw new ElasticsearchException("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
+        throw new ElasticsearchException("Verify failed using " + jwksConfigured.size() + " of " + jwks.size() + " provided JWKs.");
     }
 
     default JWSVerifier createJwsVerifier(final JWK jwk) throws JOSEException {
@@ -451,6 +453,17 @@ public interface JwtSignatureValidator extends Releasable {
     }
 
     /**
+     * @param jwt The signed JWT
+     * @return A print safe supplier to describe a JWT that redacts the signature. While the signature is not generally sensitive,
+     * we don't want to leak the entire JWT to the log to avoid a possible replay.
+     */
+    private Supplier<String> getSafePrintableJWT(SignedJWT jwt) {
+        Base64URL[] parts = jwt.getParsedParts();
+        assert parts.length == 3;
+        return () -> parts[0].toString() + parts[1].toString() + ".<redacted>";
+    }
+
+    /**
      * Helper class to consolidate multiple trace level statements to a single trace statement with lazy evaluation.
      * If trace level is not enabled, then no work is performed. This class is not threadsafe.
      */
@@ -465,7 +478,10 @@ public interface JwtSignatureValidator extends Releasable {
         public void append(String s, Object... args) {
             if (logger.isTraceEnabled()) {
                 builder.append(s).append(" ");
-                params.addAll(Arrays.asList(args));
+                List<Object> resolved = Arrays.stream(args)
+                    .map(x -> (x instanceof Supplier) ? ((Supplier<?>) x).get() : x)
+                    .toList();
+                params.addAll(resolved);
             }
         }
         public void flush(){

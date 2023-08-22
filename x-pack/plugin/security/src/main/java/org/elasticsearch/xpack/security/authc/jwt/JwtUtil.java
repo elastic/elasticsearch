@@ -137,7 +137,8 @@ public class JwtUtil {
     public static void validateClientAuthentication(
         final JwtRealmSettings.ClientAuthenticationType type,
         final SecureString expectedSecret,
-        final SecureString actualSecret
+        final SecureString actualSecret,
+        final String tokenPrincipal
     ) throws Exception {
         switch (type) {
             case SHARED_SECRET:
@@ -146,14 +147,14 @@ public class JwtUtil {
                 } else if (expectedSecret.equals(actualSecret) == false) {
                     throw new Exception("Rejected client. Authentication type is [" + type + "] and secret did not match.");
                 }
-                LOGGER.trace("Accepted client. Authentication type is [{}] and secret matched.", type);
+                LOGGER.trace("Accepted client for token [{}]. Authentication type is [{}] and secret matched.", tokenPrincipal, type);
                 break;
             case NONE:
             default:
                 if (Strings.hasText(actualSecret)) {
-                    LOGGER.debug("Accepted client. Authentication type [{}]. Secret is present but ignored.", type);
+                    LOGGER.trace("Accepted client for token [{}]. Authentication type [{}]. Secret is present but ignored.", tokenPrincipal, type);
                 } else {
-                    LOGGER.trace("Accepted client. Authentication type [{}].", type);
+                    LOGGER.trace("Accepted client for token [{}]. Authentication type [{}].", tokenPrincipal, type);
                 }
                 break;
         }

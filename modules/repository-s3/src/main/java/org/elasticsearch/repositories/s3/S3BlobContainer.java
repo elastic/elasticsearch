@@ -836,7 +836,6 @@ class S3BlobContainer extends AbstractBlobContainer {
             } catch (Exception e) {
                 // cleanup is a best-effort thing, we can't do anything better than log and fall through here
                 logger.error("unexpected error cleaning up upload [" + uploadId + "] of [" + blobKey + "]", e);
-                assert false : e;
             }
         }
 

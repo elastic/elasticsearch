@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -50,8 +53,6 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -1089,6 +1090,55 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """);
         var limit = as(plan, Limit.class);
         as(limit.child(), EsRelation.class);
+    }
+
+    public void testFoldInEval() {
+        var plan = optimizedPlan("""
+            from test
+            | eval a = 1, b = a + 1, c = b + a
+            | where c > 10
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(LocalSupplier.EMPTY));
+    }
+
+    public void testFoldFromRow() {
+        var plan = optimizedPlan("""
+              row a = 1, b = 2, c = 3
+            | where c > 10
+            """);
+
+        as(plan, LocalRelation.class);
+    }
+
+    public void testFoldFromRowInEval() {
+        var plan = optimizedPlan("""
+              row a = 1, b = 2, c = 3
+            | eval x = c
+            | where x > 10
+            """);
+
+        as(plan, LocalRelation.class);
+    }
+
+    public void testInvalidFoldDueToReplacement() {
+        var plan = optimizedPlan("""
+              from test
+            | eval x = 1
+            | eval x = emp_no
+            | where x > 10
+            | keep x
+            """);
+
+        var project = as(plan, EsqlProject.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var eval = as(filter.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertThat(Expressions.name(alias.child()), is("emp_no"));
+        var source = as(eval.child(), EsRelation.class);
     }
 
     public void testEnrich() {

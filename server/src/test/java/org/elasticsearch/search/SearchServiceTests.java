@@ -83,6 +83,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -2013,11 +2014,14 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     /**
      * Verify that a single slice is created for requests that don't support parallel collection, while computation
-     * is still offloaded to the worker threads.
+     * is still offloaded to the worker threads. Also ensure multiple slices are created for requests that do support
+     * parallel collection.
      */
-    public void testSupportsParallelCollectionAffectsSlicing() throws Exception {
+    public void testSlicingBehaviourForParallelCollection() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY);
         ThreadPoolExecutor executor = (ThreadPoolExecutor) indexService.getThreadPool().executor(ThreadPool.Names.SEARCH_WORKER);
+        final int configuredMaxPoolSize = 10;
+        executor.setMaximumPoolSize(configuredMaxPoolSize); // We set this explicitly to be independent of CPU cores.
         int numDocs = randomIntBetween(50, 100);
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("index").setId(String.valueOf(i)).setSource("field", "value").get();
@@ -2040,67 +2044,203 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         SearchService service = getInstanceFromNode(SearchService.class);
         NonCountingTermQuery termQuery = new NonCountingTermQuery(new Term("field", "value"));
         assertEquals(0, executor.getCompletedTaskCount());
-        int taskCount = 0;
         try (ReaderContext readerContext = createReaderContext(indexService, indexShard)) {
             SearchShardTask task = new SearchShardTask(0, "type", "action", "description", null, emptyMap());
             {
                 SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, true);
                 ContextIndexSearcher searcher = searchContext.searcher();
                 assertNotNull(searcher.getExecutor());
-                int maxNumSlices = executor.getMaximumPoolSize();
-                int numSlices = ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), maxNumSlices, 1).length;
+
+                final int maxPoolSize = executor.getMaximumPoolSize();
+                assertEquals(
+                    "Sanity check to ensure this isn't the default of 1 when pool size is unset",
+                    configuredMaxPoolSize,
+                    maxPoolSize
+                );
+
+                final int expectedSlices = ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), maxPoolSize, 1).length;
+                assertNotEquals("Sanity check to ensure this isn't the default of 1 when pool size is unset", 1, expectedSlices);
+
+                final long priorExecutorTaskCount = executor.getCompletedTaskCount();
                 searcher.search(termQuery, new TotalHitCountCollectorManager());
-                assertBusy(() -> assertEquals(numSlices, executor.getCompletedTaskCount()));
-                taskCount += numSlices;
+                assertBusy(
+                    () -> assertEquals(
+                        "DFS supports parallel collection, so the number of slices should be > 1.",
+                        expectedSlices,
+                        executor.getCompletedTaskCount() - priorExecutorTaskCount
+                    )
+                );
             }
             {
                 SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.QUERY, true);
                 ContextIndexSearcher searcher = searchContext.searcher();
                 assertNotNull(searcher.getExecutor());
+                final long priorExecutorTaskCount = executor.getCompletedTaskCount();
                 searcher.search(termQuery, new TotalHitCountCollectorManager());
-                int expectedTaskCount = ++taskCount;
-                assertBusy(() -> assertEquals(expectedTaskCount, executor.getCompletedTaskCount()));
+                assertBusy(
+                    () -> assertEquals(
+                        "The number of slices should be 1 as QUERY parallel collection is disabled by default.",
+                        1,
+                        executor.getCompletedTaskCount() - priorExecutorTaskCount
+                    )
+                );
             }
             {
                 SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.FETCH, true);
                 ContextIndexSearcher searcher = searchContext.searcher();
                 assertNotNull(searcher.getExecutor());
+                final long priorExecutorTaskCount = executor.getCompletedTaskCount();
                 searcher.search(termQuery, new TotalHitCountCollectorManager());
-                int expectedTaskCount = ++taskCount;
-                assertBusy(() -> assertEquals(expectedTaskCount, executor.getCompletedTaskCount()));
+                assertBusy(
+                    () -> assertEquals(
+                        "The number of slices should be 1 as FETCH does not support parallel collection.",
+                        1,
+                        executor.getCompletedTaskCount() - priorExecutorTaskCount
+                    )
+                );
             }
             {
                 SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.NONE, true);
                 ContextIndexSearcher searcher = searchContext.searcher();
                 assertNotNull(searcher.getExecutor());
+                final long priorExecutorTaskCount = executor.getCompletedTaskCount();
                 searcher.search(termQuery, new TotalHitCountCollectorManager());
-                int expectedTaskCount = ++taskCount;
-                assertBusy(() -> assertEquals(expectedTaskCount, executor.getCompletedTaskCount()));
+                assertBusy(
+                    () -> assertEquals(
+                        "The number of slices should be 1 as NONE does not support parallel collection.",
+                        1,
+                        executor.getCompletedTaskCount() - priorExecutorTaskCount
+                    )
+                );
+            }
+
+            try {
+                ClusterUpdateSettingsResponse response = client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().put(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), true).build())
+                    .get();
+                assertTrue(response.isAcknowledged());
+                {
+                    SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.QUERY, true);
+                    ContextIndexSearcher searcher = searchContext.searcher();
+                    assertNotNull(searcher.getExecutor());
+
+                    final int maxPoolSize = executor.getMaximumPoolSize();
+                    assertEquals(
+                        "Sanity check to ensure this isn't the default of 1 when pool size is unset",
+                        configuredMaxPoolSize,
+                        maxPoolSize
+                    );
+
+                    final int expectedSlices = ContextIndexSearcher.computeSlices(
+                        searcher.getIndexReader().leaves(),
+                        maxPoolSize,
+                        1
+                    ).length;
+                    assertNotEquals("Sanity check to ensure this isn't the default of 1 when pool size is unset", 1, expectedSlices);
+
+                    final long priorExecutorTaskCount = executor.getCompletedTaskCount();
+                    searcher.search(termQuery, new TotalHitCountCollectorManager());
+                    assertBusy(
+                        () -> assertEquals(
+                            "QUERY supports parallel collection when enabled, so the number of slices should be > 1.",
+                            expectedSlices,
+                            executor.getCompletedTaskCount() - priorExecutorTaskCount
+                        )
+                    );
+                }
+            } finally {
+                // Reset to the original default setting.
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().putNull(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey()).build())
+                    .get();
+                {
+                    SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.QUERY, true);
+                    ContextIndexSearcher searcher = searchContext.searcher();
+                    assertNotNull(searcher.getExecutor());
+                    final long priorExecutorTaskCount = executor.getCompletedTaskCount();
+                    searcher.search(termQuery, new TotalHitCountCollectorManager());
+                    assertBusy(
+                        () -> assertEquals(
+                            "The number of slices should be 1 for Query when QUERY_PHASE_PARALLEL_COLLECTION_ENABLED is disabled.",
+                            1,
+                            executor.getCompletedTaskCount() - priorExecutorTaskCount
+                        )
+                    );
+                }
             }
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98534")
-    public void testIsParallelCollectionSupportedForResults() {
-        SearchSourceBuilder searchSourceBuilder = randomBoolean() ? null : new SearchSourceBuilder();
-        if (searchSourceBuilder != null && randomBoolean()) {
-            searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));
+    public void testIsParallelCollectionSupportedForResults() throws Exception {
+        SearchSourceBuilder searchSourceBuilderOrNull = randomBoolean() ? null : new SearchSourceBuilder();
+        for (var resultsType : ResultsType.values()) {
+            switch (resultsType) {
+                case NONE, FETCH -> assertFalse(
+                    "NONE and FETCH phases do not support parallel collection.",
+                    SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderOrNull, randomBoolean())
+                );
+                case DFS -> assertTrue(
+                    "DFS phase always supports parallel collection.",
+                    SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderOrNull, randomBoolean())
+                );
+                case QUERY -> {
+                    SearchSourceBuilder searchSourceBuilderNoAgg = new SearchSourceBuilder();
+                    assertTrue(
+                        "Parallel collection should be supported for the query phase when no agg is present.",
+                        SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderNoAgg, true)
+                    );
+                    assertTrue(
+                        "Parallel collection should be supported for the query phase when the source is null.",
+                        SearchService.isParallelCollectionSupportedForResults(resultsType, null, true)
+                    );
+
+                    SearchSourceBuilder searchSourceAggSupportsParallelCollection = new SearchSourceBuilder();
+                    searchSourceAggSupportsParallelCollection.aggregation(new DateRangeAggregationBuilder("dateRange"));
+                    assertTrue(
+                        "Parallel collection should be supported for the query phase when when enabled && contains supported agg.",
+                        SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceAggSupportsParallelCollection, true)
+                    );
+
+                    assertFalse(
+                        "Parallel collection should not be supported for the query phase when disabled.",
+                        SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderNoAgg, false)
+                    );
+                    assertFalse(
+                        "Parallel collection should not be supported for the query phase when disabled and source is null.",
+                        SearchService.isParallelCollectionSupportedForResults(resultsType, null, false)
+                    );
+
+                    SearchSourceBuilder searchSourceAggDoesNotSupportParallelCollection = new SearchSourceBuilder();
+                    searchSourceAggDoesNotSupportParallelCollection.aggregation(new TermsAggregationBuilder("terms"));
+                    assertFalse(
+                        "Parallel collection should not be supported for the query phase when "
+                            + "enabled && does not contains supported agg.",
+                        SearchService.isParallelCollectionSupportedForResults(
+                            resultsType,
+                            searchSourceAggDoesNotSupportParallelCollection,
+                            true
+                        )
+                    );
+
+                    SearchSourceBuilder searchSourceMultiAggDoesNotSupportParallelCollection = new SearchSourceBuilder();
+                    searchSourceMultiAggDoesNotSupportParallelCollection.aggregation(new TermsAggregationBuilder("terms"));
+                    searchSourceMultiAggDoesNotSupportParallelCollection.aggregation(new DateRangeAggregationBuilder("dateRange"));
+                    assertFalse(
+                        "Parallel collection should not be supported for the query phase when when enabled && contains unsupported agg.",
+                        SearchService.isParallelCollectionSupportedForResults(
+                            resultsType,
+                            searchSourceMultiAggDoesNotSupportParallelCollection,
+                            true
+                        )
+                    );
+                }
+                default -> throw new UnsupportedOperationException("Untested ResultsType added, please add new testcases.");
+            }
         }
-        assertTrue(SearchService.isParallelCollectionSupportedForResults(ResultsType.DFS, searchSourceBuilder, true));
-        assertFalse(
-            SearchService.isParallelCollectionSupportedForResults(
-                randomFrom(randomFrom(ResultsType.QUERY, ResultsType.NONE, ResultsType.FETCH)),
-                searchSourceBuilder,
-                false
-            )
-        );
-        assertFalse(
-            SearchService.isParallelCollectionSupportedForResults(
-                randomFrom(randomFrom(ResultsType.QUERY, ResultsType.NONE, ResultsType.FETCH)),
-                searchSourceBuilder,
-                true
-            )
-        );
     }
 
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {

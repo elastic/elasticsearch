@@ -51,7 +51,7 @@ public class CartesianBoundsAggregatorTests extends AggregatorTestCase {
 
             MappedFieldType fieldType = new PointFieldMapper.PointFieldType("field");
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalCartesianBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
@@ -74,7 +74,7 @@ public class CartesianBoundsAggregatorTests extends AggregatorTestCase {
 
             MappedFieldType fieldType = new PointFieldMapper.PointFieldType("field");
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalCartesianBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
@@ -108,7 +108,7 @@ public class CartesianBoundsAggregatorTests extends AggregatorTestCase {
 
         String description = "Bounds aggregation with missing=" + missingVal;
         try (IndexReader reader = w.getReader()) {
-            IndexSearcher searcher = new IndexSearcher(reader);
+            IndexSearcher searcher = newSearcher(reader);
             InternalCartesianBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
             assertThat(description + ": top", bounds.top, closeTo(y, GEOHASH_TOLERANCE));
             assertThat(description + ": bottom", bounds.bottom, closeTo(y, GEOHASH_TOLERANCE));
@@ -128,7 +128,7 @@ public class CartesianBoundsAggregatorTests extends AggregatorTestCase {
             CartesianBoundsAggregationBuilder aggBuilder = new CartesianBoundsAggregationBuilder("my_agg").field("field")
                 .missing("invalid");
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 ElasticsearchParseException exception = expectThrows(
                     ElasticsearchParseException.class,
                     () -> searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType))
@@ -166,7 +166,7 @@ public class CartesianBoundsAggregatorTests extends AggregatorTestCase {
 
             MappedFieldType fieldType = new PointFieldMapper.PointFieldType("field");
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalCartesianBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertCloseTo("top", numDocs, bounds.top, top);
                 assertCloseTo("bottom", numDocs, bounds.bottom, bottom);

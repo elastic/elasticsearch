@@ -19,7 +19,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.hamcrest.Matchers;
 
@@ -84,7 +83,9 @@ public class IndexSettingsTests extends ESTestCase {
         IndexMetadata metadata = newIndexMeta("index", theSettings);
         IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), Settings.EMPTY, integerSetting);
         settings.getScopedSettings().addSettingsUpdateConsumer(integerSetting, integer::set, (i) -> {
-            if (i == 42) throw new AssertionError("boom");
+            if (i == 42) {
+                throw randomBoolean() ? new RuntimeException("anything") : new IllegalArgumentException("illegal");
+            }
         });
 
         assertEquals(version, settings.getIndexVersionCreated());
@@ -108,7 +109,7 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testMergedSettingsArePassed() {
-        Version version = VersionUtils.getPreviousVersion();
+        IndexVersion version = IndexVersionUtils.getPreviousVersion();
         Settings theSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(IndexMetadata.SETTING_INDEX_UUID, "0xdeadbeef")
@@ -171,7 +172,7 @@ public class IndexSettingsTests extends ESTestCase {
                 newIndexMeta(
                     "index",
                     Settings.builder()
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                         .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersion.current())
                         .put("index.test.setting.int", 42)
                         .build()
@@ -183,7 +184,10 @@ public class IndexSettingsTests extends ESTestCase {
         }
 
         // use version number that is unknown
-        metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(999999)).build());
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.fromId(999999)).build()
+        );
         settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(IndexVersion.fromId(999999), settings.getIndexVersionCreated());
         assertEquals("_na_", settings.getUUID());
@@ -191,7 +195,7 @@ public class IndexSettingsTests extends ESTestCase {
             newIndexMeta(
                 "index",
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(999999))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.fromId(999999))
                     .put("index.test.setting.int", 42)
                     .build()
             )
@@ -771,7 +775,7 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testSoftDeletesDefaultSetting() {
         // enabled by default on 7.0+ or later
-        Version createdVersion = VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion createdVersion = IndexVersionUtils.randomCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion).build();
         assertTrue(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
     }

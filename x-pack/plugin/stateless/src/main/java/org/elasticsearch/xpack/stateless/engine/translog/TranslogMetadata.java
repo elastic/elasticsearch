@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine;
+package co.elastic.elasticsearch.stateless.engine.translog;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

@@ -15,15 +15,13 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine;
+package co.elastic.elasticsearch.stateless.engine.translog;
 
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 
-import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,14 +35,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
@@ -65,7 +61,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
@@ -276,7 +271,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private ShardSyncState getShardSyncStateSafe(ShardId shardId) {
         ShardSyncState shardSyncState = shardSyncStates.get(shardId);
         if (shardSyncState == null) {
-            throw alreadyClosedException(shardId);
+            throw ShardSyncState.alreadyClosedException(shardId);
         }
         return shardSyncState;
     }
@@ -298,7 +293,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             long fileName = nodeState.compoundTranslogGeneration.get();
             lastFlushTime.set(getCurrentTimeMillis());
             var checkpoints = new HashMap<ShardId, TranslogMetadata>();
-            var syncedLocations = new HashMap<ShardId, SyncMarker>();
+            var syncedLocations = new HashMap<ShardId, ShardSyncState.SyncMarker>();
 
             var compoundTranslogStream = new ReleasableBytesStreamOutput(bigArrays);
             var headerStream = new ReleasableBytesStreamOutput(bigArrays);
@@ -306,12 +301,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             for (var entry : shardSyncStates.entrySet()) {
                 ShardId shardId = entry.getKey();
                 ShardSyncState state = entry.getValue();
-                BufferState buffer = state.pollBufferForSync();
+                ShardSyncState.BufferState buffer = state.pollBufferForSync();
                 if (buffer == null) {
                     continue;
                 }
 
-                syncedLocations.put(shardId, buffer.syncMarker(state.startingPrimaryTerm));
+                syncedLocations.put(shardId, buffer.syncMarker());
 
                 long position = compoundTranslogStream.position();
                 buffer.data().bytes().writeTo(compoundTranslogStream);
@@ -422,7 +417,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     private record CompoundTranslog(CompoundTranslogMetadata metadata, CompoundTranslogBytes bytes) {}
 
-    private record CompoundTranslogMetadata(String name, long generation, Map<ShardId, SyncMarker> syncedLocations) {}
+    private record CompoundTranslogMetadata(String name, long generation, Map<ShardId, ShardSyncState.SyncMarker> syncedLocations) {}
 
     private record CompoundTranslogBytes(BytesReference data, Releasable onComplete) implements Releasable {
 
@@ -616,11 +611,11 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                         task.completedSyncs.forEach(sync -> {
                             BlobTranslogFile translogFile = new BlobTranslogFileImpl(sync);
                             activeTranslogFiles.add(translogFile);
-                            for (Map.Entry<ShardId, SyncMarker> entry : sync.syncedLocations().entrySet()) {
+                            for (Map.Entry<ShardId, ShardSyncState.SyncMarker> entry : sync.syncedLocations().entrySet()) {
                                 ShardSyncState shardSyncState = shardSyncStates.get(entry.getKey());
                                 // If the shard sync state has been deregistered we can just ignore
                                 if (shardSyncState != null) {
-                                    SyncMarker syncMarker = entry.getValue();
+                                    ShardSyncState.SyncMarker syncMarker = entry.getValue();
                                     shardSyncState.markSyncFinished(translogFile, syncMarker);
                                     modifiedShardSyncedLocations.add(shardSyncState);
                                 } else {
@@ -660,257 +655,5 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 ongoingSyncs.forEach(r -> r.cancel(new ElasticsearchException("Node shutting down")));
             }
         }
-    }
-
-    // TODO: Move inside shard sync state once extracted
-    static class BufferState implements Releasable {
-
-        private final ReleasableBytesStreamOutput data;
-        private long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-        private long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-        private long totalOps = 0;
-
-        private Translog.Location location;
-
-        private BufferState(ReleasableBytesStreamOutput data) {
-            this.data = data;
-        }
-
-        public final void append(BytesReference data, long seqNo, Translog.Location location) throws IOException {
-            data.writeTo(this.data);
-            minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
-            maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
-            totalOps++;
-            this.location = location;
-        }
-
-        public ReleasableBytesStreamOutput data() {
-            return data;
-        }
-
-        public long minSeqNo() {
-            return minSeqNo;
-        }
-
-        public long maxSeqNo() {
-            return maxSeqNo;
-        }
-
-        public long totalOps() {
-            return totalOps;
-        }
-
-        public SyncMarker syncMarker(long startingPrimaryTerm) {
-            Translog.Location syncedLocation = new Translog.Location(location.generation, location.translogLocation + location.size, 0);
-            return new SyncMarker(startingPrimaryTerm, syncedLocation);
-        }
-
-        @Override
-        public void close() {
-            data.close();
-        }
-    }
-
-    // TODO: Extract to separate class and increase unit test coverage
-    static class ShardSyncState {
-
-        private final ShardId shardId;
-        private final long startingPrimaryTerm;
-        private final LongSupplier currentPrimaryTerm;
-        private final ThreadContext threadContext;
-        private final BigArrays bigArrays;
-        private final PriorityQueue<ShardSyncState.SyncListener> listeners = new PriorityQueue<>();
-        private final PriorityQueue<BlobTranslogFile> referencedTranslogFiles = new PriorityQueue<>();
-        private long markedTranslogStartFile = -1;
-        private volatile Translog.Location processedLocation = new Translog.Location(0, 0, 0);
-        private volatile Translog.Location syncedLocation = new Translog.Location(0, 0, 0);
-        private final Object bufferLock = new Object();
-        private BufferState bufferState = null;
-        private volatile boolean isClosed = false;
-
-        ShardSyncState(
-            ShardId shardId,
-            long primaryTerm,
-            LongSupplier currentPrimaryTerm,
-            ThreadContext threadContext,
-            BigArrays bigArrays
-        ) {
-            this.shardId = shardId;
-            this.startingPrimaryTerm = primaryTerm;
-            this.currentPrimaryTerm = currentPrimaryTerm;
-            this.threadContext = threadContext;
-            this.bigArrays = bigArrays;
-        }
-
-        boolean syncNeeded() {
-            return processedLocation.compareTo(syncedLocation) > 0;
-        }
-
-        void waitForAllSynced(ActionListener<Void> listener) {
-            // Single volatile read
-            Translog.Location processedLocationCopy = processedLocation;
-            if (processedLocationCopy.compareTo(syncedLocation) > 0) {
-                ensureSynced(processedLocationCopy, listener);
-            } else {
-                if (isClosed) {
-                    listener.onFailure(alreadyClosedException(shardId));
-                } else {
-                    listener.onResponse(null);
-                }
-            }
-        }
-
-        void ensureSynced(Translog.Location location, ActionListener<Void> listener) {
-            boolean completeListener = true;
-            boolean alreadyClosed = false;
-            if (location.compareTo(syncedLocation) > 0) {
-                synchronized (listeners) {
-                    if (isClosed) {
-                        alreadyClosed = true;
-                    } else if (location.compareTo(syncedLocation) > 0) {
-                        ContextPreservingActionListener<Void> contextPreservingActionListener = ContextPreservingActionListener
-                            .wrapPreservingContext(listener, threadContext);
-                        listeners.add(new ShardSyncState.SyncListener(location, contextPreservingActionListener));
-                        completeListener = false;
-                    }
-                }
-            }
-
-            if (completeListener) {
-                if (alreadyClosed) {
-                    listener.onFailure(alreadyClosedException(shardId));
-                } else {
-                    listener.onResponse(null);
-                }
-            }
-        }
-
-        public void markSyncFinished(BlobTranslogFile translogFile, SyncMarker syncMarker) {
-            // If the primary term changed this shard will eventually be closed and the listeners will be failed at that point, so we can
-            // ignore them here.
-            if (syncMarker.primaryTerm() == currentPrimaryTerm.getAsLong()) {
-                assert syncMarker.location().compareTo(syncedLocation) > 0;
-                syncedLocation = syncMarker.location();
-            }
-            synchronized (referencedTranslogFiles) {
-                if (markedTranslogStartFile > translogFile.generation()) {
-                    translogFile.decRef();
-                } else {
-                    referencedTranslogFiles.add(translogFile);
-                }
-            }
-        }
-
-        public void markCommitUploaded(long translogStartFile) {
-            synchronized (referencedTranslogFiles) {
-                markedTranslogStartFile = Math.max(translogStartFile, markedTranslogStartFile);
-                releaseReferencedTranslogFiles(translogStartFile);
-            }
-        }
-
-        private void releaseReferencedTranslogFiles(long bound) {
-            BlobTranslogFile activeTranslogFile;
-            while ((activeTranslogFile = referencedTranslogFiles.peek()) != null && bound > activeTranslogFile.generation()) {
-                referencedTranslogFiles.poll();
-                activeTranslogFile.decRef();
-            }
-        }
-
-        void notifyListeners() {
-            var toComplete = new ArrayList<ActionListener<Void>>();
-            synchronized (listeners) {
-                ShardSyncState.SyncListener listener;
-                while ((listener = listeners.peek()) != null && syncedLocation.compareTo(listener.location) >= 0) {
-                    toComplete.add(listener);
-                    listeners.poll();
-                }
-            }
-            ActionListener.onResponse(toComplete, null);
-        }
-
-        public void writeToBuffer(BytesReference data, long seqNo, Translog.Location location) throws IOException {
-            synchronized (bufferLock) {
-                if (isClosed) {
-                    throw alreadyClosedException(shardId);
-                }
-                Translog.Location newProcessedLocation = new Translog.Location(
-                    location.generation,
-                    location.translogLocation + location.size,
-                    0
-                );
-                assert newProcessedLocation.compareTo(processedLocation) > 0;
-                processedLocation = newProcessedLocation;
-                if (bufferState == null) {
-                    bufferState = new BufferState(new ReleasableBytesStreamOutput(bigArrays));
-                } else {
-                    assert location.compareTo(bufferState.location) >= 0;
-                }
-                bufferState.append(data, seqNo, location);
-            }
-        }
-
-        public long currentBufferSize() {
-            synchronized (bufferLock) {
-                return bufferState != null ? bufferState.data.size() : 0L;
-            }
-        }
-
-        public BufferState pollBufferForSync() {
-            synchronized (bufferLock) {
-                BufferState toReturn = bufferState;
-                bufferState = null;
-                return toReturn;
-            }
-        }
-
-        public void close(boolean nodeStopping) {
-            final ArrayList<ActionListener<Void>> toComplete;
-            isClosed = true;
-            synchronized (listeners) {
-                toComplete = new ArrayList<>(listeners);
-                listeners.clear();
-            }
-            synchronized (bufferLock) {
-                Releasables.close(bufferState);
-                bufferState = null;
-            }
-
-            // Release all of referenced translog files if the indice service is not stopped.
-            if (nodeStopping == false) {
-                releaseReferencedTranslogFiles(Long.MAX_VALUE);
-                assert referencedTranslogFiles.peek() == null : "concurrent addition of translog file unexpected during close";
-            }
-
-            ActionListener.onFailure(toComplete, alreadyClosedException(shardId));
-        }
-
-        private record SyncListener(Translog.Location location, ActionListener<Void> listener)
-            implements
-                ActionListener<Void>,
-                Comparable<ShardSyncState.SyncListener> {
-
-            @Override
-            public void onResponse(Void unused) {
-                listener.onResponse(unused);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-
-            @Override
-            public int compareTo(ShardSyncState.SyncListener o) {
-                return location.compareTo(o.location);
-            }
-        }
-    }
-
-    // TODO: Move inside shard sync state when that class is extracted
-    record SyncMarker(long primaryTerm, Translog.Location location) {}
-
-    // TODO: Move inside shard sync state when that class is extracted
-    static AlreadyClosedException alreadyClosedException(ShardId shardId) {
-        return new AlreadyClosedException("The translog for shard [" + shardId + "] is already closed.");
     }
 }

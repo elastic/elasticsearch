@@ -20,7 +20,7 @@ package co.elastic.elasticsearch.stateless;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.StatelessRefreshThrottlingIT;
-import co.elastic.elasticsearch.stateless.engine.TranslogReplicatorReader;
+import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;

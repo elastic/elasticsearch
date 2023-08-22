@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;

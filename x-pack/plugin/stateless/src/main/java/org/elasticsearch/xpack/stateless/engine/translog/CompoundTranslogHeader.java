@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine;
+package co.elastic.elasticsearch.stateless.engine.translog;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.InputStreamDataInput;

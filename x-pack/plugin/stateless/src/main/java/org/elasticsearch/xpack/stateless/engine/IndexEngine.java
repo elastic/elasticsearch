@@ -18,6 +18,8 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
+import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
 import org.apache.lucene.index.IndexWriter;

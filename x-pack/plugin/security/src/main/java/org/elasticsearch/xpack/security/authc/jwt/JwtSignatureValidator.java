@@ -276,19 +276,19 @@ public interface JwtSignatureValidator extends Releasable {
                 validateSignature(signedJWT, jwksAlgs.jwks());
                 listener.onResponse(null);
             } catch (Exception primaryException) {
-               String message =  org.elasticsearch.core.Strings.format(
+                String message = org.elasticsearch.core.Strings.format(
                     "Signature verification failed for JWT token [%s] against JWK set sha256=[%s].",
                     tokenPrincipal,
                     MessageDigests.toHexString(contentAndJwksAlgs.sha256())
                 );
 
-               if(logger.isTraceEnabled()) {
-                   logger.trace(message, primaryException);
-               } else {
-                   logger.debug(message + " Cause: " + primaryException.getMessage());
-               }
+                if (logger.isTraceEnabled()) {
+                    logger.trace(message, primaryException);
+                } else {
+                    logger.debug(message + " Cause: " + primaryException.getMessage());
+                }
 
-               logger.debug("Attempting to reload JWK set with sha256=[{}]", MessageDigests.toHexString(contentAndJwksAlgs.sha256()));
+                logger.debug("Attempting to reload JWK set with sha256=[{}]", MessageDigests.toHexString(contentAndJwksAlgs.sha256()));
                 jwkSetLoader.reload(ActionListener.wrap(ignore -> {
                     final JwkSetLoader.ContentAndJwksAlgs maybeUpdatedContentAndJwksAlgs = jwkSetLoader.getContentAndJwksAlgs();
                     if (Arrays.equals(maybeUpdatedContentAndJwksAlgs.sha256(), initialJwksVersion)) {
@@ -299,8 +299,10 @@ public interface JwtSignatureValidator extends Releasable {
                         listener.onFailure(primaryException);
                         return;
                     } else {
-                        logger.debug("Successful reload of JWK set. Now with sha256=[{}]",
-                            MessageDigests.toHexString(maybeUpdatedContentAndJwksAlgs.sha256()));
+                        logger.debug(
+                            "Successful reload of JWK set. Now with sha256=[{}]",
+                            MessageDigests.toHexString(maybeUpdatedContentAndJwksAlgs.sha256())
+                        );
                     }
 
                     // If all PKC JWKs were replaced, all PKC JWT cache entries need to be invalidated.
@@ -359,8 +361,7 @@ public interface JwtSignatureValidator extends Releasable {
         final String id = jwt.getHeader().getKeyID();
         final JWSAlgorithm alg = jwt.getHeader().getAlgorithm();
 
-
-        tracer.append("Filtering [{}] possible JWKs to verifying signature for JWT [{}].",  jwks.size(), getSafePrintableJWT(jwt));
+        tracer.append("Filtering [{}] possible JWKs to verifying signature for JWT [{}].", jwks.size(), getSafePrintableJWT(jwt));
 
         // If JWT has optional kid header, and realm JWKs have optional kid attribute, any mismatches JWT.kid vs JWK.kid can be ignored.
         // Keep any JWKs if JWK optional kid attribute is missing. Keep all JWKs if JWT optional kid header is missing.
@@ -388,18 +389,21 @@ public interface JwtSignatureValidator extends Releasable {
 
         // No JWKs passed the kid, alg, and strength checks, so nothing left to use in verifying the JWT signature
         if (jwksConfigured.isEmpty()) {
-            throw new ElasticsearchException("Signature verification was not attempted since there are not any JWKs " +
-                "available after filtering for incompatible keys.");
+            throw new ElasticsearchException(
+                "Signature verification was not attempted since there are not any JWKs "
+                    + "available after filtering for incompatible keys."
+            );
         }
 
         int attempt = 0;
         int maxAttempts = jwksConfigured.size();
-        tracer.append("Attempting to verify signature for JWT [{}] against [{}] possible JWKs.",  getSafePrintableJWT(jwt), maxAttempts);
+        tracer.append("Attempting to verify signature for JWT [{}] against [{}] possible JWKs.", getSafePrintableJWT(jwt), maxAttempts);
         for (final JWK jwk : jwksConfigured) {
             attempt++;
             if (jwt.verify(createJwsVerifier(jwk))) {
                 tracer.append(
-                    "Attempt [{}/{}] -> JWT signature verification succeeded with jwk/kid=[{}], jwk/alg=[{}], jwk/kty=[{}], jwk/use=[{}], jwk/key_ops=[{}]",
+                    "Attempt [{}/{}] -> JWT signature verification succeeded with jwk/kid=[{}], jwk/alg=[{}], jwk/kty=[{}], jwk/use=[{}], "
+                        + "jwk/key_ops=[{}]",
                     attempt,
                     maxAttempts,
                     jwk.getKeyID(),
@@ -412,7 +416,8 @@ public interface JwtSignatureValidator extends Releasable {
                 return;
             } else {
                 tracer.append(
-                    "Attempt [{}/{}] -> JWT signature verification failed with jwk/kid=[{}], jwk/alg=[{}], jwk/kty=[{}], jwk/use=[{}], jwk/key_ops=[{}]",
+                    "Attempt [{}/{}] -> JWT signature verification failed with jwk/kid=[{}], jwk/alg=[{}], jwk/kty=[{}], jwk/use=[{}], "
+                        + "jwk/key_ops=[{}]",
                     attempt,
                     maxAttempts,
                     jwk.getKeyID(),

@@ -33,6 +33,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
@@ -156,7 +157,11 @@ public class JwtUtil {
             case NONE:
             default:
                 if (Strings.hasText(actualSecret)) {
-                    LOGGER.trace("Accepted client for token [{}]. Authentication type [{}]. Secret is present but ignored.", tokenPrincipal, type);
+                    LOGGER.trace(
+                        "Accepted client for token [{}]. Authentication type [{}]. Secret is present but ignored.",
+                        tokenPrincipal,
+                        type
+                    );
                 } else {
                     LOGGER.trace("Accepted client for token [{}]. Authentication type [{}].", tokenPrincipal, type);
                 }
@@ -353,19 +358,20 @@ public class JwtUtil {
         List<Object> params = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
 
-        public TraceBuffer(Logger logger){
+        public TraceBuffer(Logger logger) {
             this.logger = logger;
         }
+
         public void append(String s, Object... args) {
             if (logger.isTraceEnabled()) {
                 builder.append(s).append(" ");
-                List<Object> resolved = Arrays.stream(args)
-                    .map(x -> (x instanceof Supplier) ? ((Supplier<?>) x).get() : x)
-                    .toList();
+                List<Object> resolved = Arrays.stream(args).map(x -> (x instanceof Supplier) ? ((Supplier<?>) x).get() : x).toList();
                 params.addAll(resolved);
             }
         }
-        public void flush(){
+
+        @SuppressLoggerChecks(reason = "builds the tracer dynamically")
+        public void flush() {
             if (logger.isTraceEnabled()) {
                 logger.trace(builder.toString(), params.toArray());
                 params = new ArrayList<>();

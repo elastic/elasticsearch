@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * Utilities for JWK Validation.
  */
@@ -53,7 +55,7 @@ public class JwkValidateUtil {
         tracer.append("[{}] remaining JWKs after KeyOperation [VERIFY] filter.", jwksVerify.size());
 
         final List<JWK> jwksFiltered = jwksVerify.stream().filter(j -> (algs.stream().anyMatch(a -> isMatch(j, a, tracer)))).toList();
-        tracer.append("[{}] remaining JWKs after algorithms name [{}] filter.", jwksFiltered.size(), String.join(",", algs) );
+        tracer.append("[{}] remaining JWKs after algorithms name [{}] filter.", jwksFiltered.size(), String.join(",", algs));
 
         final List<String> algsFiltered = algs.stream().filter(a -> (jwksFiltered.stream().anyMatch(j -> isMatch(j, a, tracer)))).toList();
         tracer.append("[{}] remaining JWKs after configured algorithms [{}] filter.", jwksFiltered.size(), String.join(",", algsFiltered));
@@ -98,7 +100,10 @@ public class JwkValidateUtil {
                 return isMatch;
             }
         } catch (Exception e) {
-            logger.debug("Unexpected exception while matching JWK with kid [{}] to it's algorithm requirement.", jwk.getKeyID(), e);
+            logger.debug(
+                () -> format("Unexpected exception while matching JWK with kid [%s] to it's algorithm requirement.", jwk.getKeyID()),
+                e
+            );
         }
         return false;
     }

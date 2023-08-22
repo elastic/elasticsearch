@@ -420,6 +420,12 @@ public class ESLoggerUsageChecker {
         ) {
             BasicValue arraySizeObject = getStackValue(arraySizeFrame, methodInsn, arrayIndex);
             if (arraySizeObject instanceof ArraySizeBasicValue == false) {
+                System.out.println(
+                    "******************* "
+                        + arraySizeObject.getType()
+                        + "************************ "
+                        + arraySizeObject.getClass().getCanonicalName()
+                );
                 wrongUsageCallback.accept(
                     new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber, "Could not determine size of array")
                 );

@@ -260,7 +260,12 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             // Authenticate client: If client authc off, fall through. Otherwise, only fall through if secret matched.
             final SecureString clientSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
             try {
-                JwtUtil.validateClientAuthentication(clientAuthenticationType, clientAuthenticationSharedSecret, clientSecret, tokenPrincipal);
+                JwtUtil.validateClientAuthentication(
+                    clientAuthenticationType,
+                    clientAuthenticationSharedSecret,
+                    clientSecret,
+                    tokenPrincipal
+                );
                 logger.trace("Realm [{}] client authentication succeeded for token=[{}].", name(), tokenPrincipal);
             } catch (Exception e) {
                 final String msg = "Realm [" + name() + "] client authentication failed for token=[" + tokenPrincipal + "].";
@@ -283,38 +288,34 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             }
 
             // Validate JWT: Extract JWT and claims set, and validate JWT.
-            jwtAuthenticator.authenticate(
-                jwtAuthenticationToken,
-                ActionListener.wrap(claimsSet -> {
-                    logger.debug(
-                        "Realm [{}] JWT validation success for token=[{}] with header [{}] and claimSet [{}]",
-                        name(),
-                        tokenPrincipal,
-                        jwtAuthenticationToken.getSignedJWT().getHeader(),
-                        jwtAuthenticationToken.getJWTClaimsSet()
-                    );
-                    processValidatedJwt(tokenPrincipal, jwtCacheKey, claimsSet, listener);
-                },
-                    ex -> {
-                        final String msg = "Realm ["
-                            + name()
-                            + "] JWT validation failed for token=["
-                            + tokenPrincipal
-                            + "] with header ["
-                            + jwtAuthenticationToken.getSignedJWT().getHeader()
-                            + "] and claimSet ["
-                            + jwtAuthenticationToken.getJWTClaimsSet()
-                            + "]";
+            jwtAuthenticator.authenticate(jwtAuthenticationToken, ActionListener.wrap(claimsSet -> {
+                logger.debug(
+                    "Realm [{}] JWT validation success for token=[{}] with header [{}] and claimSet [{}]",
+                    name(),
+                    tokenPrincipal,
+                    jwtAuthenticationToken.getSignedJWT().getHeader(),
+                    jwtAuthenticationToken.getJWTClaimsSet()
+                );
+                processValidatedJwt(tokenPrincipal, jwtCacheKey, claimsSet, listener);
+            }, ex -> {
+                final String msg = "Realm ["
+                    + name()
+                    + "] JWT validation failed for token=["
+                    + tokenPrincipal
+                    + "] with header ["
+                    + jwtAuthenticationToken.getSignedJWT().getHeader()
+                    + "] and claimSet ["
+                    + jwtAuthenticationToken.getJWTClaimsSet()
+                    + "]";
 
-                    if(logger.isTraceEnabled()){
-                        logger.trace(msg, ex);
-                    } else {
-                        logger.debug(msg + " Cause: " + ex.getMessage()); //only log the stack trace at trace level
-                    }
-                    // TODO: No point to continue to another realm if failure is ParseException
-                    listener.onResponse(AuthenticationResult.unsuccessful(msg, ex));
-                })
-            );
+                if (logger.isTraceEnabled()) {
+                    logger.trace(msg, ex);
+                } else {
+                    logger.debug(msg + " Cause: " + ex.getMessage()); // only log the stack trace at trace level
+                }
+                // TODO: No point to continue to another realm if failure is ParseException
+                listener.onResponse(AuthenticationResult.unsuccessful(msg, ex));
+            }));
 
         } else {
             assert false : "should not happen";
@@ -396,7 +397,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         final ActionListener<AuthenticationResult<User>> logAndCacheListener = ActionListener.wrap(result -> {
             if (result.isAuthenticated()) {
                 final User user = result.getValue();
-                logger.trace(() -> format("Realm [%s] roles resolved [%s] for principal=[%s].", name(), join(",", user.roles()), principal));
+                logger.trace(
+                    () -> format("Realm [%s] roles resolved [%s] for principal=[%s].", name(), join(",", user.roles()), principal)
+                );
                 if (isCacheEnabled()) {
                     try (ReleasableLock ignored = jwtCacheHelper.acquireUpdateLock()) {
                         final long expWallClockMillis = claimsSet.getExpirationTime().getTime() + allowedClockSkew.getMillis();

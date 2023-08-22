@@ -351,11 +351,11 @@ public class Netty4Transport extends TcpTransport {
     protected class ServerChannelInitializer extends ChannelInitializer<Channel> {
 
         protected final String name;
-        private final boolean isRemoteClusterChannel;
+        private final boolean isRemoteClusterServerChannel;
 
         protected ServerChannelInitializer(String name) {
             this.name = name;
-            this.isRemoteClusterChannel = remoteClusterPortEnabled && REMOTE_CLUSTER_PROFILE.equals(name);
+            this.isRemoteClusterServerChannel = remoteClusterPortEnabled && REMOTE_CLUSTER_PROFILE.equals(name);
         }
 
         @Override
@@ -365,7 +365,7 @@ public class Netty4Transport extends TcpTransport {
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, rstOnClose, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
-            setupPipeline(ch, isRemoteClusterChannel);
+            setupPipeline(ch, isRemoteClusterServerChannel);
             serverAcceptedChannel(nettyTcpChannel);
         }
 

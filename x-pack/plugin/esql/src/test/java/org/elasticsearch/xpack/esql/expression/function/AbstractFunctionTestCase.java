@@ -15,7 +15,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.planner.EvalMapper;
+import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -201,8 +201,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             e = new Literal(e.source(), e.fold(), e.dataType());
         }
         Layout.Builder builder = new Layout.Builder();
-        // Hack together a layout by scanning for Fields.
-        // Those will show up in the layout in whatever order a depth first traversal finds them.
         buildLayout(builder, e);
         return EvalMapper.toEvaluator(e, builder.build());
     }
@@ -211,7 +209,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return new Page(BlockUtils.fromListRow(values));
     }
 
-    private void buildLayout(Layout.Builder builder, Expression e) {
+    /**
+     * Hack together a layout by scanning for Fields.
+     * Those will show up in the layout in whatever order a depth first traversal finds them.
+     */
+    protected void buildLayout(Layout.Builder builder, Expression e) {
         if (e instanceof FieldAttribute f) {
             builder.appendChannel(f.id());
             return;

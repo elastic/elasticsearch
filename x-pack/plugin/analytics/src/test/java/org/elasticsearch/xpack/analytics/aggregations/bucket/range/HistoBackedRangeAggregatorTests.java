@@ -44,6 +44,7 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
     private static final String HISTO_FIELD_NAME = "histo_field";
     private static final String RAW_FIELD_NAME = "raw_field";
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98739")
     @SuppressWarnings("rawtypes")
     public void testPercentilesAccuracy() throws Exception {
         long absError = 0L;
@@ -62,7 +63,7 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                     .percentiles(steps);
 
                 try (IndexReader reader = w.getReader()) {
-                    IndexSearcher searcher = new IndexSearcher(reader);
+                    IndexSearcher searcher = newSearcher(reader);
                     RangeAggregationBuilder aggBuilder = new RangeAggregationBuilder("my_agg").field(HISTO_FIELD_NAME);
 
                     RangeAggregationBuilder rawFieldAgg = new RangeAggregationBuilder("my_agg").field(RAW_FIELD_NAME);
@@ -119,6 +120,7 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
         testRanges(ranges, "manual_medium_ranges");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98713")
     public void testLargerRangesAccuracy() throws Exception {
         List<RangeAggregator.Range> ranges = Arrays.asList(
             new RangeAggregator.Range(null, null, 8.0),
@@ -167,7 +169,7 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                 docCount += generateDocs(w);
 
                 try (IndexReader reader = w.getReader()) {
-                    IndexSearcher searcher = new IndexSearcher(reader);
+                    IndexSearcher searcher = newSearcher(reader);
                     RangeAggregationBuilder aggBuilder = new RangeAggregationBuilder("my_agg").field(HISTO_FIELD_NAME);
                     RangeAggregationBuilder rawFieldAgg = new RangeAggregationBuilder("my_agg").field(RAW_FIELD_NAME);
                     ranges.forEach(r -> {
@@ -223,7 +225,7 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                 .addRange(10, 20)
                 .addUnboundedFrom(20);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> range = searchAndReduce(
                     searcher,
                     new AggTestConfig(aggBuilder, defaultFieldType(HISTO_FIELD_NAME))
@@ -283,7 +285,7 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                 .addRange(10, 20)
                 .addUnboundedFrom(20);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> range = searchAndReduce(
                     searcher,
                     new AggTestConfig(aggBuilder, defaultFieldType(HISTO_FIELD_NAME))
@@ -316,7 +318,7 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                 .addRange(-1.0, 3.0)
                 .subAggregation(new TopHitsAggregationBuilder("top_hits"));
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
                     searchAndReduce(searcher, new AggTestConfig(aggBuilder, defaultFieldType(HISTO_FIELD_NAME)));
                 });

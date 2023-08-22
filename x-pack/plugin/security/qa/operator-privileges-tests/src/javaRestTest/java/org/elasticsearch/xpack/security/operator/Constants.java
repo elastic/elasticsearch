@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.security.operator;
 
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -431,10 +429,10 @@ public class Constants {
         "indices:admin/data_stream/migrate",
         "indices:admin/data_stream/modify",
         "indices:admin/data_stream/promote",
-        DataStreamLifecycle.isFeatureEnabled() ? "indices:admin/data_stream/lifecycle/delete" : null,
-        DataStreamLifecycle.isFeatureEnabled() ? "indices:admin/data_stream/lifecycle/get" : null,
-        DataStreamLifecycle.isFeatureEnabled() ? "indices:admin/data_stream/lifecycle/put" : null,
-        DataStreamLifecycle.isFeatureEnabled() ? "indices:admin/data_stream/lifecycle/explain" : null,
+        "indices:admin/data_stream/lifecycle/delete",
+        "indices:admin/data_stream/lifecycle/get",
+        "indices:admin/data_stream/lifecycle/put",
+        "indices:admin/data_stream/lifecycle/explain",
         "indices:admin/delete",
         "indices:admin/flush",
         "indices:admin/flush[s]",
@@ -478,6 +476,7 @@ public class Constants {
         "indices:admin/xpack/ccr/unfollow",
         "indices:admin/xpack/downsample",
         "indices:admin/xpack/downsample_indexer",
+        "indices:data/read/downsample_delegate",
         "indices:data/read/async_search/delete",
         "indices:data/read/async_search/get",
         "indices:data/read/async_search/submit",

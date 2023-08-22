@@ -61,17 +61,17 @@ public class SimulateIndexResponse extends IndexResponse {
         out.writeCollection(pipelines, StreamOutput::writeString);
     }
 
-    // @Override
-    // public String toString() {
-    // StringBuilder builder = new StringBuilder();
-    // builder.append("IndexResponse[");
-    // builder.append("index=").append(getIndex());
-    // builder.append(",pipelines=").append(Strings.toString(getPipelines()));
-    // return builder.append("]").toString();
-    // }
-    //
-    // private List<String> getPipelines() {
-    // return pipelines;
-    // }
-
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("SimulateIndexResponse[");
+        builder.append("index=").append(getIndex());
+        try {
+            builder.append("source=").append(XContentHelper.convertToJson(source, false, sourceXContentType));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        builder.append(",pipelines=").append(String.join(", ", getPipelines()));
+        return builder.append("]").toString();
+    }
 }

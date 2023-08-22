@@ -96,6 +96,7 @@ import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.TARGET_MERGE_FACTOR_VALUE;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1079,6 +1080,68 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         affectedIndices = dataStreamLifecycleService.maybeExecuteDownsampling(clusterService.state(), dataStream, List.of(firstGenIndex));
         assertThat(affectedIndices, is(empty()));
         assertThat(clientSeenRequests.size(), is(4));
+    }
+
+    public void testDownsamplingWhenTargetIndexNameClassYieldsException() throws Exception {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numBackingIndices = 2;
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            numBackingIndices,
+            settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE)
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .put("index.routing_path", "@timestamp"),
+            DataStreamLifecycle.newBuilder()
+                .downsampling(
+                    new Downsampling(
+                        List.of(new Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("1s"))))
+                    )
+                )
+                .dataRetention(TimeValue.MAX_VALUE)
+                .build(),
+            now
+        );
+        builder.put(dataStream);
+
+        String nodeId = "localNode";
+        DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);
+        // we are the master node
+        nodesBuilder.masterNodeId(nodeId);
+        String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+
+        // mark the first generation as read-only already
+        IndexMetadata indexMetadata = builder.get(firstGenIndexName);
+        Settings updatedSettings = Settings.builder().put(indexMetadata.getSettings()).put(WRITE.settingName(), true).build();
+        builder.put(IndexMetadata.builder(indexMetadata).settings(updatedSettings).settingsVersion(indexMetadata.getSettingsVersion() + 1));
+
+        ClusterBlock indexBlock = MetadataIndexStateService.createUUIDBasedBlock(WRITE.getBlock());
+        ClusterBlocks.Builder blocks = ClusterBlocks.builder();
+        blocks.addIndexBlock(firstGenIndexName, indexBlock);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).blocks(blocks).metadata(builder).nodes(nodesBuilder).build();
+
+        // add another index to the cluster state that clashes with the expected downsample index name for the configured round
+        String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
+            DOWNSAMPLED_INDEX_PREFIX,
+            state.metadata().index(firstGenIndexName),
+            new DateHistogramInterval("1s")
+        );
+        Metadata.Builder newMetadata = Metadata.builder(state.metadata())
+            .put(
+                IndexMetadata.builder(downsampleIndexName).settings(settings(IndexVersion.current())).numberOfReplicas(0).numberOfShards(1)
+            );
+        state = ClusterState.builder(state).metadata(newMetadata).nodes(nodesBuilder).build();
+        setState(clusterService, state);
+
+        Index firstGenIndex = state.metadata().index(firstGenIndexName).getIndex();
+        dataStreamLifecycleService.maybeExecuteDownsampling(clusterService.state(), dataStream, List.of(firstGenIndex));
+
+        assertThat(clientSeenRequests.size(), is(0));
+        String error = dataStreamLifecycleService.getErrorStore().getError(firstGenIndexName);
+        assertThat(error, notNullValue());
+        assertThat(error, containsString("resource_already_exists_exception"));
     }
 
     /*

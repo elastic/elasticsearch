@@ -14,7 +14,6 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.StoredFields;
-import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -67,7 +66,7 @@ public class HighlighterTestCase extends MapperServiceTestCase {
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
             SearchExecutionContext context = createSearchExecutionContext(
                 mapperService,
-                new IndexSearcher(new NoStoredFieldsFilterDirectoryReader(ir))
+                newSearcher(new NoStoredFieldsFilterDirectoryReader(ir))
             );
             HighlightPhase highlightPhase = new HighlightPhase(getHighlighters());
             FetchSubPhaseProcessor processor = highlightPhase.getProcessor(fetchContext(context, search));

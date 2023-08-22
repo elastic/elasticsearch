@@ -43,7 +43,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
 
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalGeoBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
@@ -68,7 +68,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
 
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalGeoBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
@@ -100,7 +100,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                     .wrapLongitude(false);
 
                 try (IndexReader reader = w.getReader()) {
-                    IndexSearcher searcher = new IndexSearcher(reader);
+                    IndexSearcher searcher = newSearcher(reader);
                     InternalGeoBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                     assertThat(bounds.top, equalTo(lat));
                     assertThat(bounds.bottom, equalTo(lat));
@@ -125,7 +125,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 .missing("invalid")
                 .wrapLongitude(false);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class, () -> {
                     searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 });
@@ -174,7 +174,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
 
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalGeoBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertThat(bounds.top, closeTo(top, GEOHASH_TOLERANCE));
                 assertThat(bounds.bottom, closeTo(bottom, GEOHASH_TOLERANCE));

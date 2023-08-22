@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
-import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 /**
  * Inverse cosine trigonometric function.
  */
-public class Atan2 extends ScalarFunction implements Mappable {
+public class Atan2 extends ScalarFunction implements EvaluatorMapper {
     private final Expression y;
     private final Expression x;
 
@@ -89,7 +89,7 @@ public class Atan2 extends ScalarFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Override

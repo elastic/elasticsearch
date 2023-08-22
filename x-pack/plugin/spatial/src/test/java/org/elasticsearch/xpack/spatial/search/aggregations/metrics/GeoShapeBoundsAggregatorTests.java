@@ -65,7 +65,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalGeoBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
@@ -99,7 +99,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalGeoBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
@@ -139,7 +139,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 .wrapLongitude(false);
 
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalGeoBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertThat(bounds.top, equalTo(lat));
                 assertThat(bounds.bottom, equalTo(lat));
@@ -172,7 +172,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 .missing("invalid")
                 .wrapLongitude(false);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
                     searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 });
@@ -233,7 +233,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalGeoBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertThat(bounds.top, closeTo(top, GEOHASH_TOLERANCE));
                 assertThat(bounds.bottom, closeTo(bottom, GEOHASH_TOLERANCE));

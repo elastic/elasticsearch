@@ -99,7 +99,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertValues(bytesValues, 1, one());
             assertValues(bytesValues, 2, three());
 
-            IndexSearcher searcher = new IndexSearcher(readerContext.reader());
+            IndexSearcher searcher = newSearcher(readerContext.reader());
             TopFieldDocs topDocs;
             SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
             topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
@@ -176,7 +176,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertValues(bytesValues, 1, one());
             assertValues(bytesValues, 2, three());
 
-            IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
+            IndexSearcher searcher = newSearcher(DirectoryReader.open(writer));
             SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
             TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
             assertThat(topDocs.totalHits.value, equalTo(3L));
@@ -240,7 +240,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         fillExtendedMvSet();
         IndexFieldData<?> indexFieldData = getForField("value");
 
-        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
+        IndexSearcher searcher = newSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
         assertThat(topDocs.totalHits.value, equalTo(8L));

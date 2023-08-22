@@ -561,8 +561,11 @@ public abstract class DocumentParserContext {
             for (Mapper mapper : dynamicMappers) {
                 if (dynamicDenseVectorFieldNameToDimCount.containsKey(mapper.name())) {
                     int size = dynamicDenseVectorFieldNameToDimCount.get(mapper.name()).intValue();
-                    DenseVectorFieldMapper.Builder builder =
-                        new DenseVectorFieldMapper.Builder(mapper.name(), indexSettings().getIndexVersionCreated(), size);
+                    DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
+                        mapper.name(),
+                        indexSettings().getIndexVersionCreated(),
+                        size
+                    );
 
                     DenseVectorFieldMapper denseVectorFieldMapper = builder.build(createDynamicMapperBuilderContext());
                     postProcessedMappers.add(denseVectorFieldMapper);

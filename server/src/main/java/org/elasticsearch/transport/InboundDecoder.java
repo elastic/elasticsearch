@@ -172,12 +172,12 @@ public class InboundDecoder implements Releasable {
             if (variableHeaderSize < 0) {
                 throw new StreamCorruptedException("invalid negative variable header size: " + variableHeaderSize);
             }
-            int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
-            if (totalHeaderSize > maxVariableHeaderSize.getBytes()) {
+            if (variableHeaderSize > maxVariableHeaderSize.getBytes() - fixedHeaderSize) {
                 throw new StreamCorruptedException(
-                    "header size [" + totalHeaderSize + "] exceeds limit of [" + maxVariableHeaderSize + "]"
+                    "header size [" + (fixedHeaderSize + variableHeaderSize) + "] exceeds limit of [" + maxVariableHeaderSize + "]"
                 );
             }
+            int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
             if (totalHeaderSize > reference.length()) {
                 return 0;
             } else {

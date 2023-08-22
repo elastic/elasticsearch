@@ -37,6 +37,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -375,7 +376,11 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
     }
 
     private long[] getPrimaryTerms(String indexName) {
-        var response = client().admin().cluster().prepareState().get();
+        return getPrimaryTerms(client(), indexName);
+    }
+
+    private static long[] getPrimaryTerms(Client client, String indexName) {
+        var response = client.admin().cluster().prepareState().get();
         var state = response.getState();
 
         var indexMetadata = state.metadata().index(indexName);
@@ -1125,7 +1130,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             logger.info("waiting for [{}] to be removed from cluster", indexNodeA);
             ensureStableCluster(3, masterName);
 
-            assertBusy(() -> assertThat(getPrimaryTerms(indexName)[0], greaterThan(initialPrimaryTerm)));
+            assertBusy(() -> assertThat(getPrimaryTerms(client(masterName), indexName)[0], greaterThan(initialPrimaryTerm)));
 
             ClusterHealthRequest healthRequest = new ClusterHealthRequest(indexName).timeout(TimeValue.timeValueSeconds(30))
                 .waitForStatus(ClusterHealthStatus.GREEN)

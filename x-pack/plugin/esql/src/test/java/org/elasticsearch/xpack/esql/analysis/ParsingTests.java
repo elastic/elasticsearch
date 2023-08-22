@@ -29,10 +29,28 @@ public class ParsingTests extends ESTestCase {
         new Verifier(new Metrics())
     );
 
+    public void testCaseFunctionInvalidInputs() {
+        assertEquals("1:23: error building [case]: expects at least two arguments", error("row a = 1 | eval x = case()"));
+        assertEquals("1:23: error building [case]: expects at least two arguments", error("row a = 1 | eval x = case(a)"));
+        assertEquals("1:23: error building [case]: expects at least two arguments", error("row a = 1 | eval x = case(1)"));
+    }
+
     public void testConcatFunctionInvalidInputs() {
         assertEquals("1:23: error building [concat]: expects at least two arguments", error("row a = 1 | eval x = concat()"));
         assertEquals("1:23: error building [concat]: expects at least two arguments", error("row a = 1 | eval x = concat(a)"));
-        assertEquals("1:23: error building [concat]: expects at least two arguments", error("row a = 1 | eval x = concat(123)"));
+        assertEquals("1:23: error building [concat]: expects at least two arguments", error("row a = 1 | eval x = concat(1)"));
+    }
+
+    public void testCoalesceFunctionInvalidInputs() {
+        assertEquals("1:23: error building [coalesce]: expects at least one argument", error("row a = 1 | eval x = coalesce()"));
+    }
+
+    public void testGreatestFunctionInvalidInputs() {
+        assertEquals("1:23: error building [greatest]: expects at least one argument", error("row a = 1 | eval x = greatest()"));
+    }
+
+    public void testLeastFunctionInvalidInputs() {
+        assertEquals("1:23: error building [least]: expects at least one argument", error("row a = 1 | eval x = least()"));
     }
 
     private String error(String query) {

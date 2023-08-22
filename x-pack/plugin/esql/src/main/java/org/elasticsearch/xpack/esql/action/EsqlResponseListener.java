@@ -64,7 +64,10 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
                 ChunkedRestResponseBody.fromTextChunks(format.contentType(restRequest), format.format(restRequest, esqlResponse))
             );
         } else {
-            restResponse = new RestResponse(RestStatus.OK, ChunkedRestResponseBody.fromXContent(esqlResponse, channel.request(), channel));
+            restResponse = RestResponse.chunked(
+                RestStatus.OK,
+                ChunkedRestResponseBody.fromXContent(esqlResponse, channel.request(), channel)
+            );
         }
         restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(System.nanoTime() - startNanos));
 

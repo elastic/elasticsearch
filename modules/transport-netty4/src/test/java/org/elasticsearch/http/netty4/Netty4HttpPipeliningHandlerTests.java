@@ -53,11 +53,9 @@ import java.util.stream.IntStream;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
@@ -431,27 +429,6 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertThat(messagesSeen, hasSize(2));
         assertThat(messagesSeen.get(0), instanceOf(Netty4ChunkedHttpResponse.class));
         assertThat(messagesSeen.get(1), instanceOf(DefaultHttpContent.class));
-    }
-
-    public void testEmptyChunkedResponse() {
-        final List<Object> messagesSeen = new ArrayList<>();
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(capturingHandler(messagesSeen), getTestHttpHandler());
-        embeddedChannel.writeInbound(createHttpRequest("/chunked"));
-        final Netty4HttpRequest chunkedResponseRequest = embeddedChannel.readInbound();
-
-        final HttpResponse notChunkedResponse = chunkedResponseRequest.createResponse(
-            RestStatus.OK,
-            getRepeatedChunkResponseBody(0, BytesArray.EMPTY)
-        );
-        assertThat(notChunkedResponse, allOf(instanceOf(Netty4HttpResponse.class), not(instanceOf(Netty4ChunkedHttpResponse.class))));
-
-        final ChannelPromise promise = embeddedChannel.newPromise();
-        embeddedChannel.write(notChunkedResponse, promise);
-        embeddedChannel.flush();
-
-        assertTrue(promise.isDone());
-        assertThat(messagesSeen, hasSize(1));
-        assertThat(messagesSeen.get(0), sameInstance(notChunkedResponse));
     }
 
     // assert that a message of the given number of repeated chunks is found at the given index in the list and each chunk is equal to

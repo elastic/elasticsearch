@@ -67,6 +67,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import java.util.zip.GZIPInputStream;
 
+import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
@@ -150,7 +151,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98539")
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/75221")
     public void testInvalidTimestamp() throws Exception {
         assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
@@ -525,7 +525,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
      * This creates a pipeline named pipelineId with a geoip processor, which ought to cause the geoip downloader to begin (assuming it is
      * enabled).
      * @param pipelineId The name of the new pipeline with a geoip processor
-    *  @param downloadDatabaseOnPipelineCreation Indicates whether the pipeline creation should trigger database download or not.
+     * @param downloadDatabaseOnPipelineCreation Indicates whether the pipeline creation should trigger database download or not.
      * @throws IOException
      */
     private void putGeoIpPipeline(String pipelineId, boolean downloadDatabaseOnPipelineCreation) throws IOException {
@@ -535,6 +535,22 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             {
                 builder.startArray("processors");
                 {
+                    /*
+                     * First we add a non-geo pipeline with a random field value. This is purely here so that each call to this method
+                     * creates a pipeline that is unique. Creating the a pipeline twice with the same ID and exact same bytes
+                     * results in a no-op, meaning that the pipeline won't actually be updated and won't actually trigger all of the
+                     * things we expect it to.
+                     */
+                    builder.startObject();
+                    {
+                        builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
+                        {
+                            builder.field("randomField", randomAlphaOfLength(20));
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
                     builder.startObject();
                     {
                         builder.startObject("geoip");
@@ -605,6 +621,10 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
      * @throws IOException
      */
     private void putNonGeoipPipeline(String pipelineId) throws IOException {
+        /*
+         * Adding the exact same pipeline twice is treated as a no-op. The random values that go into randomField make each pipeline
+         * created by this method is unique to avoid this.
+         */
         BytesReference bytes;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
@@ -614,18 +634,21 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     builder.startObject();
                     {
                         builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
+                        builder.field("randomField", randomAlphaOfLength(20));
                         builder.endObject();
                     }
                     builder.endObject();
                     builder.startObject();
                     {
                         builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
+                        builder.field("randomField", randomAlphaOfLength(20));
                         builder.endObject();
                     }
                     builder.endObject();
                     builder.startObject();
                     {
                         builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
+                        builder.field("randomField", randomAlphaOfLength(20));
                         builder.endObject();
                     }
                     builder.endObject();
@@ -803,15 +826,19 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             Map<String, Processor.Factory> procMap = new HashMap<>();
-            procMap.put(NON_GEO_PROCESSOR_TYPE, (factories, tag, description, config) -> new AbstractProcessor(tag, description) {
-                @Override
-                public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {}
+            procMap.put(NON_GEO_PROCESSOR_TYPE, (factories, tag, description, config) -> {
+                String ipField = readStringProperty("test", tag, config, "randomField");
+                return new AbstractProcessor(tag, description) {
+                    @Override
+                    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+                        config.remove("randomField");
+                    }
 
-                @Override
-                public String getType() {
-                    return NON_GEO_PROCESSOR_TYPE;
-                }
-
+                    @Override
+                    public String getType() {
+                        return NON_GEO_PROCESSOR_TYPE;
+                    }
+                };
             });
             return procMap;
         }

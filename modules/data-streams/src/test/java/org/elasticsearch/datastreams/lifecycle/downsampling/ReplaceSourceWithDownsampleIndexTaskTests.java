@@ -8,6 +8,7 @@
 
 package org.elasticsearch.datastreams.lifecycle.downsampling;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -223,4 +224,37 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
         assertThat(downsampleIndexAbstraction.getParentDataStream().getName(), is(dataStreamName));
     }
 
+    public void testListenersIsNonConsideredInEquals() {
+        // the task is used as a key in a result deduplicator ({@link ResultDeduplicator}) map and the listener must not
+        // be taken into account
+
+        String dataStreamName = randomAlphaOfLengthBetween(10, 100);
+        String sourceBackingIndex = randomAlphaOfLengthBetween(10, 100);
+        String downsampleIndex = randomAlphaOfLengthBetween(10, 100);
+        ReplaceSourceWithDownsampleIndexTask withoutListener = new ReplaceSourceWithDownsampleIndexTask(
+            dataStreamName,
+            sourceBackingIndex,
+            downsampleIndex,
+            null
+        );
+
+        ReplaceSourceWithDownsampleIndexTask withListener = new ReplaceSourceWithDownsampleIndexTask(
+            dataStreamName,
+            sourceBackingIndex,
+            downsampleIndex,
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+
+                }
+            }
+        );
+
+        assertThat(withoutListener.equals(withListener), is(true));
+    }
 }

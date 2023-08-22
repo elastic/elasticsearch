@@ -54,18 +54,53 @@ public class DivTests extends AbstractArithmeticTestCase {
                 equalTo(lhs / rhs)
             );
         }), new TestCaseSupplier("Double / Double", () -> {
-            double lhs = randomDouble();
-            double rhs;
-            do {
-                rhs = randomDouble();
-            } while (rhs == 0);
-            return new TestCase(
-                List.of(new TypedData(lhs, DataTypes.DOUBLE, "lhs"), new TypedData(rhs, DataTypes.DOUBLE, "rhs")),
+                double lhs = randomDouble();
+                double rhs;
+                do {
+                    rhs = randomDouble();
+                } while (rhs == 0);
+                return new TestCase(
+                    List.of(new TypedData(lhs, DataTypes.DOUBLE, "lhs"), new TypedData(rhs, DataTypes.DOUBLE, "rhs")),
+                    "DivDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                    DataTypes.DOUBLE,
+                    equalTo(lhs / rhs)
+                );
+            }), new TestCaseSupplier("0d / 0d", () -> new TestCase(
+                List.of(new TypedData(0.0, DataTypes.DOUBLE, "lhs"), new TypedData(0.0, DataTypes.DOUBLE, "rhs")),
                 "DivDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataTypes.DOUBLE,
-                equalTo(lhs / rhs)
-            );
-        })/*, new TestCaseSupplier("ULong / ULong", () -> {
+                equalTo(null)
+            )), new TestCaseSupplier("1d / 0d", () -> new TestCase(
+                List.of(new TypedData(1.0, DataTypes.DOUBLE, "lhs"), new TypedData(0.0, DataTypes.DOUBLE, "rhs")),
+                "DivDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.DOUBLE,
+                equalTo(null)
+            )), new TestCaseSupplier("0 / 0", () -> new TestCase(
+                List.of(new TypedData(0, DataTypes.INTEGER, "lhs"), new TypedData(0, DataTypes.INTEGER, "rhs")),
+                "DivIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.INTEGER,
+                equalTo(null)
+            )), new TestCaseSupplier("1 / 0", () -> new TestCase(
+                List.of(new TypedData(1, DataTypes.INTEGER, "lhs"), new TypedData(0, DataTypes.INTEGER, "rhs")),
+                "DivIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.INTEGER,
+                equalTo(null)
+            )), new TestCaseSupplier("1L / 0L", () -> new TestCase(
+                List.of(new TypedData(1L, DataTypes.LONG, "lhs"), new TypedData(0L, DataTypes.LONG, "rhs")),
+                "DivLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.LONG,
+                equalTo(null)
+            )), new TestCaseSupplier("0L / 0L", () -> new TestCase(
+                List.of(new TypedData(0L, DataTypes.LONG, "lhs"), new TypedData(0L, DataTypes.LONG, "rhs")),
+                "DivLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.LONG,
+                equalTo(null)
+            ))
+
+
+
+
+            /*, new TestCaseSupplier("ULong / ULong", () -> {
             // Ensure we don't have an overflow
             long lhs = randomLong();
             long rhs;

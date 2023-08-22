@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Base class for function tests.  Tests based on this class will generally build out a single example evaluation,
@@ -235,6 +236,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
         Object result = toJavaObject(evaluator(expression).get().eval(row(testCase.getDataValues())), 0);
         assertThat(result, testCase.getMatcher());
+        assertThat(result, not(equalTo(Double.NaN)));
     }
 
     public final void testSimpleWithNulls() {

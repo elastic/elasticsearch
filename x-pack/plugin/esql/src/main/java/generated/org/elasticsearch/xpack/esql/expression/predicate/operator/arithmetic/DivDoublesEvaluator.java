@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -11,18 +12,23 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Div}.
  * This class is generated. Do not edit it.
  */
 public final class DivDoublesEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator lhs;
 
   private final EvalOperator.ExpressionEvaluator rhs;
 
-  public DivDoublesEvaluator(EvalOperator.ExpressionEvaluator lhs,
+  public DivDoublesEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       EvalOperator.ExpressionEvaluator rhs) {
+    this.warnings = new Warnings(source);
     this.lhs = lhs;
     this.rhs = rhs;
   }
@@ -47,7 +53,7 @@ public final class DivDoublesEvaluator implements EvalOperator.ExpressionEvaluat
     if (rhsVector == null) {
       return eval(page.getPositionCount(), lhsBlock, rhsBlock);
     }
-    return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
+    return eval(page.getPositionCount(), lhsVector, rhsVector);
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock lhsBlock, DoubleBlock rhsBlock) {
@@ -61,15 +67,25 @@ public final class DivDoublesEvaluator implements EvalOperator.ExpressionEvaluat
         result.appendNull();
         continue position;
       }
-      result.appendDouble(Div.processDoubles(lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p)), rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p))));
+      try {
+        result.appendDouble(Div.processDoubles(lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p)), rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p))));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }
 
-  public DoubleVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
+  public DoubleBlock eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
+    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
-      result.appendDouble(Div.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+      try {
+        result.appendDouble(Div.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }

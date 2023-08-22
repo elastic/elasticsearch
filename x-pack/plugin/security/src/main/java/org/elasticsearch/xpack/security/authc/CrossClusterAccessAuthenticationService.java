@@ -143,7 +143,7 @@ public class CrossClusterAccessAuthenticationService {
         }, e -> listener.onFailure(Exceptions.authenticationError("failed to authenticate cross cluster credentials", e))));
     }
 
-    public ApiKeyService.ApiKeyCredentials getApiKeyCredentialsFromHeaders(Map<String, String> headers) {
+    public ApiKeyService.ApiKeyCredentials extractApiKeyCredentialsFromHeaders(Map<String, String> headers) {
         try {
             apiKeyService.ensureEnabled();
             final String credentials = headers.get(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);

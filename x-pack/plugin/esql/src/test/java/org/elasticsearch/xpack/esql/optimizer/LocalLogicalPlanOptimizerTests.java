@@ -190,6 +190,66 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var source = as(limit.child(), EsRelation.class);
     }
 
+    /**
+     * Expects
+     * LocalRelation[[first_name{f}#4],EMPTY]
+     */
+    public void testMissingFieldInFilterNumericWithReference() {
+        var plan = plan("""
+              from test
+            | eval x = emp_no
+            | where x > 10
+            | keep first_name
+            """);
+
+        var testStats = statsForMissingField("emp_no");
+        var localPlan = localPlan(plan, testStats);
+
+        var local = as(localPlan, LocalRelation.class);
+        assertThat(Expressions.names(local.output()), contains("first_name"));
+    }
+
+    /**
+     * Expects
+     * LocalRelation[[first_name{f}#4],EMPTY]
+     */
+    public void testMissingFieldInFilterNumericWithReferenceToEval() {
+        var plan = plan("""
+              from test
+            | eval x = emp_no + 1
+            | where x > 10
+            | keep first_name
+            """);
+
+        var testStats = statsForMissingField("emp_no");
+        var localPlan = localPlan(plan, testStats);
+
+        var local = as(localPlan, LocalRelation.class);
+        assertThat(Expressions.names(local.output()), contains("first_name"));
+    }
+
+    /**
+     * Expects
+     * LocalRelation[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, languages{f}#8, last_name{f}#9, salary{f}#10, x
+     * {r}#3],EMPTY]
+     */
+    public void testMissingFieldInFilterNoProjection() {
+        var plan = plan("""
+              from test
+            | eval x = emp_no
+            | where x > 10
+            """);
+
+        var testStats = statsForMissingField("emp_no");
+        var localPlan = localPlan(plan, testStats);
+
+        var local = as(localPlan, LocalRelation.class);
+        assertThat(
+            Expressions.names(local.output()),
+            contains("_meta_field", "emp_no", "first_name", "gender", "languages", "last_name", "salary", "x")
+        );
+    }
+
     private LocalRelation asEmptyRelation(Object o) {
         var empty = as(o, LocalRelation.class);
         assertThat(empty.supplier(), is(LocalSupplier.EMPTY));

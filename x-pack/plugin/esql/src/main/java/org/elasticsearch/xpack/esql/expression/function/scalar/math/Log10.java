@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.util.List;
 import java.util.function.Function;
@@ -46,6 +47,9 @@ public class Log10 extends UnaryScalarFunction implements EvaluatorMapper {
         if (fieldType == DataTypes.LONG) {
             return () -> new Log10LongEvaluator(eval);
         }
+        if (fieldType == DataTypes.UNSIGNED_LONG) {
+            return () -> new Log10UnsignedLongEvaluator(eval);
+        }
 
         throw new UnsupportedOperationException("Unsupported type " + fieldType);
     }
@@ -58,6 +62,12 @@ public class Log10 extends UnaryScalarFunction implements EvaluatorMapper {
     @Evaluator(extraName = "Long")
     static double process(long val) {
         return Math.log10(val);
+    }
+
+    @Evaluator(extraName = "UnsignedLong")
+    static double processUnsignedLong(long val) {
+        Number ul = NumericUtils.unsignedLongAsNumber(val);
+        return Math.log10(ul.doubleValue());
     }
 
     @Evaluator(extraName = "Int")

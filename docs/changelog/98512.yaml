@@ -1,5 +1,5 @@
 pr: 98512
-summary: Automatically map floats as dense vector
+summary: Automatically map float arrays of lengths 128 - 2048 as dense_vector
 area: Application
 type: feature
 issues:

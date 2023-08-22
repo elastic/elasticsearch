@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -37,7 +38,7 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
-public class Round extends ScalarFunction implements OptionalArgument, Mappable {
+public class Round extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
 
     private final Expression field, decimals;
 
@@ -136,7 +137,7 @@ public class Round extends ScalarFunction implements OptionalArgument, Mappable 
 
     @Override
     public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
+        throw new EsqlUnsupportedOperationException("functions do not support scripting");
     }
 
     @Override
@@ -156,7 +157,7 @@ public class Round extends ScalarFunction implements OptionalArgument, Mappable 
         if (fieldType == DataTypes.UNSIGNED_LONG) {
             return toEvaluator(toEvaluator, Function.identity(), RoundUnsignedLongEvaluator::new);
         }
-        throw new UnsupportedOperationException();
+        throw EsqlUnsupportedOperationException.unsupportedDataType(fieldType);
     }
 
     private Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(

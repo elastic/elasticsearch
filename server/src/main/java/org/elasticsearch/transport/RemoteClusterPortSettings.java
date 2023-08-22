@@ -133,7 +133,7 @@ public class RemoteClusterPortSettings {
 
     public static final Setting<ByteSizeValue> MAX_HEADER_SIZE = Setting.byteSizeSetting(
         REMOTE_CLUSTER_PREFIX + "max_header_size",
-        new ByteSizeValue(16, ByteSizeUnit.KB),
+        new ByteSizeValue(1, ByteSizeUnit.MB),
         Setting.Property.NodeScope
     );
 

@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -40,8 +41,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
@@ -111,49 +110,55 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params unused) {
-        BytesRef scratch = new BytesRef();
-        final Iterator<ToXContent> valuesIt;
+        final BytesRef scratch = new BytesRef();
+        final Iterator<? extends ToXContent> valuesIt;
         if (pages.isEmpty()) {
             valuesIt = Collections.emptyIterator();
         } else if (columnar) {
-            valuesIt = IntStream.range(0, columns().size()).mapToObj(column -> {
-                Stream<ToXContent> values = pages.stream().flatMap(page -> {
-                    ColumnInfo.PositionToXContent toXContent = columns.get(column).positionToXContent(page.getBlock(column), scratch);
-                    return IntStream.range(0, page.getPositionCount())
-                        .mapToObj(position -> (builder, params) -> toXContent.positionToXContent(builder, params, position));
-                });
-                return Stream.concat(
-                    Stream.of((builder, params) -> builder.startArray()),
-                    Stream.concat(values, Stream.of((builder, params) -> builder.endArray()))
-                );
-            }).flatMap(Function.identity()).iterator();
+            valuesIt = Iterators.flatMap(
+                Iterators.forRange(
+                    0,
+                    columns().size(),
+                    column -> Iterators.concat(
+                        Iterators.single(((builder, params) -> builder.startArray())),
+                        Iterators.flatMap(pages.iterator(), page -> {
+                            ColumnInfo.PositionToXContent toXContent = columns.get(column)
+                                .positionToXContent(page.getBlock(column), scratch);
+                            return Iterators.forRange(
+                                0,
+                                page.getPositionCount(),
+                                position -> (builder, params) -> toXContent.positionToXContent(builder, params, position)
+                            );
+                        }),
+                        ChunkedToXContentHelper.endArray()
+                    )
+                ),
+                Function.identity()
+            );
         } else {
-            valuesIt = pages.stream().flatMap(page -> {
-                List<ColumnInfo.PositionToXContent> toXContents = IntStream.range(0, page.getBlockCount())
-                    .mapToObj(column -> columns.get(column).positionToXContent(page.getBlock(column), scratch))
-                    .toList();
-                return IntStream.range(0, page.getPositionCount()).mapToObj(position -> (ToXContent) (builder, params) -> {
+            valuesIt = Iterators.flatMap(pages.iterator(), page -> {
+                final int columnCount = columns.size();
+                assert page.getBlockCount() == columnCount;
+                final ColumnInfo.PositionToXContent[] toXContents = new ColumnInfo.PositionToXContent[columnCount];
+                for (int column = 0; column < columnCount; column++) {
+                    toXContents[column] = columns.get(column).positionToXContent(page.getBlock(column), scratch);
+                }
+                return Iterators.forRange(0, page.getPositionCount(), position -> (builder, params) -> {
                     builder.startArray();
-                    for (int c = 0; c < columns.size(); c++) {
-                        toXContents.get(c).positionToXContent(builder, params, position);
+                    for (int c = 0; c < columnCount; c++) {
+                        toXContents[c].positionToXContent(builder, params, position);
                     }
                     return builder.endArray();
                 });
-            }).iterator();
+            });
         }
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(), //
-            ChunkedToXContentHelper.singleChunk((builder, params) -> {
-                builder.startArray("columns");
-                for (ColumnInfo col : columns) {
-                    col.toXContent(builder, params);
-                }
-                builder.endArray();
-                return builder;
-            }),//
-            ChunkedToXContentHelper.array("values", valuesIt),//
-            ChunkedToXContentHelper.endObject()
-        );
+        return Iterators.concat(ChunkedToXContentHelper.startObject(), ChunkedToXContentHelper.singleChunk((builder, params) -> {
+            builder.startArray("columns");
+            for (ColumnInfo col : columns) {
+                col.toXContent(builder, params);
+            }
+            return builder.endArray();
+        }), ChunkedToXContentHelper.array("values", valuesIt), ChunkedToXContentHelper.endObject());
     }
 
     @Override
@@ -237,7 +242,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
-            default -> throw new UnsupportedOperationException("unsupported data type [" + dataType + "]");
+            default -> throw EsqlUnsupportedOperationException.unsupportedDataType(dataType);
         };
     }
 
@@ -270,7 +275,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                     case "boolean" -> ((BooleanBlock.Builder) builder).appendBoolean(((Boolean) value));
                     case "null" -> builder.appendNull();
                     case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(value.toString()).toBytesRef());
-                    default -> throw new UnsupportedOperationException("unsupported data type [" + dataTypes.get(c) + "]");
+                    default -> throw EsqlUnsupportedOperationException.unsupportedDataType(dataTypes.get(c));
                 }
             }
         }

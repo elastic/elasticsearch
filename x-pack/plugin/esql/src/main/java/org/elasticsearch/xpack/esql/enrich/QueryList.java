@@ -18,6 +18,8 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -96,8 +98,8 @@ abstract class QueryList {
                 yield longBlock::getLong;
             }
             case NULL -> offset -> null;
-            case DOC -> throw new UnsupportedOperationException("can't read values from doc block");
-            case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
+            case DOC -> throw new EsqlUnsupportedOperationException("can't read values from [doc] block");
+            case UNKNOWN -> throw new EsqlIllegalArgumentException("can't read values from [" + block + "]");
         };
     }
 }

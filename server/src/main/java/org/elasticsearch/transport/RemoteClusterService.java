@@ -308,13 +308,13 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         CountDownLatch latch = new CountDownLatch(1);
         updateRemoteCluster(clusterAlias, settings, ActionListener.runAfter(new ActionListener<>() {
             @Override
-            public void onResponse(Void o) {
-                logger.info("connected to new remote cluster [{}]", clusterAlias);
+            public void onResponse(RemoteClusterConnectionStatus status) {
+                logger.info("remote cluster connection [{}] updated: {}", clusterAlias, status);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> "connection to new remote cluster [" + clusterAlias + "] failed", e);
+                logger.warn(() -> "failed to update remote cluster connection [" + clusterAlias + "] failed", e);
             }
         }, latch::countDown));
 
@@ -323,7 +323,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             // are on the cluster state thread and our custom future implementation will throw an
             // assertion.
             if (latch.await(10, TimeUnit.SECONDS) == false) {
-                logger.warn("failed to connect to new remote cluster [{}] within {}", clusterAlias, TimeValue.timeValueSeconds(10));
+                logger.warn("failed to update remote cluster connection [{}] within {}", clusterAlias, TimeValue.timeValueSeconds(10));
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -337,7 +337,11 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @param newSettings the updated settings for the remote connection
      * @param listener a listener invoked once every configured cluster has been connected to
      */
-    synchronized void updateRemoteCluster(String clusterAlias, Settings newSettings, ActionListener<Void> listener) {
+    synchronized void updateRemoteCluster(
+        String clusterAlias,
+        Settings newSettings,
+        ActionListener<RemoteClusterConnectionStatus> listener
+    ) {
         if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
@@ -350,7 +354,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 logger.warn("failed to close remote cluster connections for cluster: " + clusterAlias, e);
             }
             remoteClusters.remove(clusterAlias);
-            listener.onResponse(null);
+            listener.onResponse(RemoteClusterConnectionStatus.DISCONNECTED);
             return;
         }
 
@@ -364,7 +368,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 credentialsProtectedRemoteClusters.contains(clusterAlias)
             );
             remoteClusters.put(clusterAlias, remote);
-            remote.ensureConnected(listener);
+            remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.CONNECTED));
         } else if (remote.shouldRebuildConnection(newSettings)) {
             // Changes to connection configuration. Must tear down existing connection
             try {
@@ -381,11 +385,18 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 credentialsProtectedRemoteClusters.contains(clusterAlias)
             );
             remoteClusters.put(clusterAlias, remote);
-            remote.ensureConnected(listener);
+            remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.RECONNECTED));
         } else {
             // No changes to connection configuration.
-            listener.onResponse(null);
+            listener.onResponse(RemoteClusterConnectionStatus.UNCHANGED);
         }
+    }
+
+    enum RemoteClusterConnectionStatus {
+        CONNECTED,
+        DISCONNECTED,
+        RECONNECTED,
+        UNCHANGED
     }
 
     /**
@@ -403,7 +414,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
         CountDownActionListener listener = new CountDownActionListener(enabledClusters.size(), future);
         for (String clusterAlias : enabledClusters) {
-            updateRemoteCluster(clusterAlias, settings, listener);
+            updateRemoteCluster(clusterAlias, settings, listener.map(ignored -> null));
         }
 
         if (enabledClusters.isEmpty()) {

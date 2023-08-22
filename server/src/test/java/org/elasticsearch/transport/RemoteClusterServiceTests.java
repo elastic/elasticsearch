@@ -676,7 +676,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
-    private ActionListener<Void> connectionListener(final CountDownLatch latch) {
+    private ActionListener<RemoteClusterService.RemoteClusterConnectionStatus> connectionListener(final CountDownLatch latch) {
         return ActionListener.wrap(x -> latch.countDown(), x -> fail());
     }
 

@@ -63,7 +63,8 @@
  *         an {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator} implementation
  *         calling the method annotated with {@link org.elasticsearch.compute.ann.Evaluator}.
  *     <li>
- *         Once your evaluator is generated you can implement {@link org.elasticsearch.xpack.esql.planner.Mappable#toEvaluator},
+ *         Once your evaluator is generated you can implement
+ *         {@link org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper#toEvaluator},
  *         having it return the generated evaluator.
  *     </li>
  *     <li>

@@ -321,6 +321,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private User tryAuthenticateWithCache(final String tokenPrincipal, final BytesArray jwtCacheKey) {
         final ExpiringUser expiringUser = jwtCache.get(jwtCacheKey);
         if (expiringUser == null) {
+            //TODO jwtCacheKey is a rg.elasticsearch.common.bytes.BytesArray@c3cac9b4
             logger.trace("Realm [" + name() + "] JWT cache miss token=[" + tokenPrincipal + "] key=[" + jwtCacheKey + "].");
         } else {
             final User user = expiringUser.user;

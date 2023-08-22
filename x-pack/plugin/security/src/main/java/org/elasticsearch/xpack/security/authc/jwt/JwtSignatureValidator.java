@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.crypto.ECDSAVerifier;
 import com.nimbusds.jose.crypto.MACVerifier;
@@ -17,6 +18,7 @@ import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.logging.log4j.LogManager;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
@@ -342,23 +345,28 @@ public interface JwtSignatureValidator extends Releasable {
      * @throws Exception Error if JWKs fail to validate the Signed JWT.
      */
     default void validateSignature(final SignedJWT jwt, final List<JWK> jwks) throws Exception {
+
         assert jwks != null : "Verify requires a non-null JWK list";
         if (jwks.isEmpty()) {
-            throw new ElasticsearchException("Verify requires a non-empty JWK list");
+            throw new ElasticsearchException("Signature verification was not attempted since there are not any JWKs available.");
         }
+
+        TraceBuffer tracer = new TraceBuffer(logger);
         final String id = jwt.getHeader().getKeyID();
         final JWSAlgorithm alg = jwt.getHeader().getAlgorithm();
-        logger.trace("JWKs [{}], JWT KID [{}], and JWT Algorithm [{}] before filters.", jwks.size(), id, alg.getName());
+
+        tracer.append("Validating signature for a JWT [{}] against [{}] possible JWKs. Filtering down possible JWKs...",
+            jwt.getParsedString(), jwks.size(), alg.getName());
 
         // If JWT has optional kid header, and realm JWKs have optional kid attribute, any mismatches JWT.kid vs JWK.kid can be ignored.
         // Keep any JWKs if JWK optional kid attribute is missing. Keep all JWKs if JWT optional kid header is missing.
         final List<JWK> jwksKid = jwks.stream().filter(j -> ((id == null) || (j.getKeyID() == null) || (id.equals(j.getKeyID())))).toList();
-        logger.trace("JWKs [{}] after KID [{}](|null) filter.", jwksKid.size(), id);
+        tracer.append("[{}] JWKs remain after filtering out for KID [{}].", jwksKid.size(), id);
 
         // JWT has mandatory alg header. If realm JWKs have optional alg attribute, any mismatches JWT.alg vs JWK.alg can be ignored.
         // Keep any JWKs if JWK optional alg attribute is missing.
         final List<JWK> jwksAlg = jwksKid.stream().filter(j -> (j.getAlgorithm() == null) || (alg.equals(j.getAlgorithm()))).toList();
-        logger.trace("JWKs [{}] after Algorithm [{}](|null) filter.", jwksAlg.size(), alg.getName());
+        tracer.append("[{}] JWKs remain after filtering out algorithm name [{}].", jwksAlg.size(), alg.getName());
 
         // PKC Example: Realm has five PKC JWKs RSA-2048, RSA-3072, EC-P256, EC-P384, and EC-P512. JWT alg allows ignoring some.
         // - If JWT alg is RS256, only RSA-2048 and RSA-3072 are valid for a JWT RS256 signature. Ignore three EC JWKs.
@@ -371,36 +379,49 @@ public interface JwtSignatureValidator extends Releasable {
         // - If JWT alg is HS384, only 384, 400, 512, and 1000 are valid for a JWT HS384 signature. Ignore two HMAC JWKs.
         // - If JWT alg is HS512, only 512 and 1000 are valid for a JWT HS512 signature. Ignore four HMAC JWKs.
         final List<JWK> jwksStrength = jwksAlg.stream().filter(j -> JwkValidateUtil.isMatch(j, alg.getName())).toList();
-        logger.debug("JWKs [{}] after Algorithm [{}] match filter.", jwksStrength.size(), alg);
+        tracer.append("[{}] JWKs remain after filtering out configured algorithms.", jwksStrength.size());
+        tracer.flush();
 
         // No JWKs passed the kid, alg, and strength checks, so nothing left to use in verifying the JWT signature
         if (jwksStrength.isEmpty()) {
-            throw new ElasticsearchException("Verify failed because all " + jwks.size() + " provided JWKs were filtered.");
+            throw new ElasticsearchException("Signature verification was not attempted since there are not any JWKs " +
+                "available after filtering out incompatible keys.");
         }
 
+        int attempt = 0;
+        int maxAttempts = jwksStrength.size();
+        //TODO: append JWT token here
+        tracer.append("Attempting to verify signature for JWT [{}].",  jwt.getParsedString());
         for (final JWK jwk : jwksStrength) {
+            attempt++;
             if (jwt.verify(createJwsVerifier(jwk))) {
-                logger.trace(
-                    "JWT signature validation succeeded with JWK kty=[{}], jwtAlg=[{}], jwtKid=[{}], use=[{}], ops=[{}]",
-                    jwk.getKeyType(),
-                    jwk.getAlgorithm(),
+                tracer.append(
+                    "Attempt [{}/{}] -> JWT signature verification succeeded with kid=[{}], alg=[{}], kty=[{}], use=[{}], key_ops=[{}]",
+                    attempt,
+                    maxAttempts,
                     jwk.getKeyID(),
+                    jwk.getAlgorithm(),
+                    jwk.getKeyType(),
                     jwk.getKeyUse(),
                     jwk.getKeyOperations()
                 );
+                tracer.flush();
                 return;
             } else {
-                logger.trace(
-                    "JWT signature validation failed with JWK kty=[{}], jwtAlg=[{}], jwtKid=[{}], use=[{}], ops={}",
-                    jwk.getKeyType(),
-                    jwk.getAlgorithm(),
+                tracer.append(
+                    "Attempt [{}/{}] -> JWT signature verification failed with kid=[{}], alg=[{}], kty=[{}], use=[{}], key_ops=[{}]",
+                    attempt,
+                    maxAttempts,
                     jwk.getKeyID(),
+                    jwk.getAlgorithm(),
+                    jwk.getKeyType(),
                     jwk.getKeyUse(),
-                    jwk.getKeyOperations() == null ? "[null]" : jwk.getKeyOperations()
+                    jwk.getKeyOperations()
                 );
             }
         }
-
+        tracer.flush();
+//TODO: fix this message
         throw new ElasticsearchException("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
     }
 
@@ -428,4 +449,32 @@ public interface JwtSignatureValidator extends Releasable {
     interface PkcJwkSetReloadNotifier {
         void reloaded();
     }
+
+    /**
+     * Helper class to consolidate multiple trace level statements to a single trace statement with lazy evaluation.
+     * If trace level is not enabled, then no work is performed. This class is not threadsafe.
+     */
+     class TraceBuffer {
+        private final Logger logger;
+        List<Object> params = new ArrayList<>();
+        StringBuilder builder = new StringBuilder();
+
+        public TraceBuffer(Logger logger){
+            this.logger = logger;
+        }
+        public void append(String s, Object... args) {
+            if (logger.isTraceEnabled()) {
+                builder.append(s).append(" ");
+                params.addAll(Arrays.asList(args));
+            }
+        }
+        public void flush(){
+            if (logger.isTraceEnabled()) {
+                logger.trace(builder.toString(), params.toArray());
+                params = new ArrayList<>();
+                builder = new StringBuilder();
+            }
+        }
+    }
+
 }

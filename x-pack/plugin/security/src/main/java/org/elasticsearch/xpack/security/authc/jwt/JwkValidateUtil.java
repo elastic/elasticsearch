@@ -30,6 +30,7 @@ import java.security.PublicKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -51,8 +52,10 @@ public class JwkValidateUtil {
         final List<JWK> jwksVerify = jwksSig.stream().filter(keyOpPredicate).toList();
         LOGGER.trace("JWKs [" + jwksVerify.size() + " after KeyOperation [VERIFY||null] filter.");
 
+        //TODO: understand why this is filtering out oct... i think because the default is on RSA for allowed_signature_algorithms
         final List<JWK> jwksFiltered = jwksVerify.stream().filter(j -> (algs.stream().anyMatch(a -> isMatch(j, a)))).toList();
         LOGGER.trace("JWKs [" + jwksFiltered.size() + "] after Algorithms [" + String.join(",", algs) + "] filter.");
+
 
         final List<String> algsFiltered = algs.stream().filter(a -> (jwksFiltered.stream().anyMatch(j -> isMatch(j, a)))).toList();
         LOGGER.trace("Algorithms [" + String.join(",", algsFiltered) + "] after remaining JWKs [" + jwksFiltered.size() + "] filter.");
@@ -70,6 +73,7 @@ public class JwkValidateUtil {
      */
     static boolean isMatch(final JWK jwk, final String algorithm) {
         try {
+            //TODO: use tracebuffer
             if ((JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(algorithm)) && (jwk instanceof OctetSequenceKey jwkHmac)) {
                 final int bits = jwkHmac.size();
                 final int min = MACSigner.getMinRequiredSecretLength(JWSAlgorithm.parse(algorithm));
@@ -96,7 +100,7 @@ public class JwkValidateUtil {
                 return isMatch;
             }
         } catch (Exception e) {
-            LOGGER.trace("Unexpected exception", e);
+            LOGGER.debug("Unexpected exception while matching JWK with kid [{}] to it's algorithm requirement.", jwk.getKeyID(), e);
         }
         return false;
     }

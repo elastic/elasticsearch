@@ -28,6 +28,11 @@ public final class ContentPath {
         this.sb = new StringBuilder();
     }
 
+    String[] getPath() {
+        // used for testing
+        return path;
+    }
+
     public void add(String name) {
         path[index++] = name;
         if (index == path.length) { // expand if needed

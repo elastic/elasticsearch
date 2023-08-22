@@ -21,7 +21,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -52,7 +51,6 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     protected static final String REMOTE_CLUSTER_ALIAS = "my_remote_cluster";
 
     protected static LocalClusterConfigProvider commonClusterConfig = cluster -> cluster.module("analysis-common")
-        .feature(FeatureFlag.NEW_RCS_MODE)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.authc.token.enabled", "true")
@@ -242,9 +240,9 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         return targetFulfillingClusterClient.performRequest(request);
     }
 
-    // TODO centralize common usage of this across all tests
     protected static String randomEncodedApiKey() {
-        return Base64.getEncoder().encodeToString((UUIDs.base64UUID() + ":" + UUIDs.base64UUID()).getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder()
+            .encodeToString((UUIDs.base64UUID() + ":" + UUIDs.randomBase64UUIDSecureString()).getBytes(StandardCharsets.UTF_8));
     }
 
     protected record TestClusterConfigProviders(LocalClusterConfigProvider server, LocalClusterConfigProvider client) {}

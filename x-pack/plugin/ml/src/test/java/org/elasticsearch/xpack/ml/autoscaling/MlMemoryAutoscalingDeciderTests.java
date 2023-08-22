@@ -1063,7 +1063,9 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             3,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
@@ -1075,12 +1077,14 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             1,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build()
                 ),
                 withMlNodes("ml_node_1", "ml_node_2"),
-                Settings.EMPTY
+                1
             )
         );
         assertTrue(
@@ -1095,7 +1099,9 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             3,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
@@ -1107,12 +1113,14 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             1,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build()
                 ),
                 withMlNodes("ml_node_1", "ml_node_2"),
-                Settings.EMPTY
+                1
             )
         );
         assertFalse(
@@ -1127,7 +1135,9 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             3,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
@@ -1139,12 +1149,14 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             1,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build()
                 ),
                 withMlNodes("ml_node_1", "ml_node_2", "ml_node_3", "ml_node_4"),
-                Settings.EMPTY
+                1
             )
         );
     }
@@ -1240,7 +1252,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         DeciderContext deciderContext = new DeciderContext(clusterState, autoscalingCapacity);
         MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(clusterState);
 
-        MlMemoryAutoscalingCapacity result = decider.scale(settings, deciderContext, mlAutoscalingContext);
+        MlMemoryAutoscalingCapacity result = decider.scale(settings, deciderContext, mlAutoscalingContext, 1);
         assertThat(result.reason(), containsString("but the number in the queue is less than the configured maximum allowed"));
         assertThat(result.nodeSize(), equalTo(ByteSizeValue.ofGb(1)));
         assertThat(result.tierSize(), equalTo(ByteSizeValue.ofGb(1)));
@@ -1269,7 +1281,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         DeciderContext deciderContext = new DeciderContext(clusterState, AutoscalingCapacity.ZERO);
         MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(clusterState);
 
-        MlMemoryAutoscalingCapacity result = decider.scale(settings, deciderContext, mlAutoscalingContext);
+        MlMemoryAutoscalingCapacity result = decider.scale(settings, deciderContext, mlAutoscalingContext, 1);
         assertThat(
             result.reason(),
             containsString(

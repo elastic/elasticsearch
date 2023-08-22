@@ -230,7 +230,7 @@ public class CircleProcessorTests extends ESTestCase {
             w.addDocument(doc);
 
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.search(sameShapeQuery, 1).totalHits.value, equalTo(1L));
                 assertThat(searcher.search(pointOnDatelineQuery, 1).totalHits.value, equalTo(1L));
             }
@@ -266,7 +266,7 @@ public class CircleProcessorTests extends ESTestCase {
             w.addDocument(doc);
 
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.search(sameShapeQuery, 1).totalHits.value, equalTo(1L));
                 assertThat(searcher.search(centerPointQuery, 1).totalHits.value, equalTo(1L));
             }

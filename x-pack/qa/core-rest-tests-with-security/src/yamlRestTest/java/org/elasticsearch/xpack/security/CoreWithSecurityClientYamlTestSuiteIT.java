@@ -46,7 +46,6 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .user(USER, PASS)
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.DATA_STREAM_LIFECYCLE_ENABLED)
         .build();
 
     public CoreWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

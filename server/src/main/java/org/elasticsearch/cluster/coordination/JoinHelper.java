@@ -41,7 +41,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -302,7 +301,7 @@ public class JoinHelper {
                                         }
 
                                         @Override
-                                        public void handleResponse(TransportResponse.Empty response) {
+                                        public void handleResponse() {
                                             pendingJoinInfo.message = PENDING_JOIN_WAITING_STATE; // only logged if state delayed
                                             pendingOutgoingJoins.remove(dedupKey);
                                             logger.debug("successfully joined {} with {}", destination, joinRequest);
@@ -364,7 +363,7 @@ public class JoinHelper {
             }
 
             @Override
-            public void handleResponse(TransportResponse.Empty response) {
+            public void handleResponse() {
                 logger.debug("successful response to {} from {}", startJoinRequest, destination);
             }
 

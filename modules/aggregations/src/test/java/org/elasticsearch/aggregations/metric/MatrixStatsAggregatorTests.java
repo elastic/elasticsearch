@@ -33,7 +33,7 @@ public class MatrixStatsAggregatorTests extends AggregationTestCase {
                 indexWriter.addDocument(Collections.singleton(new StringField("another_field", "value", Field.Store.NO)));
             }
             try (IndexReader reader = indexWriter.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg").fields(
                     Collections.singletonList("field")
                 );
@@ -52,7 +52,7 @@ public class MatrixStatsAggregatorTests extends AggregationTestCase {
                 indexWriter.addDocument(Collections.singleton(new StringField("another_field", "value", Field.Store.NO)));
             }
             try (IndexReader reader = indexWriter.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg").fields(
                     Collections.singletonList("bogus")
                 );
@@ -87,7 +87,7 @@ public class MatrixStatsAggregatorTests extends AggregationTestCase {
             MultiPassStats multiPassStats = new MultiPassStats(fieldA, fieldB);
             multiPassStats.computeStats(Arrays.asList(fieldAValues), Arrays.asList(fieldBValues));
             try (IndexReader reader = indexWriter.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg").fields(
                     Arrays.asList(fieldA, fieldB)
                 );

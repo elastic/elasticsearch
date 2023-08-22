@@ -10,7 +10,6 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -51,9 +50,7 @@ public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
 
         getRequest.local(request.paramAsBoolean("local", getRequest.local()));
         getRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRequest.masterNodeTimeout()));
-        if (DataStreamLifecycle.isFeatureEnabled()) {
-            getRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
-        }
+        getRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         final boolean implicitAll = getRequest.name() == null;
 
         return channel -> client.execute(GetComposableIndexTemplateAction.INSTANCE, getRequest, new RestToXContentListener<>(channel) {

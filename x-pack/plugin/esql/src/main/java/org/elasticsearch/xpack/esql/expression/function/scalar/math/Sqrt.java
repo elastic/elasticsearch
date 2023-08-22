@@ -66,8 +66,7 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
 
     @Evaluator(extraName = "UnsignedLong")
     static double processUnsignedLong(long val) {
-        Number ul = NumericUtils.unsignedLongAsNumber(val);
-        return Math.sqrt(ul.doubleValue());
+        return Math.sqrt(NumericUtils.unsignedLongToDouble(val));
     }
 
     @Evaluator(extraName = "Int")

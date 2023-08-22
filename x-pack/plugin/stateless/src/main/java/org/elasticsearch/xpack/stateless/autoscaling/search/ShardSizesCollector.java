@@ -63,6 +63,14 @@ public class ShardSizesCollector implements ClusterStateListener {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Integer> SEARCH_POWER_SETTING = Setting.intSetting(
+        "serverless.search.search_power",
+        100,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<TimeValue> PUSH_INTERVAL_SETTING = Setting.timeSetting(
         "serverless.autoscaling.search_metrics.push_interval",
         TimeValue.timeValueSeconds(30),

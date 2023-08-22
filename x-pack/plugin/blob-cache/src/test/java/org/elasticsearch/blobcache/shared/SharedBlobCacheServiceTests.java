@@ -95,8 +95,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 (channel, channelPos, relativePos, length) -> 1,
                 (channel, channelPos, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
                 taskQueue.getThreadPool().generic(),
-                bytesReadFuture,
-                e -> {}
+                bytesReadFuture
             );
             synchronized (cacheService) {
                 assertFalse(region0.tryEvict());
@@ -382,17 +381,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertTrue(latch.await(10, TimeUnit.SECONDS));
                 assertEquals(2, cacheService.freeRegionCount());
                 assertEquals(3, bulkTaskCount.get());
-            }
-            {
-                // A cancelled download should not take up space in the cache
-                final var cacheKey = generateCacheKey();
-                assertEquals(2, cacheService.freeRegionCount());
-                cacheService.maybeFetchFullEntry(
-                    cacheKey,
-                    size(200),
-                    (ch, chPos, relPos, len, updater) -> { throw new RuntimeException("cancelled"); }
-                );
-                assertBusy(() -> assertEquals(2, cacheService.freeRegionCount()));
             }
             {
                 // a download that would use up all regions should not run

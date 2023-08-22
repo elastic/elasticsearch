@@ -55,7 +55,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -475,19 +474,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 (channel, pos, relativePos, len) -> 0,
                 writer,
                 bulkIOExecutor,
-                ActionListener.noop(),
-                e -> {
-                    // if an exception is thrown during download then evict the entry
-                    // if the entry already exists then the writer won't be called so we shouldn't
-                    // evict already existing chunks
-                    synchronized (this) {
-                        boolean evicted = entry.chunk.tryEvict();
-                        if (evicted && entry.chunk.io != null) {
-                            unlink(entry);
-                            keyMapping.remove(entry.chunk.regionKey, entry);
-                        }
-                    }
-                }
+                ActionListener.noop()
             );
         }
         return true;
@@ -910,8 +897,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer,
             final Executor executor,
-            final ActionListener<Integer> listener,
-            final Consumer<Exception> writeErrorHandler
+            final ActionListener<Integer> listener
         ) {
             Releasable resource = null;
             try {
@@ -945,19 +931,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 );
 
                 if (gaps.isEmpty() == false) {
-                    fillGaps(executor, writer, gaps, writeErrorHandler);
+                    fillGaps(executor, writer, gaps);
                 }
             } catch (Exception e) {
                 releaseAndFail(listener, resource, e);
             }
         }
 
-        private void fillGaps(
-            Executor executor,
-            RangeMissingHandler writer,
-            List<SparseFileTracker.Gap> gaps,
-            Consumer<Exception> writeErrorHandler
-        ) {
+        private void fillGaps(Executor executor, RangeMissingHandler writer, List<SparseFileTracker.Gap> gaps) {
             for (SparseFileTracker.Gap gap : gaps) {
                 executor.execute(new AbstractRunnable() {
 
@@ -983,7 +964,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     @Override
                     public void onFailure(Exception e) {
                         gap.onFailure(e);
-                        writeErrorHandler.accept(e);
                     }
                 });
             }
@@ -1088,8 +1068,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 readerWithOffset(reader, fileRegion, rangeToRead.start() - regionStart),
                 writerWithOffset(writer, fileRegion, rangeToWrite.start() - regionStart),
                 ioExecutor,
-                readFuture,
-                e -> {}
+                readFuture
             );
             return readFuture.get();
         }
@@ -1119,8 +1098,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         readerWithOffset(reader, fileRegion, rangeToRead.start() - regionStart),
                         writerWithOffset(writer, fileRegion, rangeToWrite.start() - regionStart),
                         ioExecutor,
-                        listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j))),
-                        e -> {}
+                        listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j)))
                     );
                 }
             }

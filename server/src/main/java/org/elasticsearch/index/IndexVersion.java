@@ -318,13 +318,13 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     }
 
     public static IndexVersion getMinimumCompatibleIndexVersion(int versionId) {
-        int major = versionId % 1_000_000;
-        if (major == IndexVersion.current().id() % 1_000_000) {
+        int major = versionId / 1_000_000;
+        if (major == IndexVersion.current().id() / 1_000_000) {
             // same compatibility version as current
             return IndexVersion.MINIMUM_COMPATIBLE;
         } else {
             int compatId = (major-1) * 1_000_000;
-            if (compatId <= 8) compatId += 99;
+            if (major <= 8) compatId += 99;
             return IndexVersion.fromId(compatId);
         }
     }

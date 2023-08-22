@@ -10,7 +10,7 @@ package org.elasticsearch.indices;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.RoutingNodesHelper;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -29,7 +29,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.MockIndexEventListener;
-import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -51,8 +50,8 @@ import static org.elasticsearch.index.shard.IndexShardState.RECOVERING;
 import static org.elasticsearch.index.shard.IndexShardState.STARTED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndicesLifecycleListenerIT extends ESIntegTestCase {
@@ -99,8 +98,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
             fail("should have thrown an exception during creation");
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
-            ClusterStateResponse resp = clusterAdmin().prepareState().get();
-            assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
+            assertFalse(clusterAdmin().prepareState().get().getState().routingTable().hasIndex("failed"));
         }
     }
 
@@ -122,10 +120,13 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
             });
         clusterAdmin().prepareReroute().add(new MoveAllocationCommand("index1", 0, node1, node2)).get();
         ensureGreen("index1");
-        ClusterState state = clusterAdmin().prepareState().get().getState();
-        List<ShardRouting> shard = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
-        assertThat(shard, hasSize(1));
-        assertThat(state.nodes().resolveNode(shard.get(0).currentNodeId()).getName(), Matchers.equalTo(node1));
+
+        var state = clusterAdmin().prepareState().get().getState();
+        logger.info("Final routing is {}", state.getRoutingNodes().toString());
+        var shard = findShard(state, "index1");
+        assertThat(shard, notNullValue());
+        assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(findNodeById(state, shard.currentNodeId()).getName(), equalTo(node1));
     }
 
     public void testRelocationFailureNotRetriedForever() {
@@ -143,6 +144,21 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         }
         updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", node1), "index1");
         ensureGreen("index1");
+
+        var state = clusterAdmin().prepareState().get().getState();
+        logger.info("Final routing is {}", state.getRoutingNodes().toString());
+        var shard = findShard(state, "index1");
+        assertThat(shard, notNullValue());
+        assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(findNodeById(state, shard.currentNodeId()).getName(), equalTo(node1));
+    }
+
+    private static ShardRouting findShard(ClusterState state, String name) {
+        return state.routingTable().index(name).shard(0).primaryShard();
+    }
+
+    private static DiscoveryNode findNodeById(ClusterState state, String id) {
+        return state.nodes().get(id);
     }
 
     public void testIndexStateShardChanged() throws Throwable {

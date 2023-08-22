@@ -163,6 +163,21 @@ public class SecurityNetty4Transport extends Netty4Transport {
     }
 
     @Override
+    protected Bootstrap getClientBootstrap(ConnectionProfile connectionProfile) {
+        final Bootstrap bootstrap = super.getClientBootstrap(connectionProfile);
+        if (false == REMOTE_CLUSTER_PROFILE.equals(connectionProfile.getTransportProfile())
+                || remoteClusterClientBootstrapOptions.isEmpty()) {
+            return bootstrap;
+        }
+
+        logger.trace("reconfiguring client bootstrap for remote cluster client connection");
+        // Only client connections to a new RCS remote cluster can have transport profile of _remote_cluster
+        // All other client connections use the default transport profile regardless of the transport profile used on the server side.
+        remoteClusterClientBootstrapOptions.configure(bootstrap);
+        return bootstrap;
+    }
+
+    @Override
     public void onException(TcpChannel channel, Exception e) {
         exceptionHandler.accept(channel, e);
     }

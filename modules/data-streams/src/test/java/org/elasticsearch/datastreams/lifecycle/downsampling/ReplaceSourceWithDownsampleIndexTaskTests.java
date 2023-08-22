@@ -25,7 +25,9 @@ import org.junit.Before;
 
 import java.util.Locale;
 
+import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.createDataStream;
+import static org.elasticsearch.datastreams.lifecycle.downsampling.ReplaceSourceWithDownsampleIndexTask.REPLACEMENT_SOURCE_INDEX;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -179,6 +181,12 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
 
         IndexMetadata downsampleMeta = newState.metadata().index(downsampleIndex);
         assertThat(IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING.get(downsampleMeta.getSettings()), is(rolloverInfo.getTime()));
+        // the donwsample index contains metadata to remember the index we downsampled from
+        assertThat(downsampleMeta.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY), is(notNullValue()));
+        assertThat(
+            downsampleMeta.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY).get(REPLACEMENT_SOURCE_INDEX),
+            is(sourceIndexAbstraction.getName())
+        );
     }
 
     public void testSourceIndexIsNotPartOfDSAnymore() {

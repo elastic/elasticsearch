@@ -146,7 +146,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         }
     }
 
-    public void testTryAuthenticateCredentialsHeaderSuccess() throws IOException {
+    public void testTryAuthenticateSuccess() throws IOException {
         final String encodedCrossClusterAccessApiKey = getEncodedCrossClusterAccessApiKey();
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
@@ -162,7 +162,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
                 Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, encodedCrossClusterAccessApiKey)
             );
             final ApiKeyService.ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
-            service.tryAuthenticateCredentialsHeader(credentials, future);
+            service.tryAuthenticate(credentials, future);
             future.actionGet();
         }
     }
@@ -213,7 +213,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
 
     }
 
-    public void testTryAuthenticateCredentialsHeaderFailure() throws IOException {
+    public void testTryAuthenticateFailure() throws IOException {
         final EncodedKeyWithId encodedCrossClusterAccessApiKeyWithId = getEncodedCrossClusterAccessApiKeyWithId();
         final EncodedKeyWithId encodedRestApiKeyWithId = getEncodedRestApiKeyWithId();
         final String nodeName = internalCluster().getRandomNodeName();
@@ -230,7 +230,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             );
             final ApiKeyService.ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            service.tryAuthenticateCredentialsHeader(credentials, future);
+            service.tryAuthenticate(credentials, future);
             final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
             assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
             assertThat(
@@ -254,7 +254,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             );
             final ApiKeyService.ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            service.tryAuthenticateCredentialsHeader(credentials, future);
+            service.tryAuthenticate(credentials, future);
             final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
             assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
             assertThat(actualException.getCause().getMessage(), containsString("invalid credentials for API key"));
@@ -271,7 +271,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             );
             final ApiKeyService.ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            service.tryAuthenticateCredentialsHeader(credentials, future);
+            service.tryAuthenticate(credentials, future);
             final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
             assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
             assertThat(actualException.getCause().getMessage(), containsString("unable to find apikey with id"));

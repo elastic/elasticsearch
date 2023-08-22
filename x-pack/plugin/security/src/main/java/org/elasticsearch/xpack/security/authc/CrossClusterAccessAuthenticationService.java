@@ -112,7 +112,7 @@ public class CrossClusterAccessAuthenticationService {
         }
     }
 
-    public void tryAuthenticateCredentialsHeader(ApiKeyService.ApiKeyCredentials credentials, ActionListener<Void> listener) {
+    public void tryAuthenticate(ApiKeyService.ApiKeyCredentials credentials, ActionListener<Void> listener) {
         Objects.requireNonNull(credentials);
         apiKeyService.tryAuthenticate(clusterService.threadPool().getThreadContext(), credentials, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {
@@ -152,7 +152,7 @@ public class CrossClusterAccessAuthenticationService {
             }
             return CrossClusterAccessHeaders.parseCredentialsHeader(credentials);
         } catch (Exception ex) {
-            throw Exceptions.authenticationError("failed to parse cross cluster credentials header", ex);
+            throw Exceptions.authenticationError("failed to extract cross cluster credentials header", ex);
         }
     }
 

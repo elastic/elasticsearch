@@ -13,6 +13,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
@@ -38,6 +39,9 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_
  * the lucene data structures and mappings to be dynamically created as the outcome of parsing a document.
  */
 public abstract class DocumentParserContext {
+
+    public static final IndexVersion DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION = IndexVersion.V_8_11_0;
+
     /**
      * Wraps a given context while allowing to override some of its behaviour by re-implementing some of the non final methods
      */
@@ -537,38 +541,37 @@ public abstract class DocumentParserContext {
     }
 
     public void postProcessDynamicMappers() {
-        List<Mapper> postProcessedMappers = new ArrayList<>();
+        if (indexSettings().getIndexVersionCreated().onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
+            List<Mapper> postProcessedMappers = new ArrayList<>();
 
-        Map<String, Long> dynamicDenseVectorFieldNameToDimCount = dynamicMappers.stream()
-            .filter(subClassObj -> subClassObj instanceof NumberFieldMapper)
-            .map(NumberFieldMapper.class::cast)
-            .filter(m -> "float".equals(m.typeName()))
-            .collect(Collectors.groupingBy(FieldMapper::name, Collectors.counting()))
-            .entrySet()
-            .stream()
-            .filter(e -> e.getValue() >= MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING && e.getValue() <= MAX_DIMS_COUNT)
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            Map<String, Long> dynamicDenseVectorFieldNameToDimCount = dynamicMappers.stream()
+                .filter(subClassObj -> subClassObj instanceof NumberFieldMapper)
+                .map(NumberFieldMapper.class::cast)
+                .filter(m -> "float".equals(m.typeName()))
+                .collect(Collectors.groupingBy(FieldMapper::name, Collectors.counting()))
+                .entrySet()
+                .stream()
+                .filter(e -> e.getValue() >= MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING && e.getValue() <= MAX_DIMS_COUNT)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        if (dynamicDenseVectorFieldNameToDimCount.isEmpty()) {
-            return;
-        }
-
-        for (Mapper mapper : dynamicMappers) {
-            if (dynamicDenseVectorFieldNameToDimCount.containsKey(mapper.name())) {
-                int size = dynamicDenseVectorFieldNameToDimCount.get(mapper.name()).intValue();
-                DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
-                    mapper.name(),
-                    indexSettings().getIndexVersionCreated(),
-                    size
-                );
-
-                DenseVectorFieldMapper denseVectorFieldMapper = builder.build(createDynamicMapperBuilderContext());
-                postProcessedMappers.add(denseVectorFieldMapper);
-            } else {
-                postProcessedMappers.add(mapper);
+            if (dynamicDenseVectorFieldNameToDimCount.isEmpty()) {
+                return;
             }
+
+            for (Mapper mapper : dynamicMappers) {
+                if (dynamicDenseVectorFieldNameToDimCount.containsKey(mapper.name())) {
+                    int size = dynamicDenseVectorFieldNameToDimCount.get(mapper.name()).intValue();
+                    DenseVectorFieldMapper.Builder builder =
+                        new DenseVectorFieldMapper.Builder(mapper.name(), indexSettings().getIndexVersionCreated(), size);
+
+                    DenseVectorFieldMapper denseVectorFieldMapper = builder.build(createDynamicMapperBuilderContext());
+                    postProcessedMappers.add(denseVectorFieldMapper);
+                } else {
+                    postProcessedMappers.add(mapper);
+                }
+            }
+            dynamicMappers = postProcessedMappers;
         }
-        dynamicMappers = postProcessedMappers;
     }
 
     // XContentParser that wraps an existing parser positioned on a value,

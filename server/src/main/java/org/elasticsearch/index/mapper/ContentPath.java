@@ -8,6 +8,11 @@
 
 package org.elasticsearch.index.mapper;
 
+/**
+ * This class represents a content path that can be used to track elements and field names within a structure.
+ * It provides methods for adding, removing, and generating paths and dotted field names.
+ * The path and dotted field name is built using a delimiter to separate elements.
+ */
 public final class ContentPath {
 
     private static final char DELIMITER = '.';
@@ -38,6 +43,11 @@ public final class ContentPath {
         return dottedFieldName;
     }
 
+    /**
+     * Adds a new element to the content path.
+     *
+     * @param name The name of the element to be added.
+     */
     public void add(String name) {
         path[index++] = name;
         if (index == path.length) { // expand if needed
@@ -45,6 +55,11 @@ public final class ContentPath {
         }
     }
 
+    /**
+     * Adds a new dotted field name to the content path.
+     *
+     * @param name The dotted field name to be added.
+     */
     public void addDottedFieldName(String name) {
         dottedFieldName[dottedFieldNameIndex++] = name;
         if (dottedFieldNameIndex == dottedFieldName.length) {
@@ -64,24 +79,48 @@ public final class ContentPath {
         dottedFieldName = newDottedFieldName;
     }
 
+    /**
+     * Removes the last element from the content path and returns it.
+     *
+     * @return The removed element from the content path.
+     */
     public String remove() {
         String removedPath = path[--index];
         path[index] = null;
         return removedPath;
     }
 
+    /**
+     * Removes the last dotted field name from the content path.
+     */
     public void removeDottedFieldName() {
         dottedFieldName[--dottedFieldNameIndex] = null;
     }
 
+    /**
+     * Sets whether the current position is within a leaf object.
+     *
+     * @param withinLeafObject Whether the current position is within a leaf object.
+     */
     public void setWithinLeafObject(boolean withinLeafObject) {
         this.withinLeafObject = withinLeafObject;
     }
 
+    /**
+     * Checks if the current position is within a leaf object.
+     *
+     * @return {@code true} if the current position is within a leaf object, {@code false} otherwise.
+     */
     public boolean isWithinLeafObject() {
         return withinLeafObject;
     }
 
+    /**
+     * Generates the content path as text, appending the provided name.
+     *
+     * @param name The name to append to the content path.
+     * @return The content path as text.
+     */
     public String pathAsText(String name) {
         sb.setLength(0);
         for (int i = 0; i < index; i++) {
@@ -91,6 +130,12 @@ public final class ContentPath {
         return sb.toString();
     }
 
+    /**
+     * Generates a dotted field name, appending the provided name.
+     *
+     * @param name The name to append to the dotted field name.
+     * @return The dotted field name.
+     */
     public String dottedFieldName(String name) {
         sb.setLength(0);
         for (int i = 0; i < dottedFieldNameIndex; i++) {
@@ -100,10 +145,20 @@ public final class ContentPath {
         return sb.toString();
     }
 
+    /**
+     * Returns the number of elements in the content path.
+     *
+     * @return The length of the content path.
+     */
     public int length() {
         return index;
     }
 
+    /**
+     * Returns the number of elements in the dotted field name.
+     *
+     * @return The length of the dotted field name.
+     */
     public int dottedFieldNamelength() {
         return dottedFieldNameIndex;
     }

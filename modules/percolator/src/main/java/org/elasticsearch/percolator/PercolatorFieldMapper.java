@@ -395,6 +395,11 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean supportsParsingObject() {
+        return true;
+    }
+
+    @Override
     public void parse(DocumentParserContext context) throws IOException {
         SearchExecutionContext executionContext = this.searchExecutionContext.get();
         if (context.doc().getField(queryBuilderField.name()) != null) {

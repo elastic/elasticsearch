@@ -35,6 +35,10 @@ public class EsqlUnsupportedOperationException extends QlServerException {
         super(cause);
     }
 
+    public static EsqlUnsupportedOperationException methodNotImplemented() {
+        return new EsqlUnsupportedOperationException("method not implemented");
+    }
+
     public static EsqlUnsupportedOperationException unsupportedDataType(DataType dataType) {
         return EsqlUnsupportedOperationException.unsupportedDataType(dataType.typeName());
     }

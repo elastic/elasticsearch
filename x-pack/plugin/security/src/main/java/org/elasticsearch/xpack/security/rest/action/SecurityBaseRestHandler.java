@@ -46,8 +46,7 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
     protected final RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final Exception failedFeature = checkFeatureAvailable();
         if (failedFeature == null) {
-            RestChannelConsumer consumer = innerPrepareRequest(request, client);
-            return consumer;
+            return innerPrepareRequest(request, client);
         } else {
             request.params().keySet().forEach(key -> request.param(key, ""));
             request.content();

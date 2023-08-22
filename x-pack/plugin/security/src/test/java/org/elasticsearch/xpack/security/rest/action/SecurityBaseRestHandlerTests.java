@@ -28,7 +28,7 @@ import static org.mockito.Mockito.when;
 
 public class SecurityBaseRestHandlerTests extends ESTestCase {
 
-    public void testSecurityBaseRestHandlerChecksLicenseStateBeforePreparingRequest() throws Exception {
+    public void testSecurityBaseRestHandlerChecksFeatureAvailableBeforePreparingRequest() throws Exception {
         final boolean securityEnabled = randomBoolean();
         Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), securityEnabled).build();
         final AtomicBoolean consumerCalled = new AtomicBoolean(false);

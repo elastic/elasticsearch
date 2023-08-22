@@ -76,7 +76,7 @@ public class Div extends EsqlArithmeticOperation implements BinaryComparisonInve
         return asLongUnsigned(Long.divideUnsigned(asLongUnsigned(lhs), asLongUnsigned(rhs)));
     }
 
-    @Evaluator(extraName = "Doubles", warnExceptions = {ArithmeticException.class})
+    @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
     static double processDoubles(double lhs, double rhs) {
         if (rhs == 0) {
             throw new ArithmeticException("Division by zero");

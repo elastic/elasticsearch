@@ -12,11 +12,13 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -31,7 +33,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
@@ -251,10 +252,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         service.tryAuthenticateCredentialsHeader(
-            Map.of(
-                CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY,
-                CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader()
-            ),
+            new ApiKeyService.ApiKeyCredentials(UUIDs.randomBase64UUID(), UUIDs.randomBase64UUIDSecureString(), ApiKey.Type.CROSS_CLUSTER),
             future
         );
         Exception ex = new IllegalArgumentException("terminator");

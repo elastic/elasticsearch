@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.support.Exceptions;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -111,27 +112,11 @@ public class CrossClusterAccessAuthenticationService {
         }
     }
 
-    public void tryAuthenticateCredentialsHeader(Map<String, String> headers, ActionListener<Void> listener) {
-        doTryAuthenticateCredentialsHeader(clusterService.threadPool().getThreadContext(), headers, listener);
-    }
-
-    // visibility for testing
-    public void doTryAuthenticateCredentialsHeader(
-        ThreadContext threadContext,
-        Map<String, String> headers,
-        ActionListener<Void> listener
-    ) {
-        final ApiKeyService.ApiKeyCredentials apiKeyCredentials;
-        try {
-            apiKeyCredentials = getApiKeyCredentialsFromHeaders(headers);
-        } catch (Exception ex) {
-            listener.onFailure(Exceptions.authenticationError("failed to parse cross cluster credentials header", ex));
-            return;
-        }
-
-        apiKeyService.tryAuthenticate(threadContext, apiKeyCredentials, ActionListener.wrap(authResult -> {
+    public void tryAuthenticateCredentialsHeader(ApiKeyService.ApiKeyCredentials credentials, ActionListener<Void> listener) {
+        Objects.requireNonNull(credentials);
+        apiKeyService.tryAuthenticate(clusterService.threadPool().getThreadContext(), credentials, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {
-                logger.trace("Cross cluster credentials authentication successful for [{}]", apiKeyCredentials.principal());
+                logger.trace("Cross cluster credentials authentication successful for [{}]", credentials.principal());
                 listener.onResponse(null);
                 return;
             }
@@ -158,13 +143,17 @@ public class CrossClusterAccessAuthenticationService {
         }, e -> listener.onFailure(Exceptions.authenticationError("failed to authenticate cross cluster credentials", e))));
     }
 
-    private ApiKeyService.ApiKeyCredentials getApiKeyCredentialsFromHeaders(Map<String, String> headers) {
-        apiKeyService.ensureEnabled();
-        final String credentials = headers.get(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
-        if (credentials == null) {
-            throw requiredHeaderMissingException(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
+    public ApiKeyService.ApiKeyCredentials getApiKeyCredentialsFromHeaders(Map<String, String> headers) {
+        try {
+            apiKeyService.ensureEnabled();
+            final String credentials = headers.get(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
+            if (credentials == null) {
+                throw requiredHeaderMissingException(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
+            }
+            return CrossClusterAccessHeaders.parseCredentialsHeader(credentials);
+        } catch (Exception ex) {
+            throw Exceptions.authenticationError("failed to parse cross cluster credentials header", ex);
         }
-        return CrossClusterAccessHeaders.parseCredentialsHeader(credentials);
     }
 
     public static IllegalArgumentException requiredHeaderMissingException(String headerKey) {

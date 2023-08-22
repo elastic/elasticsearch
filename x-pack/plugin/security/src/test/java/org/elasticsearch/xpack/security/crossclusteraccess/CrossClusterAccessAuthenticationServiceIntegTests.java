@@ -158,15 +158,59 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         try (var ignored = threadContext.stashContext()) {
             addRandomizedHeaders(threadContext, encodedCrossClusterAccessApiKey);
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            service.doTryAuthenticateCredentialsHeader(
-                threadContext,
-                withRandomizedAdditionalSecurityHeaders(
-                    Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, encodedCrossClusterAccessApiKey)
-                ),
-                future
+            Map<String, String> headers = withRandomizedAdditionalSecurityHeaders(
+                Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, encodedCrossClusterAccessApiKey)
             );
+            final ApiKeyService.ApiKeyCredentials credentials = service.getApiKeyCredentialsFromHeaders(headers);
+            service.tryAuthenticateCredentialsHeader(credentials, future);
             future.actionGet();
         }
+    }
+
+    public void testGetApiKeyCredentialsFromHeaders() {
+        final String nodeName = internalCluster().getRandomNodeName();
+        final CrossClusterAccessAuthenticationService service = internalCluster().getInstance(
+            CrossClusterAccessAuthenticationService.class,
+            nodeName
+        );
+
+        {
+            ElasticsearchSecurityException ex = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> service.getApiKeyCredentialsFromHeaders(withRandomizedAdditionalSecurityHeaders(Map.of()))
+            );
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(
+                ex.getCause().getMessage(),
+                containsString(
+                    "Cross cluster requests through the dedicated remote cluster server port require transport header ["
+                        + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY
+                        + "] but none found. "
+                        + "Please ensure you have configured remote cluster credentials on the cluster originating the request."
+                )
+            );
+        }
+
+        {
+            ElasticsearchSecurityException ex = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> service.getApiKeyCredentialsFromHeaders(
+                    withRandomizedAdditionalSecurityHeaders(
+                        Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, ApiKeyService.withApiKeyPrefix("abc"))
+                    )
+                )
+            );
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(
+                ex.getCause().getMessage(),
+                containsString(
+                    "cross cluster access header ["
+                        + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY
+                        + "] value must be a valid API key credential"
+                )
+            );
+        }
+
     }
 
     public void testTryAuthenticateCredentialsHeaderFailure() throws IOException {
@@ -181,48 +225,12 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
 
         try (var ignored = threadContext.stashContext()) {
             addRandomizedHeaders(threadContext, encodedCrossClusterAccessApiKeyWithId.encoded);
-            tryAuthenticateAndAssertExpectedErrorMessage(
-                service,
-                threadContext,
-                withRandomizedAdditionalSecurityHeaders(Map.of()),
-                msg -> assertThat(
-                    msg,
-                    containsString(
-                        "Cross cluster requests through the dedicated remote cluster server port require transport header ["
-                            + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY
-                            + "] but none found. "
-                            + "Please ensure you have configured remote cluster credentials on the cluster originating the request."
-                    )
-                )
-            );
-        }
-
-        try (var ignored = threadContext.stashContext()) {
-            addRandomizedHeaders(threadContext, encodedCrossClusterAccessApiKeyWithId.encoded);
-            tryAuthenticateAndAssertExpectedErrorMessage(
-                service,
-                threadContext,
-                withRandomizedAdditionalSecurityHeaders(
-                    Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, ApiKeyService.withApiKeyPrefix("abc"))
-                ),
-                msg -> assertThat(
-                    msg,
-                    containsString(
-                        "cross cluster access header ["
-                            + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY
-                            + "] value must be a valid API key credential"
-                    )
-                )
-            );
-        }
-
-        try (var ignored = threadContext.stashContext()) {
-            addRandomizedHeaders(threadContext, encodedCrossClusterAccessApiKeyWithId.encoded);
-            Map<String, String> headers = withRandomizedAdditionalSecurityHeaders(
+            final Map<String, String> headers = withRandomizedAdditionalSecurityHeaders(
                 Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, encodedRestApiKeyWithId.encoded)
             );
+            final ApiKeyService.ApiKeyCredentials credentials = service.getApiKeyCredentialsFromHeaders(headers);
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            service.doTryAuthenticateCredentialsHeader(threadContext, headers, future);
+            service.tryAuthenticateCredentialsHeader(credentials, future);
             final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
             assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
             assertThat(
@@ -235,13 +243,35 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             addRandomizedHeaders(threadContext, encodedCrossClusterAccessApiKeyWithId.encoded);
             final String wrongApiKeyWithCorrectId = ApiKeyService.withApiKeyPrefix(
                 Base64.getEncoder()
-                    .encodeToString((UUIDs.base64UUID() + ":" + UUIDs.randomBase64UUIDSecureString()).getBytes(StandardCharsets.UTF_8))
+                    .encodeToString(
+                        (encodedCrossClusterAccessApiKeyWithId.id + ":" + UUIDs.randomBase64UUIDSecureString()).getBytes(
+                            StandardCharsets.UTF_8
+                        )
+                    )
             );
-            Map<String, String> headers = withRandomizedAdditionalSecurityHeaders(
+            final Map<String, String> headers = withRandomizedAdditionalSecurityHeaders(
                 Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, wrongApiKeyWithCorrectId)
             );
+            final ApiKeyService.ApiKeyCredentials credentials = service.getApiKeyCredentialsFromHeaders(headers);
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            service.doTryAuthenticateCredentialsHeader(threadContext, headers, future);
+            service.tryAuthenticateCredentialsHeader(credentials, future);
+            final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
+            assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
+            assertThat(actualException.getCause().getMessage(), containsString("invalid credentials for API key"));
+        }
+
+        try (var ignored = threadContext.stashContext()) {
+            addRandomizedHeaders(threadContext, encodedCrossClusterAccessApiKeyWithId.encoded);
+            final String wrongApiKey = ApiKeyService.withApiKeyPrefix(
+                Base64.getEncoder()
+                    .encodeToString((UUIDs.base64UUID() + ":" + UUIDs.randomBase64UUIDSecureString()).getBytes(StandardCharsets.UTF_8))
+            );
+            final Map<String, String> headers = withRandomizedAdditionalSecurityHeaders(
+                Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, wrongApiKey)
+            );
+            final ApiKeyService.ApiKeyCredentials credentials = service.getApiKeyCredentialsFromHeaders(headers);
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            service.tryAuthenticateCredentialsHeader(credentials, future);
             final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
             assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
             assertThat(actualException.getCause().getMessage(), containsString("unable to find apikey with id"));
@@ -338,17 +368,4 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         errorMessageAssertion.accept(actualException.getCause().getCause().getMessage());
     }
 
-    private void tryAuthenticateAndAssertExpectedErrorMessage(
-        CrossClusterAccessAuthenticationService service,
-        ThreadContext threadContext,
-        Map<String, String> headers,
-        Consumer<String> errorMessageAssertion
-    ) {
-        final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        service.doTryAuthenticateCredentialsHeader(threadContext, headers, future);
-        final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
-        assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
-        assertThat(actualException.getCause().getCause(), instanceOf(IllegalArgumentException.class));
-        errorMessageAssertion.accept(actualException.getCause().getCause().getMessage());
-    }
 }

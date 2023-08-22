@@ -525,7 +525,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         }
         {
             // chunked response
-            channel.sendResponse(new RestResponse(RestStatus.OK, new ChunkedRestResponseBody() {
+            channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBody() {
 
                 @Override
                 public boolean isDone() {
@@ -710,7 +710,7 @@ public class DefaultRestChannelTests extends ESTestCase {
                 Level.TRACE,
                 "[" + request.getRequestId() + "] response body",
                 ReferenceDocs.HTTP_TRACER,
-                () -> channel.sendResponse(new RestResponse(RestStatus.OK, new ChunkedRestResponseBody() {
+                () -> channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBody() {
 
                     boolean isDone;
 

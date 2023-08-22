@@ -62,7 +62,7 @@ public class RestTable {
         final List<Integer> rowOrder = getRowOrder(table, channel.request());
         final List<DisplayHeader> displayHeaders = buildDisplayHeaders(table, request);
 
-        return new RestResponse(
+        return RestResponse.chunked(
             RestStatus.OK,
             ChunkedRestResponseBody.fromXContent(
                 ignored -> Iterators.concat(
@@ -96,7 +96,7 @@ public class RestTable {
             return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
         }
 
-        return new RestResponse(
+        return RestResponse.chunked(
             RestStatus.OK,
             ChunkedRestResponseBody.fromTextChunks(
                 RestResponse.TEXT_CONTENT_TYPE,

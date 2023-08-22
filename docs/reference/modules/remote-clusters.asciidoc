@@ -9,9 +9,10 @@ with {ccr} or searched by a local cluster using {ccs}.
 [discrete]
 === {ccr-cap}
 
-With <<xpack-ccr,{ccr}>>, you ingest data to an index on a remote cluster. This 
-_leader_ index is replicated to one or more read-only _follower_ indices on your local cluster. Creating a multi-cluster architecture with {ccr} enables you to 
-configure disaster recovery, bring data closer to your users, or establish a 
+With <<xpack-ccr,{ccr}>>, you ingest data to an index on a remote cluster. This
+_leader_ index is replicated to one or more read-only _follower_ indices on your
+local cluster. Creating a multi-cluster architecture with {ccr} enables you to
+configure disaster recovery, bring data closer to your users, or establish a
 centralized reporting cluster to process reports locally.
 
 [[remote-clusters-ccs]]
@@ -42,7 +43,7 @@ Uses mutual TLS authentication for cross-cluster operations. User authentication
 is performed on the local cluster and a user's role names are passed to the 
 remote cluster. In this model, a superuser on the local cluster gains total read
 access to the remote cluster, so it is only suitable for clusters that are in
-the same security domain <<remote-clusters-cert>>.
+the same security domain. <<remote-clusters-cert>>.
 
 [[sniff-proxy-modes]]
 [discrete]
@@ -66,25 +67,7 @@ Sniff mode is the default connection mode.
 The _gateway nodes_ selection depends on the following criteria:
 
 * *version*: Remote nodes must be compatible with the cluster they are
-registered to:
-** Any node can communicate with another node on the same
-major version. For example, 7.0 can talk to any 7.x node.
-** Only nodes on the last minor version of a certain major version can
-communicate with nodes on the following major version. In the 6.x series, 6.8
-can communicate with any 7.x node, while 6.7 can only communicate with 7.0.
-** Version compatibility is
-symmetric, meaning that if 6.7 can communicate with 7.0, 7.0 can also
-communicate with 6.7. The following table depicts version compatibility between
-local and remote nodes.
-+
-[%collapsible%open]
-.Version compatibility table
-====
-include::remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
-====
-
-IMPORTANT: Elastic only supports {ccs} on a subset of these configurations. See
-<<ccs-supported-configurations>>.
+registered to.
 
 * *role*: By default, any non-<<master-node,master-eligible>> node can act as a
 gateway node. Dedicated master nodes are never selected as gateway nodes.
@@ -104,21 +87,10 @@ nodes to have accessible publish addresses.
 
 The proxy mode is not the default connection mode and must be configured.
 Proxy mode has the same <<gateway-nodes-selection, version compatibility
-requirements>> as sniff mode. 
-
-[%collapsible]
-[[proxy-mode-version-compatibility]]
-.Version compatibility matrix
-====
-include::remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
-====
-
-IMPORTANT: Elastic only supports {ccs} on a subset of these configurations. See
-<<ccs-supported-configurations>>.
+requirements>> as sniff mode.
 
 include::cluster/remote-clusters-api-key.asciidoc[]
 
 include::cluster/remote-clusters-cert.asciidoc[]
-
 
 include::cluster/remote-clusters-settings.asciidoc[]

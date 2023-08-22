@@ -41,18 +41,21 @@ other side, based on the TLS trust configuration.
 
 To add a remote cluster using API key authentication:
 
+. <<remote-clusters-prerequisites-api-key,Review the prerequisites>>
 . <<remote-clusters-security-api-key>>
 . <<remote-clusters-connect-api-key>>
 . <<remote-clusters-privileges-api-key>>
 
-[[remote-clusters-security-api-key]]
-==== Establish trust with a remote cluster
+[[remote-clusters-prerequisites-api-key]]
+==== Prerequisites
 
-=====  Prerequisite
-
-The {es} security features need to be enabled on both clusters, on every node.
+. The {es} security features need to be enabled on both clusters, on every node.
 Security is enabled by default. If it's disabled, set `xpack.security.enabled`
 to `true` in `elasticsearch.yml`. Refer to <<general-security-settings>>.
+. The nodes of the local and remote clusters must be on version 8.10 or later.
+
+[[remote-clusters-security-api-key]]
+==== Establish trust with a remote cluster
 
 ===== On the remote cluster
 

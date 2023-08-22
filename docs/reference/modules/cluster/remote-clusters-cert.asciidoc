@@ -3,9 +3,36 @@
 
 To add a remote cluster using TLS certificate authentication:
 
+. <<remote-clusters-prerequisites-cert,Review the prerequisites>>
 . <<remote-clusters-security-cert>>
 . <<remote-clusters-connect-cert>>
 . <<remote-clusters-privileges-cert>>
+
+[[remote-clusters-prerequisites-cert]]
+==== Prerequisites
+
+. The {es} security features need to be enabled on both clusters, on every node.
+Security is enabled by default. If it's disabled, set `xpack.security.enabled`
+to `true` in `elasticsearch.yml`. Refer to <<general-security-settings>>.
+. The local and remote clusters versions must be compatible.
+** Any node can communicate with another node on the same
+major version. For example, 7.0 can talk to any 7.x node.
+** Only nodes on the last minor version of a certain major version can
+communicate with nodes on the following major version. In the 6.x series, 6.8
+can communicate with any 7.x node, while 6.7 can only communicate with 7.0.
+** Version compatibility is
+symmetric, meaning that if 6.7 can communicate with 7.0, 7.0 can also
+communicate with 6.7. The following table depicts version compatibility between
+local and remote nodes.
++
+[%collapsible%open]
+.Version compatibility table
+====
+include::../remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
+====
++
+IMPORTANT: Elastic only supports {ccs} on a subset of these configurations. See
+<<ccs-supported-configurations>>.
 
 [[remote-clusters-security-cert]]
 ==== Establish trust with a remote cluster
@@ -24,17 +51,13 @@ nodes will verify certificates from nodes on the other side. This mutual trust
 is required to securely connect a remote cluster, because all connected nodes
 effectively form a single security domain.
 
-User authentication is performed on the local cluster and the user and user’s 
-roles names are passed to the remote clusters. A remote cluster checks the user’s
-role names against its local role definitions to determine which indices the user is 
-allowed to access.
+User authentication is performed on the local cluster and the user and user’s
+roles names are passed to the remote clusters. A remote cluster checks the
+user’s role names against its local role definitions to determine which indices
+the user is allowed to access.
 
 Before using {ccr} or {ccs} with secured {es} clusters, complete the following 
-configuration tasks:
-
-. Enable the {es} {security-features} on every node in each connected cluster by
-setting `xpack.security.enabled` to `true` in `elasticsearch.yml`. Refer to the
-<<general-security-settings,{es} security settings>>.
+configuration task:
 
 . Configure Transport Layer Security (TLS) on every node to encrypt internode
 traffic and authenticate nodes in the local cluster with nodes in all remote
@@ -47,17 +70,6 @@ Alternatively, you can add the certificates from the local cluster as a
 trusted CA in each remote cluster. You must also add the certificates from
 remote clusters as a trusted CA on the local cluster. Using the same CA to
 generate certificates for all nodes simplifies this task.
-
-After enabling and configuring security, you can 
-<<remote-clusters-connect,connect remote clusters>> from a local cluster.
-
-With your clusters connected, you'll need to 
-<<remote-clusters-privileges,configure users and privileges>> on both the local
-and remote clusters.
-
-If you're configuring a remote cluster for {ccr}, you need to 
-<<ccr-getting-started-follower-index,configure a follower index>> on your local
-cluster to replicate the leader index on a remote cluster.
 
 [[remote-clusters-connect-cert]]
 ==== Connect to a remote cluster

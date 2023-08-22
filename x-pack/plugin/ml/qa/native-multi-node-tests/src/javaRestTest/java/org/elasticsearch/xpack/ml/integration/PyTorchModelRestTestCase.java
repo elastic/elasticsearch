@@ -289,14 +289,15 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
     protected void stopDeployment(String modelId, boolean force, boolean waitForCompletion) throws IOException {
         String endpoint = "/_ml/trained_models/" + modelId + "/deployment/_stop";
 
-        Request request = new Request("POST", endpoint);
         if (force) {
-            request.addParameter("force", "true");
+            // request.addParameter("force", "true");
+            endpoint += "?force=true";
         }
+        Request request = new Request("POST", endpoint);
 
-        if (waitForCompletion) {
-            request.addParameter("wait_for_completion", "true");
-        }
+        // if (waitForCompletion) {
+        // request.addParameter("wait_for_completion", "true");
+        // }
 
         client().performRequest(request);
     }

@@ -696,7 +696,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         /**
          * @return {@code true} if there are already ongoing uploads, so we should not proceed with the operation
          */
-        private boolean checkPreexistingUploads() {
+        private boolean hasPreexistingUploads() {
             final var uploads = listMultipartUploads();
             if (uploads.isEmpty()) {
                 return false;
@@ -727,7 +727,13 @@ class S3BlobContainer extends AbstractBlobContainer {
         void run(BytesReference expected, BytesReference updated, ActionListener<OptionalBytesReference> listener) throws Exception {
             BlobContainerUtils.ensureValidRegisterContent(updated);
 
-            if (checkPreexistingUploads()) {
+            if (hasPreexistingUploads()) {
+
+                // This is a small optimization to improve the liveness properties of this algorithm.
+                //
+                // We can safely proceed even if there are other uploads in progress, but that would add to the potential for collisions and
+                // delays. Thus in this case we prefer avoid disturbing the ongoing attempts and just fail up front.
+
                 listener.onResponse(OptionalBytesReference.MISSING);
                 return;
             }

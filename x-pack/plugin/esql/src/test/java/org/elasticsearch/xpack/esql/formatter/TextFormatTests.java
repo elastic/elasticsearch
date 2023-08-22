@@ -28,6 +28,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.RestResponseUtils.getTextBodyContent;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.TSV;
@@ -64,17 +65,17 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testCsvFormatWithEmptyData() {
-        String text = format(CSV, req(), emptyData());
+        String text = getTextBodyContent(CSV.format(req(), emptyData()));
         assertEquals("name\r\n", text);
     }
 
     public void testTsvFormatWithEmptyData() {
-        String text = format(TSV, req(), emptyData());
+        String text = getTextBodyContent(TSV.format(req(), emptyData()));
         assertEquals("name\n", text);
     }
 
     public void testCsvFormatWithRegularData() {
-        String text = format(CSV, req(), regularData());
+        String text = getTextBodyContent(CSV.format(req(), regularData()));
         assertEquals("""
             string,number\r
             Along The River Bank,708\r
@@ -83,7 +84,7 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testCsvFormatNoHeaderWithRegularData() {
-        String text = format(CSV, reqWithParam("header", "absent"), regularData());
+        String text = getTextBodyContent(CSV.format(reqWithParam("header", "absent"), regularData()));
         assertEquals("""
             Along The River Bank,708\r
             Mind Train,280\r
@@ -93,7 +94,7 @@ public class TextFormatTests extends ESTestCase {
     public void testCsvFormatWithCustomDelimiterRegularData() {
         Set<Character> forbidden = Set.of('"', '\r', '\n', '\t');
         Character delim = randomValueOtherThanMany(forbidden::contains, () -> randomAlphaOfLength(1).charAt(0));
-        String text = format(CSV, reqWithParam("delimiter", String.valueOf(delim)), regularData());
+        String text = getTextBodyContent(CSV.format(reqWithParam("delimiter", String.valueOf(delim)), regularData()));
         List<String> terms = Arrays.asList("string", "number", "Along The River Bank", "708", "Mind Train", "280");
         List<String> expectedTerms = terms.stream()
             .map(x -> x.contains(String.valueOf(delim)) ? '"' + x + '"' : x)
@@ -109,7 +110,7 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testTsvFormatWithRegularData() {
-        String text = format(TSV, req(), regularData());
+        String text = getTextBodyContent(TSV.format(req(), regularData()));
         assertEquals("""
             string\tnumber
             Along The River Bank\t708
@@ -118,7 +119,7 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testCsvFormatWithEscapedData() {
-        String text = format(CSV, req(), escapedData());
+        String text = getTextBodyContent(CSV.format(req(), escapedData()));
         assertEquals("""
             first,""\"special""\"\r
             normal,""\"quo""ted"",
@@ -130,7 +131,7 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testCsvFormatWithCustomDelimiterEscapedData() {
-        String text = format(CSV, reqWithParam("delimiter", "\\"), escapedData());
+        String text = getTextBodyContent(CSV.format(reqWithParam("delimiter", "\\"), escapedData()));
         assertEquals("""
             first\\""\"special""\"\r
             normal\\""\"quo""ted"",
@@ -142,7 +143,7 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testTsvFormatWithEscapedData() {
-        String text = format(TSV, req(), escapedData());
+        String text = getTextBodyContent(TSV.format(req(), escapedData()));
         assertEquals("""
             first\t"special"
             normal\t"quo"ted",\\n
@@ -154,7 +155,10 @@ public class TextFormatTests extends ESTestCase {
         List<String> invalid = Arrays.asList("\"", "\r", "\n", "\t", "", "ab");
 
         for (String c : invalid) {
-            Exception e = expectThrows(IllegalArgumentException.class, () -> format(CSV, reqWithParam("delimiter", c), emptyData()));
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> getTextBodyContent(CSV.format(reqWithParam("delimiter", c), emptyData()))
+            );
             String msg;
             if (c.length() == 1) {
                 msg = c.equals("\t")
@@ -171,11 +175,14 @@ public class TextFormatTests extends ESTestCase {
         assertEquals("""
                  name     \s
             ---------------
-            """, format(PLAIN_TEXT, req(), emptyData()));
+            """, getTextBodyContent(PLAIN_TEXT.format(req(), emptyData())));
     }
 
     public void testPlainTextEmptyCursorWithoutColumns() {
-        assertEquals(StringUtils.EMPTY, PLAIN_TEXT.format(req(), new EsqlQueryResponse(emptyList(), emptyList(), false)));
+        assertEquals(
+            StringUtils.EMPTY,
+            getTextBodyContent(PLAIN_TEXT.format(req(), new EsqlQueryResponse(emptyList(), emptyList(), false)))
+        );
     }
 
     private static EsqlQueryResponse emptyData() {
@@ -224,9 +231,5 @@ public class TextFormatTests extends ESTestCase {
 
     private static RestRequest reqWithParam(String paramName, String paramVal) {
         return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(singletonMap(paramName, paramVal)).build();
-    }
-
-    private String format(TextFormat format, RestRequest request, EsqlQueryResponse response) {
-        return format.format(request, response);
     }
 }

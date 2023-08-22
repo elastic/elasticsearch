@@ -146,6 +146,11 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean supportsParsingObject() {
+        return true;
+    }
+
+    @Override
     public void parse(DocumentParserContext context) throws IOException {
 
         if (context.parser().currentToken() != Token.START_OBJECT) {

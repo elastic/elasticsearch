@@ -24,15 +24,15 @@ import static org.junit.Assert.assertThat;
  *   - exists:  get.fields.bar
  *
  */
-public class ExistAssertion extends Assertion {
+public class ExistsAssertion extends Assertion {
 
-    private static final Logger logger = LogManager.getLogger(IsTrueAssertion.class);
+    private static final Logger logger = LogManager.getLogger(ExistsAssertion.class);
 
-    public static ExistAssertion parse(XContentParser parser) throws IOException {
-        return new ExistAssertion(parser.getTokenLocation(), ParserUtils.parseField(parser));
+    public static ExistsAssertion parse(XContentParser parser) throws IOException {
+        return new ExistsAssertion(parser.getTokenLocation(), ParserUtils.parseField(parser));
     }
 
-    public ExistAssertion(XContentLocation location, String field) {
+    public ExistsAssertion(XContentLocation location, String field) {
         super(location, field, true);
     }
 
@@ -44,6 +44,6 @@ public class ExistAssertion extends Assertion {
     }
 
     private String errorMessage() {
-        return "field [" + getField() + "] does not exists";
+        return "field [" + getField() + "] does not exist";
     }
 }

@@ -175,7 +175,7 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
     public void testExists() throws IOException {
         parser = createParser(YamlXContent.yamlXContent, "get.fields._timestamp");
 
-        ExistAssertion trueAssertion = ExistAssertion.parse(parser);
+        ExistsAssertion trueAssertion = ExistsAssertion.parse(parser);
 
         assertThat(trueAssertion, notNullValue());
         assertThat(trueAssertion.getField(), equalTo("get.fields._timestamp"));

@@ -25,7 +25,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -197,12 +196,12 @@ public class ListTasksResponse extends BaseTasksResponse {
                     task.toXContent(builder, params);
                     builder.endObject();
                     return builder;
-                }), Iterators.<ToXContent>single((builder, params) -> {
+                }), Iterators.single((builder, params) -> {
                     builder.endObject();
                     builder.endObject();
                     return builder;
                 }));
-            }), Iterators.<ToXContent>single((builder, params) -> {
+            }), Iterators.single((builder, params) -> {
                 builder.endObject();
                 builder.endObject();
                 return builder;

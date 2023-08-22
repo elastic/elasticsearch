@@ -48,7 +48,7 @@ public final class LicenseUtils {
             "Current license is non-compliant for "
                 + product.getName()
                 + ". Current license is {}. "
-                + " This feature requires an active trial, platinum or enterprise license.",
+                + "This feature requires an active trial, platinum or enterprise license.",
             RestStatus.FORBIDDEN,
             licenseStatus
         );

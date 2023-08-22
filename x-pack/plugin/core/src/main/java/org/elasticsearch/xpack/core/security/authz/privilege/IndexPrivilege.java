@@ -30,7 +30,6 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.search.SearchShardsAction;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
@@ -211,7 +210,7 @@ public final class IndexPrivilege extends Privilege {
             entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
             entry("manage_leader_index", MANAGE_LEADER_INDEX),
             entry("manage_ilm", MANAGE_ILM),
-            DataStreamLifecycle.isFeatureEnabled() ? entry("manage_data_stream_lifecycle", MANAGE_DATA_STREAM_LIFECYCLE) : null,
+            entry("manage_data_stream_lifecycle", MANAGE_DATA_STREAM_LIFECYCLE),
             entry("maintenance", MAINTENANCE),
             entry("auto_configure", AUTO_CONFIGURE),
             entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION),

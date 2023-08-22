@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
@@ -127,6 +128,22 @@ public class StatelessSettingsTests extends ESTestCase {
             );
             assertThat(exception.getMessage(), equalTo("cluster.routing.allocation.disk.threshold_enabled cannot be enabled"));
         }
+    }
+
+    public void testDiskUsageBalanceFactorSettingIsZeroForStateless() {
+        var statelessNode = new Stateless(
+            Settings.builder()
+                .put(Stateless.STATELESS_ENABLED.getKey(), true)
+                .put(
+                    NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                    randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()
+                )
+                .build()
+        );
+        assertThat(
+            statelessNode.additionalSettings().get(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey()),
+            equalTo("0")
+        );
     }
 
     private static Settings statelessSettings(Collection<DiscoveryNodeRole> roles) {

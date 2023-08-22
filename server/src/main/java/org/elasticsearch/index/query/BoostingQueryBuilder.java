@@ -229,6 +229,12 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     }
 
     @Override
+    public void addFilterQuery(QueryBuilder prefilter) {
+        positiveQuery.addFilterQuery(prefilter);
+        negativeQuery.addFilterQuery(prefilter);
+    }
+
+    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }

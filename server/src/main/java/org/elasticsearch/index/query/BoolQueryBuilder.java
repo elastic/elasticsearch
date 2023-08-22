@@ -389,6 +389,17 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
     }
 
+    @Override
+    public void addFilterQuery(QueryBuilder prefilter) {
+        List<QueryBuilder> clauses = new ArrayList<>(filter());
+        clauses.addAll(must());
+        clauses.addAll(should());
+        clauses.addAll(mustNot());
+        for (QueryBuilder clause : clauses) {
+            clause.addFilterQuery(prefilter);
+        }
+    }
+
     private static boolean rewriteClauses(
         QueryRewriteContext queryRewriteContext,
         List<QueryBuilder> builders,

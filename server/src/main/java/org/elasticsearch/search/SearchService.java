@@ -1252,6 +1252,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         QueryBuilder query = source.query();
         if (query != null) {
             InnerHitContextBuilder.extractInnerHits(query, innerHitBuilders);
+            // apply alias filter to as preFilter to queries that need it (e.g. knn)
+            QueryBuilder aliasFilter = context.request().getAliasFilter().getQueryBuilder();
+            if (aliasFilter != null) {
+                query.addFilterQuery(aliasFilter);
+            }
             context.parsedQuery(searchExecutionContext.toQuery(query));
         }
         if (source.postFilter() != null) {

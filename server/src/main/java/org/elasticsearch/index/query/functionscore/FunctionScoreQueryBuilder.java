@@ -432,6 +432,11 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         InnerHitContextBuilder.extractInnerHits(query(), innerHits);
     }
 
+    @Override
+    public void addFilterQuery(QueryBuilder prefilter) {
+        query().addFilterQuery(prefilter);
+    }
+
     public static FunctionScoreQueryBuilder fromXContent(XContentParser parser) throws IOException {
         QueryBuilder query = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;

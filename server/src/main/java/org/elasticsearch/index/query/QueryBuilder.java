@@ -66,4 +66,13 @@ public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject,
     default QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         return this;
     }
+
+    /**
+     * Add a prefilter query to this query
+     *
+     * Some queries (e.g. knn) need to know filters before execution for prefiltering.
+     *
+     * @param prefilter - prefilter
+     */
+    default void addFilterQuery(QueryBuilder prefilter) {}
 }

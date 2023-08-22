@@ -312,6 +312,11 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     }
 
     @Override
+    public void addFilterQuery(QueryBuilder prefilter) {
+        query.addFilterQuery(prefilter);
+    }
+
+    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }

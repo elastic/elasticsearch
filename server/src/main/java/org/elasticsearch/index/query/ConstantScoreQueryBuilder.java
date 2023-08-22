@@ -160,6 +160,11 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     }
 
     @Override
+    public void addFilterQuery(QueryBuilder prefilter) {
+        filterBuilder.addFilterQuery(prefilter);
+    }
+
+    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }

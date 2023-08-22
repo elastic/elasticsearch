@@ -201,6 +201,11 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
     }
 
     @Override
+    public void addFilterQuery(QueryBuilder prefilter) {
+        query.addFilterQuery(prefilter);
+    }
+
+    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }

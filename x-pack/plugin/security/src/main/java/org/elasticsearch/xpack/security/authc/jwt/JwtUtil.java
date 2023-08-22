@@ -54,6 +54,10 @@ import java.security.MessageDigest;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Supplier;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
@@ -338,5 +342,35 @@ public class JwtUtil {
         final MessageDigest messageDigest = MessageDigests.sha256();
         messageDigest.update(charSequence.toString().getBytes(StandardCharsets.UTF_8));
         return messageDigest.digest();
+    }
+
+    /**
+     * Helper class to consolidate multiple trace level statements to a single trace statement with lazy evaluation.
+     * If trace level is not enabled, then no work is performed. This class is not threadsafe.
+     */
+    public static class TraceBuffer {
+        private final Logger logger;
+        List<Object> params = new ArrayList<>();
+        StringBuilder builder = new StringBuilder();
+
+        public TraceBuffer(Logger logger){
+            this.logger = logger;
+        }
+        public void append(String s, Object... args) {
+            if (logger.isTraceEnabled()) {
+                builder.append(s).append(" ");
+                List<Object> resolved = Arrays.stream(args)
+                    .map(x -> (x instanceof Supplier) ? ((Supplier<?>) x).get() : x)
+                    .toList();
+                params.addAll(resolved);
+            }
+        }
+        public void flush(){
+            if (logger.isTraceEnabled()) {
+                logger.trace(builder.toString(), params.toArray());
+                params = new ArrayList<>();
+                builder = new StringBuilder();
+            }
+        }
     }
 }

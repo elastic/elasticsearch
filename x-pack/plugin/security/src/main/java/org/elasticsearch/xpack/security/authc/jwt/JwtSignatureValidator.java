@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.crypto.ECDSAVerifier;
 import com.nimbusds.jose.crypto.MACVerifier;
@@ -19,7 +18,6 @@ import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.util.Base64URL;
-import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.logging.log4j.LogManager;
@@ -40,11 +38,9 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public interface JwtSignatureValidator extends Releasable {
@@ -359,7 +355,7 @@ public interface JwtSignatureValidator extends Releasable {
             throw new ElasticsearchException("Signature verification was not attempted since there are not any JWKs available.");
         }
 
-        TraceBuffer tracer = new TraceBuffer(logger);
+        JwtUtil.TraceBuffer tracer = new JwtUtil.TraceBuffer(logger);
         final String id = jwt.getHeader().getKeyID();
         final JWSAlgorithm alg = jwt.getHeader().getAlgorithm();
 
@@ -386,7 +382,7 @@ public interface JwtSignatureValidator extends Releasable {
         // - If JWT alg is HS256, all are valid for a JWT HS256 signature. Don't ignore any HMAC JWKs.
         // - If JWT alg is HS384, only 384, 400, 512, and 1000 are valid for a JWT HS384 signature. Ignore two HMAC JWKs.
         // - If JWT alg is HS512, only 512 and 1000 are valid for a JWT HS512 signature. Ignore four HMAC JWKs.
-        final List<JWK> jwksConfigured = jwksAlg.stream().filter(j -> JwkValidateUtil.isMatch(j, alg.getName())).toList();
+        final List<JWK> jwksConfigured = jwksAlg.stream().filter(j -> JwkValidateUtil.isMatch(j, alg.getName(), tracer)).toList();
         tracer.append("[{}] JWKs remain after filtering for configured algorithms.", jwksConfigured.size());
         tracer.flush();
 
@@ -465,36 +461,6 @@ public interface JwtSignatureValidator extends Releasable {
         Base64URL[] parts = jwt.getParsedParts();
         assert parts.length == 3;
         return () -> parts[0].toString() + parts[1].toString() + ".<redacted>";
-    }
-
-    /**
-     * Helper class to consolidate multiple trace level statements to a single trace statement with lazy evaluation.
-     * If trace level is not enabled, then no work is performed. This class is not threadsafe.
-     */
-     class TraceBuffer {
-        private final Logger logger;
-        List<Object> params = new ArrayList<>();
-        StringBuilder builder = new StringBuilder();
-
-        public TraceBuffer(Logger logger){
-            this.logger = logger;
-        }
-        public void append(String s, Object... args) {
-            if (logger.isTraceEnabled()) {
-                builder.append(s).append(" ");
-                List<Object> resolved = Arrays.stream(args)
-                    .map(x -> (x instanceof Supplier) ? ((Supplier<?>) x).get() : x)
-                    .toList();
-                params.addAll(resolved);
-            }
-        }
-        public void flush(){
-            if (logger.isTraceEnabled()) {
-                logger.trace(builder.toString(), params.toArray());
-                params = new ArrayList<>();
-                builder = new StringBuilder();
-            }
-        }
     }
 
 }

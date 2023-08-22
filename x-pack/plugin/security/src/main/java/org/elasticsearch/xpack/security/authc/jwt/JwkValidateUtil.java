@@ -30,7 +30,6 @@ import java.security.PublicKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -38,28 +37,27 @@ import java.util.function.Predicate;
  * Utilities for JWK Validation.
  */
 public class JwkValidateUtil {
-    private static final Logger LOGGER = LogManager.getLogger(JwkValidateUtil.class);
+    private static final Logger logger = LogManager.getLogger(JwkValidateUtil.class);
 
     // Static method for unit testing. No need to construct a complete RealmConfig with all settings.
     static JwkSetLoader.JwksAlgs filterJwksAndAlgorithms(final List<JWK> jwks, final List<String> algs) throws SettingsException {
-        //TODO: buffer these
-        LOGGER.trace("JWKs [" + jwks.size() + "] and Algorithms [" + String.join(",", algs) + "] before filters.");
+        JwtUtil.TraceBuffer tracer = new JwtUtil.TraceBuffer(logger);
+        tracer.append("Filtering [{}] JWKs for the following algorithms [{}].", jwks.size(), String.join(",", algs));
 
         final Predicate<JWK> keyUsePredicate = j -> ((j.getKeyUse() == null) || (KeyUse.SIGNATURE.equals(j.getKeyUse())));
         final List<JWK> jwksSig = jwks.stream().filter(keyUsePredicate).toList();
-        LOGGER.trace("JWKs [" + jwksSig.size() + "] after KeyUse [SIGNATURE||null] filter.");
+        tracer.append("[{}] remaining JWKs after KeyUse [SIGNATURE] filter.", jwksSig.size());
 
         final Predicate<JWK> keyOpPredicate = j -> ((j.getKeyOperations() == null) || (j.getKeyOperations().contains(KeyOperation.VERIFY)));
         final List<JWK> jwksVerify = jwksSig.stream().filter(keyOpPredicate).toList();
-        LOGGER.trace("JWKs [" + jwksVerify.size() + " after KeyOperation [VERIFY||null] filter.");
+        tracer.append("[{}] remaining JWKs after KeyOperation [VERIFY] filter.", jwksVerify.size());
 
-        //TODO: understand why this is filtering out oct... i think because the default is on RSA for allowed_signature_algorithms
-        final List<JWK> jwksFiltered = jwksVerify.stream().filter(j -> (algs.stream().anyMatch(a -> isMatch(j, a)))).toList();
-        LOGGER.trace("JWKs [" + jwksFiltered.size() + "] after Algorithms [" + String.join(",", algs) + "] filter.");
+        final List<JWK> jwksFiltered = jwksVerify.stream().filter(j -> (algs.stream().anyMatch(a -> isMatch(j, a, tracer)))).toList();
+        tracer.append("[{}] remaining JWKs after algorithms name [{}] filter.", jwksFiltered.size(), String.join(",", algs) );
 
-
-        final List<String> algsFiltered = algs.stream().filter(a -> (jwksFiltered.stream().anyMatch(j -> isMatch(j, a)))).toList();
-        LOGGER.trace("Algorithms [" + String.join(",", algsFiltered) + "] after remaining JWKs [" + jwksFiltered.size() + "] filter.");
+        final List<String> algsFiltered = algs.stream().filter(a -> (jwksFiltered.stream().anyMatch(j -> isMatch(j, a, tracer)))).toList();
+        tracer.append("[{}] remaining JWKs after configured algorithms [{}] filter.", jwksFiltered.size(), String.join(",", algsFiltered));
+        tracer.flush();
 
         return new JwkSetLoader.JwksAlgs(jwksFiltered, algsFiltered);
     }
@@ -72,15 +70,14 @@ public class JwkValidateUtil {
      * @param algorithm Algorithm string of value HS256, HS384, HS512, RS256, RS384, RS512, PS256, PS384, PS512, ES256, ES384, or ES512.
      * @return True if JWT type and strength match both requirements for the signature algorithm.
      */
-    static boolean isMatch(final JWK jwk, final String algorithm) {
+    static boolean isMatch(final JWK jwk, final String algorithm, JwtUtil.TraceBuffer tracer) {
         try {
-            //TODO: use tracebuffer
             if ((JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(algorithm)) && (jwk instanceof OctetSequenceKey jwkHmac)) {
                 final int bits = jwkHmac.size();
                 final int min = MACSigner.getMinRequiredSecretLength(JWSAlgorithm.parse(algorithm));
                 final boolean isMatch = bits >= min;
                 if (isMatch == false) {
-                    LOGGER.trace("HMAC JWK [" + bits + "] bits too small for algorithm [" + algorithm + "] minimum [" + min + "].");
+                    tracer.append("HMAC JWK [" + bits + "] bits too small for algorithm [" + algorithm + "] minimum [" + min + "].");
                 }
                 return isMatch;
             } else if ((JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA.contains(algorithm)) && (jwk instanceof RSAKey jwkRsa)) {
@@ -88,7 +85,7 @@ public class JwkValidateUtil {
                 final int min = RSAKeyGenerator.MIN_KEY_SIZE_BITS;
                 final boolean isMatch = bits >= min;
                 if (isMatch == false) {
-                    LOGGER.trace("RSA JWK [" + bits + "] bits too small for algorithm [" + algorithm + "] minimum [" + min + "].");
+                    tracer.append("RSA JWK [" + bits + "] bits too small for algorithm [" + algorithm + "] minimum [" + min + "].");
                 }
                 return isMatch;
             } else if ((JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_EC.contains(algorithm)) && (jwk instanceof ECKey jwkEc)) {
@@ -96,12 +93,12 @@ public class JwkValidateUtil {
                 final Set<Curve> allowed = Curve.forJWSAlgorithm(JWSAlgorithm.parse(algorithm));
                 final boolean isMatch = allowed.contains(curve);
                 if (isMatch == false) {
-                    LOGGER.trace("EC JWK [" + curve + "] curve not allowed for algorithm [" + algorithm + "] allowed " + allowed + ".");
+                    tracer.append("EC JWK [" + curve + "] curve not allowed for algorithm [" + algorithm + "] allowed " + allowed + ".");
                 }
                 return isMatch;
             }
         } catch (Exception e) {
-            LOGGER.debug("Unexpected exception while matching JWK with kid [{}] to it's algorithm requirement.", jwk.getKeyID(), e);
+            logger.debug("Unexpected exception while matching JWK with kid [{}] to it's algorithm requirement.", jwk.getKeyID(), e);
         }
         return false;
     }

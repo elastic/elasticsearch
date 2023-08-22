@@ -19,8 +19,8 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
-import co.elastic.elasticsearch.stateless.engine.TranslogReplicatorReader;
+import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
+import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 
 import org.apache.lucene.tests.util.LuceneTestCase;

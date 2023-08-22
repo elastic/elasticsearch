@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
+import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;

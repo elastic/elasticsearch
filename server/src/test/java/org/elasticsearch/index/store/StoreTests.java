@@ -1212,7 +1212,7 @@ public class StoreTests extends ESTestCase {
 
             SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(), hasKey(Engine.ES_VERSION));
-            assertThat(segmentInfos.getUserData().get(Engine.ES_VERSION), is(equalTo(org.elasticsearch.Version.CURRENT.toString())));
+            assertThat(segmentInfos.getUserData().get(Engine.ES_VERSION), is(equalTo(IndexVersion.current().toString())));
         }
     }
 

@@ -301,10 +301,17 @@ Infinity | true
 ;
 
 log10ofLong
-row d = 10 | eval l = log10(10);
+row l = to_long(1000000000000) | eval s = log10(l);
 
-d:i | l:double
-10  | 1
+l:long         | s:double
+1000000000000  | 12
+;
+
+log10ofUnsignedLong
+row l = to_ul(1000000000000000000) | eval s = log10(l);
+
+l:ul                  | s:double
+1000000000000000000   | 18
 ;
 
 powDoubleDouble
@@ -952,6 +959,20 @@ row i = 81 | eval s = sqrt(i);
 
 i:integer | s:double
 81        | 9
+;
+
+sqrtOfLong
+row l = to_long(1000000000000) | eval s = sqrt(l);
+
+l:long            | s:double
+1000000000000     | 1000000
+;
+
+sqrtOfUnsignedLong
+row l = to_ul(1000000000000000000) | eval s = sqrt(l);
+
+l:ul                  | s:double
+1000000000000000000   | 1000000000
 ;
 
 sqrtOfNegative

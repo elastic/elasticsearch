@@ -47,7 +47,7 @@ public class SimpleQueryStringBuilderMultiFieldTests extends MapperServiceTestCa
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
 
-            IndexSearcher searcher = new IndexSearcher(ir);
+            IndexSearcher searcher = newSearcher(ir);
 
             {
                 // default value 'index.query.default_field = *' sets leniency to true
@@ -124,7 +124,7 @@ public class SimpleQueryStringBuilderMultiFieldTests extends MapperServiceTestCa
             """));
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
-            SearchExecutionContext context = createSearchExecutionContext(mapperService, new IndexSearcher(ir));
+            SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(ir));
             Query expected = new DisjunctionMaxQuery(
                 List.of(
                     new TermQuery(new Term("f_text1", "hello")),
@@ -158,7 +158,7 @@ public class SimpleQueryStringBuilderMultiFieldTests extends MapperServiceTestCa
             """));
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
-            IndexSearcher searcher = new IndexSearcher(ir);
+            IndexSearcher searcher = newSearcher(ir);
 
             // if we hit all fields, this should contain a date field and should disable cachability
             String query = "now " + randomAlphaOfLengthBetween(4, 10);

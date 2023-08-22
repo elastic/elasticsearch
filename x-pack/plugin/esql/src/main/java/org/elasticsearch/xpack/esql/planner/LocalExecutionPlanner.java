@@ -43,8 +43,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
+import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -199,7 +202,7 @@ public class LocalExecutionPlanner {
             return planExchangeSink(exchangeSink, context);
         }
 
-        throw new UnsupportedOperationException(node.nodeName());
+        throw new EsqlUnsupportedOperationException("unknown physical plan node [" + node.nodeName() + "]");
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
@@ -253,7 +256,7 @@ public class LocalExecutionPlanner {
         if (dataType == DataTypes.BOOLEAN) {
             return ElementType.BOOLEAN;
         }
-        throw new UnsupportedOperationException("unsupported data type [" + dataType + "]");
+        throw EsqlUnsupportedOperationException.unsupportedDataType(dataType);
     }
 
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
@@ -293,7 +296,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planExchange(ExchangeExec exchangeExec, LocalExecutionPlannerContext context) {
-        throw new EsqlIllegalArgumentException("Exchange needs to be replaced with a sink/source");
+        throw new EsqlUnsupportedOperationException("Exchange needs to be replaced with a sink/source");
     }
 
     private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {
@@ -329,7 +332,7 @@ public class LocalExecutionPlanner {
             if (order.child() instanceof Attribute a) {
                 sortByChannel = source.layout.getChannel(a.id());
             } else {
-                throw new UnsupportedOperationException();
+                throw new EsqlIllegalArgumentException("order by expression must be an attribute");
             }
 
             return new TopNOperator.SortOrder(
@@ -343,7 +346,7 @@ public class LocalExecutionPlanner {
         if (topNExec.limit() instanceof Literal literal) {
             limit = Integer.parseInt(literal.value().toString());
         } else {
-            throw new UnsupportedOperationException();
+            throw new EsqlUnsupportedOperationException("limit only supported with literal values");
         }
 
         // TODO Replace page size with passing estimatedRowSize down
@@ -366,7 +369,7 @@ public class LocalExecutionPlanner {
             if (namedExpression instanceof Alias alias) {
                 evaluatorSupplier = EvalMapper.toEvaluator(alias.child(), source.layout);
             } else {
-                throw new UnsupportedOperationException();
+                throw new EsqlIllegalArgumentException("source fields for eval nodes have to be aliases");
             }
             Layout.Builder layout = source.layout.builder();
             layout.appendChannel(namedExpression.toAttribute().id());

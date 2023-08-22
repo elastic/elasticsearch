@@ -12,16 +12,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.test.VersionUtils.allVersions;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
@@ -80,11 +76,13 @@ public class VersionTests extends ESTestCase {
         }
     }
 
-    public void testMinimumIndexCompatibilityVersion() {
-        assertEquals(Version.fromId(5000099), Version.fromId(6000099).minimumIndexCompatibilityVersion());
-        assertEquals(Version.fromId(2000099), Version.fromId(5000099).minimumIndexCompatibilityVersion());
-        assertEquals(Version.fromId(2000099), Version.fromId(5010000).minimumIndexCompatibilityVersion());
-        assertEquals(Version.fromId(2000099), Version.fromId(5000001).minimumIndexCompatibilityVersion());
+    public void testVersionConstantPresent() {
+        assertThat(Version.CURRENT, sameInstance(Version.fromId(Version.CURRENT.id)));
+        final int iters = scaledRandomIntBetween(20, 100);
+        for (int i = 0; i < iters; i++) {
+            Version version = randomVersion(random());
+            assertThat(version, sameInstance(Version.fromId(version.id)));
+        }
     }
 
     public void testCURRENTIsLatest() {
@@ -272,16 +270,6 @@ public class VersionTests extends ESTestCase {
         Version a = randomVersion(random());
         Version b = randomVersion(random());
         assertThat(a.isCompatible(b), equalTo(b.isCompatible(a)));
-    }
-
-    /* tests that if a new version's minCompatVersion is always equal or higher to any older version */
-    public void testMinCompatVersionOrderRespectsVersionOrder() {
-        List<Version> versionsByMinCompat = new ArrayList<>(allVersions());
-        versionsByMinCompat.sort(Comparator.comparing(Version::minimumCompatibilityVersion));
-        assertThat(versionsByMinCompat, equalTo(allVersions()));
-
-        versionsByMinCompat.sort(Comparator.comparing(Version::minimumIndexCompatibilityVersion));
-        assertThat(versionsByMinCompat, equalTo(allVersions()));
     }
 
     public boolean isCompatible(Version left, Version right) {

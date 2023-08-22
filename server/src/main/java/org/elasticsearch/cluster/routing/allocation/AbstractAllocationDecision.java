@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,24 +22,39 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * An abstract class for representing various types of allocation decisions.
  */
 public abstract class AbstractAllocationDecision implements ToXContentFragment, Writeable {
 
+    public static final TransportVersion DESIRED_NODE_ADDED = TransportVersion.V_8_500_065;
+
     @Nullable
     protected final DiscoveryNode targetNode;
+    @Nullable
+    protected final Boolean targetNodeIsDesired;
     @Nullable
     protected final List<NodeAllocationResult> nodeDecisions;
 
     protected AbstractAllocationDecision(@Nullable DiscoveryNode targetNode, @Nullable List<NodeAllocationResult> nodeDecisions) {
+        this(targetNode, null, nodeDecisions);
+    }
+
+    protected AbstractAllocationDecision(
+        @Nullable DiscoveryNode targetNode,
+        @Nullable Boolean targetNodeIsDesired,
+        @Nullable List<NodeAllocationResult> nodeDecisions
+    ) {
         this.targetNode = targetNode;
+        this.targetNodeIsDesired = targetNodeIsDesired;
         this.nodeDecisions = nodeDecisions != null ? sortNodeDecisions(nodeDecisions) : null;
     }
 
     protected AbstractAllocationDecision(StreamInput in) throws IOException {
         targetNode = in.readOptionalWriteable(DiscoveryNode::new);
+        targetNodeIsDesired = in.getTransportVersion().onOrAfter(DESIRED_NODE_ADDED) ? in.readOptionalBoolean() : null;
         nodeDecisions = in.readBoolean() ? in.readImmutableList(NodeAllocationResult::new) : null;
     }
 
@@ -80,6 +96,9 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(targetNode);
+        if (out.getTransportVersion().onOrAfter(DESIRED_NODE_ADDED)) {
+            out.writeOptionalBoolean(targetNodeIsDesired);
+        }
         if (nodeDecisions != null) {
             out.writeBoolean(true);
             out.writeList(nodeDecisions);
@@ -97,11 +116,18 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
     /**
      * Generates X-Content for a {@link DiscoveryNode} that leaves off some of the non-critical fields.
      */
-    public static XContentBuilder discoveryNodeToXContent(DiscoveryNode node, boolean outerObjectWritten, XContentBuilder builder)
-        throws IOException {
+    public static XContentBuilder discoveryNodeToXContent(
+        DiscoveryNode node,
+        Boolean desired,
+        boolean outerObjectWritten,
+        XContentBuilder builder
+    ) throws IOException {
 
         builder.field(outerObjectWritten ? "id" : "node_id", node.getId());
         builder.field(outerObjectWritten ? "name" : "node_name", node.getName());
+        if (desired != null) {
+            builder.field("desired", desired);
+        }
         builder.field("transport_address", node.getAddress().toString());
         if (node.getAttributes().isEmpty() == false) {
             builder.startObject(outerObjectWritten ? "attributes" : "node_attributes");
@@ -163,12 +189,22 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
             return false;
         }
         AbstractAllocationDecision that = (AbstractAllocationDecision) other;
-        return Objects.equals(targetNode, that.targetNode) && Objects.equals(nodeDecisions, that.nodeDecisions);
+        return Objects.equals(targetNode, that.targetNode)
+            && Objects.equals(targetNodeIsDesired, that.targetNodeIsDesired)
+            && Objects.equals(nodeDecisions, that.nodeDecisions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(targetNode, nodeDecisions);
+        return Objects.hash(targetNode, targetNodeIsDesired, nodeDecisions);
     }
 
+    public static List<NodeAllocationResult> nodeDecisionsWithNodeAssignment(
+        List<NodeAllocationResult> nodeDecisions,
+        Set<String> desiredNodeIds
+    ) {
+        return nodeDecisions != null
+            ? nodeDecisions.stream().map(decision -> decision.withDesired(desiredNodeIds.contains(decision.getNode().getId()))).toList()
+            : null;
+    }
 }

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -92,4 +93,7 @@ public final class ShardAllocationDecision implements ToXContentFragment, Writea
         return builder;
     }
 
+    public ShardAllocationDecision withNodeAssignment(ShardAssignment assignment) {
+        return new ShardAllocationDecision(allocateDecision.withNodeAssignment(assignment), moveDecision.withNodeAssignment(assignment));
+    }
 }

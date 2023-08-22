@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -297,7 +298,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         builder.field("allocate_explanation", getExplanation());
         if (targetNode != null) {
             builder.startObject("target_node");
-            discoveryNodeToXContent(targetNode, true, builder);
+            discoveryNodeToXContent(targetNode, targetNodeIsDesired, true, builder);
             builder.endObject();
         }
         if (allocationId != null) {
@@ -352,4 +353,15 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         );
     }
 
+    public AllocateUnassignedDecision withNodeAssignment(ShardAssignment assignment) {
+        return new AllocateUnassignedDecision(
+            allocationStatus,
+            targetNode,
+            allocationId,
+            nodeDecisionsWithNodeAssignment(nodeDecisions, assignment.nodeIds()),
+            reuseStore,
+            remainingDelayInMillis,
+            configuredDelayInMillis
+        );
+    }
 }

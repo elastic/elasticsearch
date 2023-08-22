@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Comparator;
 
+import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDecision.DESIRED_NODE_ADDED;
 import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDecision.discoveryNodeToXContent;
 
 /**
@@ -35,6 +36,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
         .thenComparing(r -> r.getNode().getId());
 
     private final DiscoveryNode node;
+    private final Boolean desired;
     @Nullable
     private final ShardStoreInfo shardStoreInfo;
     private final AllocationDecision nodeDecision;
@@ -44,6 +46,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
 
     public NodeAllocationResult(DiscoveryNode node, ShardStoreInfo shardStoreInfo, @Nullable Decision decision) {
         this.node = node;
+        this.desired = null;
         this.shardStoreInfo = shardStoreInfo;
         this.canAllocateDecision = decision;
         this.nodeDecision = decision != null ? AllocationDecision.fromDecisionType(canAllocateDecision.type()) : AllocationDecision.NO;
@@ -52,6 +55,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
 
     public NodeAllocationResult(DiscoveryNode node, AllocationDecision nodeDecision, Decision canAllocate, int weightRanking) {
         this.node = node;
+        this.desired = null;
         this.shardStoreInfo = null;
         this.canAllocateDecision = canAllocate;
         this.nodeDecision = nodeDecision;
@@ -60,14 +64,32 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
 
     public NodeAllocationResult(DiscoveryNode node, Decision decision, int weightRanking) {
         this.node = node;
+        this.desired = null;
         this.shardStoreInfo = null;
         this.canAllocateDecision = decision;
         this.nodeDecision = AllocationDecision.fromDecisionType(decision.type());
         this.weightRanking = weightRanking;
     }
 
+    private NodeAllocationResult(
+        DiscoveryNode node,
+        Boolean desired,
+        ShardStoreInfo shardStoreInfo,
+        AllocationDecision nodeDecision,
+        Decision canAllocateDecision,
+        int weightRanking
+    ) {
+        this.node = node;
+        this.desired = desired;
+        this.shardStoreInfo = shardStoreInfo;
+        this.nodeDecision = nodeDecision;
+        this.canAllocateDecision = canAllocateDecision;
+        this.weightRanking = weightRanking;
+    }
+
     public NodeAllocationResult(StreamInput in) throws IOException {
         node = new DiscoveryNode(in);
+        desired = in.getTransportVersion().onOrAfter(DESIRED_NODE_ADDED) ? in.readOptionalBoolean() : null;
         shardStoreInfo = in.readOptionalWriteable(ShardStoreInfo::new);
         canAllocateDecision = in.readOptionalWriteable(Decision::readFrom);
         nodeDecision = AllocationDecision.readFrom(in);
@@ -77,6 +99,9 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         node.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(DESIRED_NODE_ADDED)) {
+            out.writeOptionalBoolean(desired);
+        }
         out.writeOptionalWriteable(shardStoreInfo);
         out.writeOptionalWriteable(canAllocateDecision);
         nodeDecision.writeTo(out);
@@ -139,7 +164,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            discoveryNodeToXContent(node, false, builder);
+            discoveryNodeToXContent(node, desired, false, builder);
             builder.field("node_decision", nodeDecision);
             if (shardStoreInfo != null) {
                 shardStoreInfo.toXContent(builder, params);
@@ -279,4 +304,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
         }
     }
 
+    public NodeAllocationResult withDesired(boolean desired) {
+        return new NodeAllocationResult(node, desired, shardStoreInfo, nodeDecision, canAllocateDecision, weightRanking);
+    }
 }

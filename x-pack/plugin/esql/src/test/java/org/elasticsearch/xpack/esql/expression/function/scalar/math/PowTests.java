@@ -45,8 +45,9 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                     List.of(new TypedData(Double.NaN, DataTypes.DOUBLE, "base"), new TypedData(1.0d, DataTypes.DOUBLE, "exp")),
                     "PowDoubleEvaluator[base=Attribute[channel=0], exponent=Attribute[channel=1]]",
                     DataTypes.DOUBLE,
-                    equalTo(Double.NaN)
-                )
+                    equalTo(null)
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("java.lang.ArithmeticException: invalid result: pow(NaN, 1.0)")
             ),
             new TestCaseSupplier(
                 "pow(1, NaN)",
@@ -54,8 +55,9 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                     List.of(new TypedData(1.0d, DataTypes.DOUBLE, "base"), new TypedData(Double.NaN, DataTypes.DOUBLE, "exp")),
                     "PowDoubleEvaluator[base=Attribute[channel=0], exponent=Attribute[channel=1]]",
                     DataTypes.DOUBLE,
-                    equalTo(Double.NaN)
-                )
+                    equalTo(null)
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("java.lang.ArithmeticException: invalid result: pow(1.0, NaN)")
             ),
             new TestCaseSupplier(
                 "pow(NaN, 0)",
@@ -149,7 +151,8 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                 )
             ),
             new TestCaseSupplier("pow(integer, double)", () -> {
-                int base = randomIntBetween(-1000, 1000);
+                // Negative numbers to a non-integer power are NaN
+                int base = randomIntBetween(0, 1000);
                 double exp = randomDoubleBetween(-10.0, 10.0, true);
                 double expected = Math.pow(base, exp);
                 TestCase testCase = new TestCase(
@@ -158,6 +161,19 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                     DataTypes.DOUBLE,
                     equalTo(expected)
                 );
+                return testCase;
+            }),
+            new TestCaseSupplier("fractional power of negative integer is null", () -> {
+                // Negative numbers to a non-integer power are NaN
+                int base = randomIntBetween(-1000, -1);
+                double exp = randomDouble(); // between 0 and 1
+                TestCase testCase = new TestCase(
+                    List.of(new TypedData(base, DataTypes.INTEGER, "base"), new TypedData(exp, DataTypes.DOUBLE, "exp")),
+                    "PowDoubleEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], exponent=Attribute[channel=1]]",
+                    DataTypes.DOUBLE,
+                    equalTo(null)
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("java.lang.ArithmeticException: invalid result: pow(" + (double) base + ", " + exp + ")");
                 return testCase;
             }),
             new TestCaseSupplier(
@@ -252,7 +268,8 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                 );
             }),
             new TestCaseSupplier("pow(long, double)", () -> {
-                long base = randomLongBetween(-1000, 1000);
+                // Negative numbers to non-integer power are NaN
+                long base = randomLongBetween(0, 1000);
                 double exp = randomDoubleBetween(-10.0, 10.0, true);
                 double expected = Math.pow(base, exp);
                 TestCase testCase = new TestCase(
@@ -312,7 +329,8 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                 );
             }),
             new TestCaseSupplier("pow(double, double)", () -> {
-                double base = randomDoubleBetween(-1000, 1000, true);
+                // Negative numbers to a non-integer power are NaN
+                double base = randomDoubleBetween(0, 1000, true);
                 double exp = randomDoubleBetween(-10.0, 10.0, true);
                 TestCase testCase = new TestCase(
                     List.of(new TypedData(base, DataTypes.DOUBLE, "base"), new TypedData(exp, DataTypes.DOUBLE, "exp")),

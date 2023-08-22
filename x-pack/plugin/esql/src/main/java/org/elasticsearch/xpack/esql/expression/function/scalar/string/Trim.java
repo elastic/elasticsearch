@@ -11,8 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 /**
  * Removes leading and trailing whitespaces from a string.
  */
-public final class Trim extends UnaryScalarFunction implements Mappable {
+public final class Trim extends UnaryScalarFunction implements EvaluatorMapper {
 
     public Trim(Source source, Expression str) {
         super(source, str);
@@ -44,7 +44,7 @@ public final class Trim extends UnaryScalarFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Override

@@ -49,7 +49,7 @@ public class VectorHighlighterTests extends ESTestCase {
         indexWriter.addDocument(document);
 
         IndexReader reader = DirectoryReader.open(indexWriter);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
         assertThat(topDocs.totalHits.value, equalTo(1L));
@@ -80,7 +80,7 @@ public class VectorHighlighterTests extends ESTestCase {
         indexWriter.addDocument(document);
 
         IndexReader reader = DirectoryReader.open(indexWriter);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
         assertThat(topDocs.totalHits.value, equalTo(1L));
@@ -135,7 +135,7 @@ public class VectorHighlighterTests extends ESTestCase {
         indexWriter.addDocument(document);
 
         IndexReader reader = DirectoryReader.open(indexWriter);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
         assertThat(topDocs.totalHits.value, equalTo(1L));
@@ -161,7 +161,7 @@ public class VectorHighlighterTests extends ESTestCase {
         indexWriter.addDocument(document);
 
         IndexReader reader = DirectoryReader.open(indexWriter);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
         assertThat(topDocs.totalHits.value, equalTo(1L));

@@ -392,7 +392,10 @@ public class Version implements VersionId<Version>, ToXContentFragment {
      * Returns the minimum created index version that this version supports. Indices created with lower versions
      * can't be used with this version. This should also be used for file based serialization backwards compatibility ie. on serialization
      * code that is used to read / write file formats like transaction logs, cluster state, and index metadata.
+     *
+     * @deprecated This should not be used to get the compatibility of versions after 8.10.0
      */
+    @Deprecated
     public Version minimumIndexCompatibilityVersion() {
         Version res = minIndexCompatVersion;
         if (res == null) {
@@ -411,14 +414,6 @@ public class Version implements VersionId<Version>, ToXContentFragment {
         }
         final int bwcMinor = 0;
         return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
-    }
-
-    /**
-     * Whether the current version is older than the current minimum compatible index version,
-     * see {@link #minimumIndexCompatibilityVersion()}
-     */
-    public boolean isLegacyIndexVersion() {
-        return before(Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
     /**

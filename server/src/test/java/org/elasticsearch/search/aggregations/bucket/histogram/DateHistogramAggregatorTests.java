@@ -1052,7 +1052,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             }
             try (
                 IndexReader reader = indexWriter.getReader();
-                AggregationContext context = createAggregationContext(new IndexSearcher(reader), new MatchAllDocsQuery(), ft)
+                AggregationContext context = createAggregationContext(newSearcher(reader), new MatchAllDocsQuery(), ft)
             ) {
                 Aggregator agg = createAggregator(builder, context);
                 Matcher<Aggregator> matcher = instanceOf(DateHistogramAggregator.FromDateRange.class);

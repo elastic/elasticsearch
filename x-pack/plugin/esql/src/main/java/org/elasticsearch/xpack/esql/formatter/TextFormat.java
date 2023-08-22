@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.formatter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -48,12 +49,12 @@ public enum TextFormat implements MediaType {
 
         @Override
         protected Character delimiter() {
-            throw new UnsupportedOperationException();
+            throw new EsqlUnsupportedOperationException("plain text does not specify a delimiter character");
         }
 
         @Override
         protected String eol() {
-            throw new UnsupportedOperationException();
+            throw new EsqlUnsupportedOperationException("plain text does not specify an end of line character");
         }
 
         @Override

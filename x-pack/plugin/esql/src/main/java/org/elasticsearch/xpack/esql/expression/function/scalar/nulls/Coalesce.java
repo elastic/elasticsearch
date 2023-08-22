@@ -11,8 +11,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Nullability;
@@ -33,7 +34,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 /**
  * Function returning the first non-null value.
  */
-public class Coalesce extends ScalarFunction implements Mappable {
+public class Coalesce extends ScalarFunction implements EvaluatorMapper {
     private DataType dataType;
 
     public Coalesce(Source source, List<Expression> expressions) {
@@ -91,7 +92,7 @@ public class Coalesce extends ScalarFunction implements Mappable {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException();
+        throw new EsqlUnsupportedOperationException("functions do not support scripting");
     }
 
     @Override
@@ -111,7 +112,7 @@ public class Coalesce extends ScalarFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Override

@@ -46,6 +46,7 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
     private final boolean specificShard;
     private final ShardRouting shardRouting;
     private final DiscoveryNode currentNode;
+    // TODO current node is desired?
     private final DiscoveryNode relocationTargetNode;
     private final ClusterInfo clusterInfo;
     private final ShardAllocationDecision shardAllocationDecision;
@@ -172,7 +173,7 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
             if (currentNode != null) {
                 builder.startObject("current_node");
                 {
-                    discoveryNodeToXContent(currentNode, true, builder);
+                    discoveryNodeToXContent(currentNode, null, true, builder);
                     if (shardAllocationDecision.getMoveDecision().isDecisionTaken()
                         && shardAllocationDecision.getMoveDecision().getCurrentNodeRanking() > 0) {
                         builder.field("weight_ranking", shardAllocationDecision.getMoveDecision().getCurrentNodeRanking());

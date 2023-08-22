@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -286,7 +287,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
         checkDecisionState();
         if (targetNode != null) {
             builder.startObject("target_node");
-            discoveryNodeToXContent(targetNode, true, builder);
+            discoveryNodeToXContent(targetNode, targetNodeIsDesired, true, builder);
             builder.endObject();
         }
         builder.field("can_remain_on_current_node", canRemain() ? "yes" : "no");
@@ -335,4 +336,14 @@ public final class MoveDecision extends AbstractAllocationDecision {
         return 31 * super.hashCode() + Objects.hash(allocationDecision, canRemainDecision, clusterRebalanceDecision, currentNodeRanking);
     }
 
+    public MoveDecision withNodeAssignment(ShardAssignment assignment) {
+        return new MoveDecision(
+            canRemainDecision,
+            clusterRebalanceDecision,
+            allocationDecision,
+            targetNode,
+            nodeDecisionsWithNodeAssignment(nodeDecisions, assignment.nodeIds()),
+            currentNodeRanking
+        );
+    }
 }

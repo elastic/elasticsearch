@@ -14,7 +14,7 @@ dependencies {
   compileOnly "org.opensaml:opensaml-core:${versions.opensaml}"
 }
 
-['jarHell', 'thirdPartyAudit', 'forbiddenApisMain', 'splitPackagesAudit', 'checkstyleMain', 'licenseHeaders', 'spotlessJavaCheck'].each {
+['jarHell', 'thirdPartyAudit', 'splitPackagesAudit', 'forbiddenApisMain', 'licenseHeaders' ].each {
   tasks.named(it).configure {
     enabled = false
   }

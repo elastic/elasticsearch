@@ -281,7 +281,13 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Arrays.asList(INTERNAL_MANAGED, INTERNAL_UNMANAGED, EXTERNAL_MANAGED, EXTERNAL_UNMANAGED, KIBANA_MOCK_INDEX_DESCRIPTOR);
+            return Arrays.asList(
+                INTERNAL_MANAGED,
+                INTERNAL_UNMANAGED,
+                EXTERNAL_MANAGED,
+                EXTERNAL_UNMANAGED,
+                ALLOW_TEMPLATES_MOCK_INDEX_DESCRIPTOR
+            );
         }
 
         @Override

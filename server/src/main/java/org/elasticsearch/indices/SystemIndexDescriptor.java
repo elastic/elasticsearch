@@ -175,7 +175,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
 
     /**
      * Defaults to false as we typically don't want to apply user defined templates on system indices, since they may have unexpected
-     * behaviour when upgrading Elasticsearch versions. 
+     * behaviour when upgrading Elasticsearch versions.
      */
     private final boolean allowsTemplates;
 

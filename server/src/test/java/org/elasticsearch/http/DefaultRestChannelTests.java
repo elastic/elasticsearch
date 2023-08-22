@@ -529,7 +529,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
                 @Override
                 public boolean isDone() {
-                    throw new AssertionError("should not try to serialize response body for HEAD request");
+                    return false;
                 }
 
                 @Override

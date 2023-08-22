@@ -166,7 +166,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
     protected Bootstrap getClientBootstrap(ConnectionProfile connectionProfile) {
         final Bootstrap bootstrap = super.getClientBootstrap(connectionProfile);
         if (false == REMOTE_CLUSTER_PROFILE.equals(connectionProfile.getTransportProfile())
-                || remoteClusterClientBootstrapOptions.isEmpty()) {
+            || remoteClusterClientBootstrapOptions.isEmpty()) {
             return bootstrap;
         }
 

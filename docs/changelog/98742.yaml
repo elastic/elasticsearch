@@ -1,5 +1,0 @@
-pr: 98742
-summary: Add some leniency when reading index version
-area: Infra/Core
-type: bug
-issues: []

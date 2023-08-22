@@ -13,9 +13,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 /**
  * Base class for functions that converts a field into a function-specific type.
  */
-public abstract class AbstractConvertFunction extends UnaryScalarFunction implements Mappable {
+public abstract class AbstractConvertFunction extends UnaryScalarFunction implements EvaluatorMapper {
 
     protected AbstractConvertFunction(Source source, Expression field) {
         super(source, field);
@@ -66,7 +66,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
 
     @Override
     public final Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Override

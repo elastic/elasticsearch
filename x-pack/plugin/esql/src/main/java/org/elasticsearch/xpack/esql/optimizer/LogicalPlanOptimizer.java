@@ -613,7 +613,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            var used = new Holder<>(new AttributeSet());
+            var used = new AttributeSet();
             // don't remove Evals without any Project/Aggregate (which might not occur as the last node in the plan)
             var seenProjection = new Holder<>(Boolean.FALSE);
 
@@ -626,14 +626,13 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 // remember used
-                var usedSet = used.get();
                 boolean recheck;
                 // analyze the unused items against dedicated 'producer' nodes such as Eval and Aggregate
                 // perform a loop to retry checking if the current node is completely eliminated
                 do {
                     recheck = false;
                     if (p instanceof Aggregate aggregate) {
-                        var remaining = seenProjection.get() ? removeUnused(aggregate.aggregates(), usedSet) : null;
+                        var remaining = seenProjection.get() ? removeUnused(aggregate.aggregates(), used) : null;
                         // no aggregates, no need
                         if (remaining != null) {
                             if (remaining.isEmpty()) {
@@ -646,7 +645,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
                         seenProjection.set(Boolean.TRUE);
                     } else if (p instanceof Eval eval) {
-                        var remaining = seenProjection.get() ? removeUnused(eval.fields(), usedSet) : null;
+                        var remaining = seenProjection.get() ? removeUnused(eval.fields(), used) : null;
                         // no fields, no eval
                         if (remaining != null) {
                             if (remaining.isEmpty()) {
@@ -661,8 +660,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                     }
                 } while (recheck);
 
-                var inUse = usedSet.combine(references(p));
-                used.set(inUse);
+                used.addAll(p.references());
 
                 // preserve the state before going to the next node
                 return p;
@@ -685,20 +683,10 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 if (used.contains(prev.toAttribute()) == false) {
                     it.remove();
                 } else {
-                    used = used.combine(prev.references());
+                    used.addAll(prev.references());
                 }
             }
             return clone.size() != named.size() ? clone : null;
-        }
-
-        private static List<Expression> expressions(LogicalPlan plan) {
-            List<Expression> exp = new ArrayList<>();
-            plan.forEachExpression(exp::add);
-            return exp;
-        }
-
-        private static AttributeSet references(LogicalPlan plan) {
-            return Expressions.references(expressions(plan));
         }
     }
 

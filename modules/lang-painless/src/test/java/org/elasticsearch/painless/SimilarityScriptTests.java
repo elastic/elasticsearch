@@ -75,7 +75,7 @@ public class SimilarityScriptTests extends ScriptTestCase {
 
         IndexReader r = DirectoryReader.open(w);
         w.close();
-        IndexSearcher searcher = new IndexSearcher(r);
+        IndexSearcher searcher = newSearcher(r);
         searcher.setSimilarity(sim);
         Query query = new BoostQuery(
             new BooleanQuery.Builder().add(new TermQuery(new Term("f", "foo")), Occur.SHOULD)
@@ -124,7 +124,7 @@ public class SimilarityScriptTests extends ScriptTestCase {
 
         IndexReader r = DirectoryReader.open(w);
         w.close();
-        IndexSearcher searcher = new IndexSearcher(r);
+        IndexSearcher searcher = newSearcher(r);
         searcher.setSimilarity(sim);
         Query query = new BoostQuery(
             new BooleanQuery.Builder().add(new TermQuery(new Term("f", "foo")), Occur.SHOULD)

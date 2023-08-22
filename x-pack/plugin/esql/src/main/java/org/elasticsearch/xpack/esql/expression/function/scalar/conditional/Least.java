@@ -5,18 +5,23 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.math;
+package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.LeastBooleanEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.LeastBytesRefEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.LeastDoubleEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.LeastIntEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.LeastLongEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinBooleanEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinBytesRefEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinDoubleEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinIntEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinLongEvaluator;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -142,7 +147,7 @@ public class Least extends ScalarFunction implements EvaluatorMapper, OptionalAr
                 suppliers.get().map(MvMinBytesRefEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
             );
         }
-        throw new QlIllegalArgumentException("unsupported type [" + dataType + "]");
+        throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }
 
     @Evaluator(extraName = "Boolean")

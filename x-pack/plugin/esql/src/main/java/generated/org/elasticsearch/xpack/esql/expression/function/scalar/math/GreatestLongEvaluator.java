@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Greatest}.

@@ -44,6 +44,7 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
     private static final String HISTO_FIELD_NAME = "histo_field";
     private static final String RAW_FIELD_NAME = "raw_field";
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98739")
     @SuppressWarnings("rawtypes")
     public void testPercentilesAccuracy() throws Exception {
         long absError = 0L;

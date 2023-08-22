@@ -119,7 +119,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * This class exists to give a human-readable string representation of the test case.
      */
-    protected static class TestCaseSupplier implements Supplier<TestCase> {
+    public static class TestCaseSupplier implements Supplier<TestCase> {
 
         private String name;
         private final Supplier<TestCase> wrapped;
@@ -202,6 +202,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, e);
+        assertTrue(e.resolved());
         return EvalMapper.toEvaluator(e, builder.build());
     }
 
@@ -287,7 +288,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluatorSimpleToString() {
-        assertThat(evaluator(buildFieldExpression(testCase)).get().toString(), equalTo(testCase.evaluatorToString));
+        var supplier = evaluator(buildFieldExpression(testCase));
+        var ev = supplier.get();
+        assertThat(ev.toString(), equalTo(testCase.evaluatorToString));
     }
 
     public final void testSimpleConstantFolding() {

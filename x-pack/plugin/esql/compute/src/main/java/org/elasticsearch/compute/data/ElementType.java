@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.BytesRef;
+
 import java.util.function.IntFunction;
 
 /**
@@ -45,5 +47,25 @@ public enum ElementType {
      */
     public Block.Builder newBlockBuilder(int estimatedSize) {
         return builder.apply(estimatedSize);
+    }
+
+    public static ElementType fromJava(Class<?> type) {
+        ElementType elementType;
+        if (type == Integer.class) {
+            elementType = INT;
+        } else if (type == Long.class) {
+            elementType = LONG;
+        } else if (type == Double.class) {
+            elementType = DOUBLE;
+        } else if (type == String.class || type == BytesRef.class) {
+            elementType = BYTES_REF;
+        } else if (type == Boolean.class) {
+            elementType = BOOLEAN;
+        } else if (type == null || type == Void.class) {
+            elementType = NULL;
+        } else {
+            throw new IllegalArgumentException("Unrecognized class type " + type);
+        }
+        return elementType;
     }
 }

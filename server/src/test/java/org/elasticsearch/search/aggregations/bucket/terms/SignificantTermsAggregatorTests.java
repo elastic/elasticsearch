@@ -124,7 +124,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 // Search "odd"
                 SignificantStringTerms terms = searchAndReduce(
@@ -233,7 +233,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             randomSamplerAggregationBuilder.subAggregation(sigAgg);
 
             try (DirectoryReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 // Match all so background and foreground should be the same size
                 // randomly select the query, but both should hit the same docs, which is all of them.
@@ -283,7 +283,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 // Search "odd"
                 SignificantLongTerms terms = searchAndReduce(
@@ -331,7 +331,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 // Search "odd"
                 SignificantTerms terms = searchAndReduce(
@@ -409,7 +409,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 SignificantTerms evenTerms = searchAndReduce(
                     searcher,
@@ -461,7 +461,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 SignificantTerms evenTerms = searchAndReduce(
                     searcher,

@@ -15,6 +15,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 public class Iterators {
 
@@ -116,7 +117,41 @@ public class Iterators {
         }
     }
 
-    public static <T, U> Iterator<U> map(Iterator<? extends T> input, Function<T, U> fn) {
+    public static <T> Iterator<T> forRange(int lowerBoundInclusive, int upperBoundExclusive, IntFunction<? extends T> fn) {
+        assert lowerBoundInclusive <= upperBoundExclusive : lowerBoundInclusive + " vs " + upperBoundExclusive;
+        if (upperBoundExclusive <= lowerBoundInclusive) {
+            return Collections.emptyIterator();
+        } else {
+            return new IntRangeIterator<>(lowerBoundInclusive, upperBoundExclusive, Objects.requireNonNull(fn));
+        }
+    }
+
+    private static final class IntRangeIterator<T> implements Iterator<T> {
+        private final IntFunction<? extends T> fn;
+        private final int upperBoundExclusive;
+        private int index;
+
+        IntRangeIterator(int lowerBoundInclusive, int upperBoundExclusive, IntFunction<? extends T> fn) {
+            this.fn = fn;
+            this.index = lowerBoundInclusive;
+            this.upperBoundExclusive = upperBoundExclusive;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return index < upperBoundExclusive;
+        }
+
+        @Override
+        public T next() {
+            if (index >= upperBoundExclusive) {
+                throw new NoSuchElementException();
+            }
+            return fn.apply(index++);
+        }
+    }
+
+    public static <T, U> Iterator<U> map(Iterator<? extends T> input, Function<T, ? extends U> fn) {
         if (input.hasNext()) {
             return new MapIterator<>(input, fn);
         } else {
@@ -126,9 +161,9 @@ public class Iterators {
 
     private static final class MapIterator<T, U> implements Iterator<U> {
         private final Iterator<? extends T> input;
-        private final Function<T, U> fn;
+        private final Function<T, ? extends U> fn;
 
-        MapIterator(Iterator<? extends T> input, Function<T, U> fn) {
+        MapIterator(Iterator<? extends T> input, Function<T, ? extends U> fn) {
             this.input = input;
             this.fn = fn;
         }
@@ -144,7 +179,7 @@ public class Iterators {
         }
     }
 
-    public static <T, U> Iterator<? extends U> flatMap(Iterator<? extends T> input, Function<T, Iterator<? extends U>> fn) {
+    public static <T, U> Iterator<U> flatMap(Iterator<? extends T> input, Function<T, Iterator<? extends U>> fn) {
         while (input.hasNext()) {
             final var value = fn.apply(input.next());
             if (value.hasNext()) {

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -201,7 +202,7 @@ public final class EvalMapper {
                     return Block::constantNullBlock;
                 }
                 return positions -> {
-                    var wrapper = BlockUtils.wrapperFor(BlockUtils.fromJava(multiValue.get(0).getClass()), positions);
+                    var wrapper = BlockUtils.wrapperFor(ElementType.fromJava(multiValue.get(0).getClass()), positions);
                     wrapper.accept(multiValue);
                     return wrapper.builder().build();
                 };

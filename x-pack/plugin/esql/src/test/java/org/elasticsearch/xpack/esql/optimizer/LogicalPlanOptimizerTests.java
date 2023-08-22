@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -1098,7 +1099,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | where c > 10
             """);
 
-        as(plan, LocalRelation.class);
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(LocalSupplier.EMPTY));
     }
 
     public void testFoldFromRow() {
@@ -1132,6 +1134,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var project = as(plan, EsqlProject.class);
         var limit = as(project.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
+        var eval = as(filter.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertThat(Expressions.name(alias.child()), is("emp_no"));
+        var source = as(eval.child(), EsRelation.class);
     }
 
     public void testEnrich() {

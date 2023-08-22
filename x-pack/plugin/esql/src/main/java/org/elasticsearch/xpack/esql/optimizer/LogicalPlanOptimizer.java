@@ -311,15 +311,14 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            AttributeMap.Builder<Expression> builder = AttributeMap.builder();
+            var collectRefs = new AttributeMap<Expression>();
             // collect aliases
             plan.forEachExpressionUp(Alias.class, a -> {
                 var c = a.child();
                 if (c.foldable()) {
-                    builder.put(a.toAttribute(), c);
+                    collectRefs.put(a.toAttribute(), c);
                 }
             });
-            final AttributeMap<Expression> collectRefs = builder.build();
             if (collectRefs.isEmpty()) {
                 return plan;
             }

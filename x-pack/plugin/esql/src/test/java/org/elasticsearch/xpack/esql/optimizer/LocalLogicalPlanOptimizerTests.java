@@ -230,7 +230,8 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * LocalRelation[[first_name{f}#4],EMPTY]
+     * LocalRelation[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, languages{f}#8, last_name{f}#9, salary{f}#10, x
+     * {r}#3],EMPTY]
      */
     public void testMissingFieldInFilterNoProjection() {
         var plan = plan("""

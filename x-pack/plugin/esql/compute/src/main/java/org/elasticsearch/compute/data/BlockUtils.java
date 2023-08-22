@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
+import static org.elasticsearch.compute.data.ElementType.fromJava;
 
 public final class BlockUtils {
 
@@ -137,26 +138,6 @@ public final class BlockUtils {
             return v.getClass();
         }
         return null;
-    }
-
-    public static ElementType fromJava(Class<?> type) {
-        ElementType elementType;
-        if (type == Integer.class) {
-            elementType = ElementType.INT;
-        } else if (type == Long.class) {
-            elementType = ElementType.LONG;
-        } else if (type == Double.class) {
-            elementType = ElementType.DOUBLE;
-        } else if (type == String.class || type == BytesRef.class) {
-            elementType = ElementType.BYTES_REF;
-        } else if (type == Boolean.class) {
-            elementType = ElementType.BOOLEAN;
-        } else if (type == null || type == Void.class) {
-            elementType = ElementType.NULL;
-        } else {
-            throw new IllegalArgumentException("Unrecognized class type " + type);
-        }
-        return elementType;
     }
 
     public static BuilderWrapper wrapperFor(ElementType type, int size) {

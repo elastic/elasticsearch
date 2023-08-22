@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -62,7 +63,7 @@ public class Abs extends UnaryScalarFunction implements EvaluatorMapper {
         if (dataType() == DataTypes.INTEGER) {
             return () -> new AbsIntEvaluator(field.get());
         }
-        throw new UnsupportedOperationException("unsupported data type [" + dataType() + "]");
+        throw EsqlUnsupportedOperationException.unsupportedDataType(dataType());
     }
 
     @Override

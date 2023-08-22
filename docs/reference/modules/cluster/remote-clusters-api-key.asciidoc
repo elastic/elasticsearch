@@ -167,6 +167,8 @@ cluster earlier.
 [[remote-clusters-connect-api-key]]
 ==== Connect to a remote cluster
 
-coming::[8.10]
+:trust-mechanism: api-key
+include::remote-clusters-connect.asciidoc[]
+:!trust-mechanism: 
 
 include::../../../../x-pack/docs/en/security/authentication/remote-clusters-privileges-api-key.asciidoc[leveloffset=+1]

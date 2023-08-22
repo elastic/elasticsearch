@@ -89,6 +89,7 @@ import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -170,10 +171,10 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Does any node in the cluster being tested have x-pack installed?
      */
     public static boolean hasXPack() {
-        if (hasXPack == null) {
+        if (availableFeatures == null) {
             throw new IllegalStateException("must be called inside of a rest test case test");
         }
-        return hasXPack;
+        return availableFeatures.contains(ProductFeature.XPACK);
     }
 
     private static List<HttpHost> clusterHosts;
@@ -186,11 +187,18 @@ public abstract class ESRestTestCase extends ESTestCase {
      * completes
      */
     private static RestClient adminClient;
-    private static Boolean hasXPack;
-    private static Boolean hasIlm;
-    private static Boolean hasRollups;
-    private static Boolean hasCcr;
-    private static Boolean hasShutdown;
+
+    public enum ProductFeature {
+        XPACK,
+        ILM,
+        SLM,
+        ROLLUPS,
+        CCR,
+        SHUTDOWN,
+        LEGACY_TEMPLATES,
+    }
+
+    private static EnumSet<ProductFeature> availableFeatures;
     private static TreeSet<Version> nodeVersions;
 
     @Before
@@ -198,11 +206,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (client == null) {
             assert adminClient == null;
             assert clusterHosts == null;
-            assert hasXPack == null;
-            assert hasIlm == null;
-            assert hasRollups == null;
-            assert hasCcr == null;
-            assert hasShutdown == null;
+            assert availableFeatures == null;
             assert nodeVersions == null;
             String cluster = getTestRestCluster();
             String[] stringUrls = cluster.split(",");
@@ -221,12 +225,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
             adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
 
-            hasXPack = false;
-            hasIlm = false;
-            hasRollups = false;
-            hasCcr = false;
-            hasShutdown = false;
+            availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
             nodeVersions = new TreeSet<>();
+            boolean serverless = false;
             Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
             for (Map.Entry<?, ?> node : nodes.entrySet()) {
@@ -236,32 +237,47 @@ public abstract class ESRestTestCase extends ESTestCase {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
                     final String moduleName = moduleInfo.get("name").toString();
                     if (moduleName.startsWith("x-pack")) {
-                        hasXPack = true;
+                        availableFeatures.add(ProductFeature.XPACK);
                     }
                     if (moduleName.equals("x-pack-ilm")) {
-                        hasIlm = true;
+                        availableFeatures.add(ProductFeature.ILM);
+                        availableFeatures.add(ProductFeature.SLM);
                     }
                     if (moduleName.equals("x-pack-rollup")) {
-                        hasRollups = true;
+                        availableFeatures.add(ProductFeature.ROLLUPS);
                     }
                     if (moduleName.equals("x-pack-ccr")) {
-                        hasCcr = true;
+                        availableFeatures.add(ProductFeature.CCR);
                     }
                     if (moduleName.equals("x-pack-shutdown")) {
-                        hasShutdown = true;
+                        availableFeatures.add(ProductFeature.SHUTDOWN);
                     }
+                    if (moduleName.startsWith("serverless-")) {
+                        serverless = true;
+                    }
+                }
+                if (serverless) {
+                    availableFeatures.removeAll(
+                        List.of(
+                            ProductFeature.ILM,
+                            ProductFeature.SLM,
+                            ProductFeature.ROLLUPS,
+                            ProductFeature.CCR,
+                            ProductFeature.LEGACY_TEMPLATES
+                        )
+                    );
                 }
             }
         }
         assert client != null;
         assert adminClient != null;
         assert clusterHosts != null;
-        assert hasXPack != null;
-        assert hasIlm != null;
-        assert hasRollups != null;
-        assert hasCcr != null;
-        assert hasShutdown != null;
+        assert availableFeatures != null;
         assert nodeVersions != null;
+    }
+
+    protected static boolean has(ProductFeature feature) {
+        return availableFeatures.contains(feature);
     }
 
     protected String getTestRestCluster() {
@@ -414,11 +430,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             clusterHosts = null;
             client = null;
             adminClient = null;
-            hasXPack = null;
-            hasRollups = null;
-            hasCcr = null;
-            hasShutdown = null;
-            hasIlm = null;
+            availableFeatures = null;
             nodeVersions = null;
         }
     }
@@ -674,18 +686,20 @@ public abstract class ESRestTestCase extends ESTestCase {
         // Cleanup rollup before deleting indices. A rollup job might have bulks in-flight,
         // so we need to fully shut them down first otherwise a job might stall waiting
         // for a bulk to finish against a non-existing index (and then fail tests)
-        if (hasRollups && false == preserveRollupJobsUponCompletion()) {
+        if (has(ProductFeature.ROLLUPS) && false == preserveRollupJobsUponCompletion()) {
             wipeRollupJobs();
             waitForPendingRollupTasks();
         }
 
-        if (preserveSLMPoliciesUponCompletion() == false) {
+        if (has(ProductFeature.SLM) && preserveSLMPoliciesUponCompletion() == false) {
             // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
             deleteAllSLMPolicies();
         }
 
         // Clean up searchable snapshots indices before deleting snapshots and repositories
-        if (hasXPack() && nodeVersions.first().onOrAfter(Version.V_7_8_0) && preserveSearchableSnapshotsIndicesUponCompletion() == false) {
+        if (has(ProductFeature.XPACK)
+            && nodeVersions.first().onOrAfter(Version.V_7_8_0)
+            && preserveSearchableSnapshotsIndicesUponCompletion() == false) {
             wipeSearchableSnapshotsIndices();
         }
 
@@ -708,7 +722,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         // wipe index templates
         if (preserveTemplatesUponCompletion() == false) {
-            if (hasXPack) {
+            if (hasXPack()) {
                 /*
                  * Delete only templates that xpack doesn't automatically
                  * recreate. Deleting them doesn't hurt anything, but it
@@ -784,26 +798,30 @@ public abstract class ESRestTestCase extends ESTestCase {
                         // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                     }
                 }
-                // Always check for legacy templates:
-                Request getLegacyTemplatesRequest = new Request("GET", "_template");
-                Map<String, Object> legacyTemplates = XContentHelper.convertToMap(
-                    JsonXContent.jsonXContent,
-                    EntityUtils.toString(adminClient().performRequest(getLegacyTemplatesRequest).getEntity()),
-                    false
-                );
-                for (String name : legacyTemplates.keySet()) {
-                    if (isXPackTemplate(name)) {
-                        continue;
-                    }
-                    try {
-                        adminClient().performRequest(new Request("DELETE", "_template/" + name));
-                    } catch (ResponseException e) {
-                        logger.debug(() -> format("unable to remove index template %s", name), e);
+
+                if (has(ProductFeature.LEGACY_TEMPLATES)) {
+                    Request getLegacyTemplatesRequest = new Request("GET", "_template");
+                    Map<String, Object> legacyTemplates = XContentHelper.convertToMap(
+                        JsonXContent.jsonXContent,
+                        EntityUtils.toString(adminClient().performRequest(getLegacyTemplatesRequest).getEntity()),
+                        false
+                    );
+                    for (String name : legacyTemplates.keySet()) {
+                        if (isXPackTemplate(name)) {
+                            continue;
+                        }
+                        try {
+                            adminClient().performRequest(new Request("DELETE", "_template/" + name));
+                        } catch (ResponseException e) {
+                            logger.debug(() -> format("unable to remove index template %s", name), e);
+                        }
                     }
                 }
             } else {
                 logger.debug("Clearing all templates");
-                adminClient().performRequest(new Request("DELETE", "_template/*"));
+                if (has(ProductFeature.LEGACY_TEMPLATES)) {
+                    adminClient().performRequest(new Request("DELETE", "_template/*"));
+                }
                 try {
                     adminClient().performRequest(new Request("DELETE", "_index_template/*"));
                     adminClient().performRequest(new Request("DELETE", "_component_template/*"));
@@ -818,11 +836,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             wipeClusterSettings();
         }
 
-        if (hasIlm && false == preserveILMPoliciesUponCompletion()) {
+        if (has(ProductFeature.ILM) && false == preserveILMPoliciesUponCompletion()) {
             deleteAllILMPolicies(preserveILMPolicyIds());
         }
 
-        if (hasCcr && false == preserveAutoFollowPatternsUponCompletion()) {
+        if (has(ProductFeature.CCR) && false == preserveAutoFollowPatternsUponCompletion()) {
             deleteAllAutoFollowPatterns();
         }
 
@@ -837,7 +855,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * @throws IOException
      */
     private void checkForUnexpectedlyRecreatedObjects() throws IOException {
-        if (hasIlm && false == preserveILMPoliciesUponCompletion()) {
+        if (has(ProductFeature.ILM) && false == preserveILMPoliciesUponCompletion()) {
             Set<String> unexpectedIlmPlicies = getAllUnexpectedIlmPolicies(preserveILMPolicyIds());
             assertTrue(
                 "Expected no ILM policies after deletions, but found " + String.join(", ", unexpectedIlmPlicies),
@@ -875,7 +893,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     private Set<String> getAllUnexpectedTemplates() throws IOException {
         Set<String> unexpectedTemplates = new HashSet<>();
         if (preserveDataStreamsUponCompletion() == false && preserveTemplatesUponCompletion() == false) {
-            if (hasXPack) {
+            if (has(ProductFeature.XPACK)) {
                 // In case of bwc testing, if all nodes are before 7.8.0 then no need to attempt to delete component and composable
                 // index templates, because these were introduced in 7.8.0:
                 if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_8_0))) {
@@ -899,16 +917,18 @@ public abstract class ESRestTestCase extends ESTestCase {
                         .filter(name -> isXPackTemplate(name) == false)
                         .forEach(unexpectedTemplates::add);
                 }
-                // Always check for legacy templates:
-                Request getLegacyTemplatesRequest = new Request("GET", "_template");
-                Map<String, Object> legacyTemplates = XContentHelper.convertToMap(
-                    JsonXContent.jsonXContent,
-                    EntityUtils.toString(adminClient().performRequest(getLegacyTemplatesRequest).getEntity()),
-                    false
-                );
-                unexpectedTemplates.addAll(
-                    legacyTemplates.keySet().stream().filter(template -> isXPackTemplate(template) == false).collect(Collectors.toSet())
-                );
+
+                if (has(ProductFeature.LEGACY_TEMPLATES)) {
+                    Request getLegacyTemplatesRequest = new Request("GET", "_template");
+                    Map<String, Object> legacyTemplates = XContentHelper.convertToMap(
+                        JsonXContent.jsonXContent,
+                        EntityUtils.toString(adminClient().performRequest(getLegacyTemplatesRequest).getEntity()),
+                        false
+                    );
+                    unexpectedTemplates.addAll(
+                        legacyTemplates.keySet().stream().filter(template -> isXPackTemplate(template) == false).collect(Collectors.toSet())
+                    );
+                }
             } else {
                 // Do nothing
             }
@@ -921,7 +941,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     protected void deleteAllNodeShutdownMetadata() throws IOException {
-        if (hasShutdown == false || minimumNodeVersion().before(Version.V_7_15_0)) {
+        if (has(ProductFeature.SHUTDOWN) == false || minimumNodeVersion().before(Version.V_7_15_0)) {
             // Node shutdown APIs are only present in xpack
             return;
         }

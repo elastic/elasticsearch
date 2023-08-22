@@ -660,7 +660,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                     }
                 } while (recheck);
 
-                used.addAll(references(p));
+                used.addAll(p.references());
 
                 // preserve the state before going to the next node
                 return p;
@@ -687,16 +687,6 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 }
             }
             return clone.size() != named.size() ? clone : null;
-        }
-
-        private static List<Expression> expressions(LogicalPlan plan) {
-            List<Expression> exp = new ArrayList<>();
-            plan.forEachExpression(exp::add);
-            return exp;
-        }
-
-        private static AttributeSet references(LogicalPlan plan) {
-            return Expressions.references(expressions(plan));
         }
     }
 
@@ -759,7 +749,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
             return project.replaceChild(expressionsWithResolvedAliases.replaceChild(project.child()));
         } else {
-            throw new UnsupportedOperationException("Expected child to be instance of Project");
+            throw new EsqlIllegalArgumentException("Expected child to be instance of Project");
         }
     }
 

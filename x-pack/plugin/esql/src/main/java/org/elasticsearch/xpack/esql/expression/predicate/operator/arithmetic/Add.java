@@ -8,10 +8,54 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.ADD;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAddExact;
 
-public class Add {
+public class Add extends EsqlArithmeticOperation implements BinaryComparisonInversible {
+
+    public Add(Source source, Expression left, Expression right) {
+        super(
+            source,
+            left,
+            right,
+            ADD,
+            AddIntsEvaluator::new,
+            AddLongsEvaluator::new,
+            AddUnsignedLongsEvaluator::new,
+            (s, l, r) -> new AddDoublesEvaluator(l, r)
+        );
+    }
+
+    @Override
+    protected NodeInfo<Add> info() {
+        return NodeInfo.create(this, Add::new, left(), right());
+    }
+
+    @Override
+    protected Add replaceChildren(Expression left, Expression right) {
+        return new Add(source(), left, right);
+    }
+
+    @Override
+    public Add swapLeftAndRight() {
+        return new Add(source(), right(), left());
+    }
+
+    @Override
+    public ArithmeticOperationFactory binaryComparisonInverse() {
+        return Sub::new;
+    }
+
+    @Override
+    protected boolean isCommutative() {
+        return true;
+    }
+
     @Evaluator(extraName = "Ints", warnExceptions = { ArithmeticException.class })
     static int processInts(int lhs, int rhs) {
         return Math.addExact(lhs, rhs);

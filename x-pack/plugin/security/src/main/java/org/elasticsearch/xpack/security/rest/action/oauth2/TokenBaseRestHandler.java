@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
@@ -28,11 +27,8 @@ abstract class TokenBaseRestHandler extends SecurityBaseRestHandler {
     }
 
     @Override
-    protected Exception checkFeatureAvailable(RestRequest request) {
-        Exception failedFeature = super.checkFeatureAvailable(request);
-        if (failedFeature != null) {
-            return failedFeature;
-        } else if (Security.TOKEN_SERVICE_FEATURE.check(licenseState)) {
+    protected Exception innerCheckFeatureAvailable() {
+        if (Security.TOKEN_SERVICE_FEATURE.check(licenseState)) {
             return null;
         } else {
             logger.info("Security tokens are not available under the current [{}] license", licenseState.getOperationMode().description());

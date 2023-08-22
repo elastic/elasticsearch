@@ -76,11 +76,6 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Object getSampleObjectForDocument() {
-        throw new UnsupportedOperationException("annotated_text Field doesn't support object parsing.");
-    }
-
-    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
 
         checker.registerUpdateCheck(b -> {

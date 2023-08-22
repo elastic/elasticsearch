@@ -88,11 +88,6 @@ public class TextFieldMapperTests extends MapperTestCase {
         return "value";
     }
 
-    @Override
-    protected Object getSampleObjectForDocument() {
-        throw new UnsupportedOperationException("text Field doesn't support object parsing.");
-    }
-
     public final void testExistsQueryIndexDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

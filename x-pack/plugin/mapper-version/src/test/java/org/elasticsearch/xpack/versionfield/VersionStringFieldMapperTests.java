@@ -53,11 +53,6 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Object getSampleObjectForDocument() {
-        throw new UnsupportedOperationException("version Field doesn't support object parsing.");
-    }
-
-    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         // no configurable parameters
     }

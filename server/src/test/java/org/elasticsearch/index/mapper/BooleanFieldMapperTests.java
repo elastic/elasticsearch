@@ -33,11 +33,6 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Object getSampleObjectForDocument() {
-        throw new UnsupportedOperationException("boolean Field doesn't support object parsing.");
-    }
-
-    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "boolean");
     }

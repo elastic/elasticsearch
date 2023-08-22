@@ -53,11 +53,6 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Object getSampleObjectForDocument() {
-        throw new UnsupportedOperationException("murmur3 Field doesn't support object parsing.");
-    }
-
-    @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new MapperMurmur3Plugin());
     }

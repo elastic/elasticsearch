@@ -55,11 +55,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Object getSampleObjectForDocument() {
-        throw new UnsupportedOperationException("scaled_float Field doesn't support object parsing.");
-    }
-
-    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "scaled_float").field("scaling_factor", 10.0);
     }

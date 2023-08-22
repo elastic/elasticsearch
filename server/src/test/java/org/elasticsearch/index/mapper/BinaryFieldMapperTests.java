@@ -36,11 +36,6 @@ public class BinaryFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Object getSampleObjectForDocument() {
-        throw new UnsupportedOperationException("binary Field doesn't support object parsing.");
-    }
-
-    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "binary");
     }

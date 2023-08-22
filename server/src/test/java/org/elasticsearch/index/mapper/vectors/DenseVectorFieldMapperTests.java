@@ -109,11 +109,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Object getSampleObjectForDocument() {
-        throw new UnsupportedOperationException("dense_vector Field doesn't support object parsing.");
-    }
-
-    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck(
             "dims",

@@ -71,11 +71,6 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         return 1234;
     }
 
-    @Override
-    protected Object getSampleObjectForDocument() {
-        throw new UnsupportedOperationException("geo_shape Field doesn't support object parsing.");
-    }
-
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());

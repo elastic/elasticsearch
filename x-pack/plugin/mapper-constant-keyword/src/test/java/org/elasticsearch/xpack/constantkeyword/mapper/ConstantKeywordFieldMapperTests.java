@@ -48,11 +48,6 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Object getSampleObjectForDocument() {
-        throw new UnsupportedOperationException("constant_keyword Field doesn't support object parsing.");
-    }
-
-    @Override
     protected Object getSampleValueForQuery() {
         return "test";
     }

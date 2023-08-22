@@ -58,11 +58,6 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Object getSampleObjectForDocument() {
-        throw new UnsupportedOperationException("token_count Field doesn't support object parsing.");
-    }
-
-    @Override
     protected Object getSampleValueForQuery() {
         return 1;
     }

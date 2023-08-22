@@ -84,11 +84,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         return 123;
     }
 
-    @Override
-    protected Object getSampleObjectForDocument() {
-        throw new UnsupportedOperationException("number Field doesn't support object parsing.");
-    }
-
     public void testExistsQueryDocValuesDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

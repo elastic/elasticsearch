@@ -60,11 +60,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         return "value";
     }
 
-    @Override
-    protected Object getSampleObjectForDocument() {
-        throw new UnsupportedOperationException("match_only_text Field doesn't support object parsing.");
-    }
-
     public void testExistsStandardSource() throws IOException {
         assertExistsQuery(createMapperService(testMapping(false)));
     }

@@ -63,11 +63,6 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         return "POINT (14.0 15.0)";
     }
 
-    @Override
-    protected Object getSampleObjectForDocument() {
-        throw new UnsupportedOperationException("geo_shape Field doesn't support object parsing.");
-    }
-
     public void testDefaultConfiguration() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Mapper fieldMapper = mapper.mappers().getMapper("field");

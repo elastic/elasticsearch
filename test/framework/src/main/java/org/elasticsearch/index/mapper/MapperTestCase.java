@@ -119,7 +119,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     /**
      * Returns a sample object for the field or exception if the field does not support parsing objects
      */
-    protected abstract Object getSampleObjectForDocument();
+    protected Object getSampleObjectForDocument() {
+        throw new UnsupportedOperationException("Field doesn't support object parsing.");
+    }
 
     /**
      * Returns a sample value for the field, to be used when querying the field. Normally this is the same format as
@@ -1099,7 +1101,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 b.startObject("field");
                 b.endObject();
             })));
-            expectThrows(UnsupportedOperationException.class, this::getSampleObjectForDocument);
         }
     }
 

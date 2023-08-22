@@ -122,11 +122,6 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Object getSampleObjectForDocument() {
-        throw new UnsupportedOperationException("search_as_you_type Field doesn't support object parsing.");
-    }
-
-    @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new MapperExtrasPlugin());
     }

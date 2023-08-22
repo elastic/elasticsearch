@@ -55,11 +55,6 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Object getSampleObjectForDocument() {
-        throw new UnsupportedOperationException("unsigned_long Field doesn't support object parsing.");
-    }
-
-    @Override
     protected boolean supportsSearchLookup() {
         return false;
     }

@@ -19,6 +19,8 @@ import java.util.function.Function;
 public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeometryFieldMapper<T> {
     @Override
     protected boolean supportsParsingObject() {
+        // ShapeGeometryFieldMapper supports parsing Well-Known Text (WKT) and GeoJSON.
+        // WKT are of type String and GeoJSON for all shapes are of type Array.
         return false;
     }
 

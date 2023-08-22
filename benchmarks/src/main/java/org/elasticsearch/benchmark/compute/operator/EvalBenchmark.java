@@ -94,7 +94,7 @@ public class EvalBenchmark {
                     new EsField("timestamp", DataTypes.DATETIME, Map.of(), true)
                 );
                 yield EvalMapper.toEvaluator(
-                    new DateTrunc(Source.EMPTY, timestamp, new Literal(Source.EMPTY, Duration.ofHours(24), EsqlDataTypes.TIME_DURATION)),
+                    new DateTrunc(Source.EMPTY, new Literal(Source.EMPTY, Duration.ofHours(24), EsqlDataTypes.TIME_DURATION), timestamp),
                     layout(timestamp)
                 ).get();
             }

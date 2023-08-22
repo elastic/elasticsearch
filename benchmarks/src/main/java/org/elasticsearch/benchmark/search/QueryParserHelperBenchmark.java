@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -165,7 +166,7 @@ public class QueryParserHelperBenchmark {
         Settings settings = Settings.builder()
             .put("index.number_of_replicas", 0)
             .put("index.number_of_shards", 1)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(meta, settings);

@@ -20,15 +20,12 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.Locale;
 
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.createDataStream;
-import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.ONE_HUNDRED_MB;
-import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.TARGET_MERGE_FACTOR_VALUE;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -50,8 +47,7 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
-                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE),
+            settings(IndexVersion.current()),
             DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
@@ -77,8 +73,7 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
-                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE),
+            settings(IndexVersion.current()),
             DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
@@ -115,8 +110,7 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
-                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE),
+            settings(IndexVersion.current()),
             DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
@@ -149,8 +143,7 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
-                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE),
+            settings(IndexVersion.current()),
             DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
@@ -196,8 +189,7 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
-                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE),
+            settings(IndexVersion.current()),
             DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
@@ -242,7 +234,7 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
             dataStreamName,
             sourceBackingIndex,
             downsampleIndex,
-            new ActionListener<Void>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
 

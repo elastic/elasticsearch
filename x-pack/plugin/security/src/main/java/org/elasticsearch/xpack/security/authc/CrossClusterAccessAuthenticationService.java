@@ -152,7 +152,7 @@ public class CrossClusterAccessAuthenticationService {
             }
             return CrossClusterAccessHeaders.parseCredentialsHeader(credentials);
         } catch (Exception ex) {
-            throw Exceptions.authenticationError("failed to extract cross cluster credentials header", ex);
+            throw Exceptions.authenticationError("failed to extract credentials from headers", ex);
         }
     }
 

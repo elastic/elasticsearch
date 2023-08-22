@@ -896,7 +896,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         int numRewrites = 0;
         int maxNumRewrites = 100;
         for (; numRewrites < maxNumRewrites; numRewrites++) {
-            Query newApprox = approximationQuery.rewrite(new IndexSearcher(rewriteReader));
+            Query newApprox = approximationQuery.rewrite(newSearcher(rewriteReader));
             if (newApprox == approximationQuery) {
                 break;
             }

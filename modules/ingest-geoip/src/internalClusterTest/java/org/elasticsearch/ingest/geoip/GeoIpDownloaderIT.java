@@ -821,13 +821,18 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
      * This class defines a processor of type "test".
      */
     public static final class NonGeoProcessorsPlugin extends Plugin implements IngestPlugin {
+        /*
+         * This processor has a single field, randomField. Its sole purpose is to hold a random value to make the processor unique from
+         * other prorcessors that are otherwise identical. The only reason for this is so that the pipeline the processor belongs to is
+         * unique. And the only reason for that is so that adding the pipeline is not treated as a no-op.
+         */
         public static final String NON_GEO_PROCESSOR_TYPE = "test";
 
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             Map<String, Processor.Factory> procMap = new HashMap<>();
             procMap.put(NON_GEO_PROCESSOR_TYPE, (factories, tag, description, config) -> {
-                String ipField = readStringProperty("test", tag, config, "randomField");
+                readStringProperty(NON_GEO_PROCESSOR_TYPE, tag, config, "randomField");
                 return new AbstractProcessor(tag, description) {
                     @Override
                     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {

@@ -20,7 +20,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -54,7 +53,6 @@ public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .feature(FeatureFlag.DATA_STREAM_LIFECYCLE_ENABLED)
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")
@@ -75,9 +73,9 @@ public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
         .configFile("node.key", Resource.fromClasspath("ssl/node.key"))
         .configFile("node.crt", Resource.fromClasspath("ssl/node.crt"))
         .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
-        .user("test_admin", PASSWORD, "superuser")
-        .user("test_data_stream_lifecycle", PASSWORD, "manage_data_stream_lifecycle")
-        .user("test_non_privileged", PASSWORD, "not_privileged")
+        .user("test_admin", PASSWORD, "superuser", false)
+        .user("test_data_stream_lifecycle", PASSWORD, "manage_data_stream_lifecycle", false)
+        .user("test_non_privileged", PASSWORD, "not_privileged", false)
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .build();
 

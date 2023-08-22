@@ -39,7 +39,6 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -106,12 +105,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         false,
         Setting.Property.NodeScope
     );
-
-    private static final FeatureFlag UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG = FeatureFlag.legacyRegisteredFlag("untrusted_remote_cluster");
-
-    public static boolean isUntrustedRemoteClusterEnabled() {
-        return UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG.isEnabled();
-    }
 
     private final boolean ignoreDeserializationErrors;
 

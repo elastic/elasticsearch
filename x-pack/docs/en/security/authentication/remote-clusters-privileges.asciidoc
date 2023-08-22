@@ -17,7 +17,7 @@ retrieve roles dynamically. When you use the APIs to manage roles in the
 
 The following requests use the
 <<security-api-put-role,create or update roles API>>. You must have at least the
-`manage_security` cluster privilege to use this API. 
+`manage_security` cluster privilege to use this API.
 
 [[remote-clusters-privileges-ccr]]
 //tag::configure-ccr-privileges[]
@@ -33,8 +33,11 @@ On the remote cluster that contains the leader index, the {ccr} role requires
 the `read_ccr` cluster privilege, and `monitor` and `read` privileges on the
 leader index.
 
-NOTE: If requests will be issued <<run-as-privilege,on behalf of other users>>,
-then the authenticating user must have the `run_as` privilege on the remote 
+NOTE: If requests are authenticated with an <<security-api-create-api-key, API key>>, the API key
+requires the above privileges on the **local** cluster, instead of the remote.
+
+NOTE: If requests are issued <<run-as-privilege,on behalf of other users>>,
+then the authenticating user must have the `run_as` privilege on the remote
 cluster.
 
 The following request creates a `remote-replication` role on the remote cluster:
@@ -99,7 +102,7 @@ POST /_security/role/remote-replication
 }
 ----
 
-After creating the `remote-replication` role on each cluster, use the 
+After creating the `remote-replication` role on each cluster, use the
 <<security-api-put-user,create or update users API>> to create a user on
 the local cluster cluster and assign the `remote-replication` role. For
 example, the following request assigns the `remote-replication` role to a user
@@ -133,8 +136,11 @@ local and remote clusters, and then create a user with the required roles.
 On the remote cluster, the {ccs} role requires the `read` and
 `read_cross_cluster` privileges for the target indices.
 
-NOTE: If requests will be issued <<run-as-privilege,on behalf of other users>>,
-then the authenticating user must have the `run_as` privilege on the remote 
+NOTE: If requests are authenticated with an <<security-api-create-api-key, API key>>, the API key
+requires the above privileges on the **local** cluster, instead of the remote.
+
+NOTE: If requests are issued <<run-as-privilege,on behalf of other users>>,
+then the authenticating user must have the `run_as` privilege on the remote
 cluster.
 
 The following request creates a `remote-search` role on the remote cluster:
@@ -180,7 +186,7 @@ POST /_security/role/remote-search
 {}
 ----
 
-After creating the `remote-search` role on each cluster, use the 
+After creating the `remote-search` role on each cluster, use the
 <<security-api-put-user,create or update users API>> to create a user on the
 local cluster and assign the `remote-search` role. For example, the following
 request assigns the `remote-search` role to a user named `cross-search-user`:
@@ -263,7 +269,7 @@ Assign your {kib} users a role that grants
 PUT /_security/user/cross-cluster-kibana
 {
   "password" : "l0ng-r4nd0m-p@ssw0rd",
-  "roles" : [ 
+  "roles" : [
     "logstash-reader",
     "kibana-access"
     ]

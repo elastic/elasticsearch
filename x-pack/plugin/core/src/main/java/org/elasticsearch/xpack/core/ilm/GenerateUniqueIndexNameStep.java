@@ -13,12 +13,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState.Builder;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.Index;
 
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
-import static org.elasticsearch.common.IndexNameGenerator.generateValidIndexName;
+import static org.elasticsearch.common.IndexNameGenerator.ILLEGAL_INDEXNAME_CHARS_REGEX;
+import static org.elasticsearch.common.IndexNameGenerator.MAX_GENERATED_UUID_LENGTH;
 import static org.elasticsearch.common.IndexNameGenerator.validateGeneratedIndexName;
 
 /**
@@ -73,7 +77,7 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
 
         Builder newLifecycleState = LifecycleExecutionState.builder(lifecycleState);
         String policyName = indexMetadata.getLifecyclePolicyName();
-        String generatedIndexName = generateValidIndexName(prefix, index.getName());
+        String generatedIndexName = generateIndexName(prefix, index.getName());
         ActionRequestValidationException validationException = validateGeneratedIndexName(generatedIndexName, clusterState);
         if (validationException != null) {
             logger.warn(
@@ -110,4 +114,26 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
         return Objects.hash(super.hashCode(), prefix);
     }
 
+    public String generateIndexName(final String prefix, final String indexName) {
+        return generateValidIndexName(prefix, indexName);
+    }
+
+    /**
+     * This generates a valid unique index name by using the provided prefix, appended with a generated UUID, and the index name.
+     */
+    static String generateValidIndexName(String prefix, String indexName) {
+        String randomUUID = generateValidIndexSuffix(UUIDs::randomBase64UUID);
+        randomUUID = randomUUID.substring(0, Math.min(randomUUID.length(), MAX_GENERATED_UUID_LENGTH));
+        return prefix + randomUUID + "-" + indexName;
+    }
+
+    static String generateValidIndexSuffix(Supplier<String> randomGenerator) {
+        String randomSuffix = randomGenerator.get().toLowerCase(Locale.ROOT);
+        randomSuffix = randomSuffix.replaceAll(ILLEGAL_INDEXNAME_CHARS_REGEX, "");
+        if (randomSuffix.length() == 0) {
+            throw new IllegalArgumentException("unable to generate random index name suffix");
+        }
+
+        return randomSuffix;
+    }
 }

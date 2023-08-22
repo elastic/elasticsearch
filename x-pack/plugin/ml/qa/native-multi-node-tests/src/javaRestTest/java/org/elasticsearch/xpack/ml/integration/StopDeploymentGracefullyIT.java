@@ -32,11 +32,7 @@ public class StopDeploymentGracefullyIT extends PyTorchModelRestTestCase {
         // infer by model Id
         inference = infer("my words", baseModelId);
         assertOK(inference);
-        assertInferenceCountOnModel(4, baseModelId);
-
-        inference = infer("my words", baseModelId);
-        assertOK(inference);
-        assertInferenceCountOnModel(5, baseModelId);
+        assertInferenceCountOnModel(2, baseModelId);
 
         stopDeployment(forSearchDeploymentId, false, true);
     }

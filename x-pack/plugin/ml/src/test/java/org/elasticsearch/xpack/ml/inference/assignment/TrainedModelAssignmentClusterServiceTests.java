@@ -1590,8 +1590,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     private static ClusterState createClusterState(List<String> nodeIds, Metadata metadata) {
         DiscoveryNode[] nodes = nodeIds.stream()
             .map(id -> buildNode(id, true, ByteSizeValue.ofGb(4).getBytes(), 8))
-            .toList()
-            .toArray(new DiscoveryNode[0]);
+            .toArray(DiscoveryNode[]::new);
 
         ClusterState.Builder csBuilder = csBuilderWithNodes("test", nodes);
         nodeIds.forEach(id -> csBuilder.putTransportVersion(id, TransportVersion.current()));

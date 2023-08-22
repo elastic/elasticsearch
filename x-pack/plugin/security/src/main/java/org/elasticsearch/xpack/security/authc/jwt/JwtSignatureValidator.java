@@ -280,17 +280,19 @@ public interface JwtSignatureValidator extends Releasable {
                 validateSignature(signedJWT, jwksAlgs.jwks());
                 listener.onResponse(null);
             } catch (Exception primaryException) {
-                logger.debug(
-                    () -> org.elasticsearch.core.Strings.format(
-                        "Signature verification failed for JWT [%s] reloading JWKSet (was: #[%s] JWKs, #[%s] algs, sha256=[%s])",
-                        tokenPrincipal,
-                        jwksAlgs.jwks().size(),
-                        jwksAlgs.algs().size(),
-                        MessageDigests.toHexString(contentAndJwksAlgs.sha256())
-                    ),
-                    primaryException
+               String message =  org.elasticsearch.core.Strings.format(
+                    "Signature verification failed for JWT token [%s] against JWK set sha256=[%s].",
+                    tokenPrincipal,
+                    MessageDigests.toHexString(contentAndJwksAlgs.sha256())
                 );
 
+               if(logger.isTraceEnabled()) {
+                   logger.trace(message, primaryException);
+               } else {
+                   logger.debug(message + " Cause: " + primaryException.getMessage());
+               }
+
+               logger.debug("Attempting to reload JWK set with sha256=[{}]", MessageDigests.toHexString(contentAndJwksAlgs.sha256()));
                 jwkSetLoader.reload(ActionListener.wrap(ignore -> {
                     final JwkSetLoader.ContentAndJwksAlgs maybeUpdatedContentAndJwksAlgs = jwkSetLoader.getContentAndJwksAlgs();
                     if (Arrays.equals(maybeUpdatedContentAndJwksAlgs.sha256(), initialJwksVersion)) {
@@ -300,6 +302,9 @@ public interface JwtSignatureValidator extends Releasable {
                         );
                         listener.onFailure(primaryException);
                         return;
+                    } else {
+                        logger.debug("Successful reload of JWK set. Now with sha256=[{}]",
+                            MessageDigests.toHexString(maybeUpdatedContentAndJwksAlgs.sha256()));
                     }
 
                     // If all PKC JWKs were replaced, all PKC JWT cache entries need to be invalidated.
@@ -423,8 +428,7 @@ public interface JwtSignatureValidator extends Releasable {
             }
         }
         tracer.flush();
-//TODO: fix this message
-        throw new ElasticsearchException("Verify failed using " + jwksConfigured.size() + " of " + jwks.size() + " provided JWKs.");
+        throw new ElasticsearchException("JWT [" + getSafePrintableJWT(jwt).get() + "] signature verification failed.");
     }
 
     default JWSVerifier createJwsVerifier(final JWK jwk) throws JOSEException {

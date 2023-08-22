@@ -2,7 +2,7 @@
 // or more contributor license agreements. Licensed under the Elastic License
 // 2.0; you may not use this file except in compliance with the Elastic License
 // 2.0.
-package org.elasticsearch.xpack.esql.expression.function.scalar.math;
+package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
 import java.lang.Override;
 import java.lang.String;
@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Greatest}.

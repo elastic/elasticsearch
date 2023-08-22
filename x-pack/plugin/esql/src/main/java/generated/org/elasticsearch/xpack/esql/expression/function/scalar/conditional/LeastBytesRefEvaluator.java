@@ -2,40 +2,40 @@
 // or more contributor license agreements. Licensed under the Elastic License
 // 2.0; you may not use this file except in compliance with the Elastic License
 // 2.0.
-package org.elasticsearch.xpack.esql.expression.function.scalar.math;
+package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
 import java.lang.Override;
 import java.lang.String;
 import java.util.Arrays;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Greatest}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Least}.
  * This class is generated. Do not edit it.
  */
-public final class GreatestLongEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class LeastBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator[] values;
 
-  public GreatestLongEvaluator(EvalOperator.ExpressionEvaluator[] values) {
+  public LeastBytesRefEvaluator(EvalOperator.ExpressionEvaluator[] values) {
     this.values = values;
   }
 
   @Override
   public Block eval(Page page) {
-    LongBlock[] valuesBlocks = new LongBlock[values.length];
+    BytesRefBlock[] valuesBlocks = new BytesRefBlock[values.length];
     for (int i = 0; i < valuesBlocks.length; i++) {
       Block block = values[i].eval(page);
       if (block.areAllValuesNull()) {
         return Block.constantNullBlock(page.getPositionCount());
       }
-      valuesBlocks[i] = (LongBlock) block;
+      valuesBlocks[i] = (BytesRefBlock) block;
     }
-    LongVector[] valuesVectors = new LongVector[values.length];
+    BytesRefVector[] valuesVectors = new BytesRefVector[values.length];
     for (int i = 0; i < valuesBlocks.length; i++) {
       valuesVectors[i] = valuesBlocks[i].asVector();
       if (valuesVectors[i] == null) {
@@ -45,9 +45,13 @@ public final class GreatestLongEvaluator implements EvalOperator.ExpressionEvalu
     return eval(page.getPositionCount(), valuesVectors).asBlock();
   }
 
-  public LongBlock eval(int positionCount, LongBlock[] valuesBlocks) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    long[] valuesValues = new long[values.length];
+  public BytesRefBlock eval(int positionCount, BytesRefBlock[] valuesBlocks) {
+    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
+    BytesRef[] valuesValues = new BytesRef[values.length];
+    BytesRef[] valuesScratch = new BytesRef[values.length];
+    for (int i = 0; i < values.length; i++) {
+      valuesScratch[i] = new BytesRef();
+    }
     position: for (int p = 0; p < positionCount; p++) {
       for (int i = 0; i < valuesBlocks.length; i++) {
         if (valuesBlocks[i].isNull(p) || valuesBlocks[i].getValueCount(p) != 1) {
@@ -58,28 +62,32 @@ public final class GreatestLongEvaluator implements EvalOperator.ExpressionEvalu
       // unpack valuesBlocks into valuesValues
       for (int i = 0; i < valuesBlocks.length; i++) {
         int o = valuesBlocks[i].getFirstValueIndex(p);
-        valuesValues[i] = valuesBlocks[i].getLong(o);
+        valuesValues[i] = valuesBlocks[i].getBytesRef(o, valuesScratch[i]);
       }
-      result.appendLong(Greatest.process(valuesValues));
+      result.appendBytesRef(Least.process(valuesValues));
     }
     return result.build();
   }
 
-  public LongVector eval(int positionCount, LongVector[] valuesVectors) {
-    LongVector.Builder result = LongVector.newVectorBuilder(positionCount);
-    long[] valuesValues = new long[values.length];
+  public BytesRefVector eval(int positionCount, BytesRefVector[] valuesVectors) {
+    BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
+    BytesRef[] valuesValues = new BytesRef[values.length];
+    BytesRef[] valuesScratch = new BytesRef[values.length];
+    for (int i = 0; i < values.length; i++) {
+      valuesScratch[i] = new BytesRef();
+    }
     position: for (int p = 0; p < positionCount; p++) {
       // unpack valuesVectors into valuesValues
       for (int i = 0; i < valuesVectors.length; i++) {
-        valuesValues[i] = valuesVectors[i].getLong(p);
+        valuesValues[i] = valuesVectors[i].getBytesRef(p, valuesScratch[i]);
       }
-      result.appendLong(Greatest.process(valuesValues));
+      result.appendBytesRef(Least.process(valuesValues));
     }
     return result.build();
   }
 
   @Override
   public String toString() {
-    return "GreatestLongEvaluator[" + "values=" + Arrays.toString(values) + "]";
+    return "LeastBytesRefEvaluator[" + "values=" + Arrays.toString(values) + "]";
   }
 }

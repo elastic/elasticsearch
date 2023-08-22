@@ -2,40 +2,39 @@
 // or more contributor license agreements. Licensed under the Elastic License
 // 2.0; you may not use this file except in compliance with the Elastic License
 // 2.0.
-package org.elasticsearch.xpack.esql.expression.function.scalar.math;
+package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
 import java.lang.Override;
 import java.lang.String;
 import java.util.Arrays;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Least}.
  * This class is generated. Do not edit it.
  */
-public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator[] values;
 
-  public LeastDoubleEvaluator(EvalOperator.ExpressionEvaluator[] values) {
+  public LeastBooleanEvaluator(EvalOperator.ExpressionEvaluator[] values) {
     this.values = values;
   }
 
   @Override
   public Block eval(Page page) {
-    DoubleBlock[] valuesBlocks = new DoubleBlock[values.length];
+    BooleanBlock[] valuesBlocks = new BooleanBlock[values.length];
     for (int i = 0; i < valuesBlocks.length; i++) {
       Block block = values[i].eval(page);
       if (block.areAllValuesNull()) {
         return Block.constantNullBlock(page.getPositionCount());
       }
-      valuesBlocks[i] = (DoubleBlock) block;
+      valuesBlocks[i] = (BooleanBlock) block;
     }
-    DoubleVector[] valuesVectors = new DoubleVector[values.length];
+    BooleanVector[] valuesVectors = new BooleanVector[values.length];
     for (int i = 0; i < valuesBlocks.length; i++) {
       valuesVectors[i] = valuesBlocks[i].asVector();
       if (valuesVectors[i] == null) {
@@ -45,9 +44,9 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
     return eval(page.getPositionCount(), valuesVectors).asBlock();
   }
 
-  public DoubleBlock eval(int positionCount, DoubleBlock[] valuesBlocks) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    double[] valuesValues = new double[values.length];
+  public BooleanBlock eval(int positionCount, BooleanBlock[] valuesBlocks) {
+    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
+    boolean[] valuesValues = new boolean[values.length];
     position: for (int p = 0; p < positionCount; p++) {
       for (int i = 0; i < valuesBlocks.length; i++) {
         if (valuesBlocks[i].isNull(p) || valuesBlocks[i].getValueCount(p) != 1) {
@@ -58,28 +57,28 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
       // unpack valuesBlocks into valuesValues
       for (int i = 0; i < valuesBlocks.length; i++) {
         int o = valuesBlocks[i].getFirstValueIndex(p);
-        valuesValues[i] = valuesBlocks[i].getDouble(o);
+        valuesValues[i] = valuesBlocks[i].getBoolean(o);
       }
-      result.appendDouble(Least.process(valuesValues));
+      result.appendBoolean(Least.process(valuesValues));
     }
     return result.build();
   }
 
-  public DoubleVector eval(int positionCount, DoubleVector[] valuesVectors) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
-    double[] valuesValues = new double[values.length];
+  public BooleanVector eval(int positionCount, BooleanVector[] valuesVectors) {
+    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
+    boolean[] valuesValues = new boolean[values.length];
     position: for (int p = 0; p < positionCount; p++) {
       // unpack valuesVectors into valuesValues
       for (int i = 0; i < valuesVectors.length; i++) {
-        valuesValues[i] = valuesVectors[i].getDouble(p);
+        valuesValues[i] = valuesVectors[i].getBoolean(p);
       }
-      result.appendDouble(Least.process(valuesValues));
+      result.appendBoolean(Least.process(valuesValues));
     }
     return result.build();
   }
 
   @Override
   public String toString() {
-    return "LeastDoubleEvaluator[" + "values=" + Arrays.toString(values) + "]";
+    return "LeastBooleanEvaluator[" + "values=" + Arrays.toString(values) + "]";
   }
 }

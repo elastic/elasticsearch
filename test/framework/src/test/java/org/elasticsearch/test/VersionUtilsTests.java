@@ -289,6 +289,36 @@ public class VersionUtilsTests extends ESTestCase {
     }
 
     /**
+     * Tests that {@link Version#minimumCompatibilityVersion()} and {@link VersionUtils#allReleasedVersions()}
+     * agree with the list of wire compatible versions we build in gradle.
+     */
+    public void testGradleVersionsMatchVersionUtils() {
+        // First check the index compatible versions
+        List<Version> released = VersionUtils.allReleasedVersions()
+            .stream()
+            /* Java lists all versions from the 5.x series onwards, but we only want to consider
+             * ones that we're supposed to be compatible with. */
+            .filter(v -> v.onOrAfter(Version.CURRENT.minimumCompatibilityVersion()))
+            .toList();
+        VersionsFromProperty wireCompatible = new VersionsFromProperty("tests.gradle_wire_compat_versions");
+
+        Version minimumCompatibleVersion = Version.CURRENT.minimumCompatibilityVersion();
+        List<String> releasedWireCompatible = released.stream()
+            .filter(v -> Version.CURRENT.equals(v) == false)
+            .filter(v -> v.onOrAfter(minimumCompatibleVersion))
+            .map(Object::toString)
+            .toList();
+        assertEquals(releasedWireCompatible, wireCompatible.released);
+
+        List<String> unreleasedWireCompatible = VersionUtils.allUnreleasedVersions()
+            .stream()
+            .filter(v -> v.onOrAfter(minimumCompatibleVersion))
+            .map(Object::toString)
+            .toList();
+        assertEquals(unreleasedWireCompatible, wireCompatible.unreleased);
+    }
+
+    /**
      * Read a versions system property as set by gradle into a tuple of {@code (releasedVersion, unreleasedVersion)}.
      */
     private class VersionsFromProperty {

@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 
 import java.util.Map;
 

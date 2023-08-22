@@ -1350,13 +1350,13 @@ public final class OptimizerRules {
             // Use symbol comp: SQL operations aren't available in this package (as dependencies)
             String opSymbol = operation.symbol();
             // Modulo can't be simplified.
-            if (opSymbol == MOD.symbol()) {
+            if (opSymbol.equals(MOD.symbol())) {
                 return comparison;
             }
             OperationSimplifier simplification = null;
             if (isMulOrDiv(opSymbol)) {
                 simplification = new MulDivSimplifier(comparison);
-            } else if (opSymbol == ADD.symbol() || opSymbol == SUB.symbol()) {
+            } else if (opSymbol.equals(ADD.symbol()) || opSymbol.equals(SUB.symbol())) {
                 simplification = new AddSubSimplifier(comparison);
             }
 
@@ -1364,7 +1364,7 @@ public final class OptimizerRules {
         }
 
         private static boolean isMulOrDiv(String opSymbol) {
-            return opSymbol == MUL.symbol() || opSymbol == DIV.symbol();
+            return opSymbol.equals(MUL.symbol()) || opSymbol.equals(DIV.symbol());
         }
 
         private static Expression foldNegation(BinaryComparison bc) {
@@ -1471,7 +1471,7 @@ public final class OptimizerRules {
                     return true;
                 }
 
-                if (operation.symbol() == SUB.symbol() && opRight instanceof Literal == false) { // such as: 1 - x > -MAX
+                if (operation.symbol().equals(SUB.symbol()) && opRight instanceof Literal == false) { // such as: 1 - x > -MAX
                     // if next simplification step would fail on overflow anyways, skip the optimisation already
                     return tryFolding(new Sub(EMPTY, opLeft, bcLiteral)) == null;
                 }
@@ -1487,7 +1487,7 @@ public final class OptimizerRules {
 
             MulDivSimplifier(BinaryComparison comparison) {
                 super(comparison);
-                isDiv = operation.symbol() == DIV.symbol();
+                isDiv = operation.symbol().equals(DIV.symbol());
                 opRightSign = sign(opRight);
             }
 

@@ -221,7 +221,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 MultiReader multiReader = new MultiReader(mappedReader, unmappedReader)
             ) {
 
-                final IndexSearcher searcher = new IndexSearcher(multiReader);
+                final IndexSearcher searcher = newSearcher(multiReader);
                 final InternalStats stats = searchAndReduce(searcher, new AggTestConfig(builder, ft));
 
                 assertEquals(expected.count, stats.getCount(), 0);

@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -24,7 +25,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-public class Sqrt extends UnaryScalarFunction implements Mappable {
+public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
     public Sqrt(Source source, Expression field) {
         super(source, field);
     }
@@ -47,7 +48,7 @@ public class Sqrt extends UnaryScalarFunction implements Mappable {
             return () -> new SqrtLongEvaluator(eval);
         }
 
-        throw new UnsupportedOperationException("Unsupported type " + fieldType);
+        throw EsqlUnsupportedOperationException.unsupportedDataType(fieldType);
     }
 
     @Evaluator(extraName = "Double")
@@ -82,7 +83,7 @@ public class Sqrt extends UnaryScalarFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Override

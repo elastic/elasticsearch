@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
@@ -42,6 +44,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final ComputeService computeService;
     private final ExchangeService exchangeService;
     private final ClusterService clusterService;
+    private final Executor requestExecutor;
     private final EnrichLookupService enrichLookupService;
     private final Settings settings;
 
@@ -57,9 +60,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ThreadPool threadPool,
         BigArrays bigArrays
     ) {
-        super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new);
+        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
+        super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, ThreadPool.Names.SAME);
         this.planExecutor = planExecutor;
         this.clusterService = clusterService;
+        this.requestExecutor = threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
         this.enrichLookupService = new EnrichLookupService(clusterService, searchService, transportService);
@@ -76,6 +81,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     @Override
     protected void doExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        requestExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
+    }
+
+    private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         EsqlConfiguration configuration = new EsqlConfiguration(
             request.zoneId() != null ? request.zoneId() : ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,

@@ -346,7 +346,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
     }
 
-    private Set<Index> maybeExecuteDownsampling(ClusterState state, DataStream dataStream, List<Index> targetIndices) {
+    Set<Index> maybeExecuteDownsampling(ClusterState state, DataStream dataStream, List<Index> targetIndices) {
         Set<Index> affectedIndices = new HashSet<>();
         Metadata metadata = state.metadata();
         for (Index index : targetIndices) {
@@ -363,7 +363,12 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 }
 
                 String indexName = index.getName();
-                if (state.blocks().indexBlocked(ClusterBlockLevel.WRITE, indexName) == false) {
+                IndexMetadata.DownsampleTaskStatus backingIndexDownsamplingStatus = INDEX_DOWNSAMPLE_STATUS.get(backingIndex.getSettings());
+                String backingIndexDownsamplingSource = backingIndex.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
+
+                // if the current index is not a downsample we want to mark the index as read-only before proceeding with downsampling
+                if (org.elasticsearch.common.Strings.hasText(backingIndexDownsamplingSource) == false
+                    && state.blocks().indexBlocked(ClusterBlockLevel.WRITE, indexName) == false) {
                     // time to downsample, but first we have to mark the index as read-only
                     affectedIndices.add(index);
                     AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(
@@ -377,8 +382,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     continue;
                 }
 
-                IndexMetadata.DownsampleTaskStatus backingIndexDownsamplingStatus = INDEX_DOWNSAMPLE_STATUS.get(backingIndex.getSettings());
-                String backingIndexDownsamplingSource = backingIndex.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
                 if (org.elasticsearch.common.Strings.hasText(backingIndexDownsamplingSource)
                     && backingIndexDownsamplingStatus.equals(SUCCESS)) {
                     // if the backing index is a downsample index itself, let's check if its source index still exists as we must delete it
@@ -390,6 +393,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     String actualDownsamplingSource = lifecycleMetadata.get(REPLACEMENT_SOURCE_INDEX);
                     IndexMetadata downsampleSourceIndex = metadata.index(actualDownsamplingSource);
                     if (downsampleSourceIndex != null) {
+                        affectedIndices.add(downsampleSourceIndex.getIndex());
                         // delete downsampling source index (that's not part of the data stream anymore) before doing any more
                         // downsampling
                         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(backingIndexDownsamplingSource).masterNodeTimeout(
@@ -436,6 +440,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             // we'll wait for this round to complete
                             // TODO when cancelling support is added it'll go here, if there's a further round that can be started for
                             // this index
+                            affectedIndices.add(backingIndex.getIndex());
                             break;
                         } else if (downsampleStatus.equals(SUCCESS)) {
                             // at this point the source index is part of the data stream and the downsample index is complete but not

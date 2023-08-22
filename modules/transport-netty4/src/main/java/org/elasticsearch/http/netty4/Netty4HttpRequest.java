@@ -19,7 +19,6 @@ import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
@@ -178,11 +177,7 @@ public class Netty4HttpRequest implements HttpRequest {
 
     @Override
     public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBody content) {
-        if (content.isDone()) {
-            return new Netty4HttpResponse(sequence, request.protocolVersion(), status, BytesArray.EMPTY);
-        } else {
-            return new Netty4ChunkedHttpResponse(sequence, request.protocolVersion(), status, content);
-        }
+        return new Netty4ChunkedHttpResponse(sequence, request.protocolVersion(), status, content);
     }
 
     @Override

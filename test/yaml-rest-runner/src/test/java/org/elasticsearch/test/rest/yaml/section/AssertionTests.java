@@ -183,6 +183,6 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         trueAssertion.doAssert(randomFrom(1, "", "non-empty", List.of(), Map.of()), trueAssertion.getExpectedValue());
 
         AssertionError e = expectThrows(AssertionError.class, () -> trueAssertion.doAssert(null, trueAssertion.getExpectedValue()));
-        assertThat(e.getMessage(), containsString("field [get.fields._timestamp] does not exists"));
+        assertThat(e.getMessage(), containsString("field [get.fields._timestamp] does not exist"));
     }
 }

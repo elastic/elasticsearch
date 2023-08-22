@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.Writer;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -279,14 +280,14 @@ public enum TextFormat implements MediaType {
 
     public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
         final var delimiter = delimiter(request);
-        return Iterators.concat(Iterators.single(writer -> {
-            // if the header is requested return the info
-            if (hasHeader(request) && esqlResponse.columns() != null) {
-                row(writer, esqlResponse.columns(), ColumnInfo::name, delimiter);
-            }
-        }), Iterators.map(esqlResponse.values().iterator(), row -> writer -> {
-            row(writer, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter);
-        }));
+        return Iterators.concat(hasHeader(request) && esqlResponse.columns() != null ?
+        // if the header is requested return the info
+            Iterators.single(writer -> row(writer, esqlResponse.columns(), ColumnInfo::name, delimiter)) : Collections.emptyIterator(),
+            Iterators.map(
+                esqlResponse.values().iterator(),
+                row -> writer -> row(writer, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter)
+            )
+        );
     }
 
     boolean hasHeader(RestRequest request) {

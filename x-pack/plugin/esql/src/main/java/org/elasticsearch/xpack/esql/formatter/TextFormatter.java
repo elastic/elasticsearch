@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.io.IOException;
 import java.io.Writer;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.function.Function;
@@ -58,11 +59,7 @@ public class TextFormatter {
     public Iterator<CheckedConsumer<Writer, IOException>> format(boolean includeHeader) {
         return Iterators.concat(
             // The header lines
-            Iterators.single(writer -> {
-                if (includeHeader && response.columns().size() > 0) {
-                    formatHeader(writer);
-                }
-            }),
+            includeHeader && response.columns().size() > 0 ? Iterators.single(this::formatHeader) : Collections.emptyIterator(),
             // Now format the results.
             formatResults()
         );

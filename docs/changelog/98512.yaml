@@ -1,0 +1,6 @@
+pr: 98512
+summary: Automatically map floats as dense vector
+area: Application
+type: feature
+issues:
+ - 97532

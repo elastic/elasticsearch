@@ -9,6 +9,9 @@
                /^$/
 ---
 "Test cat indices output":
+  - skip:
+      version: " - 8.10.99"
+      reason:  dataset size was added in 8.11.0
 
   - do:
       indices.create:

@@ -44,7 +44,6 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
@@ -1091,7 +1090,6 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             0,
             0,
             idxSettings,
-            ClusterSettings.createBuiltInClusterSettings(),
             bitsetFilterCache,
             indexFieldDataLookup,
             null,

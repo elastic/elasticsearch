@@ -11,7 +11,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -65,7 +64,6 @@ public class IndexFieldTypeTests extends ESTestCase {
             0,
             0,
             indexSettings,
-            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             null,

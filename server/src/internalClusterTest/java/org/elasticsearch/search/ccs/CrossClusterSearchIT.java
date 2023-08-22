@@ -105,6 +105,9 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
+        if (randomBoolean()) {
+            searchRequest = searchRequest.scroll("1m");
+        }
         searchRequest.allowPartialSearchResults(false);
         if (randomBoolean()) {
             searchRequest.setBatchedReduceSize(randomIntBetween(3, 20));
@@ -388,6 +391,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         searchRequest.allowPartialSearchResults(true);
         boolean minimizeRoundtrips = randomBoolean();
         searchRequest.setCcsMinimizeRoundtrips(minimizeRoundtrips);
+
         if (randomBoolean()) {
             searchRequest.setBatchedReduceSize(randomIntBetween(3, 20));
         }
@@ -417,6 +421,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
         assertNotNull(localClusterSearchInfo);
         assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
+        assertTrue(localClusterSearchInfo.isTimedOut());
         assertThat(localClusterSearchInfo.getIndexExpression(), equalTo(localIndex));
         assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
         assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards));
@@ -424,11 +429,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
         assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
         assertThat(localClusterSearchInfo.getTook().millis(), greaterThanOrEqualTo(0L));
-        assertTrue(localClusterSearchInfo.isTimedOut());
 
         SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER).get();
         assertNotNull(remoteClusterSearchInfo);
         assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
+        assertTrue(remoteClusterSearchInfo.isTimedOut());
         assertThat(remoteClusterSearchInfo.getIndexExpression(), equalTo(remoteIndex));
         assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
         assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards));
@@ -436,7 +441,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(0));
         assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
         assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThanOrEqualTo(0L));
-        assertTrue(remoteClusterSearchInfo.isTimedOut());
     }
 
     public void testRemoteClusterOnlyCCSSuccessfulResult() throws Exception {

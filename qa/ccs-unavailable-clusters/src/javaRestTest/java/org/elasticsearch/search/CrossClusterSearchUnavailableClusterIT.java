@@ -59,7 +59,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
@@ -199,21 +198,10 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             }
 
             {
-                SearchRequest searchRequest = new SearchRequest("index", "remote1:index").scroll("1m");
-                searchRequest.setCcsMinimizeRoundtrips(false);
                 SearchResponse response = restHighLevelClient.search(
-                    searchRequest,
+                    new SearchRequest("index", "remote1:index").scroll("1m"),
                     RequestOptions.DEFAULT
                 );
-                System.err.println("PPP response.getClusters(): " + response.getClusters());
-                AtomicReference<SearchResponse.Cluster> local = response.getClusters().getCluster("");
-                AtomicReference<SearchResponse.Cluster> remote = response.getClusters().getCluster("remote1");
-                if (local != null) {
-                    System.err.println("PPP local cluster: " + local.get());
-                }
-                if (remote != null) {
-                    System.err.println("PPP remote cluster: " + remote.get());
-                }
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(2, response.getClusters().getSuccessful());
                 assertEquals(0, response.getClusters().getSkipped());
@@ -375,7 +363,6 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                     {
                         for (Map.Entry<String, Object> entry : settings.entrySet()) {
                             builder.field(entry.getKey(), entry.getValue());
-                            System.err.println("PPP remote1 settings: key: " + entry.getKey() + "; value: " + entry.getValue());
                         }
                     }
                     builder.endObject();

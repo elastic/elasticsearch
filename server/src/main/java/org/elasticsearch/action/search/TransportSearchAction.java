@@ -377,6 +377,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchContext,
                         remoteClusterIndices,
                         clusters,
+                        timeProvider,
                         transportService,
                         delegate.delegateFailureAndWrap((finalDelegate, searchShardsResponses) -> {
                             final BiFunction<String, String, DiscoveryNode> clusterNodeLookup = getRemoteClusterNodeLookup(
@@ -450,7 +451,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return false;
         }
         if (searchRequest.scroll() != null) {
-            System.err.println("JJJ scroll in play - so shouldMinimizeRoundtrips=false");
             return false;
         }
         if (searchRequest.pointInTimeBuilder() != null) {
@@ -651,6 +651,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchContextId searchContext,
         Map<String, OriginalIndices> remoteIndicesByCluster,
         SearchResponse.Clusters clusters,
+        SearchTimeProvider timeProvider,
         TransportService transportService,
         ActionListener<Map<String, SearchShardsResponse>> listener
     ) {
@@ -673,6 +674,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     @Override
                     void innerOnResponse(SearchShardsResponse searchShardsResponse) {
                         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
+                        ccsClusterInfoUpdate(searchShardsResponse, cluster, timeProvider);
                         searchShardsResponses.put(clusterAlias, searchShardsResponse);
                     }
 
@@ -706,6 +708,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             new ActionListenerResponseHandler<>(singleListener, SearchShardsResponse::new, responseExecutor)
                         );
                     } else {
+                        // does not do a can-match
                         ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices).indicesOptions(
                             indicesOptions
                         ).local(true).preference(preference).routing(routing);
@@ -851,6 +854,46 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
             swapped = clusterRef.compareAndSet(orig, updated);
         } while (swapped == false);
+    }
+
+    /**
+     * Edge case ---
+     * Typically we don't need to update a Cluster object after the SearchShards API call, since the
+     * skipped shards will be passed into SearchProgressListener.onListShards.
+     * However, there are edge cases where the remote SearchShards API call returns no shards at all.
+     * So in that case, nothing for this cluster will be passed to onListShards, so we need to update
+     * the Cluster object to SUCCESSFUL status with shard counts of 0 and a filled in 'took' value.
+     *
+     * @param response from SearchShards API call to remote cluster
+     * @param clusterRef Reference Cluster to be updated
+     * @param timeProvider search time provider (for setting took value)
+     */
+    private static void ccsClusterInfoUpdate(
+        SearchShardsResponse response,
+        AtomicReference<SearchResponse.Cluster> clusterRef,
+        SearchTimeProvider timeProvider
+    ) {
+        if (response.getGroups().isEmpty()) {
+            boolean swapped;
+            do {
+                SearchResponse.Cluster orig = clusterRef.get();
+                SearchResponse.Cluster updated = new SearchResponse.Cluster(
+                    orig.getClusterAlias(),
+                    orig.getIndexExpression(),
+                    orig.isSkipUnavailable(),
+                    SearchResponse.Cluster.Status.SUCCESSFUL,
+                    0,
+                    0,
+                    0,
+                    0,
+                    Collections.emptyList(),
+                    new TimeValue(timeProvider.buildTookInMillis()),
+                    false
+                );
+                swapped = clusterRef.compareAndSet(orig, updated);
+                assert swapped : "CAS swap should never fail in this location";
+            } while (swapped == false);
+        }
     }
 
     void executeLocalSearch(

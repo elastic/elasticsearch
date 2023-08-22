@@ -847,6 +847,7 @@ public class TransportSearchActionTests extends ESTestCase {
             service.start();
             service.acceptIncomingRequests();
 
+            TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
             RemoteClusterService remoteClusterService = service.getRemoteClusterService();
             {
                 final CountDownLatch latch = new CountDownLatch(1);
@@ -861,6 +862,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     remoteIndicesByCluster,
                     clusters,
+                    timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch)
                 );
@@ -889,6 +891,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     remoteIndicesByCluster,
                     clusters,
+                    timeProvider,
                     service,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch)
                 );
@@ -936,6 +939,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     remoteIndicesByCluster,
                     clusters,
+                    timeProvider,
                     service,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch)
                 );
@@ -965,6 +969,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     remoteIndicesByCluster,
                     clusters,
+                    timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch)
                 );
@@ -1010,6 +1015,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     remoteIndicesByCluster,
                     clusters,
+                    timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch)
                 );

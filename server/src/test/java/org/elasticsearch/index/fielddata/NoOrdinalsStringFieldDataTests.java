@@ -10,6 +10,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -22,6 +23,7 @@ import org.elasticsearch.search.sort.SortOrder;
 
 /** Returns an implementation based on paged bytes which doesn't implement WithOrdinals in order to visit different paths in the code,
  *  eg. BytesRefFieldComparatorSource makes decisions based on whether the field data implements WithOrdinals. */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98720")
 public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTests {
 
     public static IndexFieldData<LeafFieldData> hideOrdinals(final IndexFieldData<?> in) {

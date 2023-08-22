@@ -84,10 +84,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
             cfg,
             request.query(),
             request.params(),
-            ActionListener.wrap(
-                searchSourceBuilder -> listener.onResponse(new SqlTranslateResponse(searchSourceBuilder)),
-                listener::onFailure
-            )
+            listener.delegateFailureAndWrap((l, searchSourceBuilder) -> l.onResponse(new SqlTranslateResponse(searchSourceBuilder)))
         );
     }
 }

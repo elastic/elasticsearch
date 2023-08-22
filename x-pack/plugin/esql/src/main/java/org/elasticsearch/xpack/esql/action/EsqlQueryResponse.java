@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
@@ -113,7 +114,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         if (pages.isEmpty()) {
             valuesIt = Collections.emptyIterator();
         } else if (columnar) {
-            valuesIt = Iterators.flatten(
+            valuesIt = Iterators.flatMap(
                 Iterators.forRange(
                     0,
                     columns().size(),
@@ -122,7 +123,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                         Iterators.flatMap(pages.iterator(), page -> {
                             ColumnInfo.PositionToXContent toXContent = columns.get(column)
                                 .positionToXContent(page.getBlock(column), scratch);
-                            return Iterators.<ToXContent>forRange(
+                            return Iterators.forRange(
                                 0,
                                 page.getPositionCount(),
                                 position -> (builder, params) -> toXContent.positionToXContent(builder, params, position)
@@ -130,7 +131,8 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                         }),
                         ChunkedToXContentHelper.endArray()
                     )
-                )
+                ),
+                Function.identity()
             );
         } else {
             valuesIt = Iterators.flatMap(pages.iterator(), page -> {

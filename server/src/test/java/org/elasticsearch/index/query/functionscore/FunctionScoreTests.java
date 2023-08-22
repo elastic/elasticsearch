@@ -934,7 +934,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testWithInvalidScores() {
-        IndexSearcher localSearcher = new IndexSearcher(reader);
+        IndexSearcher localSearcher = newSearcher(reader);
         FunctionScoreQuery query1 = new FunctionScoreQuery(
             new TermQuery(new Term(FIELD, "out")),
             new ConstantScoreFunction(Float.NaN),
@@ -956,7 +956,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testExceptionOnNegativeScores() {
-        IndexSearcher localSearcher = new IndexSearcher(reader);
+        IndexSearcher localSearcher = newSearcher(reader);
         TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
 
         // test that field_value_factor function throws an exception on negative scores
@@ -976,7 +976,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testExceptionOnLnNegativeScores() {
-        IndexSearcher localSearcher = new IndexSearcher(reader);
+        IndexSearcher localSearcher = newSearcher(reader);
         TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
 
         // test that field_value_factor function using modifier ln throws an exception on negative scores
@@ -994,7 +994,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testExceptionOnLogNegativeScores() {
-        IndexSearcher localSearcher = new IndexSearcher(reader);
+        IndexSearcher localSearcher = newSearcher(reader);
         TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
 
         // test that field_value_factor function using modifier log throws an exception on negative scores

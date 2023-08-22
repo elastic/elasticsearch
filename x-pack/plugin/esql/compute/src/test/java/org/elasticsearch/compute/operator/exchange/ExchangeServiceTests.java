@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -58,6 +59,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98707")
 public class ExchangeServiceTests extends ESTestCase {
 
     private TestThreadPool threadPool;
@@ -329,10 +331,10 @@ public class ExchangeServiceTests extends ESTestCase {
 
     public void testConcurrentWithTransportActions() throws Exception {
         MockTransportService node0 = newTransportService();
-        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool);
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR);
         exchange0.registerTransportHandler(node0);
         MockTransportService node1 = newTransportService();
-        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool);
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR);
         exchange1.registerTransportHandler(node1);
         AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
 
@@ -351,10 +353,10 @@ public class ExchangeServiceTests extends ESTestCase {
     public void testFailToRespondPage() throws Exception {
         Settings settings = Settings.builder().build();
         MockTransportService node0 = newTransportService();
-        ExchangeService exchange0 = new ExchangeService(settings, threadPool);
+        ExchangeService exchange0 = new ExchangeService(settings, threadPool, ESQL_TEST_EXECUTOR);
         exchange0.registerTransportHandler(node0);
         MockTransportService node1 = newTransportService();
-        ExchangeService exchange1 = new ExchangeService(settings, threadPool);
+        ExchangeService exchange1 = new ExchangeService(settings, threadPool, ESQL_TEST_EXECUTOR);
         exchange1.registerTransportHandler(node1);
         AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
         final int maxSeqNo = randomIntBetween(1000, 5000);

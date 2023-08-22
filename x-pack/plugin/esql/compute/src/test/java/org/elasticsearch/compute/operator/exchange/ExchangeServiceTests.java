@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -58,6 +59,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98707")
 public class ExchangeServiceTests extends ESTestCase {
 
     private TestThreadPool threadPool;

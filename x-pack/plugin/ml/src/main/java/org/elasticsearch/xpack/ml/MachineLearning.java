@@ -2027,37 +2027,37 @@ public class MachineLearning extends Plugin
 
         final Map<String, Boolean> results = new ConcurrentHashMap<>();
 
-        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(
-            success -> client.execute(
-                SetResetModeAction.INSTANCE,
-                SetResetModeActionRequest.disabled(true),
-                ActionListener.wrap(resetSuccess -> {
-                    finalListener.onResponse(success);
-                    logger.info("Finished machine learning feature reset");
-                }, resetFailure -> {
-                    logger.error("failed to disable reset mode after state otherwise successful machine learning reset", resetFailure);
-                    finalListener.onFailure(
-                        ExceptionsHelper.serverError(
-                            "failed to disable reset mode after state otherwise successful machine learning reset",
-                            resetFailure
-                        )
-                    );
-                })
-            ),
-            failure -> {
-                logger.error("failed to reset machine learning", failure);
-                client.execute(
-                    SetResetModeAction.INSTANCE,
-                    SetResetModeActionRequest.disabled(false),
-                    ActionListener.wrap(resetSuccess -> finalListener.onFailure(failure), resetFailure -> {
-                        logger.error("failed to disable reset mode after state clean up failure", resetFailure);
-                        finalListener.onFailure(failure);
-                    })
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(success -> {
+            logger.error("Jon---before disabling reset mode");
+
+            client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(true), ActionListener.wrap(resetSuccess -> {
+                finalListener.onResponse(success);
+                logger.info("Finished machine learning feature reset");
+                logger.error("Jon---after disabling reset mode");
+            }, resetFailure -> {
+                logger.error("failed to disable reset mode after state otherwise successful machine learning reset", resetFailure);
+                finalListener.onFailure(
+                    ExceptionsHelper.serverError(
+                        "failed to disable reset mode after state otherwise successful machine learning reset",
+                        resetFailure
+                    )
                 );
-            }
-        );
+            }));
+        }, failure -> {
+            logger.error("failed to reset machine learning", failure);
+            client.execute(
+                SetResetModeAction.INSTANCE,
+                SetResetModeActionRequest.disabled(false),
+                ActionListener.wrap(resetSuccess -> finalListener.onFailure(failure), resetFailure -> {
+                    logger.error("failed to disable reset mode after state clean up failure", resetFailure);
+                    finalListener.onFailure(failure);
+                })
+            );
+        });
 
         ActionListener<ListTasksResponse> afterWaitingForTasks = ActionListener.wrap(listTasksResponse -> {
+            logger.error("Jon---before clear memory tracker");
+
             listTasksResponse.rethrowFailures("Waiting for indexing requests for .ml-* indices");
             if (results.values().stream().allMatch(b -> b)) {
                 if (memoryTracker.get() != null) {
@@ -2091,6 +2091,8 @@ public class MachineLearning extends Plugin
         }, unsetResetModeListener::onFailure);
 
         ActionListener<StopDataFrameAnalyticsAction.Response> afterDataframesStopped = ActionListener.wrap(dataFrameStopResponse -> {
+            logger.error("Jon---before get waiting for machine learning tasks");
+
             // Handle the response
             results.put("data_frame/analytics", dataFrameStopResponse.isStopped());
             if (results.values().stream().allMatch(b -> b)) {
@@ -2124,6 +2126,8 @@ public class MachineLearning extends Plugin
         }, unsetResetModeListener::onFailure);
 
         ActionListener<CloseJobAction.Response> afterAnomalyDetectionClosed = ActionListener.wrap(closeJobResponse -> {
+            logger.error("Jon---before stop data frame analytics");
+
             // Handle the response
             results.put("anomaly_detectors", closeJobResponse.isClosed());
             if (machineLearningExtension.get().isDataFrameAnalyticsEnabled() == false) {
@@ -2148,6 +2152,8 @@ public class MachineLearning extends Plugin
         // Close anomaly detection jobs
         ActionListener<StopDatafeedAction.Response> afterDataFeedsStopped = ActionListener.wrap(datafeedResponse -> {
             // Handle the response
+            logger.error("Jon---before close anomaly detection jobs");
+
             results.put("datafeeds", datafeedResponse.isStopped());
             if (machineLearningExtension.get().isAnomalyDetectionEnabled() == false) {
                 afterAnomalyDetectionClosed.onResponse(new CloseJobAction.Response(true));
@@ -2179,6 +2185,8 @@ public class MachineLearning extends Plugin
         // Stop data feeds
         ActionListener<CancelJobModelSnapshotUpgradeAction.Response> cancelSnapshotUpgradesListener = ActionListener.wrap(
             cancelUpgradesResponse -> {
+                logger.error("Jon---before stop data feeds");
+
                 if (machineLearningExtension.get().isAnomalyDetectionEnabled() == false) {
                     afterDataFeedsStopped.onResponse(new StopDatafeedAction.Response(true));
                     return;
@@ -2198,6 +2206,8 @@ public class MachineLearning extends Plugin
 
         // Cancel model snapshot upgrades
         ActionListener<AcknowledgedResponse> stopDeploymentsListener = ActionListener.wrap(acknowledgedResponse -> {
+            logger.error("Jon---before cancel model snapshot upgrades");
+
             if (machineLearningExtension.get().isAnomalyDetectionEnabled() == false) {
                 cancelSnapshotUpgradesListener.onResponse(new CancelJobModelSnapshotUpgradeAction.Response(true));
                 return;
@@ -2211,6 +2221,8 @@ public class MachineLearning extends Plugin
 
         // Stop all model deployments
         ActionListener<AcknowledgedResponse> pipelineValidation = ActionListener.wrap(acknowledgedResponse -> {
+            logger.error("Jon---before remove all models");
+
             if (trainedModelAllocationClusterServiceSetOnce.get() == null || machineLearningExtension.get().isNlpEnabled() == false) {
                 stopDeploymentsListener.onResponse(AcknowledgedResponse.TRUE);
                 return;
@@ -2220,6 +2232,7 @@ public class MachineLearning extends Plugin
 
         // validate no pipelines are using machine learning models
         ActionListener<AcknowledgedResponse> afterResetModeSet = ActionListener.wrap(acknowledgedResponse -> {
+            logger.error("Jon---before count inference processors");
             int numberInferenceProcessors = countInferenceProcessors(clusterService.state());
             if (numberInferenceProcessors > 0) {
                 unsetResetModeListener.onFailure(
@@ -2230,6 +2243,7 @@ public class MachineLearning extends Plugin
                 );
                 return;
             }
+            logger.error("Jon---after count inference processors");
             pipelineValidation.onResponse(AcknowledgedResponse.of(true));
         }, finalListener::onFailure);
 

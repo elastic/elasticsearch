@@ -674,4 +674,336 @@ public class MapperServiceTests extends MapperServiceTestCase {
               }
             }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
     }
+
+    public void testValidMappingSubtreeSubstitution() throws IOException {
+        final MapperService mapperService = createMapperService(mapping(b -> {
+        }));
+
+        CompressedXContent mapping1 = new CompressedXContent("""
+            {
+              "properties": {
+                "field": {
+                  "type": "object",
+                  "properties": {
+                    "subfield": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }""");
+
+        mapperService.merge("_doc", mapping1, MergeReason.INDEX_TEMPLATE);
+
+        CompressedXContent mapping2 = new CompressedXContent("""
+            {
+              "properties": {
+                "field": {
+                  "type": "long",
+                  "coerce": true
+                }
+              }
+            }""");
+
+        mapperService.merge("_doc", mapping2, MergeReason.INDEX_TEMPLATE);
+        assertEquals("""
+            {
+              "_doc" : {
+                "properties" : {
+                  "field" : {
+                    "type" : "long",
+                    "coerce" : true
+                  }
+                }
+              }
+            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+    }
+
+    public void testObjectAndNestedTypeSubstitution() throws IOException {
+        final MapperService mapperService = createMapperService(mapping(b -> {
+        }));
+
+        CompressedXContent mapping1 = new CompressedXContent("""
+            {
+              "properties" : {
+                "field": {
+                  "type": "nested",
+                  "include_in_parent": true,
+                  "properties": {
+                    "subfield1": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }""");
+
+        mapperService.merge("_doc", mapping1, MergeReason.INDEX_TEMPLATE);
+
+        CompressedXContent mapping2 = new CompressedXContent("""
+            {
+              "properties": {
+                "field": {
+                  "type": "object",
+                  "properties": {
+                    "subfield2": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }""");
+
+        mapperService.merge("_doc", mapping2, MergeReason.INDEX_TEMPLATE);
+        assertEquals("""
+            {
+              "_doc" : {
+                "properties" : {
+                  "field" : {
+                    "type" : "object",
+                    "properties" : {
+                      "subfield1" : {
+                        "type" : "keyword"
+                      },
+                      "subfield2" : {
+                        "type" : "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+    }
+
+    public void testNestedContradictingProperties() throws IOException {
+        final MapperService mapperService = createMapperService(mapping(b -> {
+        }));
+
+        CompressedXContent mapping1 = new CompressedXContent("""
+            {
+              "properties": {
+                "field": {
+                  "type": "nested",
+                  "include_in_parent": false,
+                  "properties": {
+                    "subfield1": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }""");
+
+        mapperService.merge("_doc", mapping1, MergeReason.INDEX_TEMPLATE);
+
+        CompressedXContent mapping2 = new CompressedXContent("""
+            {
+              "properties": {
+                "field": {
+                  "type": "nested",
+                  "include_in_parent": true,
+                  "properties": {
+                    "subfield2": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }""");
+
+        mapperService.merge("_doc", mapping2, MergeReason.INDEX_TEMPLATE);
+        assertEquals("""
+            {
+              "_doc" : {
+                "properties" : {
+                  "field" : {
+                    "type" : "nested",
+                    "include_in_parent" : true,
+                    "properties" : {
+                      "subfield1" : {
+                        "type" : "keyword"
+                      },
+                      "subfield2" : {
+                        "type" : "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+    }
+
+    public void testImplicitObjectHierarchy() throws IOException {
+        final MapperService mapperService = createMapperService(mapping(b -> {
+        }));
+
+        CompressedXContent mapping1 = new CompressedXContent("""
+            {
+              "properties": {
+                "parent": {
+                  "properties": {
+                    "child.grandchild": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }""");
+
+        mapperService.merge("_doc", mapping1, MergeReason.INDEX_TEMPLATE);
+        assertEquals("""
+            {
+              "_doc" : {
+                "properties" : {
+                  "parent" : {
+                    "properties" : {
+                      "child" : {
+                        "properties" : {
+                          "grandchild" : {
+                            "type" : "keyword"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+    }
+
+    public void testSubobjectsMerge() throws IOException {
+        final MapperService mapperService = createMapperService(mapping(b -> {
+        }));
+
+        CompressedXContent mapping1 = new CompressedXContent("""
+            {
+              "properties": {
+                "parent": {
+                  "type": "object",
+                  "subobjects": false
+                }
+              }
+            }""");
+
+        mapperService.merge("_doc", mapping1, MergeReason.INDEX_TEMPLATE);
+
+        CompressedXContent mapping2 = new CompressedXContent("""
+            {
+              "properties": {
+                "parent": {
+                  "properties": {
+                    "child.grandchild": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }""");
+
+        mapperService.merge("_doc", mapping2, MergeReason.INDEX_TEMPLATE);
+        assertEquals("""
+            {
+              "_doc" : {
+                "properties" : {
+                  "parent" : {
+                    "type" : "object",
+                    "subobjects": false,
+                    "properties" : {
+                      "child.grandchild" : {
+                        "type" : "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+    }
+
+    public void testSubobjectsImplicitObjectsMerge() throws IOException {
+        final MapperService mapperService = createMapperService(mapping(b -> {
+        }));
+
+        CompressedXContent mapping1 = new CompressedXContent("""
+            {
+              "properties": {
+                "parent": {
+                  "type": "object",
+                  "subobjects": false
+                }
+              }
+            }""");
+
+        mapperService.merge("_doc", mapping1, MergeReason.INDEX_TEMPLATE);
+
+        CompressedXContent mapping2 = new CompressedXContent("""
+            {
+              "properties": {
+                "parent.child.grandchild": {
+                  "type": "keyword"
+                }
+              }
+            }""");
+
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.merge("_doc", mapping2, MergeReason.INDEX_TEMPLATE)
+        );
+        assertThat(e.getMessage(), containsString("Tried to add subobject [child] to object [parent] which does not support subobjects"));
+    }
+
+    public void testSameTypeMerge() throws IOException {
+        final MapperService mapperService = createMapperService(mapping(b -> {
+        }));
+
+        CompressedXContent mapping1 = new CompressedXContent("""
+            {
+              "properties": {
+                "field": {
+                  "type": "keyword",
+                  "ignore_above": 256,
+                  "doc_values": false,
+                  "fields": {
+                    "text": {
+                      "type": "text"
+                    }
+                  }
+                }
+              }
+            }""");
+
+        mapperService.merge("_doc", mapping1, MergeReason.INDEX_TEMPLATE);
+
+        CompressedXContent mapping2 = new CompressedXContent("""
+            {
+              "properties": {
+                "field": {
+                  "type": "keyword",
+                  "ignore_above": 1024,
+                  "fields": {
+                    "other_text": {
+                      "type": "text"
+                    }
+                  }
+                }
+              }
+            }""");
+
+        mapperService.merge("_doc", mapping2, MergeReason.INDEX_TEMPLATE);
+        assertEquals("""
+            {
+              "_doc" : {
+                "properties" : {
+                  "field" : {
+                    "type" : "keyword",
+                    "ignore_above" : 1024,
+                    "fields" : {
+                      "other_text" : {
+                        "type" : "text"
+                      }
+                    }
+                  }
+                }
+              }
+            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+    }
 }

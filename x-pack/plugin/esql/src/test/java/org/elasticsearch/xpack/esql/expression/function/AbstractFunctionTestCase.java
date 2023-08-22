@@ -21,28 +21,40 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 
+import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.DoubleBinaryOperator;
+import java.util.function.DoubleUnaryOperator;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Base class for function tests.  Tests based on this class will generally build out a single example evaluation,
@@ -89,21 +101,23 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
          */
         private String[] expectedWarnings;
 
+        private final String expectedTypeError;
+
         public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
-            this.source = Source.EMPTY;
-            this.data = data;
-            this.evaluatorToString = evaluatorToString;
-            this.expectedType = expectedType;
-            this.matcher = matcher;
-            this.expectedWarnings = null;
+            this(data, evaluatorToString, expectedType, matcher, null, null);
         }
 
-        public TestCase(
+        public static TestCase typeError(List<TypedData> data, String expectedTypeError) {
+            return new TestCase(data, null, null, null, null, expectedTypeError);
+        }
+
+        private TestCase(
             List<TypedData> data,
             String evaluatorToString,
             DataType expectedType,
             Matcher<Object> matcher,
-            String... expectedWarnings
+            String[] expectedWarnings,
+            String expectedTypeError
         ) {
             this.source = Source.EMPTY;
             this.data = data;
@@ -111,6 +125,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             this.expectedType = expectedType;
             this.matcher = matcher;
             this.expectedWarnings = expectedWarnings;
+            this.expectedTypeError = expectedTypeError;
         }
 
         public Source getSource() {
@@ -126,7 +141,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
 
         public List<Expression> getDataAsLiterals() {
-            return data.stream().map(t -> new Literal(source, t.data(), t.type())).collect(Collectors.toList());
+            return data.stream().map(t -> new Literal(Source.synthetic(t.name()), t.data(), t.type())).collect(Collectors.toList());
         }
 
         public List<Object> getDataValues() {
@@ -138,36 +153,197 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
 
         public TestCase withWarning(String warning) {
+            String[] newWarnings;
             if (expectedWarnings != null) {
-                String[] newWarngings = Arrays.copyOf(this.expectedWarnings, this.expectedWarnings.length + 1);
-                newWarngings[this.expectedWarnings.length] = warning;
-                return new TestCase(this.data, this.evaluatorToString, this.expectedType, this.matcher, newWarngings);
+                newWarnings = Arrays.copyOf(expectedWarnings, expectedWarnings.length + 1);
+                newWarnings[expectedWarnings.length] = warning;
+            } else {
+                newWarnings = new String[] { warning };
             }
-            return new TestCase(this.data, this.evaluatorToString, this.expectedType, this.matcher, warning);
+            return new TestCase(data, evaluatorToString, expectedType, matcher, newWarnings, expectedTypeError);
         }
     }
 
     /**
      * This class exists to give a human-readable string representation of the test case.
      */
-    public static class TestCaseSupplier implements Supplier<TestCase> {
+    public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier) implements Supplier<TestCase> {
+        /**
+         * Build a test case without types.
+         * @deprecated Supply types
+         */
+        @Deprecated
+        public TestCaseSupplier(String name, Supplier<TestCase> supplier) {
+            this(name, null, supplier);
+        }
 
-        private String name;
-        private final Supplier<TestCase> wrapped;
+        /**
+         * Build a test case named after the types it takes.
+         */
+        public TestCaseSupplier(List<DataType> types, Supplier<TestCase> supplier) {
+            this(nameFromTypes(types), types, supplier);
+        }
 
-        public TestCaseSupplier(String name, Supplier<TestCase> wrapped) {
-            this.name = name;
-            this.wrapped = wrapped;
+        static String nameFromTypes(List<DataType> types) {
+            return types.stream().map(t -> "<" + t.typeName() + ">").collect(Collectors.joining(", "));
         }
 
         @Override
         public TestCase get() {
-            return wrapped.get();
+            TestCase supplied = supplier.get();
+            if (types != null) {
+                for (int i = 0; i < types.size(); i++) {
+                    if (supplied.data.get(i).type != types.get(i)) {
+                        throw new IllegalStateException("supplier/data type mismatch " + supplied.data.get(i).type + "/" + types.get(i));
+                    }
+                }
+            }
+            return supplied;
         }
 
         @Override
         public String toString() {
             return name;
+        }
+
+        /**
+         * Generate positive test cases for binary functions that operate on an {@code numeric}
+         * fields by casting them to {@link DataTypes#DOUBLE}s.
+         */
+        public static List<TestCaseSupplier> forUnaryCastingToDouble(String name, String argName, DoubleUnaryOperator expected) {
+            List<TestCaseSupplier> suppliers = new ArrayList<>();
+            for (DataType type : EsqlDataTypes.types()) {
+                if (type.isNumeric() == false || EsqlDataTypes.isRepresentable(type) == false) {
+                    continue;
+                }
+                for (Map.Entry<String, Supplier<Object>> supplier : RANDOM_VALUE_SUPPLIERS.get(type)) {
+                    suppliers.add(new TestCaseSupplier(supplier.getKey(), List.of(type), () -> {
+                        Number value = (Number) supplier.getValue().get();
+                        TypedData typed = new TypedData(
+                            // TODO there has to be a better way to handle unsigned long
+                            value instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : value,
+                            type,
+                            "value"
+                        );
+                        String evalName = castToDoubleEvaluator("Attribute[channel=0]", type);
+                        return new TestCase(
+                            List.of(typed),
+                            name + "[" + argName + "=" + evalName + "]",
+                            DataTypes.DOUBLE,
+                            equalTo(expected.applyAsDouble(value.doubleValue()))
+                        );
+                    }));
+                }
+            }
+            return suppliers;
+        }
+
+        /**
+         * Generate positive test cases for binary functions that operate on an {@code numeric}
+         * fields by casting them to {@link DataTypes#DOUBLE}s.
+         */
+        public static List<TestCaseSupplier> forBinaryCastingToDouble(
+            String name,
+            String lhsName,
+            String rhsName,
+            DoubleBinaryOperator expected
+        ) {
+            List<TestCaseSupplier> suppliers = new ArrayList<>();
+            for (DataType lhsType : EsqlDataTypes.types()) {
+                if (lhsType.isNumeric() == false || EsqlDataTypes.isRepresentable(lhsType) == false) {
+                    continue;
+                }
+                for (Map.Entry<String, Supplier<Object>> lhsSupplier : RANDOM_VALUE_SUPPLIERS.get(lhsType)) {
+                    for (DataType rhsType : EsqlDataTypes.types()) {
+                        if (rhsType.isNumeric() == false || EsqlDataTypes.isRepresentable(rhsType) == false) {
+                            continue;
+                        }
+                        for (Map.Entry<String, Supplier<Object>> rhsSupplier : RANDOM_VALUE_SUPPLIERS.get(rhsType)) {
+                            String caseName = lhsSupplier.getKey() + ", " + rhsSupplier.getKey();
+                            suppliers.add(new TestCaseSupplier(caseName, List.of(lhsType, rhsType), () -> {
+                                Number lhs = (Number) lhsSupplier.getValue().get();
+                                Number rhs = (Number) rhsSupplier.getValue().get();
+                                TypedData lhsTyped = new TypedData(
+                                    // TODO there has to be a better way to handle unsigned long
+                                    lhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : lhs,
+                                    lhsType,
+                                    "lhs"
+                                );
+                                TypedData rhsTyped = new TypedData(
+                                    rhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : rhs,
+                                    rhsType,
+                                    "rhs"
+                                );
+                                String lhsEvalName = castToDoubleEvaluator("Attribute[channel=0]", lhsType);
+                                String rhsEvalName = castToDoubleEvaluator("Attribute[channel=1]", rhsType);
+                                return new TestCase(
+                                    List.of(lhsTyped, rhsTyped),
+                                    name + "[" + lhsName + "=" + lhsEvalName + ", " + rhsName + "=" + rhsEvalName + "]",
+                                    DataTypes.DOUBLE,
+                                    equalTo(expected.applyAsDouble(lhs.doubleValue(), rhs.doubleValue()))
+                                );
+                            }));
+                        }
+                    }
+                }
+            }
+            return suppliers;
+        }
+
+        private static final Map<DataType, List<Map.Entry<String, Supplier<Object>>>> RANDOM_VALUE_SUPPLIERS = Map.ofEntries(
+            Map.entry(
+                DataTypes.DOUBLE,
+                List.of(
+                    Map.entry("<0 double>", () -> 0.0d),
+                    Map.entry("<small positive double>", () -> randomDouble()),
+                    Map.entry("<small negative double>", () -> -randomDouble()),
+                    Map.entry("<big positive double>", () -> randomDoubleBetween(0, Double.MAX_VALUE, false)),
+                    Map.entry("<negative positive double>", () -> randomDoubleBetween(Double.MIN_VALUE, 0 - Double.MIN_NORMAL, true))
+                )
+            ),
+            Map.entry(
+                DataTypes.LONG,
+                List.of(
+                    Map.entry("<0 long>", () -> 0L),
+                    Map.entry("<positive long>", () -> randomLongBetween(1, Long.MAX_VALUE)),
+                    Map.entry("<negative long>", () -> randomLongBetween(Long.MIN_VALUE, -1))
+                )
+            ),
+            Map.entry(
+                DataTypes.INTEGER,
+                List.of(
+                    Map.entry("<0 int>", () -> 0),
+                    Map.entry("<positive long>", () -> between(1, Integer.MAX_VALUE)),
+                    Map.entry("<negative long>", () -> between(Integer.MIN_VALUE, -1))
+                )
+            ),
+            Map.entry(
+                DataTypes.UNSIGNED_LONG,
+                List.of(
+                    Map.entry("<0 unsigned long>", () -> BigInteger.ZERO),
+                    Map.entry("<small unsigned long>", () -> BigInteger.valueOf(randomLongBetween(1, Integer.MAX_VALUE))),
+                    Map.entry(
+                        "<big unsigned long>",
+                        () -> BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(randomLongBetween(1, Integer.MAX_VALUE)))
+                    )
+                )
+            )
+        );
+
+        private static String castToDoubleEvaluator(String original, DataType current) {
+            if (current == DataTypes.DOUBLE) {
+                return original;
+            }
+            if (current == DataTypes.INTEGER) {
+                return "CastIntToDoubleEvaluator[v=" + original + "]";
+            }
+            if (current == DataTypes.LONG) {
+                return "CastLongToDoubleEvaluator[v=" + original + "]";
+            }
+            if (current == DataTypes.UNSIGNED_LONG) {
+                return "CastUnsignedLongToDoubleEvaluator[v=" + original + "]";
+            }
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -199,6 +375,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     protected TestCase testCase;
 
     protected static Iterable<Object[]> parameterSuppliersFromTypedData(List<TestCaseSupplier> cases) {
+        // TODO rename this method to something more descriptive. Javadoc. And make sure all parameters are "representable" types.
         List<Object[]> parameters = new ArrayList<>(cases.size());
         for (TestCaseSupplier element : cases) {
             parameters.add(new Object[] { element });
@@ -260,8 +437,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertThat(expression.dataType(), equalTo(expectedType));
     }
 
-    public final void testSimple() {
+    public final void testEvaluate() {
         Expression expression = buildFieldExpression(testCase);
+        if (testCase.expectedTypeError != null) {
+            assertTrue("expected unresolved", expression.typeResolved().unresolved());
+            assertThat(expression.typeResolved().message(), equalTo(testCase.expectedTypeError));
+            return;
+        }
+        assertFalse("expected resolved", expression.typeResolved().unresolved());
         assertThat(expression.dataType(), equalTo(testCase.expectedType));
         // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
         Object result = toJavaObject(evaluator(expression).get().eval(row(testCase.getDataValues())), 0);
@@ -271,7 +454,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
-    public final void testSimpleWithNulls() {
+    public final void testSimpleWithNulls() { // TODO replace this with nulls inserted into the test case like anyNullIsNull
+        assumeTrue("nothing to do if a type error", testCase.expectedTypeError == null);
         List<Object> simpleData = testCase.getDataValues();
         EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get();
         Block[] orig = BlockUtils.fromListRow(simpleData);
@@ -292,10 +476,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
+        // TODO remove me in favor of cases containing null
         assertTrue("argument " + nullBlock + " is null", value.isNull(0));
     }
 
-    public final void testSimpleInManyThreads() throws ExecutionException, InterruptedException {
+    public final void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
+        assumeTrue("nothing to do if a type error", testCase.expectedTypeError == null);
         int count = 10_000;
         int threads = 5;
         Supplier<EvalOperator.ExpressionEvaluator> evalSupplier = evaluator(buildFieldExpression(testCase));
@@ -321,17 +507,24 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
-    public final void testEvaluatorSimpleToString() {
+    public final void testEvaluatorToString() {
+        assumeTrue("nothing to do if a type error", testCase.expectedTypeError == null);
         var supplier = evaluator(buildFieldExpression(testCase));
         var ev = supplier.get();
         assertThat(ev.toString(), equalTo(testCase.evaluatorToString));
     }
 
-    public final void testSimpleConstantFolding() {
-        Expression e = buildLiteralExpression(testCase);
-        assertThat(e.dataType(), equalTo(testCase.expectedType));
-        assertTrue(e.foldable());
-        assertThat(e.fold(), testCase.getMatcher());
+    public final void testFold() {
+        Expression expression = buildLiteralExpression(testCase);
+        if (testCase.expectedTypeError != null) {
+            assertTrue(expression.typeResolved().unresolved());
+            assertThat(expression.typeResolved().message(), equalTo(testCase.expectedTypeError));
+            return;
+        }
+        assertFalse(expression.typeResolved().unresolved());
+        assertThat(expression.dataType(), equalTo(testCase.expectedType));
+        assertTrue(expression.foldable());
+        assertThat(expression.fold(), testCase.getMatcher());
         if (testCase.expectedWarnings != null) {
             assertWarnings(testCase.expectedWarnings);
         }
@@ -339,5 +532,201 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public void testSerializationOfSimple() {
         assertSerialization(buildFieldExpression(testCase));
+    }
+
+    /**
+     * Adds cases with {@code null} and asserts that the result is {@code null}.
+     */
+    protected static List<TestCaseSupplier> anyNullIsNull(List<TestCaseSupplier> testCaseSuppliers) {
+        for (TestCaseSupplier s : testCaseSuppliers) {
+            if (s.types == null) {
+                throw new IllegalArgumentException("types required");
+            }
+        }
+        List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
+        suppliers.addAll(testCaseSuppliers);
+
+        /*
+         * For each original test case, add as many copies as there were
+         * arguments, replacing one of the arguments with null and keeping
+         * the others.
+         *
+         * Also, if this was the first time we saw the signature we copy it
+         * *again*, replacing the argument with null, but annotating the
+         * argument's type as `null` explicitly.
+         */
+        Set<List<DataType>> uniqueSignatures = new HashSet<>();
+        for (TestCaseSupplier original : testCaseSuppliers) {
+            boolean firstTimeSeenSignature = uniqueSignatures.add(original.types);
+            for (int nullPosition = 0; nullPosition < original.types.size(); nullPosition++) {
+                int finalNullPosition = nullPosition;
+                suppliers.add(new TestCaseSupplier(original.name + " null in " + nullPosition, original.types, () -> {
+                    TestCase oc = original.get();
+                    List<TypedData> data = IntStream.range(0, oc.data.size()).mapToObj(i -> {
+                        TypedData od = oc.data.get(i);
+                        if (i == finalNullPosition) {
+                            return new TypedData(null, od.type, od.name);
+                        }
+                        return od;
+                    }).toList();
+                    return new TestCase(
+                        data,
+                        oc.evaluatorToString,
+                        oc.expectedType,
+                        nullValue(),
+                        oc.expectedWarnings,
+                        oc.expectedTypeError
+                    );
+                }));
+
+                if (firstTimeSeenSignature) {
+                    List<DataType> typesWithNull = IntStream.range(0, original.types.size())
+                        .mapToObj(i -> i == finalNullPosition ? DataTypes.NULL : original.types.get(i))
+                        .toList();
+                    suppliers.add(new TestCaseSupplier(typesWithNull, () -> {
+                        TestCase oc = original.get();
+                        List<TypedData> data = IntStream.range(0, oc.data.size()).mapToObj(i -> {
+                            TypedData od = oc.data.get(i);
+                            if (i == finalNullPosition) {
+                                return new TypedData(null, DataTypes.NULL, od.name);
+                            }
+                            return od;
+                        }).toList();
+                        return new TestCase(data, "ConstantNull", DataTypes.NULL, nullValue(), oc.expectedWarnings, oc.expectedTypeError);
+                    }));
+                }
+            }
+        }
+
+        return suppliers;
+    }
+
+    /**
+     * Adds test cases containing unsupported parameter types that assert
+     * that they throw type errors.
+     */
+    protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(List<TestCaseSupplier> testCaseSuppliers) {
+        for (TestCaseSupplier s : testCaseSuppliers) {
+            if (s.types == null) {
+                throw new IllegalArgumentException("types required");
+            }
+        }
+        List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
+        suppliers.addAll(testCaseSuppliers);
+
+        Set<List<DataType>> valid = testCaseSuppliers.stream().map(TestCaseSupplier::types).collect(Collectors.toSet());
+        List<Set<DataType>> validPerPosition = validPerPosition(valid);
+
+        testCaseSuppliers.stream()
+            .map(s -> s.types().size())
+            .collect(Collectors.toSet())
+            .stream()
+            .flatMap(count -> allPermutations(count))
+            .filter(types -> valid.contains(types) == false)
+            /*
+             * Skip any cases with more than one null. Our tests don't generate
+             * the full combinatorial explosions of all nulls - just a single null.
+             * Hopefully <null>, <null> cases will function the same as <null>, <valid>
+             * cases.
+             */
+            .filter(types -> types.stream().filter(t -> t == DataTypes.NULL).count() <= 1)
+            .map(types -> typeErrorSupplier(validPerPosition, types))
+            .forEach(suppliers::add);
+        return suppliers;
+    }
+
+    private static List<Set<DataType>> validPerPosition(Set<List<DataType>> valid) {
+        int max = valid.stream().mapToInt(List::size).max().getAsInt();
+        List<Set<DataType>> result = new ArrayList<>(max);
+        for (int i = 0; i < max; i++) {
+            result.add(new HashSet<>());
+        }
+        for (List<DataType> signature : valid) {
+            for (int i = 0; i < signature.size(); i++) {
+                result.get(i).add(signature.get(i));
+            }
+        }
+        return result;
+    }
+
+    private static Stream<List<DataType>> allPermutations(int argumentCount) {
+        if (argumentCount == 0) {
+            return Stream.of(List.of());
+        }
+        if (argumentCount > 4) {
+            // TODO check for a limit 4. is arbitrary.
+            throw new IllegalArgumentException("would generate too many types");
+        }
+        Stream<List<DataType>> stream = representable().map(t -> List.of(t));
+        for (int i = 1; i < argumentCount; i++) {
+            stream = stream.flatMap(types -> representable().map(t -> append(types, t)));
+        }
+        return stream;
+    }
+
+    private static List<DataType> append(List<DataType> orig, DataType extra) {
+        List<DataType> longer = new ArrayList<>(orig.size() + 1);
+        longer.addAll(orig);
+        longer.add(extra);
+        return longer;
+    }
+
+    /**
+     * Build a test case that asserts that the combination of parameter types is an error.
+     */
+    private static TestCaseSupplier typeErrorSupplier(List<Set<DataType>> validPerPosition, List<DataType> types) {
+        return new TestCaseSupplier(
+            "type error for " + TestCaseSupplier.nameFromTypes(types),
+            types,
+            () -> TestCase.typeError(
+                types.stream().map(type -> new TypedData(randomLiteral(type).value(), type, type.typeName())).toList(),
+                typeErrorMessage(validPerPosition, types)
+            )
+        );
+    }
+
+    /**
+     * Build the expected error message for an invalid type signature.
+     */
+    private static String typeErrorMessage(List<Set<DataType>> validPerPosition, List<DataType> types) {
+        int badArgPosition = -1;
+        for (int i = 0; i < types.size(); i++) {
+            if (validPerPosition.get(i).contains(types.get(i)) == false) {
+                badArgPosition = i;
+                break;
+            }
+        }
+        if (badArgPosition == -1) {
+            throw new IllegalStateException("can't find badArgPosition");
+        }
+        String ordinal = validPerPosition.size() == 1
+            ? ""
+            : TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " ";
+        String expectedType = expectedType(validPerPosition.get(badArgPosition));
+        String name = types.get(badArgPosition).typeName();
+        return ordinal + "argument of [] must be [" + expectedType + "], found value [" + name + "] type [" + name + "]";
+    }
+
+    private static final Map<Set<DataType>, String> NAMED_EXPECTED_TYPES = Map.ofEntries(
+        Map.entry(Set.of(DataTypes.DOUBLE, DataTypes.NULL), "double"),
+        Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
+        Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric")
+    );
+
+    private static String expectedType(Set<DataType> validTypes) {
+        String named = NAMED_EXPECTED_TYPES.get(validTypes);
+        if (named == null) {
+            /*
+             * Note for anyone who's test lands here - it's likely that you
+             * don't have a test case covering explicit `null` arguments in
+             * this position. Generally you can get that with anyNullIsNull.
+             */
+            throw new UnsupportedOperationException("can't guess expected types for " + validTypes);
+        }
+        return named;
+    }
+
+    private static Stream<DataType> representable() {
+        return EsqlDataTypes.types().stream().filter(EsqlDataTypes::isRepresentable);
     }
 }

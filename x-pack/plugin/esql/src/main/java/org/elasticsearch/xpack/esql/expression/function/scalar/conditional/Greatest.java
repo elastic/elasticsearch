@@ -60,12 +60,17 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
         }
 
         for (int position = 0; position < children().size(); position++) {
-            if (dataType == null || dataType == NULL) {
-                dataType = children().get(position).dataType();
+            Expression child = children().get(position);
+            if (child.dataType() == DataTypes.NULL) {
+                dataType = DataTypes.NULL;
+                break;
+            }
+            if (dataType == null) {
+                dataType = child.dataType();
                 continue;
             }
             TypeResolution resolution = TypeResolutions.isType(
-                children().get(position),
+                child,
                 t -> t == dataType,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),

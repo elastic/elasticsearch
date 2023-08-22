@@ -63,6 +63,9 @@ public class Abs extends UnaryScalarFunction implements EvaluatorMapper {
         if (dataType() == DataTypes.INTEGER) {
             return () -> new AbsIntEvaluator(field.get());
         }
+        if (dataType() == DataTypes.NULL) {
+            return () -> EvalOperator.CONSTANT_NULL;
+        }
         throw EsqlUnsupportedOperationException.unsupportedDataType(dataType());
     }
 

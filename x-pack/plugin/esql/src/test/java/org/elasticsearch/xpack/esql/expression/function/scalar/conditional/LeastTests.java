@@ -41,6 +41,7 @@ public class LeastTests extends AbstractFunctionTestCase {
         suppliers.add(
             new TestCaseSupplier(
                 "(a, b)",
+                List.of(DataTypes.KEYWORD, DataTypes.KEYWORD),
                 () -> new TestCase(
                     List.of(
                         new TypedData(new BytesRef("a"), DataTypes.KEYWORD, "a"),
@@ -52,7 +53,7 @@ public class LeastTests extends AbstractFunctionTestCase {
                 )
             )
         );
-        return parameterSuppliersFromTypedData(suppliers);
+        return parameterSuppliersFromTypedData(anyNullIsNull(suppliers));
     }
 
     @Override

@@ -1025,7 +1025,7 @@ a:integer | b:integer | l:integer
 leastNull
 ROW l=LEAST(10, 5, null);
 
-l:integer
+l:null
 null
 ;
 
@@ -1052,7 +1052,7 @@ a:integer | b:integer | g:integer
 greatestNull
 ROW g=GREATEST(10, 5, null);
 
-g:integer
+g:null
 null
 ;
 

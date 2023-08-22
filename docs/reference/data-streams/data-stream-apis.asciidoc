@@ -12,15 +12,13 @@ The following APIs are available for managing <<data-streams,data streams>>:
 * <<promote-data-stream-api>>
 * <<modify-data-streams-api>>
 
-ifeval::["{release-state}"=="unreleased"]
 [[data-stream-lifecycle-api]]
 The following APIs are available for managing the built-in lifecycle of data streams:
 
-* <<data-streams-put-lifecycle,Update data stream lifecycle>> preview:[]
-* <<data-streams-get-lifecycle,Get data stream lifecycle>> preview:[]
-* <<data-streams-delete-lifecycle,Delete data stream lifecycle>> preview:[]
-* <<data-streams-explain-lifecycle,Explain data stream lifecycle>> preview:[]
-endif::[]
+* <<data-streams-put-lifecycle,Update data stream lifecycle>> 
+* <<data-streams-get-lifecycle,Get data stream lifecycle>> 
+* <<data-streams-delete-lifecycle,Delete data stream lifecycle>>
+* <<data-streams-explain-lifecycle,Explain data stream lifecycle>>
 
 The following API is available for <<tsds,time series data streams>>:
 
@@ -43,7 +41,6 @@ include::{es-repo-dir}/data-streams/promote-data-stream-api.asciidoc[]
 
 include::{es-repo-dir}/data-streams/modify-data-streams-api.asciidoc[]
 
-ifeval::["{release-state}"=="unreleased"]
 include::{es-repo-dir}/data-streams/lifecycle/apis/put-lifecycle.asciidoc[]
 
 include::{es-repo-dir}/data-streams/lifecycle/apis/get-lifecycle.asciidoc[]
@@ -51,6 +48,5 @@ include::{es-repo-dir}/data-streams/lifecycle/apis/get-lifecycle.asciidoc[]
 include::{es-repo-dir}/data-streams/lifecycle/apis/delete-lifecycle.asciidoc[]
 
 include::{es-repo-dir}/data-streams/lifecycle/apis/explain-lifecycle.asciidoc[]
-endif::[]
 
 include::{es-repo-dir}/indices/downsample-data-stream.asciidoc[]

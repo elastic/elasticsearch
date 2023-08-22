@@ -147,8 +147,10 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_8_8_2 = new Version(8_08_02_99, IndexVersion.V_8_8_2);
     public static final Version V_8_9_0 = new Version(8_09_00_99, IndexVersion.V_8_9_0);
     public static final Version V_8_9_1 = new Version(8_09_01_99, IndexVersion.V_8_9_1);
+    public static final Version V_8_9_2 = new Version(8_09_02_99, IndexVersion.V_8_9_2);
     public static final Version V_8_10_0 = new Version(8_10_00_99, IndexVersion.V_8_10_0);
-    public static final Version CURRENT = V_8_10_0;
+    public static final Version V_8_11_0 = new Version(8_11_00_99, IndexVersion.V_8_11_0);
+    public static final Version CURRENT = V_8_11_0;
 
     private static final NavigableMap<Integer, Version> VERSION_IDS;
     private static final Map<String, Version> VERSION_STRINGS;
@@ -390,7 +392,10 @@ public class Version implements VersionId<Version>, ToXContentFragment {
      * Returns the minimum created index version that this version supports. Indices created with lower versions
      * can't be used with this version. This should also be used for file based serialization backwards compatibility ie. on serialization
      * code that is used to read / write file formats like transaction logs, cluster state, and index metadata.
+     *
+     * @deprecated This should not be used to get the compatibility of versions after 8.10.0
      */
+    @Deprecated
     public Version minimumIndexCompatibilityVersion() {
         Version res = minIndexCompatVersion;
         if (res == null) {
@@ -409,14 +414,6 @@ public class Version implements VersionId<Version>, ToXContentFragment {
         }
         final int bwcMinor = 0;
         return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
-    }
-
-    /**
-     * Whether the current version is older than the current minimum compatible index version,
-     * see {@link #minimumIndexCompatibilityVersion()}
-     */
-    public boolean isLegacyIndexVersion() {
-        return before(Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
     /**

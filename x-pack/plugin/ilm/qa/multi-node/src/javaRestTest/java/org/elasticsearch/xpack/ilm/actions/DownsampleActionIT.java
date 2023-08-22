@@ -314,6 +314,81 @@ public class DownsampleActionIT extends ESRestTestCase {
         assertTrue("Source index should not have been deleted", indexExists(index));
     }
 
+    public void testDownsampleTwice() throws Exception {
+        // Create the ILM policy
+        Request request = new Request("PUT", "_ilm/policy/" + policy);
+        request.setJsonEntity("""
+            {
+                "policy": {
+                    "phases": {
+                        "warm": {
+                            "actions": {
+                                "downsample": {
+                                    "fixed_interval" : "1m"
+                                }
+                            }
+                        },
+                        "cold": {
+                            "actions": {
+                                "downsample": {
+                                    "fixed_interval" : "1h"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """);
+        client().performRequest(request);
+
+        // Create a template
+        Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
+        createIndexTemplateRequest.setJsonEntity(Strings.format(TEMPLATE, dataStream, policy));
+        assertOK(client().performRequest(createIndexTemplateRequest));
+
+        String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
+        index(client(), dataStream, true, null, "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
+
+        String firstBackingIndex = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        logger.info("--> firstBackingIndex: {}", firstBackingIndex);
+        assertBusy(
+            () -> assertThat(
+                "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
+                explainIndex(client(), firstBackingIndex).get("step"),
+                is(CheckNotDataStreamWriteIndexStep.NAME)
+            ),
+            30,
+            TimeUnit.SECONDS
+        );
+
+        // Manual rollover the original index such that it's not the write index in the data stream anymore
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        String downsampleIndexName = "downsample-1m-" + firstBackingIndex;
+        String downsampleOfDownsampleIndexName = "downsample-1h-" + firstBackingIndex;
+        try {
+            assertBusy(() -> {
+                assertThat(indexExists(downsampleOfDownsampleIndexName), is(true));
+                assertThat(indexExists(firstBackingIndex), is(false));
+                assertThat(indexExists(downsampleIndexName), is(false));
+
+                Map<String, Object> settings = getOnlyIndexSettings(client(), downsampleOfDownsampleIndexName);
+                assertEquals(firstBackingIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
+                assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
+                assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
+            }, 60, TimeUnit.SECONDS);
+        } catch (AssertionError ae) {
+            if (indexExists(firstBackingIndex)) {
+                logger.error("Index [{}] ilm explain {}", firstBackingIndex, explainIndex(client(), firstBackingIndex));
+            } else if (indexExists(downsampleIndexName)) {
+                logger.error("Index [{}] ilm explain {}", firstBackingIndex, explainIndex(client(), downsampleIndexName));
+            } else if (indexExists(downsampleOfDownsampleIndexName)) {
+                logger.error("Index [{}] ilm explain {}", firstBackingIndex, explainIndex(client(), downsampleOfDownsampleIndexName));
+            }
+            throw ae;
+        }
+    }
+
     /**
      * Gets the generated rollup index name for a given index by looking at newly created indices that match the rollup index name pattern
      *
@@ -339,9 +414,9 @@ public class DownsampleActionIT extends ESRestTestCase {
         throws IOException {
         String endpoint = "/"
             + DownsampleAction.DOWNSAMPLED_INDEX_PREFIX
-            + originalIndexName
-            + "-"
             + fixedInterval
+            + "-"
+            + originalIndexName
             + "*/?expand_wildcards=all";
         Response response = client.performRequest(new Request("GET", endpoint));
         Map<String, Object> asMap = responseAsMap(response);

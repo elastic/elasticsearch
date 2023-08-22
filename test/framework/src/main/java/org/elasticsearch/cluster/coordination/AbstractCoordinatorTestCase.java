@@ -143,7 +143,6 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
-import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.elasticsearch.transport.TransportSettings.CONNECT_TIMEOUT;
 import static org.hamcrest.Matchers.empty;
@@ -703,13 +702,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     nodeId + " is not scheduling elections",
                     // In the stable state all election schedulers should be inactive, rather than retrying in vain and backing off.
                     clusterNode.coordinator.electionSchedulerActive() == false
-                        // However today we do the health service checks within the election, so we keep trying if the node health state is
-                        // UNHEALTHY too. See https://github.com/elastic/elasticsearch/issues/98419.
-                        || clusterNode.nodeHealthService.getHealth().getStatus() == UNHEALTHY
-                        // Moreover this property does not hold (yet) when using an atomic-register-based coordinator.
-                        // See https://github.com/elastic/elasticsearch/issues/98423
-                        || coordinatorStrategy.verifyElectionSchedulerState() == false
-
+                        || coordinatorStrategy.verifyElectionSchedulerState(clusterNode) == false
                 );
 
                 if (expectIdleJoinValidationService) {
@@ -1533,9 +1526,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private class NodeDisruptibleRegisterConnection implements DisruptibleRegisterConnection {
                 @Override
                 public <R> void runDisrupted(ActionListener<R> listener, Consumer<ActionListener<R>> consumer) {
-                    if (isDisconnected()) {
+                    if (isRegisterDisconnected()) {
                         listener.onFailure(new IOException("simulated disrupted connection to register"));
-                    } else if (isBlackholed()) {
+                    } else if (isRegisterBlackholed()) {
                         final var exception = new IOException("simulated eventual failure to blackholed register");
                         logger.trace(() -> Strings.format("delaying failure of register request for [%s]", listener), exception);
                         blackholedRegisterOperations.add(onNode(new DisruptableMockTransport.RebootSensitiveRunnable() {
@@ -1561,24 +1554,27 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
                 @Override
                 public <R> void runDisruptedOrDrop(ActionListener<R> listener, Consumer<ActionListener<R>> consumer) {
-                    if (isDisconnected()) {
+                    if (isRegisterDisconnected()) {
                         listener.onFailure(new IOException("simulated disrupted connection to register"));
-                    } else if (isBlackholed()) {
+                    } else if (isRegisterBlackholed()) {
                         logger.trace(() -> Strings.format("dropping register request for [%s]", listener));
                     } else {
                         consumer.accept(listener);
                     }
                 }
 
-                private boolean isDisconnected() {
-                    return disconnectedNodes.contains(localNode.getId())
-                        || nodeHealthService.getHealth().getStatus() != HEALTHY
-                        || (disruptStorage && rarely());
-                }
+            }
 
-                private boolean isBlackholed() {
-                    return blackholedNodes.contains(localNode.getId());
-                }
+            public boolean isRegisterDisconnected() {
+                return disconnectedNodes.contains(localNode.getId()) || getHealthStatus() != HEALTHY || (disruptStorage && rarely());
+            }
+
+            public boolean isRegisterBlackholed() {
+                return blackholedNodes.contains(localNode.getId());
+            }
+
+            public StatusInfo.Status getHealthStatus() {
+                return nodeHealthService.getHealth().getStatus();
             }
         }
 
@@ -1635,9 +1631,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         default void close() {}
 
-        default boolean verifyElectionSchedulerState() {
-            // TODO remove once https://github.com/elastic/elasticsearch/issues/98423 fixed
-            return true;
+        default boolean verifyElectionSchedulerState(ClusterNode clusterNode) {
+            // Today we do the health service checks within the election, so we keep the election scheduler going if the node health
+            // state is UNHEALTHY too. See https://github.com/elastic/elasticsearch/issues/98419.
+            return clusterNode.getHealthStatus() == HEALTHY;
         }
     }
 

@@ -374,6 +374,11 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean supportsParsingObject() {
+        return true;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         Range range;
         XContentParser parser = context.parser();

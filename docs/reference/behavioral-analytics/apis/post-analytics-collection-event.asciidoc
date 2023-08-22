@@ -8,6 +8,20 @@ beta::[]
 <titleabbrev>Post Analytics Collection Event</titleabbrev>
 ++++
 
+////
+[source,console]
+----
+PUT _application/analytics/my_analytics_collection
+----
+// TESTSETUP
+
+[source,console]
+----
+DELETE _application/analytics/my_analytics_collection
+----
+// TEARDOWN
+////
+
 Post an event to an Analytics Collection.
 
 [[post-analytics-collection-event-request]]
@@ -85,4 +99,3 @@ POST _application/analytics/my_analytics_collection/event/search_click
   }
 }
 ----
-// TEST[skip:TBD]

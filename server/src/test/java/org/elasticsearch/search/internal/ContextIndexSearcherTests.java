@@ -130,7 +130,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         iw.deleteDocuments(new Term("field1", "value3"));
         iw.close();
         DirectoryReader directoryReader = DirectoryReader.open(directory);
-        IndexSearcher searcher = new IndexSearcher(directoryReader);
+        IndexSearcher searcher = newSearcher(directoryReader);
         Weight weight = searcher.createWeight(
             new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term("field2", "value1"))), 3f),
             ScoreMode.COMPLETE,
@@ -624,18 +624,13 @@ public class ContextIndexSearcherTests extends ESTestCase {
                             return null;
                         }
                     };
-                    RuntimeException executionException = expectThrows(
-                        RuntimeException.class,
-                        () -> contextIndexSearcher.search(query, collectorManager)
-                    );
+                    expectThrows(IOException.class, () -> contextIndexSearcher.search(query, collectorManager));
                     assertBusy(() -> {
                         // active count is approximate, wait until it converges to the expected number
                         if (executor.getActiveCount() > numBusyThreads) {
                             throw new AssertionError("no search tasks should be left running");
                         }
                     });
-
-                    assertThat(executionException.getCause(), instanceOf(IOException.class));
                 }
                 // as many tasks as slices have been created
                 assertEquals(leafSlices.length, newCollectorsCalls[0]);

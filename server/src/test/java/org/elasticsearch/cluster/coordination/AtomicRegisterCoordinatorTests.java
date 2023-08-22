@@ -184,7 +184,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98423")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98488") // also #98419
     public void testElectionSchedulingAfterDiscoveryOutage() {}
 
     @Override
@@ -271,9 +271,10 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public boolean verifyElectionSchedulerState() {
-            // TODO fix up election scheduling here (or refine the assertions) - see https://github.com/elastic/elasticsearch/issues/98423
-            return false;
+        public boolean verifyElectionSchedulerState(Cluster.ClusterNode clusterNode) {
+            // If the register is disrupted then today we remain HEALTHY and retry via the election mechanism. We should use a different
+            // retry mechanism instead. See https://github.com/elastic/elasticsearch/issues/98488.
+            return (clusterNode.isRegisterDisconnected() || clusterNode.isRegisterBlackholed()) == false;
         }
     }
 
@@ -550,6 +551,11 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                 || latestClusterState.term() > latestAcceptedState.term()
                 || (latestClusterState.term() == latestAcceptedState.term()
                     && latestClusterState.version() > latestAcceptedState.version());
+        }
+
+        @Override
+        public String toString() {
+            return "AtomicRegisterPersistedState[" + localNode.descriptionWithoutAttributes() + "]";
         }
     }
 }

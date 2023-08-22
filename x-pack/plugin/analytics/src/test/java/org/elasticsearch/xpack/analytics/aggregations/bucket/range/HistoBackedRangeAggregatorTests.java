@@ -119,6 +119,7 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
         testRanges(ranges, "manual_medium_ranges");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98713")
     public void testLargerRangesAccuracy() throws Exception {
         List<RangeAggregator.Range> ranges = Arrays.asList(
             new RangeAggregator.Range(null, null, 8.0),

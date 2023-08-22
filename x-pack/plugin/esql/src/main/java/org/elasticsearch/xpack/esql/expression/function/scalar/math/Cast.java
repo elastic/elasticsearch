@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -62,8 +63,8 @@ public class Cast {
         throw cantCast(current, required);
     }
 
-    private static UnsupportedOperationException cantCast(DataType current, DataType required) {
-        return new UnsupportedOperationException("can't process [" + current.typeName() + " -> " + required.typeName() + "]");
+    private static EsqlUnsupportedOperationException cantCast(DataType current, DataType required) {
+        return new EsqlUnsupportedOperationException("can't process [" + current.typeName() + " -> " + required.typeName() + "]");
     }
 
     @Evaluator(extraName = "IntToLong")

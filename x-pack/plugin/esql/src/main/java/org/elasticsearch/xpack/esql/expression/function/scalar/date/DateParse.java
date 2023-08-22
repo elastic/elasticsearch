@@ -13,6 +13,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
@@ -111,7 +112,7 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Evalu
                 DateFormatter formatter = toFormatter(format.fold(), zone);
                 return () -> new DateParseConstantEvaluator(source(), fieldEvaluator.get(), formatter);
             } catch (IllegalArgumentException e) {
-                throw new EsqlIllegalArgumentException(e, "invalid date patter for [{}]: {}", sourceText(), e.getMessage());
+                throw new EsqlIllegalArgumentException(e, "invalid date pattern for [{}]: {}", sourceText(), e.getMessage());
             }
         }
         Supplier<EvalOperator.ExpressionEvaluator> formatEvaluator = toEvaluator.apply(format);
@@ -134,6 +135,6 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Evalu
 
     @Override
     public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException();
+        throw new EsqlUnsupportedOperationException("functions do not support scripting");
     }
 }

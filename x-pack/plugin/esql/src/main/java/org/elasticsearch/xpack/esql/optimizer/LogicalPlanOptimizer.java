@@ -749,7 +749,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
             return project.replaceChild(expressionsWithResolvedAliases.replaceChild(project.child()));
         } else {
-            throw new UnsupportedOperationException("Expected child to be instance of Project");
+            throw new EsqlIllegalArgumentException("Expected child to be instance of Project");
         }
     }
 

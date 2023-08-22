@@ -8,6 +8,9 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
+
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98720")
 public class PagedBytesStringFieldDataTests extends AbstractStringFieldDataTestCase {
 
     @Override

@@ -807,7 +807,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            IndexSearcher searcher = new IndexSearcher(ir);
+            IndexSearcher searcher = newSearcher(ir);
             MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", "Prio 1");
             TopDocs td = searcher.search(queryBuilder.toQuery(searchExecutionContext), 1);
             assertEquals(1, td.totalHits.value);

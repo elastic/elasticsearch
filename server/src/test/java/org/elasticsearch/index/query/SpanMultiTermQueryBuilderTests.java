@@ -267,7 +267,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
                     BooleanQuery.setMaxClauseCount(1);
                     try {
                         QueryBuilder queryBuilder = new SpanMultiTermQueryBuilder(QueryBuilders.prefixQuery("body", "bar"));
-                        IndexSearcher searcher = new IndexSearcher(reader);
+                        IndexSearcher searcher = newSearcher(reader);
                         Query query = queryBuilder.toQuery(createSearchExecutionContext(searcher));
                         RuntimeException exc = expectThrows(RuntimeException.class, () -> query.rewrite(searcher));
                         assertThat(exc.getMessage(), containsString("maxClauseCount"));

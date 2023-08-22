@@ -19,7 +19,6 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.tests.analysis.MockTokenFilter;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -36,7 +35,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
@@ -107,7 +105,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     }
 
     public void testDefaultAnalyzers() throws IOException {
-        Version version = VersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion(random());
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -121,7 +119,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     }
 
     public void testOverrideDefaultAnalyzer() throws IOException {
-        Version version = VersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexAnalyzers indexAnalyzers = AnalysisRegistry.build(
             IndexCreationContext.CREATE_INDEX,
@@ -138,7 +136,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     }
 
     public void testOverrideDefaultAnalyzerWithoutAnalysisModeAll() throws IOException {
-        Version version = VersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
         TokenFilterFactory tokenFilter = new AbstractTokenFilterFactory("my_filter", Settings.EMPTY) {
@@ -217,7 +215,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     }
 
     public void testOverrideDefaultSearchAnalyzer() {
-        Version version = VersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexAnalyzers indexAnalyzers = AnalysisRegistry.build(
             IndexCreationContext.CREATE_INDEX,
@@ -321,7 +319,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     }
 
     public void testNoTypeOrTokenizerErrorMessage() throws IOException {
-        Version version = VersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion(random());
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())

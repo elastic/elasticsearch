@@ -12,7 +12,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndE
 /**
  * Splits a string on some delimiter into a multivalued string field.
  */
-public class Split extends BinaryScalarFunction implements Mappable {
+public class Split extends BinaryScalarFunction implements EvaluatorMapper {
     public Split(Source source, Expression str, Expression delim) {
         super(source, str, delim);
     }
@@ -63,7 +63,7 @@ public class Split extends BinaryScalarFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Evaluator(extraName = "SingleByte")

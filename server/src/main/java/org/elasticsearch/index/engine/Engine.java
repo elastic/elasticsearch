@@ -155,7 +155,7 @@ public abstract class Engine implements Closeable {
         if (esVersion.contains(".")) {
             // backwards-compatible Version-style
             org.elasticsearch.Version v = org.elasticsearch.Version.fromString(esVersion);
-            assert v.before(org.elasticsearch.Version.V_8_11_0);
+            assert v.onOrBefore(org.elasticsearch.Version.V_8_11_0);
             return IndexVersion.fromId(v.id);
         } else {
             return IndexVersion.fromId(Integer.parseInt(esVersion));

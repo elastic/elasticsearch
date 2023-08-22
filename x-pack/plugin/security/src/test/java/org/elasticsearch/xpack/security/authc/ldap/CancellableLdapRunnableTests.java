@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.ldap;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm.CancellableLdapRunnable;
@@ -73,9 +74,7 @@ public class CancellableLdapRunnableTests extends ESTestCase {
         final CountDownLatch listenerCalledLatch = new CountDownLatch(1);
         final CountDownLatch timeoutCalledLatch = new CountDownLatch(1);
         final CountDownLatch runningLatch = new CountDownLatch(1);
-        final ActionListener<User> listener = ActionListener.wrap(user -> { listenerCalledLatch.countDown(); }, e -> {
-            throw new AssertionError("onFailure should not be executed");
-        });
+        final ActionListener<User> listener = ActionTestUtils.assertNoFailureListener(user -> listenerCalledLatch.countDown());
         final CancellableLdapRunnable<User> runnable = new CancellableLdapRunnable<>(listener, e -> null, () -> {
             runningLatch.countDown();
             try {
@@ -97,9 +96,7 @@ public class CancellableLdapRunnableTests extends ESTestCase {
 
     public void testExceptionInRunnable() {
         AtomicReference<String> resultRef = new AtomicReference<>();
-        final ActionListener<String> listener = ActionListener.wrap(resultRef::set, e -> {
-            throw new AssertionError("onFailure should not be executed");
-        });
+        final ActionListener<String> listener = ActionTestUtils.assertNoFailureListener(resultRef::set);
         String defaultValue = randomAlphaOfLengthBetween(2, 10);
         final CancellableLdapRunnable<String> runnable = new CancellableLdapRunnable<>(listener, e -> defaultValue, () -> {
             throw new RuntimeException("runnable intentionally failed");

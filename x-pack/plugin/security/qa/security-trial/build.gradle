@@ -10,7 +10,6 @@ dependencies {
 }
 
 testClusters.matching { it.name == 'javaRestTest' }.configureEach {
-  requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.5.0")
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
 

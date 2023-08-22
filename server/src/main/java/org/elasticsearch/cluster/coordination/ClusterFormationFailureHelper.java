@@ -206,7 +206,7 @@ public class ClusterFormationFailureHelper {
             this(
                 in.readStringList(),
                 new DiscoveryNode(in),
-                in.readMap(StreamInput::readString, DiscoveryNode::new),
+                in.readMap(DiscoveryNode::new),
                 in.readLong(),
                 in.readLong(),
                 new VotingConfiguration(in),

@@ -111,7 +111,6 @@ public class DfsProfilerIT extends ESIntegTestCase {
                     CollectorResult result = queryProfileShardResult.getCollectorResult();
                     assertThat(result.getName(), is(not(emptyOrNullString())));
                     assertThat(result.getTime(), greaterThan(0L));
-                    assertThat(result.getTime(), greaterThan(0L));
                 }
                 ProfileResult statsResult = searchProfileDfsPhaseResult.getDfsShardResult();
                 assertThat(statsResult.getQueryName(), equalTo("statistics"));

@@ -6,11 +6,10 @@
  */
 package org.elasticsearch.xpack.spatial.search;
 
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiLine;
@@ -42,7 +41,7 @@ public class ShapeQueryOverPointTests extends ShapeQueryTestCase {
 
     public void testProcessRelationSupport() throws Exception {
         String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        indicesAdmin().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
         Rectangle rectangle = new Rectangle(-35, -25, -25, -35);
@@ -65,7 +64,7 @@ public class ShapeQueryOverPointTests extends ShapeQueryTestCase {
 
     public void testQueryLine() throws Exception {
         String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        indicesAdmin().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
         Line line = new Line(new double[] { -25, -25 }, new double[] { -35, -35 });
@@ -79,29 +78,27 @@ public class ShapeQueryOverPointTests extends ShapeQueryTestCase {
 
     public void testQueryLinearRing() throws Exception {
         String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        indicesAdmin().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
         LinearRing linearRing = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
 
-        try {
-            // LinearRing extends Line implements Geometry: expose the build process
-            ShapeQueryBuilder queryBuilder = new ShapeQueryBuilder(defaultFieldName, linearRing);
-            SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client(), SearchAction.INSTANCE);
-            searchRequestBuilder.setQuery(queryBuilder);
-            searchRequestBuilder.setIndices("test");
-            searchRequestBuilder.get();
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(
-                e.getCause().getMessage(),
-                CoreMatchers.containsString("Field [" + defaultFieldName + "] does not support LINEARRING queries")
-            );
-        }
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ShapeQueryBuilder(defaultFieldName, linearRing)
+        );
+        assertThat(ex.getMessage(), CoreMatchers.containsString("[LINEARRING] geometries are not supported"));
+
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ShapeQueryBuilder(defaultFieldName, new GeometryCollection<>(List.of(linearRing)))
+        );
+        assertThat(ex.getMessage(), CoreMatchers.containsString("[LINEARRING] geometries are not supported"));
     }
 
     public void testQueryMultiLine() throws Exception {
         String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        indicesAdmin().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
         Line lsb1 = new Line(new double[] { -35, -25 }, new double[] { -35, -25 });
@@ -120,7 +117,7 @@ public class ShapeQueryOverPointTests extends ShapeQueryTestCase {
 
     public void testQueryMultiPoint() throws Exception {
         String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        indicesAdmin().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
         MultiPoint multiPoint = new MultiPoint(List.of(new Point(-35, -25), new Point(-15, -5)));
@@ -134,7 +131,7 @@ public class ShapeQueryOverPointTests extends ShapeQueryTestCase {
 
     public void testQueryPoint() throws Exception {
         String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        indicesAdmin().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
         Point point = new Point(-35, -2);

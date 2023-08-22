@@ -41,9 +41,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int numberOfShards = between(1, 5);
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards).build())
                 .setMapping("""
                     {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}""")
@@ -55,7 +53,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         }
         indexRandom(true, false, indexRequestBuilders);
         assertThat(
-            client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+            indicesAdmin().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
             equalTo(0)
         );
         refresh(indexName);
@@ -65,7 +63,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         createRepository(repositoryName, "fs");
 
         final SnapshotId snapshotOne = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final int numberOfReplicas = between(0, 2);
         final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
@@ -110,9 +108,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
     public void testRetryPointInTime() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build())
                 .setMapping("""
                     {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}""")
@@ -124,7 +120,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         }
         indexRandom(true, false, indexRequestBuilders);
         assertThat(
-            client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+            indicesAdmin().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
             equalTo(0)
         );
         refresh(indexName);
@@ -134,7 +130,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         createRepository(repositoryName, "fs");
 
         final SnapshotId snapshotOne = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final int numberOfReplicas = between(0, 2);
         final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();

@@ -1,0 +1,12 @@
+[[esql-atan]]
+=== `ATAN`
+Inverse https://en.wikipedia.org/wiki/Inverse_trigonometric_functions[tangent] trigonometric function.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/floats.csv-spec[tag=atan]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/floats.csv-spec[tag=atan-result]
+|===

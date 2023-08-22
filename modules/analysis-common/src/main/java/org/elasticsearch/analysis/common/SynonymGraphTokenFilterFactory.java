@@ -14,19 +14,27 @@ import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
 import java.util.List;
 import java.util.function.Function;
 
 public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
 
-    SynonymGraphTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, env, name, settings);
+    SynonymGraphTokenFilterFactory(
+        IndexSettings indexSettings,
+        Environment env,
+        String name,
+        Settings settings,
+        SynonymsManagementAPIService synonymsManagementAPIService
+    ) {
+        super(indexSettings, env, name, settings, synonymsManagementAPIService);
     }
 
     @Override
@@ -36,13 +44,14 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
 
     @Override
     public TokenFilterFactory getChainAwareTokenFilterFactory(
+        IndexCreationContext context,
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
         Function<String, TokenFilterFactory> allFilters
     ) {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
-        ReaderWithOrigin rulesFromSettings = getRulesFromSettings(environment);
+        ReaderWithOrigin rulesFromSettings = getRulesFromSettings(environment, context);
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesFromSettings);
         final String name = name();
         return new TokenFilterFactory() {
@@ -59,6 +68,11 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
             @Override
             public AnalysisMode getAnalysisMode() {
                 return analysisMode;
+            }
+
+            @Override
+            public String getResourceName() {
+                return rulesFromSettings.resource();
             }
         };
     }

@@ -33,6 +33,7 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardCountStats;
@@ -197,6 +198,11 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         return stats.getNodeMappings();
     }
 
+    @Nullable
+    public DenseVectorStats getDenseVectorStats() {
+        return stats.getDenseVectorStats();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
@@ -235,14 +241,11 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
 
                 case INDICES -> Iterators.concat(
                     ChunkedToXContentHelper.startObject(Fields.INDICES),
-                    Iterators.flatMap(
-                        createCommonStatsByIndex().entrySet().iterator(),
-                        entry -> Iterators.<ToXContent>single((builder, params) -> {
-                            builder.startObject(entry.getKey().getName());
-                            entry.getValue().toXContent(builder, params);
-                            return builder.endObject();
-                        })
-                    ),
+                    Iterators.map(createCommonStatsByIndex().entrySet().iterator(), entry -> (builder, params) -> {
+                        builder.startObject(entry.getKey().getName());
+                        entry.getValue().toXContent(builder, params);
+                        return builder.endObject();
+                    }),
                     ChunkedToXContentHelper.endObject()
                 );
 
@@ -254,7 +257,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
                             ChunkedToXContentHelper.startArray(entry.getKey().getName()),
                             Iterators.flatMap(
                                 entry.getValue().iterator(),
-                                indexShardStats -> Iterators.<ToXContent>concat(
+                                indexShardStats -> Iterators.concat(
                                     Iterators.single(
                                         (b, p) -> b.startObject().startObject(String.valueOf(indexShardStats.getShardId().getId()))
                                     ),

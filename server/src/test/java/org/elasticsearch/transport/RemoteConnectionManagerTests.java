@@ -163,7 +163,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
 
         @Override
         public TransportVersion getTransportVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
 
         @Override

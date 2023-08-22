@@ -56,7 +56,7 @@ public class GetShardSnapshotResponseSerializationTests extends ESTestCase {
             new NamedWriteableRegistry(Collections.emptyList()),
             (out, value) -> value.writeTo(out),
             GetShardSnapshotResponse::new,
-            TransportVersion.CURRENT
+            TransportVersion.current()
         );
     }
 

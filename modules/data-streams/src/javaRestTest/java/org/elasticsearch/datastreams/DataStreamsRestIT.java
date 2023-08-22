@@ -11,7 +11,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 
 import java.io.IOException;
@@ -24,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
-public class DataStreamsRestIT extends ESRestTestCase {
+public class DataStreamsRestIT extends DisabledSecurityDataStreamTestCase {
 
     @After
     public void cleanUp() throws IOException {

@@ -118,7 +118,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
      * @param expected the expected number of nodes
      */
     private static void assertNumberOfNodes(final int expected) {
-        assertEquals(expected, client().admin().cluster().prepareNodesInfo().clear().get().getNodes().size());
+        assertEquals(expected, clusterAdmin().prepareNodesInfo().clear().get().getNodes().size());
     }
 
     /**

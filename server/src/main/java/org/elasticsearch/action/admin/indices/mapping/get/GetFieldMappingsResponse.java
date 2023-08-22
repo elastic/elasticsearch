@@ -51,7 +51,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     GetFieldMappingsResponse(StreamInput in) throws IOException {
         super(in);
-        mappings = in.readImmutableMap(StreamInput::readString, mapIn -> {
+        mappings = in.readImmutableMap(mapIn -> {
             if (mapIn.getTransportVersion().before(TransportVersion.V_8_0_0)) {
                 int typesSize = mapIn.readVInt();
                 assert typesSize == 1 || typesSize == 0 : "Expected 0 or 1 types but got " + typesSize;
@@ -60,10 +60,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                 }
                 mapIn.readString(); // type
             }
-            return mapIn.readImmutableMap(
-                StreamInput::readString,
-                inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference())
-            );
+            return mapIn.readImmutableMap(inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference()));
         });
     }
 

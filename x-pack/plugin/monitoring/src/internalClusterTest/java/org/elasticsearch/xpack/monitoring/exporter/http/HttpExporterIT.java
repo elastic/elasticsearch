@@ -14,6 +14,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
@@ -338,11 +339,10 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         try (HttpExporter exporter = createHttpExporter(settings)) {
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
 
-            final ActionListener<ExportBulk> listener = ActionListener.wrap(bulk -> {
+            final ActionListener<ExportBulk> listener = ActionTestUtils.assertNoFailureListener(bulk -> {
                 assertNull(bulk);
-
                 awaitResponseAndClose.countDown();
-            }, e -> fail(e.getMessage()));
+            });
 
             exporter.openBulk(listener);
 
@@ -369,11 +369,10 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         try (HttpExporter exporter = createHttpExporter(settings)) {
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
 
-            final ActionListener<ExportBulk> listener = ActionListener.wrap(bulk -> {
+            final ActionListener<ExportBulk> listener = ActionTestUtils.assertNoFailureListener(bulk -> {
                 assertNull(bulk);
-
                 awaitResponseAndClose.countDown();
-            }, e -> fail(e.getMessage()));
+            });
 
             exporter.openBulk(listener);
 
@@ -685,19 +684,16 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         try (HttpExporter exporter = createHttpExporter(settings)) {
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
 
-            exporter.openBulk(ActionListener.wrap(exportBulk -> {
+            exporter.openBulk(ActionTestUtils.assertNoFailureListener(exportBulk -> {
                 final HttpExportBulk bulk = (HttpExportBulk) exportBulk;
 
                 assertThat("Bulk should never be null after the exporter is ready", bulk, notNullValue());
 
-                final ActionListener<Void> listener = ActionListener.wrap(
-                    ignored -> awaitResponseAndClose.countDown(),
-                    e -> fail(e.getMessage())
-                );
+                final ActionListener<Void> listener = ActionTestUtils.assertNoFailureListener(ignored -> awaitResponseAndClose.countDown());
 
                 bulk.add(docs);
                 bulk.flush(listener);
-            }, e -> fail("Failed to create HttpExportBulk")));
+            }));
 
             // block until the bulk responds
             assertTrue(awaitResponseAndClose.await(15, TimeUnit.SECONDS));

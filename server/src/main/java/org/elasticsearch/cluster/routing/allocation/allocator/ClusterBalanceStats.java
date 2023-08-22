@@ -60,10 +60,7 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
     }
 
     public static ClusterBalanceStats readFrom(StreamInput in) throws IOException {
-        return new ClusterBalanceStats(
-            in.readImmutableMap(StreamInput::readString, TierBalanceStats::readFrom),
-            in.readImmutableMap(StreamInput::readString, NodeBalanceStats::readFrom)
-        );
+        return new ClusterBalanceStats(in.readImmutableMap(TierBalanceStats::readFrom), in.readImmutableMap(NodeBalanceStats::readFrom));
     }
 
     @Override

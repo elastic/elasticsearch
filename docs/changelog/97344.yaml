@@ -1,0 +1,5 @@
+pr: 97344
+summary: Change `MetricFieldProducer#metrics` field type from list to array
+area: Downsampling
+type: enhancement
+issues: []

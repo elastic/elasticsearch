@@ -25,7 +25,6 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -86,7 +86,20 @@ import static org.mockito.Mockito.when;
  * Base class for testing {@link Mapper}s.
  */
 public abstract class MapperTestCase extends MapperServiceTestCase {
+
+    public static final IndexVersion DEPRECATED_BOOST_INDEX_VERSION = IndexVersion.V_7_10_0;
+
     protected abstract void minimalMapping(XContentBuilder b) throws IOException;
+
+    /**
+     * Provides a way for subclasses to define minimal mappings for previous index versions
+     * @param b content builder to use for building the minimal mapping
+     * @param indexVersion index version the mapping should be created for
+     * @throws IOException
+     */
+    protected void minimalMapping(XContentBuilder b, IndexVersion indexVersion) throws IOException {
+        minimalMapping(b);
+    }
 
     /**
      * Writes the field and a sample value for it to the provided {@link XContentBuilder}.
@@ -102,6 +115,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * Returns a sample value for the field, to be used in a document
      */
     protected abstract Object getSampleValueForDocument();
+
+    /**
+     * Returns a sample object for the field or exception if the field does not support parsing objects
+     */
+    protected Object getSampleObjectForDocument() {
+        throw new UnsupportedOperationException("Field doesn't support object parsing.");
+    }
 
     /**
      * Returns a sample value for the field, to be used when querying the field. Normally this is the same format as
@@ -370,8 +390,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testBlankName() {
-        Version version = getVersion();
-        assumeTrue("blank field names are rejected from 8.6.0 onwards", version.onOrAfter(Version.V_8_6_0));
+        IndexVersion version = getVersion();
+        assumeTrue("blank field names are rejected from 8.6.0 onwards", version.onOrAfter(IndexVersion.V_8_6_0));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(version, mapping(b -> {
             b.startObject("  ");
             minimalMapping(b);
@@ -476,8 +496,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testDeprecatedBoost() throws IOException {
         try {
-            createMapperService(Version.V_7_10_0, fieldMapping(b -> {
-                minimalMapping(b);
+            createMapperService(DEPRECATED_BOOST_INDEX_VERSION, fieldMapping(b -> {
+                minimalMapping(b, DEPRECATED_BOOST_INDEX_VERSION);
                 b.field("boost", 2.0);
             }));
             String[] warnings = Strings.concatStringArrays(
@@ -489,10 +509,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             assertThat(e.getMessage(), anyOf(containsString("Unknown parameter [boost]"), containsString("[boost : 2.0]")));
         }
 
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(Version.V_8_0_0, fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("boost", 2.0);
-        })));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(IndexVersion.V_8_0_0, fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("boost", 2.0);
+            }))
+        );
         assertThat(e.getMessage(), anyOf(containsString("Unknown parameter [boost]"), containsString("[boost : 2.0]")));
 
         assertParseMinimalWarnings();
@@ -731,7 +754,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             while (values.size() < count) {
                 values.add(generateRandomInputValue(ft));
             }
-            assertFetch(mapperService, "field", values, randomFetchTestFormat());
+            assertFetchMany(mapperService, "field", values, randomFetchTestFormat(), count);
         } finally {
             assertParseMinimalWarnings();
         }
@@ -790,6 +813,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * with {@link XContentBuilder#value(Object)} and the field's parser.
      */
     protected abstract Object generateRandomInputValue(MappedFieldType ft);
+
+    /**
+     * Assert that fetching many values using {@link MappedFieldType#valueFetcher}
+     * produces the same values as fetching using doc values.
+     */
+    protected void assertFetchMany(MapperService mapperService, String field, Object value, String format, int count) throws IOException {
+        assertFetch(mapperService, field, value, format);
+    }
 
     /**
      * Assert that fetching a value using {@link MappedFieldType#valueFetcher}
@@ -964,7 +995,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         MapperService mapper = createMapperService(fieldMapping(this::minimalMapping));
         try {
             IndexSettings settings = createIndexSettings(
-                Version.CURRENT,
+                IndexVersion.current(),
                 Settings.builder()
                     .put(IndexSettings.MODE.getKey(), "time_series")
                     .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
@@ -1051,6 +1082,26 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected boolean supportsEmptyInputArray() {
         return true;
+    }
+
+    public void testSupportsParsingObject() throws IOException {
+        DocumentMapper mapper = createMapperService(fieldMapping(this::minimalMapping)).documentMapper();
+        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+        if (fieldMapper.supportsParsingObject()) {
+            Object sampleValueForDocument = getSampleObjectForDocument();
+            assertThat(sampleValueForDocument, instanceOf(Map.class));
+            SourceToParse source = source(builder -> {
+                builder.field("field");
+                builder.value(sampleValueForDocument);
+            });
+            ParsedDocument doc = mapper.parse(source);
+            assertNotNull(doc);
+        } else {
+            expectThrows(Exception.class, () -> mapper.parse(source(b -> {
+                b.startObject("field");
+                b.endObject();
+            })));
+        }
     }
 
     public final void testSyntheticSourceMany() throws IOException {

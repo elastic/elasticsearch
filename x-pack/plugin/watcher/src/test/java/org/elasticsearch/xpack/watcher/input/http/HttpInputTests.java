@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.watcher.input.http;
 import io.netty.handler.codec.http.HttpHeaders;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
@@ -263,9 +262,7 @@ public class HttpInputTests extends ESTestCase {
         assertThat(result.type(), equalTo(HttpInput.TYPE));
         List<String> expectedHeaderValues = new ArrayList<>();
         expectedHeaderValues.add(headerValue);
-        Map<String, Object> expectedHeaderMap = MapBuilder.<String, Object>newMapBuilder()
-            .put(headerName.toLowerCase(Locale.ROOT), expectedHeaderValues)
-            .map();
+        Map<String, Object> expectedHeaderMap = Map.of(headerName.toLowerCase(Locale.ROOT), expectedHeaderValues);
         assertThat(result.payload().data(), hasKey("_headers"));
         assertThat(result.payload().data().get("_headers"), equalTo(expectedHeaderMap));
     }

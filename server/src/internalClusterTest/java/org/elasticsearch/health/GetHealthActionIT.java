@@ -22,6 +22,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.stats.HealthApiStatsAction;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -107,7 +108,8 @@ public class GetHealthActionIT extends ESIntegTestCase {
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            AllocationService allocationService
+            AllocationService allocationService,
+            IndicesService indicesService
         ) {
             healthIndicatorServices.add(new IlmHealthIndicatorService(clusterService));
             healthIndicatorServices.add(new SlmHealthIndicatorService(clusterService));

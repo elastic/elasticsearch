@@ -33,7 +33,7 @@ public class SimpleAllocationIT extends ESIntegTestCase {
         }
         ensureGreen("test");
 
-        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState state = clusterAdmin().prepareState().execute().actionGet().getState();
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(0));
         for (RoutingNode node : state.getRoutingNodes()) {
             if (node.isEmpty() == false) {
@@ -42,7 +42,7 @@ public class SimpleAllocationIT extends ESIntegTestCase {
         }
         setReplicaCount(0, "test");
         ensureGreen("test");
-        state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        state = clusterAdmin().prepareState().execute().actionGet().getState();
 
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(0));
         for (RoutingNode node : state.getRoutingNodes()) {
@@ -60,7 +60,7 @@ public class SimpleAllocationIT extends ESIntegTestCase {
 
         setReplicaCount(1, "test");
         ensureGreen("test");
-        state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        state = clusterAdmin().prepareState().execute().actionGet().getState();
 
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(0));
         for (RoutingNode node : state.getRoutingNodes()) {

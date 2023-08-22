@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.Collections;
@@ -53,7 +53,7 @@ public final class MapperRegistry {
     /**
      * Return a mapper parser for the given type and index creation version.
      */
-    public Mapper.TypeParser getMapperParser(String type, Version indexVersionCreated) {
+    public Mapper.TypeParser getMapperParser(String type, IndexVersion indexVersionCreated) {
         Mapper.TypeParser parser = mapperParsers.get(type);
         if (indexVersionCreated.isLegacyIndexVersion() && (parser == null || parser.supportsVersion(indexVersionCreated) == false)) {
             return PlaceHolderFieldMapper.PARSER.apply(type);
@@ -70,14 +70,14 @@ public final class MapperRegistry {
      * Return a map of the meta mappers that have been registered. The
      * returned map uses the name of the field as a key.
      */
-    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMapperParsers(Version indexCreatedVersion) {
-        if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMapperParsers(IndexVersion indexCreatedVersion) {
+        if (indexCreatedVersion.onOrAfter(IndexVersion.V_8_0_0)) {
             return metadataMapperParsers;
-        } else if (indexCreatedVersion.major == 7) {
+        } else if (indexCreatedVersion.onOrAfter(IndexVersion.V_7_0_0)) {
             return metadataMapperParsers7x;
-        } else if (indexCreatedVersion.major == 6) {
+        } else if (indexCreatedVersion.onOrAfter(IndexVersion.fromId(6000099))) {
             return metadataMapperParsers6x;
-        } else if (indexCreatedVersion.major == 5) {
+        } else if (indexCreatedVersion.onOrAfter(IndexVersion.fromId(5000099))) {
             return metadataMapperParsers5x;
         } else {
             throw new AssertionError("unknown version: " + indexCreatedVersion);

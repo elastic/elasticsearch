@@ -18,18 +18,18 @@ import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.script.field.DateNanosDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
@@ -48,8 +49,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
-
-import static java.util.Collections.emptyMap;
 
 public class DateFieldTypeTests extends FieldTypeTestCase {
 
@@ -170,27 +169,11 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
-        SearchExecutionContext context = new SearchExecutionContext(
-            0,
-            0,
+        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
+        SearchExecutionContext context = SearchExecutionContextHelper.createSimple(
             new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
-            null,
-            null,
-            null,
-            MappingLookup.EMPTY,
-            null,
-            null,
             parserConfig(),
-            writableRegistry(),
-            null,
-            null,
-            () -> nowInMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
+            writableRegistry()
         );
         MappedFieldType ft = new DateFieldType("field");
         String date = "2015-10-12T14:10:55";
@@ -221,11 +204,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() throws IOException {
-        Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
+        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
         SearchExecutionContext context = new SearchExecutionContext(
             0,
             0,
             new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
+            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             null,
@@ -241,7 +225,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            Collections.emptyMap()
         );
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";
@@ -252,16 +236,13 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             LongPoint.newRangeQuery("field", instant1, instant2),
             SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
         );
-        assertEquals(
-            expected,
-            ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new IndexSearcher(new MultiReader()))
-        );
+        assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(newSearcher(new MultiReader())));
 
         MappedFieldType ft2 = new DateFieldType("field", false);
         Query expected2 = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
         assertEquals(
             expected2,
-            ft2.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new IndexSearcher(new MultiReader()))
+            ft2.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(newSearcher(new MultiReader()))
         );
 
         instant1 = nowInMillis;
@@ -296,32 +277,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQueryWithIndexSort() {
-        Settings settings = indexSettings(Version.CURRENT, 1, 1).put("index.sort.field", "field").build();
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put("index.sort.field", "field").build();
 
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
 
-        SearchExecutionContext context = new SearchExecutionContext(
-            0,
-            0,
-            indexSettings,
-            null,
-            null,
-            null,
-            MappingLookup.EMPTY,
-            null,
-            null,
-            parserConfig(),
-            writableRegistry(),
-            null,
-            null,
-            () -> 0L,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
-        );
+        SearchExecutionContext context = SearchExecutionContextHelper.createSimple(indexSettings, parserConfig(), writableRegistry());
 
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";

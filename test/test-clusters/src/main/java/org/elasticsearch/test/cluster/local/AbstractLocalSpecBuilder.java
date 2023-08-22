@@ -38,6 +38,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private final Map<String, Resource> keystoreFiles = new HashMap<>();
     private final Map<String, Resource> extraConfigFiles = new HashMap<>();
     private final Map<String, String> systemProperties = new HashMap<>();
+    private final List<String> jvmArgs = new ArrayList<>();
     private final Map<String, String> secrets = new HashMap<>();
     private DistributionType distributionType;
     private Version version;
@@ -216,6 +217,16 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
 
     public Map<String, String> getSystemProperties() {
         return inherit(() -> parent.getSystemProperties(), systemProperties);
+    }
+
+    @Override
+    public T jvmArg(String arg) {
+        this.jvmArgs.add(arg);
+        return cast(this);
+    }
+
+    public List<String> getJvmArgs() {
+        return inherit(() -> parent.getJvmArgs(), jvmArgs);
     }
 
     @Override

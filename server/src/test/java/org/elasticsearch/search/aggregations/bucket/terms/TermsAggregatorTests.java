@@ -36,7 +36,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -47,6 +46,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -219,7 +219,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
         DirectoryReader indexReader = DirectoryReader.open(directory);
         // We do not use LuceneTestCase.newSearcher because we need a DirectoryReader
-        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+        IndexSearcher indexSearcher = newSearcher(indexReader);
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string");
 
         try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {
@@ -1261,7 +1261,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 final Directory dir;
                 try (IndexReader reader = createIndexWithLongs()) {
                     dir = ((DirectoryReader) reader).directory();
-                    IndexSearcher searcher = new IndexSearcher(reader);
+                    IndexSearcher searcher = newSearcher(reader);
                     MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
                     aggs.add(buildInternalAggregation(aggregationBuilder, fieldType, searcher));
                 }
@@ -1272,7 +1272,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 final Directory dir;
                 try (IndexReader reader = createIndexWithDoubles()) {
                     dir = ((DirectoryReader) reader).directory();
-                    IndexSearcher searcher = new IndexSearcher(reader);
+                    IndexSearcher searcher = newSearcher(reader);
                     MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.DOUBLE);
                     aggs.add(buildInternalAggregation(aggregationBuilder, fieldType, searcher));
                 }
@@ -1437,7 +1437,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     // match root document only
                     StringTerms result = searchAndReduce(
                         newIndexSearcher(indexReader),
-                        new AggTestConfig(terms, animalFieldType, nestedFieldType).withQuery(Queries.newNonNestedFilter(Version.CURRENT))
+                        new AggTestConfig(terms, animalFieldType, nestedFieldType).withQuery(
+                            Queries.newNonNestedFilter(IndexVersion.current())
+                        )
                     );
                     assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("pig"));
                     assertThat(result.getBuckets().get(0).docCount, equalTo(1L));

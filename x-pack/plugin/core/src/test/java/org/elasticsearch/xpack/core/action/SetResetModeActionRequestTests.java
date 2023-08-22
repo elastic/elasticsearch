@@ -24,11 +24,6 @@ public class SetResetModeActionRequestTests extends AbstractXContentSerializingT
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Writeable.Reader<SetResetModeActionRequest> instanceReader() {
         return SetResetModeActionRequest::new;
     }

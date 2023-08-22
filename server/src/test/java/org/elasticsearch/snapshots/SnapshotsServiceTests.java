@@ -8,7 +8,6 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryShardId;
@@ -452,7 +452,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         for (String index : indexNames) {
             metaBuilder.put(
                 IndexMetadata.builder(index)
-                    .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id))
+                    .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .build(),
@@ -530,7 +530,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             randomNonNegativeLong(),
             shards,
             Collections.emptyMap(),
-            Version.CURRENT,
+            IndexVersion.current(),
             Collections.emptyList()
         );
     }
@@ -545,7 +545,8 @@ public class SnapshotsServiceTests extends ESTestCase {
             .map(RepositoryShardId::index)
             .distinct()
             .collect(Collectors.toMap(IndexId::getName, Function.identity()));
-        return SnapshotsInProgress.startClone(snapshot, source, indexIds, 1L, randomNonNegativeLong(), Version.CURRENT).withClones(clones);
+        return SnapshotsInProgress.startClone(snapshot, source, indexIds, 1L, randomNonNegativeLong(), IndexVersion.current())
+            .withClones(clones);
     }
 
     private static SnapshotsInProgress.ShardSnapshotStatus initShardStatus(String nodeId) {

@@ -36,7 +36,7 @@ public class IndicesStatsBlocksIT extends ESIntegTestCase {
         )) {
             try {
                 enableIndexBlock("ro", blockSetting);
-                IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("ro").execute().actionGet();
+                IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats("ro").execute().actionGet();
                 assertNotNull(indicesStatsResponse.getIndex("ro"));
             } finally {
                 disableIndexBlock("ro", blockSetting);
@@ -46,7 +46,7 @@ public class IndicesStatsBlocksIT extends ESIntegTestCase {
         // Request is blocked
         try {
             enableIndexBlock("ro", IndexMetadata.SETTING_BLOCKS_METADATA);
-            client().admin().indices().prepareStats("ro").execute().actionGet();
+            indicesAdmin().prepareStats("ro").execute().actionGet();
             fail("Exists should fail when " + IndexMetadata.SETTING_BLOCKS_METADATA + " is true");
         } catch (ClusterBlockException e) {
             // Ok, a ClusterBlockException is expected

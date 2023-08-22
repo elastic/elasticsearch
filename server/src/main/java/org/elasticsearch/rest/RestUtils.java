@@ -19,6 +19,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.rest.RestRequest.RESPONSE_RESTRICTED;
+
 public class RestUtils {
 
     /**
@@ -79,6 +81,9 @@ public class RestUtils {
     }
 
     private static void addParam(Map<String, String> params, String name, String value) {
+        if (RESPONSE_RESTRICTED.equalsIgnoreCase(name)) {
+            throw new IllegalArgumentException("parameter [" + RESPONSE_RESTRICTED + "] is reserved and may not set");
+        }
         params.put(name, value);
     }
 

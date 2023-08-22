@@ -199,12 +199,11 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96672")
     public void testGetTimeSeriesMixedDataStream() {
-        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        Instant instant = Instant.parse("2023-06-06T14:00:00.000Z").truncatedTo(ChronoUnit.SECONDS);
         String dataStream1 = "ds-1";
-        Instant twoHoursAgo = now.minus(2, ChronoUnit.HOURS);
-        Instant twoHoursAhead = now.plus(2, ChronoUnit.HOURS);
+        Instant twoHoursAgo = instant.minus(2, ChronoUnit.HOURS);
+        Instant twoHoursAhead = instant.plus(2, ChronoUnit.HOURS);
 
         ClusterState state;
         {
@@ -213,7 +212,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
                 mBuilder,
                 List.of(Tuple.tuple(dataStream1, 2)),
                 List.of(),
-                now.toEpochMilli(),
+                instant.toEpochMilli(),
                 Settings.EMPTY,
                 0,
                 false
@@ -230,6 +229,10 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings()
         );
+
+        var name1 = DataStream.getDefaultBackingIndexName("ds-1", 1, instant.toEpochMilli());
+        var name2 = DataStream.getDefaultBackingIndexName("ds-1", 2, instant.toEpochMilli());
+        var name3 = DataStream.getDefaultBackingIndexName("ds-1", 3, twoHoursAgo.toEpochMilli());
         assertThat(
             response.getDataStreams(),
             contains(
@@ -237,7 +240,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
                     transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream1)),
                     transformedMatch(
                         d -> d.getDataStream().getIndices().stream().map(Index::getName).toList(),
-                        contains(".ds-ds-1-2023.06.06-000001", ".ds-ds-1-2023.06.06-000002", ".ds-ds-1-2023.06.06-000003")
+                        contains(name1, name2, name3)
                     ),
                     transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(twoHoursAgo, twoHoursAhead)))
                 )

@@ -45,6 +45,15 @@ public class TimeSeries implements Writeable, ToXContentFragment {
         return new TimeSeries(fiveMinutes, fifteenMinutes, twentyFourHours, total);
     }
 
+    public static TimeSeries merge(TimeSeries first, TimeSeries second) {
+        return new TimeSeries(
+            first.fiveMinutes + second.fiveMinutes,
+            first.fifteenMinutes + second.fifteenMinutes,
+            first.twentyFourHours + second.twentyFourHours,
+            first.total + second.total
+        );
+    }
+
     public TimeSeries(StreamInput in) throws IOException {
         fiveMinutes = in.readVLong();
         fifteenMinutes = in.readVLong();

@@ -72,9 +72,7 @@ public class SpatialDiskUsageIT extends ESIntegTestCase {
         mapping.endObject();
 
         final String index = "test-index";
-        client().admin()
-            .indices()
-            .prepareCreate(index)
+        indicesAdmin().prepareCreate(index)
             .setMapping(mapping)
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();

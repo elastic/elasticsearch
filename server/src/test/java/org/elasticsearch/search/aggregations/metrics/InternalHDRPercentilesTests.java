@@ -31,8 +31,13 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
         boolean keyed,
         DocValueFormat format,
         double[] percents,
-        double[] values
+        double[] values,
+        boolean empty
     ) {
+
+        if (empty) {
+            return new InternalHDRPercentiles(name, percents, null, keyed, format, metadata);
+        }
 
         final DoubleHistogram state = new DoubleHistogram(3);
         Arrays.stream(values).forEach(state::recordValue);
@@ -76,7 +81,15 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
             values[i] = randomDouble();
         }
 
-        InternalHDRPercentiles aggregation = createTestInstance("test", emptyMap(), false, randomNumericDocValueFormat(), percents, values);
+        InternalHDRPercentiles aggregation = createTestInstance(
+            "test",
+            emptyMap(),
+            false,
+            randomNumericDocValueFormat(),
+            percents,
+            values,
+            false
+        );
 
         Iterator<Percentile> iterator = aggregation.iterator();
         Iterator<String> nameIterator = aggregation.valueNames().iterator();

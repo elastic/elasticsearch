@@ -74,7 +74,7 @@ public class ExistsIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate("idx").setMapping(mapping));
+        assertAcked(indicesAdmin().prepareCreate("idx").setMapping(mapping));
         Map<String, Object> barObject = new HashMap<>();
         barObject.put("foo", "bar");
         barObject.put("bar", singletonMap("bar", "foo"));

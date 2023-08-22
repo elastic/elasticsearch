@@ -89,7 +89,7 @@ public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
             builder.endObject();
             bytes = BytesReference.bytes(builder);
         }
-        assertAcked(client().admin().cluster().putPipeline(new PutPipelineRequest("geoip", bytes, XContentType.JSON)).actionGet());
+        assertAcked(clusterAdmin().putPipeline(new PutPipelineRequest("geoip", bytes, XContentType.JSON)).actionGet());
         // the geo-IP databases should not be loaded on any nodes as they are all non-ingest nodes
         Arrays.stream(internalCluster().getNodeNames()).forEach(node -> assertDatabaseLoadStatus(node, false));
 

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -38,6 +37,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -717,7 +717,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // in a Lucene index it can take a while to update when there are many updates in quick
         // succession, like we see in internal cluster tests of node failure scenarios
         assertBusy(() -> {
-            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            ClusterState clusterState = clusterAdmin().prepareState().get().getState();
             List<PersistentTask<?>> tasks = findTasks(clusterState, Set.of(DATAFEED_TASK_NAME, JOB_TASK_NAME));
             assertNotNull(tasks);
             assertEquals("Expected 2 tasks, but got [" + tasks + "]", 2, tasks.size());
@@ -789,7 +789,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(jobId).setLatestResultTimeStamp(dataCounts.getLatestRecordTimeStamp())
             .setLatestRecordTimeStamp(dataCounts.getLatestRecordTimeStamp())
-            .setMinVersion(Version.CURRENT)
+            .setMinVersion(MlConfigVersion.CURRENT)
             .setSnapshotId(jobId + "_mock_snapshot")
             .setTimestamp(new Date())
             .setModelSizeStats(new ModelSizeStats.Builder(jobId).build())

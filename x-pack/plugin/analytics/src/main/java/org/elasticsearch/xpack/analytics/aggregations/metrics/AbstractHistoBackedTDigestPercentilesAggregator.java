@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -36,6 +37,7 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
     protected final DocValueFormat formatter;
     protected ObjectArray<TDigestState> states;
     protected final double compression;
+    protected final TDigestExecutionHint executionHint;
     protected final boolean keyed;
 
     AbstractHistoBackedTDigestPercentilesAggregator(
@@ -45,6 +47,7 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
         Aggregator parent,
         double[] keys,
         double compression,
+        TDigestExecutionHint executionHint,
         boolean keyed,
         DocValueFormat formatter,
         Map<String, Object> metadata
@@ -57,6 +60,7 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
         this.states = context.bigArrays().newObjectArray(1);
         this.keys = keys;
         this.compression = compression;
+        this.executionHint = executionHint;
     }
 
     @Override
@@ -86,7 +90,7 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
         states = bigArrays.grow(states, bucket + 1);
         TDigestState state = states.get(bucket);
         if (state == null) {
-            state = new TDigestState(compression);
+            state = TDigestState.create(compression, executionHint);
             states.set(bucket, state);
         }
         return state;
@@ -101,8 +105,7 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
         if (bucketOrd >= states.size()) {
             return null;
         }
-        final TDigestState state = states.get(bucketOrd);
-        return state;
+        return states.get(bucketOrd);
     }
 
     @Override

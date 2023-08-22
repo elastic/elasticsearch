@@ -15,4 +15,4 @@ include::{esql-specs}/math.csv-spec[tag=least-result]
 
 NOTE: When run on `keyword` or `text` fields, this'll return the first string
       in alphabetical order. When run on `boolean` columns this will return
-      `true` if any values are true.
+      `false` if any values are `false`.

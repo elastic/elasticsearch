@@ -15,4 +15,4 @@ include::{esql-specs}/math.csv-spec[tag=greatest-result]
 
 NOTE: When run on `keyword` or `text` fields, this'll return the last string
       in alphabetical order. When run on `boolean` columns this will return
-      `true` if any values are true.
+      `true` if any values are `true`.

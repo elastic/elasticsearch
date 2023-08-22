@@ -28,7 +28,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.settings.Settings;
@@ -111,7 +110,7 @@ public class StoreRecoveryTests extends ESTestCase {
         assertThat(userData.get(SequenceNumbers.MAX_SEQ_NO), equalTo(Long.toString(maxSeqNo)));
         assertThat(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY), equalTo(Long.toString(maxSeqNo)));
         assertThat(userData.get(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID), equalTo(Long.toString(maxUnsafeAutoIdTimestamp)));
-        assertThat(userData.get(Engine.ES_VERSION), equalTo(Version.CURRENT.toString()));
+        assertThat(userData.get(Engine.ES_VERSION), equalTo(IndexVersion.current().toString()));
         for (SegmentCommitInfo info : segmentCommitInfos) { // check that we didn't merge
             assertEquals("all sources must be flush", info.info.getDiagnostics().get("source"), "flush");
             if (indexSort != null) {

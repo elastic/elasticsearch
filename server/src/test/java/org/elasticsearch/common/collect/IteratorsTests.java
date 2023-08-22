@@ -154,6 +154,21 @@ public class IteratorsTests extends ESTestCase {
         expectThrows(NullPointerException.class, "Unable to iterate over a null array", () -> Iterators.forArray(null));
     }
 
+    public void testForRange() {
+        String[] array = generateRandomStringArray(20, 20, false, true);
+        Iterator<String> iterator = Iterators.forRange(0, array.length, i -> array[i]);
+
+        int i = 0;
+        while (iterator.hasNext()) {
+            assertEquals(array[i++], iterator.next());
+        }
+        assertEquals(array.length, i);
+    }
+
+    public void testForRangeOnNull() {
+        expectThrows(NullPointerException.class, () -> Iterators.forRange(0, 1, null));
+    }
+
     public void testFlatMap() {
         final var array = randomIntegerArray();
         assertEmptyIterator(Iterators.flatMap(Iterators.forArray(array), i -> Iterators.concat()));

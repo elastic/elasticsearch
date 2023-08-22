@@ -1041,3 +1041,26 @@ ROW g=GREATEST(10, 5, 1, -100, 0, 1234, -10000);
 g:integer
 1234
 ;
+
+greatestMv
+ROW g=GREATEST([10, 4], 1);
+
+g:integer
+10
+;
+
+leastGreatestMany
+FROM employees
+| EVAL min_plus_max = LEAST(languages, 2) + GREATEST(languages, 2),
+       are_equal = LEAST(languages, 2) + GREATEST(languages, 2) == languages * 2
+| SORT emp_no
+| LIMIT 5
+| KEEP emp_no, min_plus_max, are_equal;
+
+emp_no:integer | min_plus_max:integer | are_equal:boolean
+         10001 |                    4 | true
+         10002 |                    7 | false
+         10003 |                    6 | false
+         10004 |                    7 | false
+         10005 |                    3 | false
+;

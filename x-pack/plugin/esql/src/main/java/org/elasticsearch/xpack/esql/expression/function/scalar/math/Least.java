@@ -10,7 +10,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinBooleanEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinBytesRefEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinDoubleEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinIntEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinLongEvaluator;
 import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -102,22 +108,60 @@ public class Least extends ScalarFunction implements Mappable, OptionalArgument 
         Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
     ) {
         List<Supplier<EvalOperator.ExpressionEvaluator>> evaluatorSuppliers = children().stream().map(toEvaluator).toList();
-        Supplier<EvalOperator.ExpressionEvaluator[]> supplier = () -> evaluatorSuppliers.stream()
-            .map(Supplier::get)
-            .toArray(EvalOperator.ExpressionEvaluator[]::new);
-        if (dataType() == DataTypes.INTEGER) {
-            return () -> new LeastIntEvaluator(supplier.get());
+        Supplier<Stream<EvalOperator.ExpressionEvaluator>> suppliers = () -> evaluatorSuppliers.stream().map(Supplier::get);
+        if (dataType == DataTypes.BOOLEAN) {
+            return () -> new LeastBooleanEvaluator(
+                suppliers.get().map(MvMinBooleanEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
+            );
         }
-        if (dataType() == DataTypes.LONG) {
-            return () -> new LeastLongEvaluator(supplier.get());
+        if (dataType == DataTypes.DOUBLE) {
+            return () -> new LeastDoubleEvaluator(
+                suppliers.get().map(MvMinDoubleEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
+            );
         }
-        if (dataType() == DataTypes.DOUBLE) {
-            return () -> new LeastDoubleEvaluator(supplier.get());
+        if (dataType == DataTypes.INTEGER) {
+            return () -> new LeastIntEvaluator(
+                suppliers.get().map(MvMinIntEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
+            );
         }
-        if (DataTypes.isString(dataType())) {
-            return () -> new LeastBytesRefEvaluator(supplier.get());
+        if (dataType == DataTypes.LONG) {
+            return () -> new LeastLongEvaluator(
+                suppliers.get().map(MvMinLongEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
+            );
         }
-        throw new UnsupportedOperationException();
+        if (dataType == NULL) {
+            return () -> EvalOperator.CONSTANT_NULL;
+        }
+        if (dataType == DataTypes.KEYWORD
+            || dataType == DataTypes.TEXT
+            || dataType == DataTypes.IP
+            || dataType == DataTypes.VERSION
+            || dataType == DataTypes.UNSUPPORTED) {
+
+            return () -> new LeastBytesRefEvaluator(
+                suppliers.get().map(MvMinBytesRefEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
+            );
+        }
+        throw new QlIllegalArgumentException("unsupported type [" + dataType + "]");
+    }
+
+    @Evaluator(extraName = "Boolean")
+    static boolean process(boolean[] values) {
+        for (boolean v: values) {
+            if (v == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Evaluator(extraName = "BytesRef")
+    static BytesRef process(BytesRef[] values) {
+        BytesRef min = values[0];
+        for (int i = 1; i < values.length; i++) {
+            min = min.compareTo(values[i]) < 0 ? min : values[i];
+        }
+        return min;
     }
 
     @Evaluator(extraName = "Int")
@@ -143,15 +187,6 @@ public class Least extends ScalarFunction implements Mappable, OptionalArgument 
         double min = values[0];
         for (int i = 1; i < values.length; i++) {
             min = Math.min(min, values[i]);
-        }
-        return min;
-    }
-
-    @Evaluator(extraName = "BytesRef")
-    static BytesRef process(BytesRef[] values) {
-        BytesRef min = values[0];
-        for (int i = 1; i < values.length; i++) {
-            min = min.compareTo(values[i]) < 0 ? min : values[i];
         }
         return min;
     }

@@ -32,12 +32,13 @@ public class GreatestTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = VaragsTestCaseBuilder.anyNullIsNull(
-            t -> "Greatest" + t,
-            s -> s.sorted(Comparator.<String>naturalOrder().reversed()).findFirst().get(),
-            LongStream::max,
-            IntStream::max
-        );
+        VaragsTestCaseBuilder builder = new VaragsTestCaseBuilder(t -> "Greatest" + t);
+        builder.expectedEvaluatorValueWrap(e -> "MvMax[field=" + e + "]");
+        builder.expectFlattenedString(s -> s.sorted(Comparator.<String>naturalOrder().reversed()).findFirst());
+        builder.expectFlattenedBoolean(s -> s.sorted(Comparator.<Boolean>naturalOrder().reversed()).findFirst());
+        builder.expectFlattenedInt(IntStream::max);
+        builder.expectFlattenedLong(LongStream::max);
+        List<TestCaseSupplier> suppliers = builder.suppliers();
         suppliers.add(
             new TestCaseSupplier(
                 "(a, b)",
@@ -46,13 +47,12 @@ public class GreatestTests extends AbstractFunctionTestCase {
                         new TypedData(new BytesRef("a"), DataTypes.KEYWORD, "a"),
                         new TypedData(new BytesRef("b"), DataTypes.KEYWORD, "b")
                     ),
-                    "GreatestBytesRefEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                    "GreatestBytesRefEvaluator[values=[MvMax[field=Attribute[channel=0]], MvMax[field=Attribute[channel=1]]]]",
                     DataTypes.KEYWORD,
                     equalTo(new BytesRef("b"))
                 )
             )
         );
-
         return parameterSuppliersFromTypedData(suppliers);
     }
 

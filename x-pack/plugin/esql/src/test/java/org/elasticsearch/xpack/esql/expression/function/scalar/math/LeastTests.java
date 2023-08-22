@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -31,12 +32,13 @@ public class LeastTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = VaragsTestCaseBuilder.anyNullIsNull(
-            t -> "Least" + t,
-            s -> s.sorted().findFirst().get(),
-            LongStream::min,
-            IntStream::min
-        );
+        VaragsTestCaseBuilder builder = new VaragsTestCaseBuilder(t -> "Least" + t);
+        builder.expectedEvaluatorValueWrap(e -> "MvMin[field=" + e + "]");
+        builder.expectFlattenedString(s -> s.sorted().findFirst());
+        builder.expectFlattenedBoolean(s -> s.sorted().findFirst());
+        builder.expectFlattenedInt(IntStream::min);
+        builder.expectFlattenedLong(LongStream::min);
+        List<TestCaseSupplier> suppliers = builder.suppliers();
         suppliers.add(
             new TestCaseSupplier(
                 "(a, b)",
@@ -45,13 +47,12 @@ public class LeastTests extends AbstractFunctionTestCase {
                         new TypedData(new BytesRef("a"), DataTypes.KEYWORD, "a"),
                         new TypedData(new BytesRef("b"), DataTypes.KEYWORD, "b")
                     ),
-                    "LeastBytesRefEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                    "LeastBytesRefEvaluator[values=[MvMin[field=Attribute[channel=0]], MvMin[field=Attribute[channel=1]]]]",
                     DataTypes.KEYWORD,
                     equalTo(new BytesRef("a"))
                 )
             )
         );
-
         return parameterSuppliersFromTypedData(suppliers);
     }
 

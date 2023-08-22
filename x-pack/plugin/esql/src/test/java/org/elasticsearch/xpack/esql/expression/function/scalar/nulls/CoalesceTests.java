@@ -44,18 +44,23 @@ public class CoalesceTests extends AbstractFunctionTestCase {
      */
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(
-            new VaragsTestCaseBuilder(
-                type -> "Coalesce",
-                strings -> Arrays.stream(strings)
-                    .filter(s -> s != null)
-                    .findFirst()
-                    .map(s -> equalTo((Object) new BytesRef(s)))
-                    .orElse(nullValue()),
-                longs -> Arrays.stream(longs).filter(s -> s != null).findFirst().map(l -> equalTo((Object) l)).orElse(nullValue()),
-                ints -> Arrays.stream(ints).filter(s -> s != null).findFirst().map(i -> equalTo((Object) i)).orElse(nullValue())
-            ).suppliers()
+        VaragsTestCaseBuilder builder = new VaragsTestCaseBuilder(type -> "Coalesce");
+        builder.expectString(strings -> {
+            for (int i = 0; i < strings.length; i++) {
+                if (strings[i] != null) {
+                    return equalTo(Arrays.stream(strings[i]).map(BytesRef::new).toList());
+                }
+            }
+            return nullValue();
+        });
+        builder.expectLong(
+            longs -> Arrays.stream(longs).filter(s -> s != null).findFirst().map(l -> equalTo((Object) l)).orElse(nullValue())
         );
+        builder.expectInt(ints -> Arrays.stream(ints).filter(s -> s != null).findFirst().map(i -> equalTo((Object) i)).orElse(nullValue()));
+        builder.expectBoolean(
+            booleans -> Arrays.stream(booleans).filter(s -> s != null).findFirst().map(i -> equalTo((Object) i)).orElse(nullValue())
+        );
+        return parameterSuppliersFromTypedData(builder.suppliers());
     }
 
     @Override

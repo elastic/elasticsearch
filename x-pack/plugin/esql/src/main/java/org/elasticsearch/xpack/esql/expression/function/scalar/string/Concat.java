@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 /**
  * Join strings.
  */
-public class Concat extends ScalarFunction implements Mappable, OptionalArgument {
+public class Concat extends ScalarFunction implements Mappable {
     public Concat(Source source, Expression first, List<? extends Expression> rest) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }

@@ -17,6 +17,7 @@ import org.hamcrest.Matcher;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.function.Function;
@@ -32,109 +33,264 @@ import static org.hamcrest.Matchers.nullValue;
  * Builds test cases for variable argument functions.
  */
 public class VaragsTestCaseBuilder {
-    public static List<AbstractFunctionTestCase.TestCaseSupplier> anyNullIsNull(
-        Function<String, String> expectedEvaluatorPrefix,
-        Function<Stream<String>, String> expectedStr,
-        Function<LongStream, OptionalLong> expectedLong,
-        Function<IntStream, OptionalInt> expectedInt
-    ) {
-        return new VaragsTestCaseBuilder(expectedEvaluatorPrefix, strings -> {
+    private static final int MAX_WIDTH = 10;
+
+    private Function<String, String> expectedEvaluatorPrefix;
+    private Function<String, String> expectedEvaluatorValueMap = Function.identity();
+    private Function<String[][], Matcher<Object>> expectedStr;
+    private Function<long[][], Matcher<Object>> expectedLong;
+    private Function<int[][], Matcher<Object>> expectedInt;
+    // TODO double
+    private Function<boolean[][], Matcher<Object>> expectedBoolean;
+
+    /**
+     * Build the builder.
+     * @param expectedEvaluatorPrefix maps from a type name to the name of the matcher
+     */
+    public VaragsTestCaseBuilder(Function<String, String> expectedEvaluatorPrefix) {
+        this.expectedEvaluatorPrefix = expectedEvaluatorPrefix;
+    }
+
+    /**
+     * Wraps each evaluator's toString.
+     */
+    public VaragsTestCaseBuilder expectedEvaluatorValueWrap(Function<String, String> expectedEvaluatorValueMap) {
+        this.expectedEvaluatorValueMap = expectedEvaluatorValueMap;
+        return this;
+    }
+
+    public VaragsTestCaseBuilder expectString(Function<String[][], Matcher<Object>> expectedStr) {
+        this.expectedStr = expectedStr;
+        return this;
+    }
+
+    public VaragsTestCaseBuilder expectFlattenedString(Function<Stream<String>, Optional<String>> expectedStr) {
+        return expectString(strings -> {
             if (Arrays.stream(strings).anyMatch(s -> s == null)) {
                 return nullValue();
             }
-            return equalTo(new BytesRef(expectedStr.apply(Arrays.stream(strings))));
-        }, longs -> {
+            Optional<String> expected = expectedStr.apply(Arrays.stream(strings).flatMap(Arrays::stream));
+            if (expected.isPresent()) {
+                return equalTo(expected.get());
+            }
+            return nullValue();
+        });
+    }
+
+    public VaragsTestCaseBuilder expectLong(Function<long[][], Matcher<Object>> expectedLong) {
+        this.expectedLong = expectedLong;
+        return this;
+    }
+
+    public VaragsTestCaseBuilder expectFlattenedLong(Function<LongStream, OptionalLong> expectedLong) {
+        return expectLong(longs -> {
             if (Arrays.stream(longs).anyMatch(l -> l == null)) {
                 return nullValue();
             }
-            return equalTo(expectedLong.apply(Arrays.stream(longs).mapToLong(Long::longValue)).getAsLong());
-        }, ints -> {
+            OptionalLong expected = expectedLong.apply(Arrays.stream(longs).flatMapToLong(Arrays::stream));
+            if (expected.isPresent()) {
+                return equalTo(expected.getAsLong());
+            }
+            return nullValue();
+        });
+    }
+
+    public VaragsTestCaseBuilder expectInt(Function<int[][], Matcher<Object>> expectedInt) {
+        this.expectedInt = expectedInt;
+        return this;
+    }
+
+    public VaragsTestCaseBuilder expectFlattenedInt(Function<IntStream, OptionalInt> expectedInt) {
+        return expectInt(ints -> {
             if (Arrays.stream(ints).anyMatch(i -> i == null)) {
                 return nullValue();
             }
-            return equalTo(expectedInt.apply(Arrays.stream(ints).mapToInt(Integer::intValue)).getAsInt());
-        }).suppliers();
+            OptionalInt expected = expectedInt.apply(Arrays.stream(ints).flatMapToInt(Arrays::stream));
+            if (expected.isPresent()) {
+                return equalTo(expected.getAsInt());
+            }
+            return nullValue();
+        });
     }
 
-    private static final int MAX_WIDTH = 10;
+    public VaragsTestCaseBuilder expectBoolean(Function<boolean[][], Matcher<Object>> expectedBoolean) {
+        this.expectedBoolean = expectedBoolean;
+        return this;
+    }
 
-    private final List<AbstractFunctionTestCase.TestCaseSupplier> suppliers = new ArrayList<>();
-
-    private final Function<String, String> expectedEvaluatorPrefix;
-    private final Function<String[], Matcher<Object>> expectedStr;
-    private final Function<Long[], Matcher<Object>> expectedLong;
-    private final Function<Integer[], Matcher<Object>> expectedInt;
-
-    public VaragsTestCaseBuilder(
-        Function<String, String> expectedEvaluatorPrefix,
-        Function<String[], Matcher<Object>> expectedStr,
-        Function<Long[], Matcher<Object>> expectedLong,
-        Function<Integer[], Matcher<Object>> expectedInt
-    ) {
-        this.expectedEvaluatorPrefix = expectedEvaluatorPrefix;
-        this.expectedStr = expectedStr;
-        this.expectedLong = expectedLong;
-        this.expectedInt = expectedInt;
+    public VaragsTestCaseBuilder expectFlattenedBoolean(Function<Stream<Boolean>, Optional<Boolean>> expectedBoolean) {
+        return expectBoolean(booleans -> {
+            if (Arrays.stream(booleans).anyMatch(i -> i == null)) {
+                return nullValue();
+            }
+            Optional<Boolean> expected = expectedBoolean.apply(
+                Arrays.stream(booleans).flatMap(bs -> IntStream.range(0, bs.length).mapToObj(i -> bs[i]))
+            );
+            if (expected.isPresent()) {
+                return equalTo(expected.get());
+            }
+            return nullValue();
+        });
     }
 
     public List<AbstractFunctionTestCase.TestCaseSupplier> suppliers() {
+        List<AbstractFunctionTestCase.TestCaseSupplier> suppliers = new ArrayList<>();
         // TODO more types
-        strings();
-        longs();
-        ints();
+        if (expectedStr != null) {
+            strings(suppliers);
+        }
+        if (expectedLong != null) {
+            longs(suppliers);
+        }
+        if (expectedInt != null) {
+            ints(suppliers);
+        }
+        if (expectedBoolean != null) {
+            booleans(suppliers);
+        }
         return suppliers;
     }
 
-    private void strings() {
-        IntStream.range(1, MAX_WIDTH)
-            .mapToObj(i -> new AbstractFunctionTestCase.TestCaseSupplier(testCaseName(i, "kwd"), () -> strings(DataTypes.KEYWORD, i)))
-            .forEach(suppliers::add);
-        IntStream.range(1, MAX_WIDTH)
-            .mapToObj(i -> new AbstractFunctionTestCase.TestCaseSupplier(testCaseName(i, "txt"), () -> strings(DataTypes.TEXT, i)))
-            .forEach(suppliers::add);
+    private void strings(List<AbstractFunctionTestCase.TestCaseSupplier> suppliers) {
+        for (int count = 1; count < MAX_WIDTH; count++) {
+            for (boolean multivalued : new boolean[] { false, true }) {
+                int paramCount = count;
+                suppliers.add(
+                    new AbstractFunctionTestCase.TestCaseSupplier(
+                        testCaseName(paramCount, multivalued, "kwd"),
+                        () -> stringCase(DataTypes.KEYWORD, paramCount, multivalued)
+                    )
+                );
+                suppliers.add(
+                    new AbstractFunctionTestCase.TestCaseSupplier(
+                        testCaseName(paramCount, multivalued, "text"),
+                        () -> stringCase(DataTypes.TEXT, paramCount, multivalued)
+                    )
+                );
+            }
+        }
     }
 
-    private AbstractFunctionTestCase.TestCase strings(DataType dataType, int i) {
-        String[] data = IntStream.range(0, i).mapToObj(v -> ESTestCase.randomAlphaOfLength(5)).toArray(String[]::new);
-        int[] n = new int[1];
-        List<AbstractFunctionTestCase.TypedData> typedData = Arrays.stream(data)
-            .map(d -> new AbstractFunctionTestCase.TypedData(new BytesRef(d), dataType, "field" + n[0]++))
-            .toList();
+    private AbstractFunctionTestCase.TestCase stringCase(DataType dataType, int paramCount, boolean multivalued) {
+        String[][] data = new String[paramCount][];
+        List<AbstractFunctionTestCase.TypedData> typedData = new ArrayList<>(paramCount);
+        for (int p = 0; p < paramCount; p++) {
+            if (multivalued) {
+                data[p] = ESTestCase.randomList(1, 4, () -> ESTestCase.randomAlphaOfLength(5)).toArray(String[]::new);
+                typedData.add(
+                    new AbstractFunctionTestCase.TypedData(Arrays.stream(data[p]).map(BytesRef::new).toList(), dataType, "field" + p)
+                );
+            } else {
+                data[p] = new String[] { ESTestCase.randomAlphaOfLength(5) };
+                typedData.add(new AbstractFunctionTestCase.TypedData(new BytesRef(data[p][0]), dataType, "field" + p));
+            }
+        }
         return testCase(typedData, expectedEvaluatorPrefix.apply("BytesRef"), dataType, expectedStr.apply(data));
     }
 
-    private void longs() {
-        IntStream.range(1, MAX_WIDTH)
-            .mapToObj(i -> new AbstractFunctionTestCase.TestCaseSupplier(testCaseName(i, "int"), () -> longs(i)))
-            .forEach(suppliers::add);
+    private void longs(List<AbstractFunctionTestCase.TestCaseSupplier> suppliers) {
+        for (int count = 1; count < MAX_WIDTH; count++) {
+            for (boolean multivalued : new boolean[] { false, true }) {
+                int paramCount = count;
+                suppliers.add(
+                    new AbstractFunctionTestCase.TestCaseSupplier(
+                        testCaseName(paramCount, multivalued, "int"),
+                        () -> longCase(paramCount, multivalued)
+                    )
+                );
+            }
+        }
     }
 
-    private AbstractFunctionTestCase.TestCase longs(int i) {
-        Long[] data = IntStream.range(0, i).mapToObj(v -> ESTestCase.randomLong()).toArray(Long[]::new);
-        int[] n = new int[1];
-        List<AbstractFunctionTestCase.TypedData> typedData = Arrays.stream(data)
-            .map(d -> new AbstractFunctionTestCase.TypedData(d, DataTypes.LONG, "field" + n[0]++))
-            .toList();
+    private AbstractFunctionTestCase.TestCase longCase(int paramCount, boolean multivalued) {
+        long[][] data = new long[paramCount][];
+        List<AbstractFunctionTestCase.TypedData> typedData = new ArrayList<>(paramCount);
+        for (int p = 0; p < paramCount; p++) {
+            if (multivalued) {
+                List<Long> d = ESTestCase.randomList(1, 4, () -> ESTestCase.randomLong());
+                data[p] = d.stream().mapToLong(Long::longValue).toArray();
+                typedData.add(
+                    new AbstractFunctionTestCase.TypedData(
+                        Arrays.stream(data[p]).mapToObj(Long::valueOf).toList(),
+                        DataTypes.LONG,
+                        "field" + p
+                    )
+                );
+            } else {
+                data[p] = new long[] { ESTestCase.randomLong() };
+                typedData.add(new AbstractFunctionTestCase.TypedData(data[p][0], DataTypes.LONG, "field" + p));
+            }
+        }
         return testCase(typedData, expectedEvaluatorPrefix.apply("Long"), DataTypes.LONG, expectedLong.apply(data));
     }
 
-    private void ints() {
-        IntStream.range(1, MAX_WIDTH)
-            .mapToObj(i -> new AbstractFunctionTestCase.TestCaseSupplier(testCaseName(i, "int"), () -> ints(i)))
-            .forEach(suppliers::add);
+    private void ints(List<AbstractFunctionTestCase.TestCaseSupplier> suppliers) {
+        for (int count = 1; count < MAX_WIDTH; count++) {
+            for (boolean multivalued : new boolean[] { false, true }) {
+                int paramCount = count;
+                suppliers.add(
+                    new AbstractFunctionTestCase.TestCaseSupplier(
+                        testCaseName(paramCount, multivalued, "int"),
+                        () -> intCase(paramCount, multivalued)
+                    )
+                );
+            }
+        }
     }
 
-    private AbstractFunctionTestCase.TestCase ints(int i) {
-        Integer[] data = IntStream.range(0, i).mapToObj(v -> ESTestCase.randomInt()).toArray(Integer[]::new);
-        int[] n = new int[1];
-        List<AbstractFunctionTestCase.TypedData> typedData = Arrays.stream(data)
-            .map(d -> new AbstractFunctionTestCase.TypedData(d, DataTypes.INTEGER, "field" + n[0]++))
-            .toList();
+    private AbstractFunctionTestCase.TestCase intCase(int paramCount, boolean multivalued) {
+        int[][] data = new int[paramCount][];
+        List<AbstractFunctionTestCase.TypedData> typedData = new ArrayList<>(paramCount);
+        for (int p = 0; p < paramCount; p++) {
+            if (multivalued) {
+                List<Integer> d = ESTestCase.randomList(1, 4, () -> ESTestCase.randomInt());
+                data[p] = d.stream().mapToInt(Integer::intValue).toArray();
+                typedData.add(new AbstractFunctionTestCase.TypedData(d, DataTypes.INTEGER, "field" + p));
+            } else {
+                data[p] = new int[] { ESTestCase.randomInt() };
+                typedData.add(new AbstractFunctionTestCase.TypedData(data[p][0], DataTypes.INTEGER, "field" + p));
+            }
+        }
         return testCase(typedData, expectedEvaluatorPrefix.apply("Int"), DataTypes.INTEGER, expectedInt.apply(data));
     }
 
-    private String testCaseName(int count, String type) {
-        return "(" + IntStream.range(0, count).mapToObj(i -> type).collect(Collectors.joining(", ")) + ")";
+    private void booleans(List<AbstractFunctionTestCase.TestCaseSupplier> suppliers) {
+        for (int count = 1; count < MAX_WIDTH; count++) {
+            for (boolean multivalued : new boolean[] { false, true }) {
+                int paramCount = count;
+                suppliers.add(
+                    new AbstractFunctionTestCase.TestCaseSupplier(
+                        testCaseName(paramCount, multivalued, "bool"),
+                        () -> booleanCase(paramCount, multivalued)
+                    )
+                );
+            }
+        }
+    }
+
+    private AbstractFunctionTestCase.TestCase booleanCase(int paramCount, boolean multivalued) {
+        boolean[][] data = new boolean[paramCount][];
+        List<AbstractFunctionTestCase.TypedData> typedData = new ArrayList<>(paramCount);
+        for (int p = 0; p < paramCount; p++) {
+            if (multivalued) {
+                int size = ESTestCase.between(1, 5);
+                data[p] = new boolean[size];
+                List<Boolean> paramData = new ArrayList<>(size);
+                for (int i = 0; i < size; i++) {
+                    data[p][i] = ESTestCase.randomBoolean();
+                    paramData.add(data[p][i]);
+                }
+                typedData.add(new AbstractFunctionTestCase.TypedData(paramData, DataTypes.BOOLEAN, "field" + p));
+            } else {
+                data[p] = new boolean[] { ESTestCase.randomBoolean() };
+                typedData.add(new AbstractFunctionTestCase.TypedData(data[p][0], DataTypes.BOOLEAN, "field" + p));
+            }
+        }
+        return testCase(typedData, expectedEvaluatorPrefix.apply("Boolean"), DataTypes.BOOLEAN, expectedBoolean.apply(data));
+    }
+
+    private String testCaseName(int count, boolean multivalued, String type) {
+        return "(" + IntStream.range(0, count).mapToObj(i -> (multivalued ? "mv_" : "") + type).collect(Collectors.joining(", ")) + ")";
     }
 
     protected AbstractFunctionTestCase.TestCase testCase(
@@ -154,7 +310,9 @@ public class VaragsTestCaseBuilder {
     private String expectedToString(String expectedEvaluatorPrefix, int attrs) {
         return expectedEvaluatorPrefix
             + "Evaluator[values=["
-            + IntStream.range(0, attrs).mapToObj(i -> "Attribute[channel=" + i + "]").collect(Collectors.joining(", "))
+            + IntStream.range(0, attrs)
+                .mapToObj(i -> expectedEvaluatorValueMap.apply("Attribute[channel=" + i + "]"))
+                .collect(Collectors.joining(", "))
             + "]]";
     }
 }

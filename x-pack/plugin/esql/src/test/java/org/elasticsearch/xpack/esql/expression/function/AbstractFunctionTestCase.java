@@ -202,6 +202,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, e);
+        assertTrue(e.resolved());
         return EvalMapper.toEvaluator(e, builder.build());
     }
 

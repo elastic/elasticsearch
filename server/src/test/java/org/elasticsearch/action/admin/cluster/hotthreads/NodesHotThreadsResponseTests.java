@@ -15,27 +15,14 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
-import java.io.StringWriter;
 import java.util.List;
 
+import static org.elasticsearch.rest.RestResponseUtils.getTextBodyContent;
+
 public class NodesHotThreadsResponseTests extends ESTestCase {
-    public void testGetTextChunks() throws IOException {
+    public void testGetTextChunks() {
         final var node0 = DiscoveryNodeUtils.create("node-0");
         final var node1 = DiscoveryNodeUtils.create("node-1");
-
-        final var response = new NodesHotThreadsResponse(ClusterName.DEFAULT, List.of(new NodeHotThreads(node0, """
-            node 0 line 1
-            node 0 line 2"""), new NodeHotThreads(node1, """
-            node 1 line 1
-            node 1 line 2""")), List.of());
-
-        final var iterator = response.getTextChunks();
-        final var result = new StringWriter();
-        while (iterator.hasNext()) {
-            iterator.next().accept(result);
-        }
-
         assertEquals(Strings.format("""
             ::: %s
                node 0 line 1
@@ -45,6 +32,10 @@ public class NodesHotThreadsResponseTests extends ESTestCase {
                node 1 line 1
                node 1 line 2
 
-            """, node0, node1), result.toString());
+            """, node0, node1), getTextBodyContent(new NodesHotThreadsResponse(ClusterName.DEFAULT, List.of(new NodeHotThreads(node0, """
+            node 0 line 1
+            node 0 line 2"""), new NodeHotThreads(node1, """
+            node 1 line 1
+            node 1 line 2""")), List.of()).getTextChunks()));
     }
 }

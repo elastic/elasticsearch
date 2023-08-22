@@ -38,7 +38,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
 
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalGeoCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
@@ -54,7 +54,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
             document.add(new LatLonDocValuesField("field", 10, 10));
             w.addDocument(document);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("another_field");
                 InternalGeoCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
@@ -81,7 +81,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
             document.add(new LatLonDocValuesField("field", 10, 10));
             w.addDocument(document);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("another_field");
                 InternalGeoCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
@@ -148,7 +148,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
         GeoCentroidAggregationBuilder aggBuilder = new GeoCentroidAggregationBuilder("my_agg").field("field");
         try (IndexReader reader = w.getReader()) {
-            IndexSearcher searcher = new IndexSearcher(reader);
+            IndexSearcher searcher = newSearcher(reader);
             InternalGeoCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
 
             assertEquals("my_agg", result.getName());

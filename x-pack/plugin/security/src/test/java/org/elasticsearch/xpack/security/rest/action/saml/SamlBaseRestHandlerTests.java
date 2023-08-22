@@ -15,7 +15,6 @@ import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.hamcrest.Matchers;
 
@@ -31,14 +30,14 @@ public class SamlBaseRestHandlerTests extends ESTestCase {
         final SamlBaseRestHandler handler = buildHandler(
             randomFrom(License.OperationMode.TRIAL, License.OperationMode.PLATINUM, License.OperationMode.ENTERPRISE)
         );
-        assertThat(handler.checkFeatureAvailable(new FakeRestRequest()), Matchers.nullValue());
+        assertThat(handler.checkFeatureAvailable(), Matchers.nullValue());
     }
 
     public void testSamlNotAvailableOnBasicStandardOrGold() {
         final SamlBaseRestHandler handler = buildHandler(
             randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD)
         );
-        Exception e = handler.checkFeatureAvailable(new FakeRestRequest());
+        Exception e = handler.checkFeatureAvailable();
         assertThat(e, instanceOf(ElasticsearchException.class));
         ElasticsearchException elasticsearchException = (ElasticsearchException) e;
         assertThat(elasticsearchException.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), contains("saml"));

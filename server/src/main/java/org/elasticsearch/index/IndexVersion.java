@@ -317,6 +317,18 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
         return before(MINIMUM_COMPATIBLE);
     }
 
+    public static IndexVersion getMinimumCompatibleIndexVersion(int versionId) {
+        int major = versionId / 1_000_000;
+        if (major == IndexVersion.current().id() / 1_000_000) {
+            // same compatibility version as current
+            return IndexVersion.MINIMUM_COMPATIBLE;
+        } else {
+            int compatId = (major-1) * 1_000_000;
+            if (major <= 8) compatId += 99;
+            return IndexVersion.fromId(compatId);
+        }
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(id);

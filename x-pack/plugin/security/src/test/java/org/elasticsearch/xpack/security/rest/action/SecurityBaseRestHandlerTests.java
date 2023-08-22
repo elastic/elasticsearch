@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -24,7 +23,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 public class SecurityBaseRestHandlerTests extends ESTestCase {
 
@@ -34,9 +32,6 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
         final AtomicBoolean consumerCalled = new AtomicBoolean(false);
         final AtomicBoolean innerPrepareRequestCalled = new AtomicBoolean(false);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.getOperationMode()).thenReturn(
-            randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD)
-        );
         SecurityBaseRestHandler handler = new SecurityBaseRestHandler(settings, licenseState) {
 
             @Override

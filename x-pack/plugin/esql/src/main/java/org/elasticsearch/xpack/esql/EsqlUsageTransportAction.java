@@ -65,7 +65,7 @@ public class EsqlUsageTransportAction extends XPackUsageFeatureTransportAction {
         EsqlStatsRequest esqlRequest = new EsqlStatsRequest();
         esqlRequest.includeStats(true);
         esqlRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        client.execute(EsqlStatsAction.INSTANCE, esqlRequest, ActionListener.wrap(r -> {
+        client.execute(EsqlStatsAction.INSTANCE, esqlRequest, listener.delegateFailureAndWrap((l, r) -> {
             List<Counters> countersPerNode = r.getNodes()
                 .stream()
                 .map(EsqlStatsResponse.NodeStatsResponse::getStats)
@@ -73,7 +73,7 @@ public class EsqlUsageTransportAction extends XPackUsageFeatureTransportAction {
                 .collect(Collectors.toList());
             Counters mergedCounters = Counters.merge(countersPerNode);
             EsqlFeatureSetUsage usage = new EsqlFeatureSetUsage(mergedCounters.toNestedMap());
-            listener.onResponse(new XPackUsageFeatureResponse(usage));
-        }, listener::onFailure));
+            l.onResponse(new XPackUsageFeatureResponse(usage));
+        }));
     }
 }

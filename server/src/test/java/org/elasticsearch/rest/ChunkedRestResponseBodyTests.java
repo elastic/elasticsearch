@@ -22,7 +22,10 @@ import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -63,5 +66,24 @@ public class ChunkedRestResponseBodyTests extends ESTestCase {
         }
 
         assertEquals(bytesDirect, CompositeBytesReference.of(refsGenerated.toArray(new BytesReference[0])));
+    }
+
+    public void testFromTextChunks() throws IOException {
+        final var chunks = randomList(1000, () -> randomUnicodeOfLengthBetween(1, 100));
+        final var body = ChunkedRestResponseBody.fromTextChunks("text/plain", Iterators.map(chunks.iterator(), s -> w -> w.write(s)));
+
+        final List<BytesReference> refsGenerated = new ArrayList<>();
+        while (body.isDone() == false) {
+            refsGenerated.add(body.encodeChunk(randomIntBetween(2, 10), BytesRefRecycler.NON_RECYCLING_INSTANCE));
+        }
+        final BytesReference chunkedBytes = CompositeBytesReference.of(refsGenerated.toArray(new BytesReference[0]));
+
+        try (var outputStream = new ByteArrayOutputStream(); var writer = new OutputStreamWriter(outputStream, StandardCharsets.UTF_8)) {
+            for (final var chunk : chunks) {
+                writer.write(chunk);
+            }
+            writer.flush();
+            assertEquals(new BytesArray(outputStream.toByteArray()), chunkedBytes);
+        }
     }
 }

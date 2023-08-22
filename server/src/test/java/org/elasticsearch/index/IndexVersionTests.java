@@ -154,6 +154,12 @@ public class IndexVersionTests extends ESTestCase {
         }
     }
 
+    public void testMinimumCompatibleVersion() {
+        assertThat(IndexVersion.getMinimumCompatibleIndexVersion(7170099), equalTo(IndexVersion.fromId(6000099)));
+        assertThat(IndexVersion.getMinimumCompatibleIndexVersion(8000099), equalTo(IndexVersion.fromId(7000099)));
+        assertThat(IndexVersion.getMinimumCompatibleIndexVersion(10000000), equalTo(IndexVersion.fromId(9000000)));
+    }
+
     public void testVersionConstantPresent() {
         Set<IndexVersion> ignore = Set.of(IndexVersion.ZERO, IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE);
         assertThat(IndexVersion.current(), sameInstance(IndexVersion.fromId(IndexVersion.current().id())));

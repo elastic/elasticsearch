@@ -135,7 +135,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         logger.info("[{}] task cancelled due to reason [{}]", getDeploymentId(), reason);
         stop(
             reason,
-            true,
+            false,
             ActionListener.wrap(
                 acknowledgedResponse -> {},
                 e -> logger.error(() -> "[" + getDeploymentId() + "] error stopping the deployment after task cancellation", e)

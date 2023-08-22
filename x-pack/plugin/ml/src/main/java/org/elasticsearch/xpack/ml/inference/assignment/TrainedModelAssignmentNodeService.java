@@ -484,7 +484,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             return;
         }
 
-        logger.debug(() -> format("[%s] Stopping unrouted deployment for node %s", currentNode));
+        logger.debug(() -> format("[%s] Stopping unreferenced deployment for node %s", deploymentId, currentNode));
         stopDeploymentAsync(
             task,
             NODE_NO_LONGER_REFERENCED,

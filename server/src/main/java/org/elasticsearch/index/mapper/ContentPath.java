@@ -33,6 +33,11 @@ public final class ContentPath {
         return path;
     }
 
+    String[] getDottedFieldName() {
+        // used for testing
+        return dottedFieldName;
+    }
+
     public void add(String name) {
         path[index++] = name;
         if (index == path.length) { // expand if needed
@@ -97,5 +102,9 @@ public final class ContentPath {
 
     public int length() {
         return index;
+    }
+
+    public int dottedFieldNamelength() {
+        return dottedFieldNameIndex;
     }
 }

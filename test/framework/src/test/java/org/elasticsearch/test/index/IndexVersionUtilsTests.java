@@ -39,7 +39,6 @@ public class IndexVersionUtilsTests extends ESTestCase {
         assertEquals(releasedIndexCompatible, indexCompatible.released);
     }
 
-
     /**
      * Read a versions system property as set by gradle into a tuple of {@code (releasedVersion, unreleasedVersion)}.
      */

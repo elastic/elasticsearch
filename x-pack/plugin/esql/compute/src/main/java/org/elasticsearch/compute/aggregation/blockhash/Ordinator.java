@@ -22,6 +22,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Superclass of table to assign {@code int} ids to various key types,
+ * vending the ids in order they are added.
+ */
 public abstract class Ordinator {
     protected final PageCacheRecycler recycler;
     protected final CircuitBreaker breaker;

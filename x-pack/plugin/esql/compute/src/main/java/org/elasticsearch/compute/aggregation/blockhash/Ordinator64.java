@@ -24,7 +24,7 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 
 /**
- * Assigns {@code int} ids to {@code long}s, vending the in order they are added.
+ * Assigns {@code int} ids to {@code long}s, vending the ids in order they are added.
  * <p>
  *     At it's core there are two hash table implementations, a "small core" and
  *     a "big core". The "small core" is a simple
@@ -348,7 +348,12 @@ public class Ordinator64 extends Ordinator implements Releasable {
     }
 
     /**
-     * A Swisstable inspired hashtable.
+     * A Swisstable inspired hashtable. This differs from the normal swisstable
+     * in because it's adapted to Elasticsearch's {@link PageCacheRecycler}.
+     * The keys and ids are stored many {@link PageCacheRecycler#PAGE_SIZE_IN_BYTES}
+     * arrays, with the keys separated from the values. This is mostly so that we
+     * can be sure the array and offset into the array can be calculated by right
+     * shifts.
      */
     class BigCore extends Core {
         static final float FILL_FACTOR = 0.85F;

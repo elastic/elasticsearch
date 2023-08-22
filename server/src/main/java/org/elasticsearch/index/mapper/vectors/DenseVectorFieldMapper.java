@@ -198,6 +198,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
+
+            // At this point we expect dims to be set, if it's not there's a problem.
+            if (dims.getValue() == null) {
+                throw new IllegalArgumentException("Missing required parameter [dims] for field [" + name + "]");
+            }
+
             return new DenseVectorFieldMapper(
                 name,
                 new DenseVectorFieldType(

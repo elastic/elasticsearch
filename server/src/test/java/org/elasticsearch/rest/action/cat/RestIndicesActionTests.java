@@ -8,7 +8,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -55,7 +55,7 @@ public class RestIndicesActionTests extends ESTestCase {
             String indexName = "index-" + i;
 
             Settings indexSettings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                 .put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), randomBoolean())
                 .build();

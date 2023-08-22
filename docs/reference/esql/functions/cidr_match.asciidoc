@@ -1,0 +1,15 @@
+[[esql-cidr_match]]
+=== `CIDR_MATCH`
+
+Returns `true` if the provided IP is contained in one of the provided CIDR
+blocks.
+
+`CIDR_MATCH` accepts two or more arguments. The first argument is the IP
+address of type `ip` (both IPv4 and IPv6 are supported). Subsequent arguments
+are the CIDR blocks to test the IP against.
+
+[source,esql]
+----
+FROM hosts
+| WHERE CIDR_MATCH(ip, "127.0.0.2/32", "127.0.0.3/32")
+----

@@ -797,6 +797,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean supportsParsingObject() {
+        return true;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
             return;

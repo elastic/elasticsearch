@@ -1538,7 +1538,9 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             threadsPerAllocation,
             1024,
             ByteSizeValue.ofBytes(modelSize),
-            Priority.NORMAL
+            Priority.NORMAL,
+            0L,
+            0L
         );
     }
 

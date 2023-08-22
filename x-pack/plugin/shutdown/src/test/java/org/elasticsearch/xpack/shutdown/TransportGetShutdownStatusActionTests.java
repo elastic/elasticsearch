@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
@@ -38,15 +38,23 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.xpack.core.ilm.ErrorStep;
+import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.ShrinkAction;
+import org.elasticsearch.xpack.core.ilm.ShrinkStep;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -54,6 +62,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -551,11 +561,112 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.NOT_STARTED, 0, is("node is not currently part of the cluster"));
     }
 
+    public void testIlmShrinkingIndexAvoidsStall() {
+        LifecycleExecutionState executionState = LifecycleExecutionState.builder()
+            .setAction(ShrinkAction.NAME)
+            .setStep(ShrinkStep.NAME)
+            .setPhase(randomFrom("hot", "warm"))
+            .build();
+        checkStalledShardWithIlmState(executionState, OperationMode.RUNNING, SingleNodeShutdownMetadata.Status.IN_PROGRESS);
+    }
+
+    public void testIlmShrinkingWithIlmStoppingIndexAvoidsStall() {
+        LifecycleExecutionState executionState = LifecycleExecutionState.builder()
+            .setAction(ShrinkAction.NAME)
+            .setStep(ShrinkStep.NAME)
+            .build();
+        checkStalledShardWithIlmState(executionState, OperationMode.STOPPING, SingleNodeShutdownMetadata.Status.IN_PROGRESS);
+    }
+
+    public void testIlmShrinkingButIlmStoppedDoesNotAvoidStall() {
+        LifecycleExecutionState executionState = LifecycleExecutionState.builder()
+            .setAction(ShrinkAction.NAME)
+            .setStep(ShrinkStep.NAME)
+            .build();
+        checkStalledShardWithIlmState(executionState, OperationMode.STOPPED, SingleNodeShutdownMetadata.Status.STALLED);
+    }
+
+    public void testIlmShrinkingButErroredDoesNotAvoidStall() {
+        LifecycleExecutionState executionState = LifecycleExecutionState.builder()
+            .setAction(ShrinkAction.NAME)
+            .setStep(ErrorStep.NAME)
+            .build();
+        checkStalledShardWithIlmState(
+            executionState,
+            randomFrom(OperationMode.STOPPING, OperationMode.RUNNING),
+            SingleNodeShutdownMetadata.Status.STALLED
+        );
+    }
+
+    public void testIlmInAnyOtherActionDoesNotAvoidStall() {
+        Set<String> allOtherIlmActions = new HashSet<>();
+        allOtherIlmActions.addAll(TimeseriesLifecycleType.ORDERED_VALID_HOT_ACTIONS);
+        allOtherIlmActions.addAll(TimeseriesLifecycleType.ORDERED_VALID_WARM_ACTIONS);
+        allOtherIlmActions.addAll(TimeseriesLifecycleType.ORDERED_VALID_COLD_ACTIONS);
+        allOtherIlmActions.addAll(TimeseriesLifecycleType.ORDERED_VALID_FROZEN_ACTIONS);
+        allOtherIlmActions.addAll(TimeseriesLifecycleType.ORDERED_VALID_DELETE_ACTIONS);
+        allOtherIlmActions.remove(ShrinkAction.NAME);
+        for (String action : allOtherIlmActions) {
+            LifecycleExecutionState executionState = LifecycleExecutionState.builder().setAction(action).build();
+            checkStalledShardWithIlmState(
+                executionState,
+                randomFrom(OperationMode.STOPPING, OperationMode.RUNNING),
+                SingleNodeShutdownMetadata.Status.STALLED
+            );
+        }
+    }
+
+    private void checkStalledShardWithIlmState(
+        LifecycleExecutionState executionState,
+        OperationMode operationMode,
+        SingleNodeShutdownMetadata.Status expectedStatus
+    ) {
+        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
+        IndexMetadata imd = IndexMetadata.builder(generateIndexMetadata(index, 3, 0))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, executionState.asMap())
+            .build();
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), LIVE_NODE_ID, true, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), LIVE_NODE_ID, true, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 2), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.STARTED))
+            .build();
+
+        // Force a decision of NO for all moves and new allocations, simulating a decider that's stuck
+        canAllocate.set((r, n, a) -> Decision.NO);
+        // And the remain decider simulates NodeShutdownAllocationDecider
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+        state = setIlmOperationMode(state, operationMode);
+
+        ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            true,
+            clusterInfoService,
+            snapshotsInfoService,
+            allocationService,
+            allocationDeciders
+        );
+
+        assertShardMigration(
+            status,
+            expectedStatus,
+            1,
+            expectedStatus == SingleNodeShutdownMetadata.Status.STALLED
+                ? allOf(containsString(index.getName()), containsString("[2] [primary]"))
+                : nullValue()
+        );
+    }
+
     private IndexMetadata generateIndexMetadata(Index index, int numberOfShards, int numberOfReplicas) {
         return IndexMetadata.builder(index.getName())
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
             )
             .numberOfShards(numberOfShards)
@@ -635,6 +746,15 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             )
             .nodes(discoveryNodesBuilder)
             .routingTable(indexRoutingTable)
+            .build();
+    }
+
+    private ClusterState setIlmOperationMode(ClusterState state, OperationMode operationMode) {
+        return ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .putCustom(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(operationMode, currentSLMMode(state)))
+            )
             .build();
     }
 

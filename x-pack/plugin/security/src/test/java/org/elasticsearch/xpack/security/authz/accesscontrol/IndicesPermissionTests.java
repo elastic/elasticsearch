@@ -739,7 +739,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
     private static IndexMetadata createBackingIndexMetadata(String name) {
         Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.hidden", true);
 
         IndexMetadata.Builder indexBuilder = IndexMetadata.builder(name)

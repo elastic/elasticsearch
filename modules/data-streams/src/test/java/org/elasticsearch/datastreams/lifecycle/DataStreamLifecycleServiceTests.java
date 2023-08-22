@@ -1013,9 +1013,10 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             metadataBuilder.put(
                 IndexMetadata.builder(downsampleIndexName)
                     .settings(
-                        Settings.builder().put(firstGenMetadata.getSettings())
-                                .put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY, firstGenIndexName)
-                                .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), SUCCESS)
+                        Settings.builder()
+                            .put(firstGenMetadata.getSettings())
+                            .put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY, firstGenIndexName)
+                            .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), SUCCESS)
                     )
                     .numberOfReplicas(0)
                     .numberOfShards(1)

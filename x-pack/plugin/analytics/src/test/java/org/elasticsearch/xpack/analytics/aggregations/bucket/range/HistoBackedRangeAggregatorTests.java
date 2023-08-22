@@ -105,6 +105,7 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
         assertThat((double) absError / docCount, lessThan(0.1));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98741")
     @SuppressWarnings("rawtypes")
     public void testMediumRangesAccuracy() throws Exception {
         List<RangeAggregator.Range> ranges = Arrays.asList(

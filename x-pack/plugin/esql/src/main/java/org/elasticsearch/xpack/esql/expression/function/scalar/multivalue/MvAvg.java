@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -51,7 +52,7 @@ public class MvAvg extends AbstractMultivalueFunction {
                 ? () -> new MvAvgUnsignedLongEvaluator(fieldEval.get())
                 : () -> new MvAvgLongEvaluator(fieldEval.get());
             case NULL -> () -> EvalOperator.CONSTANT_NULL;
-            default -> throw new UnsupportedOperationException("unsupported type [" + field().dataType() + "]");
+            default -> throw EsqlUnsupportedOperationException.unsupportedDataType(field().dataType());
         };
     }
 

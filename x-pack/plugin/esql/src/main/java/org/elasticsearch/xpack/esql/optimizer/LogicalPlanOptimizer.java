@@ -95,6 +95,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new FoldNull(),
             new SplitInWithFoldableValue(),
             new ConstantFolding(),
+            new PropagateEvalFoldables(),
             // boolean
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
@@ -299,6 +300,39 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         private static Expression trimAliases(Expression e) {
             return e.transformDown(Alias.class, Alias::child);
+        }
+    }
+
+    //
+    // Replace any reference attribute with its source, if it does not affect the result.
+    // This avoids ulterior look-ups between attributes and its source across nodes.
+    //
+    static class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            var collectRefs = new AttributeMap<Expression>();
+            // collect aliases
+            plan.forEachExpressionUp(Alias.class, a -> {
+                var c = a.child();
+                if (c.foldable()) {
+                    collectRefs.put(a.toAttribute(), c);
+                }
+            });
+            if (collectRefs.isEmpty()) {
+                return plan;
+            }
+            java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.resolve(r, r);
+
+            plan = plan.transformUp(p -> {
+                // Apply the replacement inside Filter and Eval (which shouldn't make a difference)
+                if (p instanceof Filter || p instanceof Eval) {
+                    p = p.transformExpressionsOnly(ReferenceAttribute.class, replaceReference);
+                }
+                return p;
+            });
+
+            return plan;
         }
     }
 
@@ -660,7 +694,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                     }
                 } while (recheck);
 
-                used.addAll(references(p));
+                used.addAll(p.references());
 
                 // preserve the state before going to the next node
                 return p;
@@ -687,16 +721,6 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 }
             }
             return clone.size() != named.size() ? clone : null;
-        }
-
-        private static List<Expression> expressions(LogicalPlan plan) {
-            List<Expression> exp = new ArrayList<>();
-            plan.forEachExpression(exp::add);
-            return exp;
-        }
-
-        private static AttributeSet references(LogicalPlan plan) {
-            return Expressions.references(expressions(plan));
         }
     }
 
@@ -758,7 +782,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
             return project.replaceChild(expressionsWithResolvedAliases.replaceChild(project.child()));
         } else {
-            throw new UnsupportedOperationException("Expected child to be instance of Project");
+            throw new EsqlIllegalArgumentException("Expected child to be instance of Project");
         }
     }
 

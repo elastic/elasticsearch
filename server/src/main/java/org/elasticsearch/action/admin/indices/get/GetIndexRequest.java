@@ -115,7 +115,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         if (this.features == DEFAULT_FEATURES) {
             return features(features);
         } else {
-            return features(ArrayUtils.concat(features(), features, Feature.class));
+            return features(ArrayUtils.concat(features(), features));
         }
     }
 

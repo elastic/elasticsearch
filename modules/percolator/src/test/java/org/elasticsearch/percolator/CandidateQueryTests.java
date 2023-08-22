@@ -915,7 +915,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 iw.addDocuments(documents); // IW#addDocuments(...) ensures we end up with a single segment
             }
             try (IndexReader ir = DirectoryReader.open(directory)) {
-                IndexSearcher percolateSearcher = new IndexSearcher(ir);
+                IndexSearcher percolateSearcher = newSearcher(ir);
                 PercolateQuery query = (PercolateQuery) fieldType.percolateQuery(
                     "_name",
                     queryStore,
@@ -954,7 +954,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 iw.addDocument(document);
             }
             try (IndexReader ir = DirectoryReader.open(directory)) {
-                IndexSearcher percolateSearcher = new IndexSearcher(ir);
+                IndexSearcher percolateSearcher = newSearcher(ir);
                 PercolateQuery query = (PercolateQuery) fieldType.percolateQuery(
                     "_name",
                     queryStore,

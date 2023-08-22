@@ -656,11 +656,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 metrics.contains(Metric.ROUTING_TABLE),
                 (builder, params) -> builder.startObject("routing_table").startObject("indices"),
                 routingTable().iterator(),
-                indexRoutingTable -> Iterators.concat(
-                    Iterators.single(
-                        (builder, params) -> builder.startObject(indexRoutingTable.getIndex().getName()).startObject("shards")
-                    ),
-                    Iterators.flatten(Iterators.<Iterator<ToXContent>>forRange(0, indexRoutingTable.size(), shardId -> {
+                indexRoutingTable -> {
+                    Iterator<Iterator<ToXContent>> input = Iterators.forRange(0, indexRoutingTable.size(), shardId -> {
                         final var indexShardRoutingTable = indexRoutingTable.shard(shardId);
                         return Iterators.concat(
                             Iterators.single(
@@ -673,9 +670,15 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                             ),
                             Iterators.single((builder, params) -> builder.endArray())
                         );
-                    })),
-                    Iterators.single((builder, params) -> builder.endObject().endObject())
-                ),
+                    });
+                    return Iterators.concat(
+                        Iterators.single(
+                            (builder, params) -> builder.startObject(indexRoutingTable.getIndex().getName()).startObject("shards")
+                        ),
+                        Iterators.flatMap(input, Function.identity()),
+                        Iterators.single((builder, params) -> builder.endObject().endObject())
+                    );
+                },
                 (builder, params) -> builder.endObject().endObject()
             ),
 

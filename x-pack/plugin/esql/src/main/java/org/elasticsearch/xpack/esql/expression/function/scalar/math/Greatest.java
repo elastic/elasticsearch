@@ -9,16 +9,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxBooleanEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxBytesRefEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxDoubleEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxIntEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxLongEvaluator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinBytesRefEvaluator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinIntEvaluator;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -37,7 +33,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 
 /**
@@ -152,7 +147,7 @@ public class Greatest extends ScalarFunction implements Mappable, OptionalArgume
 
     @Evaluator(extraName = "Boolean")
     static boolean process(boolean[] values) {
-        for (boolean v: values) {
+        for (boolean v : values) {
             if (v) {
                 return true;
             }

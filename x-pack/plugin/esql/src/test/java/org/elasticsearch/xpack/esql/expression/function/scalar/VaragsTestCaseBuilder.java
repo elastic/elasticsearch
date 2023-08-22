@@ -59,78 +59,124 @@ public class VaragsTestCaseBuilder {
         return this;
     }
 
-    public VaragsTestCaseBuilder expectString(Function<String[][], Matcher<Object>> expectedStr) {
-        this.expectedStr = expectedStr;
+    public VaragsTestCaseBuilder expectString(Function<Stream<String[]>, Optional<String[]>> expectedStr) {
+        this.expectedStr = strings -> {
+            if (Arrays.stream(strings).anyMatch(s -> s == null)) {
+                return nullValue();
+            }
+            Optional<String[]> expected = expectedStr.apply(Arrays.stream(strings));
+            if (expected.isPresent() == false) {
+                return nullValue();
+            }
+            if (expected.get().length == 1) {
+                return equalTo(new BytesRef(expected.get()[0]));
+            }
+            return equalTo(Arrays.stream(expected.get()).map(BytesRef::new).toList());
+        };
         return this;
     }
 
     public VaragsTestCaseBuilder expectFlattenedString(Function<Stream<String>, Optional<String>> expectedStr) {
-        return expectString(strings -> {
+        this.expectedStr = strings -> {
             if (Arrays.stream(strings).anyMatch(s -> s == null)) {
                 return nullValue();
             }
             Optional<String> expected = expectedStr.apply(Arrays.stream(strings).flatMap(Arrays::stream));
-            if (expected.isPresent()) {
-                return equalTo(expected.get());
+            if (expected.isPresent() == false) {
+                return nullValue();
             }
-            return nullValue();
-        });
+            return equalTo(new BytesRef(expected.get()));
+        };
+        return this;
     }
 
-    public VaragsTestCaseBuilder expectLong(Function<long[][], Matcher<Object>> expectedLong) {
-        this.expectedLong = expectedLong;
+    public VaragsTestCaseBuilder expectLong(Function<Stream<long[]>, Optional<long[]>> expectedLong) {
+        this.expectedLong = longs -> {
+            if (Arrays.stream(longs).anyMatch(l -> l == null)) {
+                return nullValue();
+            }
+            Optional<long[]> expected = expectedLong.apply(Arrays.stream(longs));
+            if (expected.isPresent() == false) {
+                return nullValue();
+            }
+            if (expected.get().length == 1) {
+                return equalTo(expected.get()[0]);
+            }
+            return equalTo(Arrays.stream(expected.get()).mapToObj(Long::valueOf).toList());
+        };
         return this;
     }
 
     public VaragsTestCaseBuilder expectFlattenedLong(Function<LongStream, OptionalLong> expectedLong) {
-        return expectLong(longs -> {
+        this.expectedLong = longs -> {
             if (Arrays.stream(longs).anyMatch(l -> l == null)) {
                 return nullValue();
             }
             OptionalLong expected = expectedLong.apply(Arrays.stream(longs).flatMapToLong(Arrays::stream));
-            if (expected.isPresent()) {
-                return equalTo(expected.getAsLong());
+            if (expected.isPresent() == false) {
+                return nullValue();
             }
-            return nullValue();
-        });
+            return equalTo(expected.getAsLong());
+        };
+        return this;
     }
 
-    public VaragsTestCaseBuilder expectInt(Function<int[][], Matcher<Object>> expectedInt) {
-        this.expectedInt = expectedInt;
+    public VaragsTestCaseBuilder expectInt(Function<Stream<int[]>, Optional<int[]>> expectedInt) {
+        this.expectedInt = ints -> {
+            Optional<int[]> expected = expectedInt.apply(Arrays.stream(ints));
+            if (expected.isPresent() == false) {
+                return nullValue();
+            }
+            if (expected.get().length == 1) {
+                return equalTo(expected.get()[0]);
+            }
+            return equalTo(Arrays.stream(expected.get()).mapToObj(Integer::valueOf).toList());
+        };
         return this;
     }
 
     public VaragsTestCaseBuilder expectFlattenedInt(Function<IntStream, OptionalInt> expectedInt) {
-        return expectInt(ints -> {
+        this.expectedInt = ints -> {
             if (Arrays.stream(ints).anyMatch(i -> i == null)) {
                 return nullValue();
             }
             OptionalInt expected = expectedInt.apply(Arrays.stream(ints).flatMapToInt(Arrays::stream));
-            if (expected.isPresent()) {
-                return equalTo(expected.getAsInt());
+            if (expected.isPresent() == false) {
+                return nullValue();
             }
-            return nullValue();
-        });
+            return equalTo(expected.getAsInt());
+        };
+        return this;
     }
 
-    public VaragsTestCaseBuilder expectBoolean(Function<boolean[][], Matcher<Object>> expectedBoolean) {
-        this.expectedBoolean = expectedBoolean;
+    public VaragsTestCaseBuilder expectBoolean(Function<Stream<boolean[]>, Optional<boolean[]>> expectedBoolean) {
+        this.expectedBoolean = booleans -> {
+            Optional<boolean[]> expected = expectedBoolean.apply(Arrays.stream(booleans));
+            if (expected.isPresent() == false) {
+                return nullValue();
+            }
+            if (expected.get().length == 1) {
+                return equalTo(expected.get()[0]);
+            }
+            return equalTo(IntStream.range(0, expected.get().length).mapToObj(i -> expected.get()[i]).toList());
+        };
         return this;
     }
 
     public VaragsTestCaseBuilder expectFlattenedBoolean(Function<Stream<Boolean>, Optional<Boolean>> expectedBoolean) {
-        return expectBoolean(booleans -> {
+        this.expectedBoolean = booleans -> {
             if (Arrays.stream(booleans).anyMatch(i -> i == null)) {
                 return nullValue();
             }
             Optional<Boolean> expected = expectedBoolean.apply(
                 Arrays.stream(booleans).flatMap(bs -> IntStream.range(0, bs.length).mapToObj(i -> bs[i]))
             );
-            if (expected.isPresent()) {
-                return equalTo(expected.get());
+            if (expected.isPresent() == false) {
+                return nullValue();
             }
-            return nullValue();
-        });
+            return equalTo(expected.get());
+        };
+        return this;
     }
 
     public List<AbstractFunctionTestCase.TestCaseSupplier> suppliers() {
@@ -194,7 +240,7 @@ public class VaragsTestCaseBuilder {
                 int paramCount = count;
                 suppliers.add(
                     new AbstractFunctionTestCase.TestCaseSupplier(
-                        testCaseName(paramCount, multivalued, "int"),
+                        testCaseName(paramCount, multivalued, "long"),
                         () -> longCase(paramCount, multivalued)
                     )
                 );

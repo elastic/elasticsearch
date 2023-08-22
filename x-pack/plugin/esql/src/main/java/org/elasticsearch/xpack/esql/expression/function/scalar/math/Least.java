@@ -147,7 +147,7 @@ public class Least extends ScalarFunction implements Mappable, OptionalArgument 
 
     @Evaluator(extraName = "Boolean")
     static boolean process(boolean[] values) {
-        for (boolean v: values) {
+        for (boolean v : values) {
             if (v == false) {
                 return false;
             }

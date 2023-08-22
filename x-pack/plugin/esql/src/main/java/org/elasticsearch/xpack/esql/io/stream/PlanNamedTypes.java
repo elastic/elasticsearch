@@ -1139,7 +1139,8 @@ public final class PlanNamedTypes {
     );
 
     static ScalarFunction readVarag(PlanStreamInput in, String name) throws IOException {
-        return VARARG_CTORS.get(name).apply(Source.EMPTY, in.readExpression(), in.readList(readerFromPlanReader(PlanStreamInput::readExpression)));
+        return VARARG_CTORS.get(name)
+            .apply(Source.EMPTY, in.readExpression(), in.readList(readerFromPlanReader(PlanStreamInput::readExpression)));
     }
 
     static void writeVararg(PlanStreamOutput out, ScalarFunction vararg) throws IOException {

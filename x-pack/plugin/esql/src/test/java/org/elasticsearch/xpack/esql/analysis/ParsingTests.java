@@ -36,7 +36,9 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testConcatFunctionInvalidInputs() {
-        assertEquals("1:23: error building [concat]: expects at least one argument", error("row a = 1 | eval x = concat()"));
+        assertEquals("1:23: error building [concat]: expects at least two arguments", error("row a = 1 | eval x = concat()"));
+        assertEquals("1:23: error building [concat]: expects at least two arguments", error("row a = 1 | eval x = concat(a)"));
+        assertEquals("1:23: error building [concat]: expects at least two arguments", error("row a = 1 | eval x = concat(1)"));
     }
 
     public void testCoalesceFunctionInvalidInputs() {

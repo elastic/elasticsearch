@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBuilder;
@@ -24,14 +23,12 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class CoalesceTests extends AbstractFunctionTestCase {
     public CoalesceTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
@@ -45,21 +42,10 @@ public class CoalesceTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         VaragsTestCaseBuilder builder = new VaragsTestCaseBuilder(type -> "Coalesce");
-        builder.expectString(strings -> {
-            for (int i = 0; i < strings.length; i++) {
-                if (strings[i] != null) {
-                    return equalTo(Arrays.stream(strings[i]).map(BytesRef::new).toList());
-                }
-            }
-            return nullValue();
-        });
-        builder.expectLong(
-            longs -> Arrays.stream(longs).filter(s -> s != null).findFirst().map(l -> equalTo((Object) l)).orElse(nullValue())
-        );
-        builder.expectInt(ints -> Arrays.stream(ints).filter(s -> s != null).findFirst().map(i -> equalTo((Object) i)).orElse(nullValue()));
-        builder.expectBoolean(
-            booleans -> Arrays.stream(booleans).filter(s -> s != null).findFirst().map(i -> equalTo((Object) i)).orElse(nullValue())
-        );
+        builder.expectString(strings -> strings.filter(v -> v != null).findFirst());
+        builder.expectLong(longs -> longs.filter(v -> v != null).findFirst());
+        builder.expectInt(ints -> ints.filter(v -> v != null).findFirst());
+        builder.expectBoolean(booleans -> booleans.filter(v -> v != null).findFirst());
         return parameterSuppliersFromTypedData(builder.suppliers());
     }
 

@@ -122,7 +122,6 @@ public class CaseTests extends AbstractFunctionTestCase {
     }
 
     public void testCaseWithInvalidCondition() {
-        assertEquals("expected at least two arguments in [<case>] but got 0", resolveCase().message());
         assertEquals("expected at least two arguments in [<case>] but got 1", resolveCase(1).message());
         assertEquals("first argument of [<case>] must be [boolean], found value [1] type [integer]", resolveCase(1, 2).message());
         assertEquals(
@@ -158,13 +157,13 @@ public class CaseTests extends AbstractFunctionTestCase {
     }
 
     private static Case caseExpr(Object... args) {
-        throw new UnsupportedOperationException("ASDFDSAF");
-//        return new Case(Source.synthetic("<case>"), Stream.of(args).<Expression>map(arg -> {
-//            if (arg instanceof Expression e) {
-//                return e;
-//            }
-//            return new Literal(Source.synthetic(arg == null ? "null" : arg.toString()), arg, EsqlDataTypes.fromJava(arg));
-//        }).toList());
+        List<Expression> exps = Stream.of(args).<Expression>map(arg -> {
+            if (arg instanceof Expression e) {
+                return e;
+            }
+            return new Literal(Source.synthetic(arg == null ? "null" : arg.toString()), arg, EsqlDataTypes.fromJava(arg));
+        }).toList();
+        return new Case(Source.synthetic("<case>"), exps.get(0), exps.subList(1, exps.size()));
     }
 
     private static TypeResolution resolveCase(Object... args) {

@@ -497,6 +497,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             ShardSizesCollector.BOOST_WINDOW_SETTING,
             ShardSizesCollector.PUSH_INTERVAL_SETTING,
             ShardSizesCollector.PUSH_DELTA_THRESHOLD_SETTING,
+            ShardSizesCollector.SEARCH_POWER_SETTING,
             SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING,
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING

@@ -59,6 +59,9 @@ public class CoalesceTests extends AbstractFunctionTestCase {
             if (v == null) {
                 continue;
             }
+            if (v instanceof List<?> l && l.size() == 1) {
+                v = l.get(0);
+            }
             assertThat(toJavaObject(value, 0), equalTo(v));
             return;
         }

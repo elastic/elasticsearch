@@ -135,7 +135,6 @@ public class QueryPhase {
 
         RescorePhase.execute(searchContext);
         SuggestPhase.execute(searchContext);
-        AggregationPhase.execute(searchContext);
 
         if (searchContext.getProfilers() != null) {
             searchContext.queryResult().profileResults(searchContext.getProfilers().buildQueryPhaseResults());

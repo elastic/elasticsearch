@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
@@ -31,36 +30,54 @@ public class AggregationPhase {
         if (context.aggregations() == null) {
             return;
         }
-        final Supplier<Collector> collectorSupplier;
+        final Supplier<AggregatorCollector> collectorSupplier;
         if (context.aggregations().isInSortOrderExecutionRequired()) {
-            executeInSortOrder(context, newBucketCollector(context));
-            collectorSupplier = () -> BucketCollector.NO_OP_COLLECTOR;
+            AggregatorCollector collector = newAggregatorCollector(context);
+            executeInSortOrder(context, collector.bucketCollector);
+            collectorSupplier = () -> new AggregatorCollector(collector.aggregators, BucketCollector.NO_OP_BUCKET_COLLECTOR);
         } else {
-            collectorSupplier = () -> newBucketCollector(context).asCollector();
+            collectorSupplier = () -> newAggregatorCollector(context);
         }
         context.aggregations().registerAggsCollectorManager(new CollectorManager<>() {
             @Override
-            public Collector newCollector() {
+            public AggregatorCollector newCollector() {
                 return collectorSupplier.get();
             }
 
             @Override
-            public Void reduce(Collection<Collector> collectors) {
-                // we cannot run post-collection method here because we need to do it after the optional timeout
-                // has been removed from the index searcher. Therefore, we delay this processing to the
-                // AggregationPhase#execute method.
+            public Void reduce(Collection<AggregatorCollector> collectors) {
+                if (context.queryResult().hasAggs()) {
+                    // no need to compute the aggs twice, they should be computed on a per context basis
+                    return null;
+                }
+                if (collectors.size() > 1) {
+                    // we execute this search using more than one slice. In order to keep memory requirements
+                    // low, we do a partial reduction here.
+                    final List<InternalAggregations> internalAggregations = new ArrayList<>(collectors.size());
+                    collectors.forEach(c -> internalAggregations.add(InternalAggregations.from(c.internalAggregations)));
+                    context.queryResult()
+                        .aggregations(
+                            InternalAggregations.topLevelReduce(
+                                internalAggregations,
+                                context.aggregations().getAggregationReduceContextBuilder().forPartialReduction()
+                            )
+                        );
+                } else if (collectors.size() == 1) {
+                    context.queryResult().aggregations(InternalAggregations.from(collectors.iterator().next().internalAggregations));
+                }
+                // disable aggregations so that they don't run on next pages in case of scrolling
+                context.aggregations(null);
                 return null;
             }
         });
     }
 
-    private static BucketCollector newBucketCollector(SearchContext context) {
+    private static AggregatorCollector newAggregatorCollector(SearchContext context) {
         try {
             Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators();
-            context.aggregations().aggregators(aggregators);
             BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(aggregators));
             bucketCollector.preCollection();
-            return bucketCollector;
+            return new AggregatorCollector(aggregators, bucketCollector);
         } catch (IOException e) {
             throw new AggregationInitializationException("Could not initialize aggregators", e);
         }
@@ -96,49 +113,5 @@ public class AggregationPhase {
         }
 
         return cancellationChecks;
-    }
-
-    public static void execute(SearchContext context) {
-        if (context.aggregations() == null) {
-            context.queryResult().aggregations(null);
-            return;
-        }
-
-        if (context.queryResult().hasAggs()) {
-            // no need to compute the aggs twice, they should be computed on a per context basis
-            return;
-        }
-
-        final List<InternalAggregations> internalAggregations = new ArrayList<>(context.aggregations().aggregators().size());
-        for (Aggregator[] aggregators : context.aggregations().aggregators()) {
-            final List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
-            for (Aggregator aggregator : aggregators) {
-                try {
-                    aggregations.add(aggregator.buildTopLevel());
-                } catch (IOException e) {
-                    throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
-                }
-                // release the aggregator to claim the used bytes as we don't need it anymore
-                aggregator.releaseAggregations();
-            }
-            internalAggregations.add(InternalAggregations.from(aggregations));
-        }
-
-        if (internalAggregations.size() > 1) {
-            // we execute this search using more than one slice. In order to keep memory requirements
-            // low, we do a partial reduction here.
-            context.queryResult()
-                .aggregations(
-                    InternalAggregations.topLevelReduce(
-                        internalAggregations,
-                        context.aggregations().getAggregationReduceContextBuilder().forPartialReduction()
-                    )
-                );
-        } else {
-            context.queryResult().aggregations(internalAggregations.get(0));
-        }
-
-        // disable aggregations so that they don't run on next pages in case of scrolling
-        context.aggregations(null);
     }
 }

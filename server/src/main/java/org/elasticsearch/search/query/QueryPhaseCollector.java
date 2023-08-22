@@ -22,7 +22,8 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.search.aggregations.BucketCollector;
+import org.elasticsearch.search.aggregations.AggregatorCollector;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
 
 import java.io.IOException;
@@ -42,6 +43,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class QueryPhaseCollector implements Collector {
     private final Collector aggsCollector;
+    // populated during post collection phase
+    private InternalAggregations internalAggregations;
     private final Collector topDocsCollector;
     private final TerminateAfterChecker terminateAfterChecker;
     private final Weight postFilterWeight;
@@ -375,8 +378,8 @@ public final class QueryPhaseCollector implements Collector {
     };
 
     public void doPostCollection() throws IOException {
-        if (aggsCollector instanceof BucketCollector.BucketCollectorWrapper bucketCollectorWrapper) {
-            bucketCollectorWrapper.bucketCollector().postCollection();
+        if (aggsCollector instanceof AggregatorCollector aggregatorCollector) {
+            aggregatorCollector.finish();
         } else if (aggsCollector instanceof InternalProfileCollector profileCollector) {
             profileCollector.doPostCollection();
         }

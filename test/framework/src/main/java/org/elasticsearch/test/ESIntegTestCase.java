@@ -246,6 +246,7 @@ import static org.hamcrest.Matchers.startsWith;
  * <li> - a random seed used to initialize the index random context.
  * </ul>
  */
+@LuceneTestCase.SuppressCodecs("*") // remove this once we have asserting codec that works with ES
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 public abstract class ESIntegTestCase extends ESTestCase {
 

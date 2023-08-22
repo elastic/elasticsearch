@@ -10,7 +10,7 @@ package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.sandbox.search.ProfilerCollector;
 import org.apache.lucene.search.Collector;
-import org.elasticsearch.search.aggregations.BucketCollector;
+import org.elasticsearch.search.aggregations.AggregatorCollector;
 import org.elasticsearch.search.query.QueryPhaseCollector;
 
 import java.io.IOException;
@@ -83,8 +83,8 @@ public class InternalProfileCollector extends ProfilerCollector {
             profileCollector.doPostCollection();
         } else if (wrappedCollector instanceof QueryPhaseCollector queryPhaseCollector) {
             queryPhaseCollector.doPostCollection();
-        } else if (wrappedCollector instanceof BucketCollector.BucketCollectorWrapper aggsCollector) {
-            aggsCollector.bucketCollector().postCollection();
+        } else if (wrappedCollector instanceof AggregatorCollector aggsCollector) {
+            aggsCollector.finish();
         }
     }
 }

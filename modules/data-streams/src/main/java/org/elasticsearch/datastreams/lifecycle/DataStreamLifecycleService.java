@@ -319,10 +319,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             try {
                 indicesToExcludeForRemainingRun.addAll(
-                    maybeExecuteForceMerge(
-                        state,
-                        getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata()::index)
-                    )
+                    maybeExecuteForceMerge(state, getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata()::index))
                 );
             } catch (Exception e) {
                 logger.error(

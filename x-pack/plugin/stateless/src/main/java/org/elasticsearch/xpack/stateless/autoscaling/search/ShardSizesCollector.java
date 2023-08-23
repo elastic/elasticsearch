@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
+import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsReader;
 
@@ -53,23 +54,6 @@ import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTran
 public class ShardSizesCollector implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(ShardSizesCollector.class);
-
-    public static final Setting<TimeValue> BOOST_WINDOW_SETTING = Setting.timeSetting(
-        "serverless.search.boost_window",
-        TimeValue.timeValueDays(7),
-        TimeValue.timeValueDays(1),
-        TimeValue.timeValueDays(365),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<Integer> SEARCH_POWER_SETTING = Setting.intSetting(
-        "serverless.search.search_power",
-        100,
-        0,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
 
     public static final Setting<TimeValue> PUSH_INTERVAL_SETTING = Setting.timeSetting(
         "serverless.autoscaling.search_metrics.push_interval",
@@ -171,7 +155,7 @@ public class ShardSizesCollector implements ClusterStateListener {
         this.shardSizeStatsReader = shardSizeStatsReader;
         this.shardSizesPublisher = shardSizesPublisher;
         this.isSearchNode = isSearchNode;
-        clusterSettings.initializeAndWatch(BOOST_WINDOW_SETTING, value -> {
+        clusterSettings.initializeAndWatch(ServerlessSharedSettings.BOOST_WINDOW_SETTING, value -> {
             this.boostWindowInterval = value;
             if (isSearchNode && isStarted()) {
                 threadPool.generic().submit(this::publishAllNow);

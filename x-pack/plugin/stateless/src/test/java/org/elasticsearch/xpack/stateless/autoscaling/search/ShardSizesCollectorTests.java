@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
+import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsReader;
 
@@ -87,7 +88,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
                 .build(),
             Sets.addToCopy(
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
-                ShardSizesCollector.BOOST_WINDOW_SETTING,
+                ServerlessSharedSettings.BOOST_WINDOW_SETTING,
                 ShardSizesCollector.PUSH_INTERVAL_SETTING,
                 ShardSizesCollector.PUSH_DELTA_THRESHOLD_SETTING
             )
@@ -240,7 +241,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         service.doStart();
         clusterSettings.applySettings(
             Settings.builder()
-                .put(ShardSizesCollector.BOOST_WINDOW_SETTING.getKey(), TimeValue.timeValueDays(14))
+                .put(ServerlessSharedSettings.BOOST_WINDOW_SETTING.getKey(), TimeValue.timeValueDays(14))
                 .put(ShardSizesCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(250))
                 .put(ShardSizesCollector.PUSH_DELTA_THRESHOLD_SETTING.getKey(), ByteSizeValue.ofKb(10))
                 .build()

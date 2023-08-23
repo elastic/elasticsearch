@@ -63,7 +63,7 @@ public final class SecurityNetty4HeaderSizeLimitTests extends ESTestCase {
         .put(RemoteClusterPortSettings.PORT.getKey(), 0)
         .put(TransportSettings.BIND_HOST.getKey(), "127.0.0.1")
         .put(TransportSettings.PORT.getKey(), 0)
-        .put(RemoteClusterPortSettings.MAX_HEADER_SIZE.getKey(), maxHeaderSize + "b")
+        .put(RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.getKey(), maxHeaderSize + "b")
         .put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), "false")
         .put(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED.getKey(), "false")
         .put(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_ENABLED.getKey(), "false")

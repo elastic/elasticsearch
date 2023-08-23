@@ -155,7 +155,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
             getStatsTracker(),
             threadPool::relativeTimeInMillis,
             isRemoteClusterChannel
-                ? new InboundDecoder(recycler, RemoteClusterPortSettings.MAX_HEADER_SIZE.get(settings))
+                ? new InboundDecoder(recycler, RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.get(settings))
                 : new InboundDecoder(recycler),
             new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
             this::inboundMessage

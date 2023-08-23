@@ -131,9 +131,9 @@ public class RemoteClusterPortSettings {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<ByteSizeValue> MAX_HEADER_SIZE = Setting.byteSizeSetting(
-        REMOTE_CLUSTER_PREFIX + "max_header_size",
-        new ByteSizeValue(64, ByteSizeUnit.KB),
+    public static final Setting<ByteSizeValue> MAX_REQUEST_HEADER_SIZE = Setting.byteSizeSetting(
+        REMOTE_CLUSTER_PREFIX + "max_request_header_size",
+        new ByteSizeValue(64, ByteSizeUnit.KB), // should cover typical querying user/key authn serialized to the fulfilling cluster
         new ByteSizeValue(64, ByteSizeUnit.BYTES), // toBytes must be higher than fixed header length
         new ByteSizeValue(2, ByteSizeUnit.GB), // toBytes must be lower than INT_MAX (>2 GB)
         Setting.Property.NodeScope

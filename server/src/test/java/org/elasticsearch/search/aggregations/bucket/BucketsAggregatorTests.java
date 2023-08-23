@@ -59,7 +59,7 @@ public class BucketsAggregatorTests extends AggregatorTestCase {
             }
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+                IndexSearcher indexSearcher = newSearcher(indexReader);
 
                 AggregationContext context = createAggregationContext(
                     indexSearcher,

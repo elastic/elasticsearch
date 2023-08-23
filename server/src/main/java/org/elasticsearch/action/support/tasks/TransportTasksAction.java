@@ -317,6 +317,11 @@ public abstract class TransportTasksAction<
         public boolean hasReferences() {
             return tasksRequest.hasReferences();
         }
+
+        @Override
+        public String toString() {
+            return "[" + transportNodeAction + "][" + tasksRequest + "]";
+        }
     }
 
     private class NodeTasksResponse extends TransportResponse {

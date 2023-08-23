@@ -80,6 +80,9 @@ Valid columns are:
 `store`, `sto`::
 (Default) Disk space used by the shard, such as `5kb`.
 
+`dataset.size`::
+(Default) Disk space used by the shard's dataset, which may or may not be the size on disk, but includes space used by the shard on object storage. Reported as a size value such as `5kb`.
+
 `ip`::
 (Default) IP address of the node, such as `127.0.1.1`.
 

@@ -70,8 +70,8 @@ have <<doc-values,doc values>> enabled. Cannot be a nested field.
 +
 NOTE: Vector tiles do not natively support geometry collections. For
 `geometrycollection` values in a `geo_shape` field, the API returns a `hits`
-layer feature for each element of the collection. This behavior may change may
-change in a future release.
+layer feature for each element of the collection.
+This behavior may change in a future release.
 
 `<zoom>`::
 (Required, integer) Zoom level for the vector tile to search. Accepts `0`-`29`.

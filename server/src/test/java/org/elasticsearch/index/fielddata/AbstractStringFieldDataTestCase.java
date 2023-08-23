@@ -254,7 +254,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
 
         final IndexFieldData<?> indexFieldData = getForField("value");
         final String missingValue = values[1];
-        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
+        IndexSearcher searcher = newIndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(missingValue, MultiValueMode.MIN, null, reverse);
         TopFieldDocs topDocs = searcher.search(
             new MatchAllDocsQuery(),
@@ -312,7 +312,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             }
         }
         final IndexFieldData<?> indexFieldData = getForField("value");
-        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
+        IndexSearcher searcher = newIndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(first ? "_first" : "_last", MultiValueMode.MIN, null, reverse);
         TopFieldDocs topDocs = searcher.search(
             new MatchAllDocsQuery(),
@@ -387,7 +387,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         }
         DirectoryReader directoryReader = DirectoryReader.open(writer);
         directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexService.index(), 0));
-        IndexSearcher searcher = new IndexSearcher(directoryReader);
+        IndexSearcher searcher = newIndexSearcher(directoryReader);
         IndexFieldData<?> fieldData = getForField("text");
         final Object missingValue = switch (randomInt(4)) {
             case 0 -> "_first";

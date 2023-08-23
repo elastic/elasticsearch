@@ -17,31 +17,31 @@ import org.elasticsearch.xpack.ql.QlServerException;
 public class EsqlUnsupportedOperationException extends QlServerException {
     public EsqlUnsupportedOperationException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
-        assert false : message;
+        assert false : new AssertionError(getMessage(), cause);
     }
 
     public EsqlUnsupportedOperationException(String message, Throwable cause) {
         super(message, cause);
-        assert false : message;
+        assert false : new AssertionError(getMessage(), cause);
     }
 
     public EsqlUnsupportedOperationException(String message, Object... args) {
         super(message, args);
-        assert false : message;
+        assert false : new AssertionError(getMessage());
     }
 
     public EsqlUnsupportedOperationException(Throwable cause, String message, Object... args) {
         super(cause, message, args);
-        assert false : message;
+        assert false : new AssertionError(getMessage(), cause);
     }
 
     public EsqlUnsupportedOperationException(String message) {
         super(message);
-        assert false : message;
+        assert false : new AssertionError(getMessage());
     }
 
     public EsqlUnsupportedOperationException(Throwable cause) {
         super(cause);
-        assert false : "unsupported operation caused by: " + cause.getMessage();
+        assert false : new AssertionError("unsupported operation", cause);
     }
 }

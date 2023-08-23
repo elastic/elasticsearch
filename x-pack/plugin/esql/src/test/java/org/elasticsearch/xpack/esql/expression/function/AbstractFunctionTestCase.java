@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -405,6 +406,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected final Supplier<EvalOperator.ExpressionEvaluator> evaluator(Expression e) {
+        e = new FoldNull().rule(e);
         if (e.foldable()) {
             e = new Literal(e.source(), e.fold(), e.dataType());
         }
@@ -445,6 +447,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
         assertFalse("expected resolved", expression.typeResolved().unresolved());
+        expression = new FoldNull().rule(expression);
         assertThat(expression.dataType(), equalTo(testCase.expectedType));
         // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
         Object result = toJavaObject(evaluator(expression).get().eval(row(testCase.getDataValues())), 0);
@@ -522,6 +525,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
         assertFalse(expression.typeResolved().unresolved());
+        expression = new FoldNull().rule(expression);
         assertThat(expression.dataType(), equalTo(testCase.expectedType));
         assertTrue(expression.foldable());
         assertThat(expression.fold(), testCase.getMatcher());
@@ -537,7 +541,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Adds cases with {@code null} and asserts that the result is {@code null}.
      */
-    protected static List<TestCaseSupplier> anyNullIsNull(List<TestCaseSupplier> testCaseSuppliers) {
+    protected static List<TestCaseSupplier> anyNullIsNull(boolean entirelyNullPreservesType, List<TestCaseSupplier> testCaseSuppliers) {
         for (TestCaseSupplier s : testCaseSuppliers) {
             if (s.types == null) {
                 throw new IllegalArgumentException("types required");
@@ -583,17 +587,27 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     List<DataType> typesWithNull = IntStream.range(0, original.types.size())
                         .mapToObj(i -> i == finalNullPosition ? DataTypes.NULL : original.types.get(i))
                         .toList();
-                    suppliers.add(new TestCaseSupplier(typesWithNull, () -> {
-                        TestCase oc = original.get();
-                        List<TypedData> data = IntStream.range(0, oc.data.size()).mapToObj(i -> {
-                            TypedData od = oc.data.get(i);
-                            if (i == finalNullPosition) {
-                                return new TypedData(null, DataTypes.NULL, od.name);
-                            }
-                            return od;
-                        }).toList();
-                        return new TestCase(data, "ConstantNull", DataTypes.NULL, nullValue(), oc.expectedWarnings, oc.expectedTypeError);
-                    }));
+                    boolean newSignature = uniqueSignatures.add(typesWithNull);
+                    if (newSignature) {
+                        suppliers.add(new TestCaseSupplier(typesWithNull, () -> {
+                            TestCase oc = original.get();
+                            List<TypedData> data = IntStream.range(0, oc.data.size()).mapToObj(i -> {
+                                TypedData od = oc.data.get(i);
+                                if (i == finalNullPosition) {
+                                    return new TypedData(null, DataTypes.NULL, od.name);
+                                }
+                                return od;
+                            }).toList();
+                            return new TestCase(
+                                data,
+                                "LiteralsEvaluator[block=null]",
+                                entirelyNullPreservesType == false && oc.data.size() == 1 ? DataTypes.NULL : oc.expectedType,
+                                nullValue(),
+                                oc.expectedWarnings,
+                                oc.expectedTypeError
+                            );
+                        }));
+                    }
                 }
             }
         }

@@ -57,9 +57,6 @@ public class Atan2 extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public DataType dataType() {
-        if (y.dataType() == DataTypes.NULL || x.dataType() == DataTypes.NULL) {
-            return DataTypes.NULL;
-        }
         return DataTypes.DOUBLE;
     }
 
@@ -85,9 +82,6 @@ public class Atan2 extends ScalarFunction implements EvaluatorMapper {
     public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
         Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
     ) {
-        if (y.dataType() == DataTypes.NULL || x.dataType() == DataTypes.NULL) {
-            return () -> EvalOperator.CONSTANT_NULL;
-        }
         Supplier<EvalOperator.ExpressionEvaluator> yEval = Cast.cast(y.dataType(), DataTypes.DOUBLE, toEvaluator.apply(y));
         Supplier<EvalOperator.ExpressionEvaluator> xEval = Cast.cast(x.dataType(), DataTypes.DOUBLE, toEvaluator.apply(x));
         return () -> new Atan2Evaluator(yEval.get(), xEval.get());

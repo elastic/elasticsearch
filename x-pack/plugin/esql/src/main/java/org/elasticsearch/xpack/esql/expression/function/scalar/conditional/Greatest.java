@@ -61,11 +61,7 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
 
         for (int position = 0; position < children().size(); position++) {
             Expression child = children().get(position);
-            if (child.dataType() == DataTypes.NULL) {
-                dataType = DataTypes.NULL;
-                break;
-            }
-            if (dataType == null) {
+            if (dataType == null || dataType == NULL) {
                 dataType = child.dataType();
                 continue;
             }
@@ -133,9 +129,6 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
             return () -> new GreatestLongEvaluator(
                 suppliers.get().map(MvMaxLongEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
             );
-        }
-        if (dataType == NULL) {
-            return () -> EvalOperator.CONSTANT_NULL;
         }
         if (dataType == DataTypes.KEYWORD
             || dataType == DataTypes.TEXT

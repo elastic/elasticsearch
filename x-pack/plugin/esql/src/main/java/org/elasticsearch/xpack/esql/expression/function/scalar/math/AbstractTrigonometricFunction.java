@@ -35,9 +35,6 @@ abstract class AbstractTrigonometricFunction extends UnaryScalarFunction impleme
     public final Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
         Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
     ) {
-        if (field.dataType() == DataTypes.NULL) {
-            return () -> EvalOperator.CONSTANT_NULL;
-        }
         Supplier<EvalOperator.ExpressionEvaluator> fieldEval = Cast.cast(field().dataType(), DataTypes.DOUBLE, toEvaluator.apply(field()));
         return () -> doubleEvaluator(fieldEval.get());
     }
@@ -58,9 +55,6 @@ abstract class AbstractTrigonometricFunction extends UnaryScalarFunction impleme
 
     @Override
     public final DataType dataType() {
-        if (field.dataType() == DataTypes.NULL) {
-            return DataTypes.NULL;
-        }
         return DataTypes.DOUBLE;
     }
 }

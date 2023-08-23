@@ -54,7 +54,7 @@ public class GreatestTests extends AbstractFunctionTestCase {
                 )
             )
         );
-        return parameterSuppliersFromTypedData(anyNullIsNull(suppliers));
+        return parameterSuppliersFromTypedData(anyNullIsNull(false, suppliers));
     }
 
     @Override

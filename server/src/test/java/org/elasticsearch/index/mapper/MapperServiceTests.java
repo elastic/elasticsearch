@@ -1037,78 +1037,79 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("Tried to add subobject [child] to object [parent] which does not support subobjects"));
     }
 
-//    public void testMultipleTypeMerges() throws IOException {
-//        CompressedXContent mapping1 = new CompressedXContent("""
-//            {
-//                                    "properties" : {
-//                                        "parent": {
-//                                                                  "properties": {
-//                                                                    "child": {
-//                                                                      "type": "object",
-//                                                                      "properties": {
-//                                                                        "grandchild1": {
-//                                                                          "type": "keyword"
-//                                                                        },
-//                                                                        "grandchild2": {
-//                                                                          "type": "date"
-//                                                                        }
-//                                                                      }
-//                    }
-//                  }
-//                }
-//              }
-//            }""");
-//
-//        CompressedXContent mapping2 = new CompressedXContent("""
-//            {
-//                                                              "properties" : {
-//                                                                "parent": {
-//                                                                  "type": "object",
-//                                                                  "properties": {
-//                                                                    "child": {
-//                                                                      "type": "nested",
-//                                                                      "properties": {
-//                                                                        "grandchild1": {
-//                                                                          "type": "text"
-//                                                                        },
-//                                                                        "grandchild3": {
-//                                                                          "type": "text"
-//                                                                        }
-//                                                                      }
-//                    }
-//                  }
-//                }
-//              }
-//            }""");
-//
-//        final MapperService mapperService = createMapperService(mapping(b -> {
-//        }));
-//        mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
-//
-//        assertEquals("""
-//            {
-//              "_doc" : {
-//                "properties" : {
-//                                                                  "parent" : {
-//                                                                    "properties" : {
-//                                                                      "child" : {
-//                                                                        "type" : "nested",
-//                                                                        "properties" : {
-//                                                                          "grandchild1" : {
-//                                                                            "type" : "text"
-//                                                                          },
-//                                                                          "grandchild2" : {
-//                                                                            "type" : "date"
-//                                                                          },
-//                                                                          "grandchild3" : {
-//                                                                            "type" : "text"
-//                                                                          }
-//                                                                        }
-//                      }
-//                    }
-//                  }
-//                }
-//              }
-//            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
-//    }
+    public void testMultipleTypeMerges() throws IOException {
+        CompressedXContent mapping1 = new CompressedXContent("""
+                {
+                  "properties" : {
+                    "parent": {
+                      "type": "object",
+                      "properties": {
+                        "child": {
+                          "type": "object",
+                          "properties": {
+                            "grandchild1": {
+                              "type": "keyword"
+                            },
+                            "grandchild2": {
+                              "type": "date"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }""");
+
+        CompressedXContent mapping2 = new CompressedXContent("""
+                {
+                  "properties" : {
+                    "parent": {
+                      "type": "object",
+                      "properties": {
+                        "child": {
+                          "type": "nested",
+                          "properties": {
+                            "grandchild1": {
+                              "type": "text"
+                            },
+                            "grandchild3": {
+                              "type": "text"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }""");
+
+        final MapperService mapperService = createMapperService(mapping(b -> {
+        }));
+        mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
+
+        assertEquals("""
+                {
+                  "_doc" : {
+                    "properties" : {
+                      "parent" : {
+                        "properties" : {
+                          "child" : {
+                            "type" : "nested",
+                            "properties" : {
+                              "grandchild1" : {
+                                "type" : "text"
+                              },
+                              "grandchild2" : {
+                                "type" : "date"
+                              },
+                              "grandchild3" : {
+                                "type" : "text"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+    }
 }

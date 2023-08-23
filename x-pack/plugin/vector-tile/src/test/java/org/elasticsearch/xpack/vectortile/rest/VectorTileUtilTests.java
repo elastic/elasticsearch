@@ -46,7 +46,7 @@ public class VectorTileUtilTests extends ESTestCase {
         // string
         VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, "string", "7");
         assertPropertyToFeature(layerProps, featureBuilder, 8);
-        // map are ignored
+        // maps are ignored
         VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, "parent", Map.of("child", "8"));
         assertPropertyToFeature(layerProps, featureBuilder, 8);
         // invalid

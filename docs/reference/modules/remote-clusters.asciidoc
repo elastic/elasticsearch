@@ -30,7 +30,14 @@ capabilities, the local and remote cluster must be on the same
 [discrete]
 === Add remote clusters
 
-To add remote clusters, you can choose between two security models:
+To add remote clusters, you can choose between
+<<remote-clusters-security-models,two security models>> and
+<<sniff-proxy-modes,two connection modes>>. Both security models are compatible
+with either of the connection modes.
+
+[[remote-clusters-security-models]]
+[discrete]
+==== Security models
 
 API key based security model::
 beta:[]
@@ -47,44 +54,37 @@ the same security domain. <<remote-clusters-cert>>.
 
 [[sniff-proxy-modes]]
 [discrete]
-=== Sniff and proxy mode
-
-Remote clusters can be added using either sniff mode or proxy mode.
+==== Connection modes
 
 [[sniff-mode]]
-[discrete]
-==== Sniff mode
-
+Sniff mode::
 In sniff mode, a cluster is created using a name and a list of seed nodes. When
 a remote cluster is registered, its cluster state is retrieved from one of the
 seed nodes and up to three _gateway nodes_ are selected as part of remote
 cluster requests. This mode requires that the gateway node's publish addresses
 are accessible by the local cluster.
-
++
 Sniff mode is the default connection mode.
-
++
 [[gateway-nodes-selection]]
 The _gateway nodes_ selection depends on the following criteria:
-
++
 * *version*: Remote nodes must be compatible with the cluster they are
 registered to.
-
 * *role*: By default, any non-<<master-node,master-eligible>> node can act as a
 gateway node. Dedicated master nodes are never selected as gateway nodes.
-
 * *attributes*: You can define the gateway nodes for a cluster by setting
 <<cluster-remote-node-attr,`cluster.remote.node.attr.gateway`>> to `true`.
 However, such nodes still have to satisfy the two above requirements.
 
 [[proxy-mode]]
-[discrete]
-==== Proxy mode
+Proxy mode::
 In proxy mode, a cluster is created using a name and a single proxy address.
 When you register a remote cluster, a configurable number of socket connections
 are opened to the proxy address. The proxy is required to route those
 connections to the remote cluster. Proxy mode does not require remote cluster
 nodes to have accessible publish addresses.
-
++
 The proxy mode is not the default connection mode and must be configured.
 Proxy mode has the same <<gateway-nodes-selection, version compatibility
 requirements>> as sniff mode.

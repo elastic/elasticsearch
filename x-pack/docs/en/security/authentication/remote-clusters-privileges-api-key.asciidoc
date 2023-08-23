@@ -1,15 +1,13 @@
 [[remote-clusters-privileges-api-key]]
 === Configure roles and users
 
-// TODO: link "remote indices privileges"  to page that describes remote indices privileges
-
 To use a remote cluster for {ccr} or {ccs}, you need to create user roles with
-remote indices privileges on the local cluster.
+<<roles-remote-indices-priv,remote indices privileges>> on the local cluster.
 
 You can manage users and roles from Stack Management in {kib} by selecting
 *Security > Roles* from the side navigation. You can also use the
-<<security-role-mapping-apis,role management APIs>> to add, update, remove, and
-retrieve roles dynamically.
+<<security-role-apis,role management APIs>> to add, update, remove, and retrieve
+roles dynamically.
 
 The following examples use the <<security-api-put-role>> API. You must have at
 least the `manage_security` cluster privilege to use this API.

@@ -87,17 +87,25 @@ cluster with the cluster alias `cluster_one`:
     "max_connections_per_cluster" : 3,
     "initial_connect_timeout" : "30s",
     "skip_unavailable" : false, <2>
+ifeval::["{trust-mechanism}"=="api-key"]
+    "cluster_credentials": "::es_redacted::", <3>
+endif::[]
     "mode" : "sniff"
   }
 }
 ----
 // TESTRESPONSE[s/127.0.0.1:\{remote-interface-default-port\}/$body.cluster_one.seeds.0/]
+// TESTRESPONSE[s/ifeval::(.|\n)*endif::\[\]//]
 // TEST[s/"connected" : true/"connected" : $body.cluster_one.connected/]
 // TEST[s/"num_nodes_connected" : 1/"num_nodes_connected" : $body.cluster_one.num_nodes_connected/]
 <1> The number of nodes in the remote cluster the local cluster is
 connected to.
 <2> Indicates whether to skip the remote cluster if searched through {ccs} but
 no nodes are available.
+ifeval::["{trust-mechanism}"=="api-key"]
+<3> If present, indicates the remote cluster has connected using API key 
+authentication.
+endif::[]
 
 ===== Dynamically configure remote clusters
 Use the <<cluster-update-settings,cluster update settings API>> to dynamically

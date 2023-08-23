@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -100,10 +101,15 @@ public class JwkValidateUtil {
                 return isMatch;
             }
         } catch (Exception e) {
-            logger.debug(
-                () -> format("Unexpected exception while matching JWK with kid [%s] to it's algorithm requirement.", jwk.getKeyID()),
-                e
+            Supplier<String> message = () -> format(
+                "Unexpected exception while matching JWK with kid [%s] to it's algorithm requirement.",
+                jwk.getKeyID()
             );
+            if (logger.isTraceEnabled()) {
+                logger.trace(message, e);
+            } else {
+                logger.debug(message);
+            }
         }
         return false;
     }

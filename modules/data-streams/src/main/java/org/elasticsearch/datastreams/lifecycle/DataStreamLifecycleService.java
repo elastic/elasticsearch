@@ -351,6 +351,21 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
     }
 
+    /**
+     * Data stream lifecycle supports configuring multiple rounds of downsampling for each managed index. When attempting to execute
+     * downsampling we iterate through the ordered rounds of downsampling that match an index (ordered ascending according to the `after`
+     * configuration) and try to figure out:
+     * - if we started downsampling for an earlier round and is in progress, in which case we need to wait for it to complete
+     * - if we started downsampling for an earlier round and it's finished but the downsampling index is not part of the data stream, in
+     * which case we need to replace the backing index with the downsampling index and delete the backing index
+     * - if we don't have any early rounds started or to add to the data stream, start downsampling the last matching round
+     *
+     * Note that the first time an index has a matching downsampling round we first mark it as read-only.
+     *
+     * Returns a set of indices that now have in-flight operations triggered by downsampling (it could be marking them as read-only,
+     * replacing an index in the data stream, deleting a source index, or downsampling itself) so these indices can be skipped in case
+     * there are other operations to be executed by the data stream lifecycle after downsampling.
+     */
     Set<Index> maybeExecuteDownsampling(ClusterState state, DataStream dataStream, List<Index> targetIndices) {
         Set<Index> affectedIndices = new HashSet<>();
         Metadata metadata = state.metadata();
@@ -373,7 +388,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             // if the current index is not a downsample we want to mark the index as read-only before proceeding with downsampling
             if (org.elasticsearch.common.Strings.hasText(backingIndexDownsamplingSource) == false
                 && state.blocks().indexBlocked(ClusterBlockLevel.WRITE, indexName) == false) {
-                // time to downsample, but first we have to mark the index as read-only
                 affectedIndices.add(index);
                 addIndexBlockOnce(indexName);
                 continue;
@@ -383,6 +397,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     Map<String, String> lifecycleMetadata = backingIndex.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
                     if (lifecycleMetadata == null || lifecycleMetadata.containsKey(REPLACEMENT_SOURCE_INDEX) == false) {
                         // this is a downsampling index that was not added by data stream lifecycle in this data stream
+                        // TODO document that we don't handle downsample indices that were added to the data stream manually (because we
+                        // TODO currently can't reliably identify the source index to delete when multiple rounds of donwsampling are
+                        // TODO involved unless DSL stores the needed metadata in the index metadata)
                         continue;
                     }
                     String actualDownsamplingSource = lifecycleMetadata.get(REPLACEMENT_SOURCE_INDEX);
@@ -406,6 +423,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         return affectedIndices;
     }
 
+    /**
+     * Iterate over the matching downsampling rounds for the backing index (if any) and either wait for an early round to complete,
+     * add an early completed downsampling round to the data stream, or otherwise trigger the last matching downsampling round.
+     */
     private Set<Index> checkEarlyRoundsForMaintenanceOrDownsampleLastRound(
         DataStream dataStream,
         IndexMetadata backingIndex,
@@ -481,6 +502,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         return affectedIndices;
     }
 
+    /**
+     * Issues a request to replace the backing index with the downsample index through the cluster state changes deduplicator.
+     */
     private void replaceBackingIndexWithDownsampleIndexOnce(DataStream dataStream, String backingIndexName, String downsampleIndexName) {
         clusterStateChangesDeduplicator.executeOnce(
             new ReplaceSourceWithDownsampleIndexTask(dataStream.getName(), backingIndexName, downsampleIndexName, null),
@@ -492,6 +516,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         );
     }
 
+    /**
+     * Issues a request to delete the provided index through the transport action deduplicator.
+     */
     private void deleteIndexOnce(String indexName, String reason) {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE);
         transportActionsDeduplicator.executeOnce(
@@ -501,6 +528,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         );
     }
 
+    /**
+     * Issues a request to add a WRITE index block for the provided index through the transport action deduplicator.
+     */
     private void addIndexBlockOnce(String indexName) {
         AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(TimeValue.MAX_VALUE);
         transportActionsDeduplicator.executeOnce(

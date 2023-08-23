@@ -842,8 +842,66 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this(clusterAlias, indexExpression, skipUnavailable, status, null, null, null, null, failures, null, false);
         }
 
+        public Cluster(
+            String clusterAlias,
+            String indexExpression,
+            boolean skipUnavailable,
+            Status status,
+            Integer totalShards,
+            Integer successfulShards,
+            Integer skippedShards,
+            Integer failedShards,
+            List<ShardSearchFailure> failures,
+            TimeValue took,
+            boolean timedOut
+        ) {
+            assert clusterAlias != null : "clusterAlias cannot be null";
+            assert indexExpression != null : "indexExpression of Cluster cannot be null";
+            assert status != null : "status of Cluster cannot be null";
+            this.clusterAlias = clusterAlias;
+            this.indexExpression = indexExpression;
+            this.skipUnavailable = skipUnavailable;
+            this.status = status;
+            this.totalShards = totalShards;
+            this.successfulShards = successfulShards;
+            this.skippedShards = skippedShards;
+            this.failedShards = failedShards;
+            this.failures = failures == null ? Collections.emptyList() : Collections.unmodifiableList(failures);
+            this.took = took;
+            this.timedOut = timedOut;
+        }
+
+        public Cluster(StreamInput in) throws IOException {
+            this.clusterAlias = in.readString();
+            this.indexExpression = in.readString();
+            this.status = Status.valueOf(in.readString().toUpperCase(Locale.ROOT));
+            this.totalShards = in.readOptionalInt();
+            this.successfulShards = in.readOptionalInt();
+            this.skippedShards = in.readOptionalInt();
+            this.failedShards = in.readOptionalInt();
+            Long took = in.readOptionalLong();
+            if (took == null) {
+                this.took = null;
+            } else {
+                this.took = new TimeValue(took);
+            }
+            this.timedOut = in.readBoolean();
+            this.failures = Collections.unmodifiableList(in.readList(ShardSearchFailure::readShardSearchFailure));
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_066)) {
+                this.skipUnavailable = in.readBoolean();
+            } else {
+                this.skipUnavailable = SKIP_UNAVAILABLE_DEFAULT;
+            }
+        }
+
         /**
-         * TODO: DOCUMENT ME
+         * Since the Cluster object is immutable, use this Builder class to create
+         * a new Cluster object using the "copyFrom" Cluster passed in and set only
+         * changed values.
+         *
+         * Since the clusterAlias, indexExpression and skipUnavailable fields are
+         * never changed once set, this Builder provides no setter method for them.
+         * All other fields can be set and override the value in the "copyFrom" Cluster.
          */
         public static class Builder {
             private Status status;
@@ -860,6 +918,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 this.original = copyFrom;
             }
 
+            /**
+             * @return new Cluster object using the new values passed in via setters
+             *         or the values in the "copyFrom" Cluster object set in the
+             *         Builder constructor.
+             */
             public Cluster build() {
                 return new Cluster(
                     original.getClusterAlias(),
@@ -914,58 +977,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             public Builder setTimedOut(Boolean timedOut) {
                 this.timedOut = timedOut;
                 return this;
-            }
-        }
-
-        public Cluster(
-            String clusterAlias,
-            String indexExpression,
-            boolean skipUnavailable,
-            Status status,
-            Integer totalShards,
-            Integer successfulShards,
-            Integer skippedShards,
-            Integer failedShards,
-            List<ShardSearchFailure> failures,
-            TimeValue took,
-            boolean timedOut
-        ) {
-            assert clusterAlias != null : "clusterAlias cannot be null";
-            assert indexExpression != null : "indexExpression of Cluster cannot be null";
-            assert status != null : "status of Cluster cannot be null";
-            this.clusterAlias = clusterAlias;
-            this.indexExpression = indexExpression;
-            this.skipUnavailable = skipUnavailable;
-            this.status = status;
-            this.totalShards = totalShards;
-            this.successfulShards = successfulShards;
-            this.skippedShards = skippedShards;
-            this.failedShards = failedShards;
-            this.failures = failures == null ? Collections.emptyList() : Collections.unmodifiableList(failures);
-            this.took = took;
-            this.timedOut = timedOut;
-        }
-
-        public Cluster(StreamInput in) throws IOException {
-            this.clusterAlias = in.readString();
-            this.indexExpression = in.readString();
-            this.status = Status.valueOf(in.readString().toUpperCase(Locale.ROOT));
-            this.totalShards = in.readOptionalInt();
-            this.successfulShards = in.readOptionalInt();
-            this.skippedShards = in.readOptionalInt();
-            this.failedShards = in.readOptionalInt();
-            Long took = in.readOptionalLong();
-            if (took == null) {
-                this.took = null;
-            } else {
-                this.took = new TimeValue(took);
-            }
-            this.timedOut = in.readBoolean();
-            this.failures = Collections.unmodifiableList(in.readList(ShardSearchFailure::readShardSearchFailure));
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_067)) {
-                this.skipUnavailable = in.readBoolean();
-            } else {
-                this.skipUnavailable = SKIP_UNAVAILABLE_DEFAULT;
             }
         }
 

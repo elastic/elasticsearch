@@ -817,7 +817,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                     ch.writeInbound(buf);
                     ch.flushInbound();
                 }).get();
-                assertThat(dispatchThrowableReference.get().toString(), containsString("a header value contains prohibited character"));
+                assertThat(dispatchThrowableReference.get().toString(), containsString("Validation failed for header 'Host'"));
                 assertThat(badDispatchInvocationCount.get(), is(5));
                 assertThat(authnInvocationCount.get(), is(0));
             }

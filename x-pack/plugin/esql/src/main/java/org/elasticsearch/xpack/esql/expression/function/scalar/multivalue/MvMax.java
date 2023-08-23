@@ -44,7 +44,7 @@ public class MvMax extends AbstractMultivalueFunction {
             case INT -> () -> new MvMaxIntEvaluator(fieldEval.get());
             case LONG -> () -> new MvMaxLongEvaluator(fieldEval.get());
             case NULL -> () -> EvalOperator.CONSTANT_NULL;
-            default -> throw ExceptionUtils.deadCode(ExceptionUtils.unsupportedDataType(field().dataType()));
+            default -> throw ExceptionUtils.unsupportedDataType(field().dataType());
         };
     }
 

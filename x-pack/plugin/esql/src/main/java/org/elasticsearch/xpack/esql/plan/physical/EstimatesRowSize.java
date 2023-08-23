@@ -11,7 +11,6 @@ import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.util.ExceptionUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -113,14 +112,12 @@ public interface EstimatesRowSize {
                 }
                 yield 50; // wild estimate for the size of a string.
             }
-            case DOC -> throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("can't load a [doc] with field extraction"));
+            case DOC -> throw new EsqlUnsupportedOperationException("can't load a [doc] with field extraction");
             case DOUBLE -> Double.BYTES;
             case INT -> Integer.BYTES;
             case LONG -> Long.BYTES;
             case NULL -> 0;
-            case UNKNOWN -> throw ExceptionUtils.deadCode(
-                new EsqlUnsupportedOperationException("[unknown] can't be the result of field extraction")
-            );
+            case UNKNOWN -> throw new EsqlUnsupportedOperationException("[unknown] can't be the result of field extraction");
         };
     }
 }

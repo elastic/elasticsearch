@@ -71,7 +71,7 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
         if (type == DataTypes.DOUBLE) {
             return doubleSupplier(bigArrays, inputChannels);
         }
-        throw ExceptionUtils.deadCode(ExceptionUtils.unsupportedDataType(type));
+        throw ExceptionUtils.unsupportedDataType(type);
     }
 
     protected abstract AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels);

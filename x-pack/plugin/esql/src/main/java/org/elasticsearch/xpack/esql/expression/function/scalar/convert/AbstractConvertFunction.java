@@ -44,7 +44,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
         DataType sourceType = field().dataType();
         var evaluator = evaluators().get(sourceType);
         if (evaluator == null) {
-            throw ExceptionUtils.deadCode(ExceptionUtils.unsupportedDataType(sourceType));
+            throw ExceptionUtils.unsupportedDataType(sourceType);
         }
         return () -> evaluator.apply(fieldEval.get(), source());
     }

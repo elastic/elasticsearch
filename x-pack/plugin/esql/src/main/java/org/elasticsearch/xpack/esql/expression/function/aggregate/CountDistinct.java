@@ -87,6 +87,6 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         if (type == DataTypes.KEYWORD || type == DataTypes.IP) {
             return new CountDistinctBytesRefAggregatorFunctionSupplier(bigArrays, inputChannels, precision);
         }
-        throw ExceptionUtils.deadCode(ExceptionUtils.unsupportedDataType(type));
+        throw ExceptionUtils.unsupportedDataType(type);
     }
 }

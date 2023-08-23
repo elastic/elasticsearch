@@ -65,16 +65,4 @@ public class ExceptionUtils {
     public static EsqlUnsupportedOperationException unsupportedDataType(String dataTypeName) {
         return new EsqlUnsupportedOperationException("unsupported data type [" + dataTypeName + "]");
     }
-
-    /**
-     * For code sections that should never be reached. Results in an error if assertions are enabled, otherwise just returns the given
-     * exception, so it can be thrown. Use this so that reaching unreachable code leads to errors during tests but does not crash the server
-     * in production.
-     * @param e the exception to throw if this is reached with disabled assertions
-     * @return the same exception obtained as argument
-     */
-    public static RuntimeException deadCode(RuntimeException e) {
-        assert false : e.getMessage();
-        return e;
-    }
 }

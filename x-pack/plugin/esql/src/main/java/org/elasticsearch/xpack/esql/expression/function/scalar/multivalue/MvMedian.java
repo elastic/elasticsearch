@@ -51,7 +51,7 @@ public class MvMedian extends AbstractMultivalueFunction {
             case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
                 ? () -> new MvMedianUnsignedLongEvaluator(fieldEval.get())
                 : () -> new MvMedianLongEvaluator(fieldEval.get());
-            default -> throw ExceptionUtils.deadCode(ExceptionUtils.unsupportedDataType(field().dataType()));
+            default -> throw ExceptionUtils.unsupportedDataType(field().dataType());
         };
     }
 

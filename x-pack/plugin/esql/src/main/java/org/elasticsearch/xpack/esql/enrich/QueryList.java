@@ -19,7 +19,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
-import org.elasticsearch.xpack.esql.util.ExceptionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -98,8 +97,8 @@ abstract class QueryList {
                 yield longBlock::getLong;
             }
             case NULL -> offset -> null;
-            case DOC -> throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("can't read values from [doc] block"));
-            case UNKNOWN -> throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("can't read values from [" + block + "]"));
+            case DOC -> throw new EsqlUnsupportedOperationException("can't read values from [doc] block");
+            case UNKNOWN -> throw new EsqlUnsupportedOperationException("can't read values from [" + block + "]");
         };
     }
 }

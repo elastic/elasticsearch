@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.util.ExceptionUtils;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -113,7 +112,7 @@ public class AggregateMapper {
             // This condition is a little pedantic, but do we expected other expressions here? if so, then add them
             return List.of();
         } else {
-            throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("unknown: " + aggregate.getClass() + ": " + aggregate));
+            throw new EsqlUnsupportedOperationException("unknown: " + aggregate.getClass() + ": " + aggregate);
         }
     }
 
@@ -203,7 +202,7 @@ public class AggregateMapper {
             case INT -> DataTypes.INTEGER;
             case LONG -> DataTypes.LONG;
             case DOUBLE -> DataTypes.DOUBLE;
-            default -> throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("unsupported agg type: " + elementType));
+            default -> throw new EsqlUnsupportedOperationException("unsupported agg type: " + elementType);
         };
     }
 
@@ -223,7 +222,7 @@ public class AggregateMapper {
         } else if (type.equals(DataTypes.KEYWORD) || type.equals(DataTypes.IP)) {
             return "BytesRef";
         } else {
-            throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("unsupported agg type: " + type));
+            throw new EsqlUnsupportedOperationException("unsupported agg type: " + type);
         }
     }
 

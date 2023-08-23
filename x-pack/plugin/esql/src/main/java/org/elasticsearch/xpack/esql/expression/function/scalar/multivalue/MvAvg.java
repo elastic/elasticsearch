@@ -52,7 +52,7 @@ public class MvAvg extends AbstractMultivalueFunction {
                 ? () -> new MvAvgUnsignedLongEvaluator(fieldEval.get())
                 : () -> new MvAvgLongEvaluator(fieldEval.get());
             case NULL -> () -> EvalOperator.CONSTANT_NULL;
-            default -> throw ExceptionUtils.deadCode(ExceptionUtils.unsupportedDataType(field().dataType()));
+            default -> throw ExceptionUtils.unsupportedDataType(field().dataType());
         };
     }
 

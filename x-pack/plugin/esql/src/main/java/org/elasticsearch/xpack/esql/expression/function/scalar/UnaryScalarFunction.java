@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
-import org.elasticsearch.xpack.esql.util.ExceptionUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -68,6 +67,6 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
 
     @Override
     public final ScriptTemplate asScript() {
-        throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("functions do not support scripting"));
+        throw new EsqlUnsupportedOperationException("functions do not support scripting");
     }
 }

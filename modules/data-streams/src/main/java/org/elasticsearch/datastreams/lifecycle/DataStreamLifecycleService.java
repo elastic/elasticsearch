@@ -812,19 +812,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private void downsampleIndex(DownsampleAction.Request request, ActionListener<Void> listener) {
         String sourceIndex = request.getSourceIndex();
         String downsampleIndex = request.getTargetIndex();
-        logger.info(
-            "Data stream lifecycle issuing request to downsample index [{}] to index [{}]",
-            sourceIndex,
-            downsampleIndex
-        );
+        logger.info("Data stream lifecycle issuing request to downsample index [{}] to index [{}]", sourceIndex, downsampleIndex);
         client.execute(DownsampleAction.INSTANCE, request, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                logger.info(
-                    "Data stream lifecycle successfully downsampled index [{}] to index [{}]",
-                    sourceIndex,
-                    downsampleIndex
-                );
+                logger.info("Data stream lifecycle successfully downsampled index [{}] to index [{}]", sourceIndex, downsampleIndex);
                 listener.onResponse(null);
             }
 

@@ -157,9 +157,6 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
         if (fieldType == DataTypes.UNSIGNED_LONG) {
             return toEvaluator(toEvaluator, Function.identity(), RoundUnsignedLongEvaluator::new);
         }
-        if (fieldType == DataTypes.NULL) {
-            return () -> EvalOperator.CONSTANT_NULL;
-        }
         throw EsqlUnsupportedOperationException.unsupportedDataType(fieldType);
     }
 

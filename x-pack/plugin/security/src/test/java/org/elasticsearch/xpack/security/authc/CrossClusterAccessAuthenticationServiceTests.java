@@ -12,18 +12,22 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -232,6 +236,30 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         final ExecutionException actual = expectThrows(ExecutionException.class, future::get);
         assertThat(actual.getCause(), equalTo(authenticationFailure));
         verifyNoInteractions(auditableRequest);
+    }
+
+    public void testTerminateExceptionBubblesUpWithTryAuthenticate() {
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<ActionListener<AuthenticationResult<User>>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        doAnswer(i -> null).when(apiKeyService)
+            .tryAuthenticate(any(), any(ApiKeyService.ApiKeyCredentials.class), listenerCaptor.capture());
+
+        final CrossClusterAccessAuthenticationService service = new CrossClusterAccessAuthenticationService(
+            clusterService,
+            apiKeyService,
+            authenticationService
+        );
+
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        service.tryAuthenticate(
+            new ApiKeyService.ApiKeyCredentials(UUIDs.randomBase64UUID(), UUIDs.randomBase64UUIDSecureString(), ApiKey.Type.CROSS_CLUSTER),
+            future
+        );
+        Exception ex = new IllegalArgumentException("terminator");
+        listenerCaptor.getValue().onResponse(AuthenticationResult.terminate("authentication failure", ex));
+
+        final ExecutionException actual = expectThrows(ExecutionException.class, future::get);
+        assertThat(actual.getCause(), equalTo(ex));
     }
 
     private static AuthenticationToken credentialsArgMatches(AuthenticationToken credentials) {

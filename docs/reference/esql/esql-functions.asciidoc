@@ -26,9 +26,11 @@ these functions:
 * <<esql-date_trunc>>
 * <<esql-e>>
 * <<esql-floor>>
+* <<esql-greatest>>
 * <<esql-is_finite>>
 * <<esql-is_infinite>>
 * <<esql-is_nan>>
+* <<esql-least>>
 * <<esql-length>>
 * <<esql-log10>>
 * <<esql-ltrim>>
@@ -84,9 +86,11 @@ include::functions/date_parse.asciidoc[]
 include::functions/date_trunc.asciidoc[]
 include::functions/e.asciidoc[]
 include::functions/floor.asciidoc[]
+include::functions/greatest.asciidoc[]
 include::functions/is_finite.asciidoc[]
 include::functions/is_infinite.asciidoc[]
 include::functions/is_nan.asciidoc[]
+include::functions/least.asciidoc[]
 include::functions/length.asciidoc[]
 include::functions/log10.asciidoc[]
 include::functions/ltrim.asciidoc[]

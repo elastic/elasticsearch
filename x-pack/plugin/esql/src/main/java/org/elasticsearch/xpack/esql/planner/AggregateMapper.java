@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
@@ -110,7 +112,7 @@ public class AggregateMapper {
             // This condition is a little pedantic, but do we expected other expressions here? if so, then add them
             return List.of();
         } else {
-            throw new UnsupportedOperationException("unknown: " + aggregate.getClass() + ": " + aggregate);
+            throw new EsqlUnsupportedOperationException("unknown: " + aggregate.getClass() + ": " + aggregate);
         }
     }
 
@@ -118,7 +120,7 @@ public class AggregateMapper {
     private List<IntermediateStateDesc> getNonNull(AggDef aggDef) {
         var l = mapper.get(aggDef);
         if (l == null) {
-            throw new AssertionError("Cannot find intermediate state for: " + aggDef);
+            throw new EsqlIllegalArgumentException("Cannot find intermediate state for: " + aggDef);
         }
         return l;
     }
@@ -156,7 +158,8 @@ public class AggregateMapper {
         try {
             return (List<IntermediateStateDesc>) lookup(aggDef.aggClazz(), aggDef.type(), aggDef.grouping()).invokeExact();
         } catch (Throwable t) {
-            throw new AssertionError(t);
+            // invokeExact forces us to handle any Throwable thrown by lookup.
+            throw new EsqlIllegalArgumentException(t);
         }
     }
 
@@ -170,7 +173,7 @@ public class AggregateMapper {
                     MethodType.methodType(List.class)
                 );
         } catch (IllegalAccessException | NoSuchMethodException | ClassNotFoundException e) {
-            throw new AssertionError(e);
+            throw new EsqlIllegalArgumentException(e);
         }
     }
 
@@ -199,7 +202,7 @@ public class AggregateMapper {
             case INT -> DataTypes.INTEGER;
             case LONG -> DataTypes.LONG;
             case DOUBLE -> DataTypes.DOUBLE;
-            default -> throw new UnsupportedOperationException("unsupported agg type: " + elementType);
+            default -> throw new EsqlUnsupportedOperationException("unsupported agg type: " + elementType);
         };
     }
 
@@ -219,7 +222,7 @@ public class AggregateMapper {
         } else if (type.equals(DataTypes.KEYWORD) || type.equals(DataTypes.IP)) {
             return "BytesRef";
         } else {
-            throw new UnsupportedOperationException("unsupported agg type: " + type);
+            throw new EsqlUnsupportedOperationException("unsupported agg type: " + type);
         }
     }
 

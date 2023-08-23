@@ -18,10 +18,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
-import org.elasticsearch.xpack.esql.planner.EvalMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -94,7 +94,7 @@ public class EvalBenchmark {
                     new EsField("timestamp", DataTypes.DATETIME, Map.of(), true)
                 );
                 yield EvalMapper.toEvaluator(
-                    new DateTrunc(Source.EMPTY, timestamp, new Literal(Source.EMPTY, Duration.ofHours(24), EsqlDataTypes.TIME_DURATION)),
+                    new DateTrunc(Source.EMPTY, new Literal(Source.EMPTY, Duration.ofHours(24), EsqlDataTypes.TIME_DURATION), timestamp),
                     layout(timestamp)
                 ).get();
             }

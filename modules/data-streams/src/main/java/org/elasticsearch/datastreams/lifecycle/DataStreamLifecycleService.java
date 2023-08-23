@@ -72,6 +72,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -318,7 +319,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             try {
                 indicesToExcludeForRemainingRun.addAll(
-                    maybeExecuteForceMerge(state, dataStream, getTargetIndices(dataStream, indicesToExcludeForRemainingRun))
+                    maybeExecuteForceMerge(
+                        state,
+                        getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata()::index)
+                    )
                 );
             } catch (Exception e) {
                 logger.error(
@@ -332,7 +336,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
 
             try {
-                maybeExecuteDownsampling(state, dataStream, getTargetIndices(dataStream, indicesToExcludeForRemainingRun));
+                maybeExecuteDownsampling(
+                    state,
+                    dataStream,
+                    getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata()::index)
+                );
             } catch (Exception e) {
                 logger.error(
                     () -> String.format(
@@ -350,148 +358,147 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         Set<Index> affectedIndices = new HashSet<>();
         Metadata metadata = state.metadata();
         for (Index index : targetIndices) {
-            if (dataStream.isIndexManagedByDataStreamLifecycle(index, metadata::index)) {
-                IndexMetadata backingIndex = metadata.index(index);
-                assert backingIndex != null : "the data stream backing indices must exist";
-                List<DataStreamLifecycle.Downsampling.Round> downsamplingRounds = dataStream.getDownsamplingRoundsFor(
-                    index,
-                    metadata::index,
-                    nowSupplier
+            IndexMetadata backingIndex = metadata.index(index);
+            assert backingIndex != null : "the data stream backing indices must exist";
+            List<DataStreamLifecycle.Downsampling.Round> downsamplingRounds = dataStream.getDownsamplingRoundsFor(
+                index,
+                metadata::index,
+                nowSupplier
+            );
+            if (downsamplingRounds.isEmpty()) {
+                continue;
+            }
+
+            String indexName = index.getName();
+            IndexMetadata.DownsampleTaskStatus backingIndexDownsamplingStatus = INDEX_DOWNSAMPLE_STATUS.get(backingIndex.getSettings());
+            String backingIndexDownsamplingSource = backingIndex.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
+
+            // if the current index is not a downsample we want to mark the index as read-only before proceeding with downsampling
+            if (org.elasticsearch.common.Strings.hasText(backingIndexDownsamplingSource) == false
+                && state.blocks().indexBlocked(ClusterBlockLevel.WRITE, indexName) == false) {
+                // time to downsample, but first we have to mark the index as read-only
+                affectedIndices.add(index);
+                AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(
+                    TimeValue.MAX_VALUE
                 );
-                if (downsamplingRounds.isEmpty()) {
+                transportActionsDeduplicator.executeOnce(
+                    addIndexBlockRequest,
+                    new ErrorRecordingActionListener(indexName, errorStore),
+                    (req, reqListener) -> addIndexBlock(addIndexBlockRequest, reqListener)
+                );
+                continue;
+            }
+
+            if (org.elasticsearch.common.Strings.hasText(backingIndexDownsamplingSource)
+                && backingIndexDownsamplingStatus.equals(SUCCESS)) {
+                // if the backing index is a downsample index itself, let's check if its source index still exists as we must delete it
+                Map<String, String> lifecycleMetadata = backingIndex.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
+                if (lifecycleMetadata == null || lifecycleMetadata.containsKey(REPLACEMENT_SOURCE_INDEX) == false) {
+                    // this is a downsampling index that was not added by data stream lifecycle in this data stream
                     continue;
                 }
-
-                String indexName = index.getName();
-                IndexMetadata.DownsampleTaskStatus backingIndexDownsamplingStatus = INDEX_DOWNSAMPLE_STATUS.get(backingIndex.getSettings());
-                String backingIndexDownsamplingSource = backingIndex.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
-
-                // if the current index is not a downsample we want to mark the index as read-only before proceeding with downsampling
-                if (org.elasticsearch.common.Strings.hasText(backingIndexDownsamplingSource) == false
-                    && state.blocks().indexBlocked(ClusterBlockLevel.WRITE, indexName) == false) {
-                    // time to downsample, but first we have to mark the index as read-only
-                    affectedIndices.add(index);
-                    AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(
+                String actualDownsamplingSource = lifecycleMetadata.get(REPLACEMENT_SOURCE_INDEX);
+                IndexMetadata downsampleSourceIndex = metadata.index(actualDownsamplingSource);
+                if (downsampleSourceIndex != null) {
+                    affectedIndices.add(downsampleSourceIndex.getIndex());
+                    // delete downsampling source index (that's not part of the data stream anymore) before doing any more
+                    // downsampling
+                    DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(backingIndexDownsamplingSource).masterNodeTimeout(
                         TimeValue.MAX_VALUE
                     );
                     transportActionsDeduplicator.executeOnce(
-                        addIndexBlockRequest,
-                        new ErrorRecordingActionListener(indexName, errorStore),
-                        (req, reqListener) -> addIndexBlock(addIndexBlockRequest, reqListener)
+                        deleteIndexRequest,
+                        new ErrorRecordingActionListener(backingIndexDownsamplingSource, errorStore),
+                        (req, reqListener) -> deleteIndex(
+                            deleteIndexRequest,
+                            "replacement with its downsampled index in the data stream",
+                            reqListener
+                        )
                     );
                     continue;
                 }
+            }
 
-                if (org.elasticsearch.common.Strings.hasText(backingIndexDownsamplingSource)
-                    && backingIndexDownsamplingStatus.equals(SUCCESS)) {
-                    // if the backing index is a downsample index itself, let's check if its source index still exists as we must delete it
-                    Map<String, String> lifecycleMetadata = backingIndex.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
-                    if (lifecycleMetadata == null || lifecycleMetadata.containsKey(REPLACEMENT_SOURCE_INDEX) == false) {
-                        // this is a downsampling index that was not added by data stream lifecycle in this data stream
-                        continue;
-                    }
-                    String actualDownsamplingSource = lifecycleMetadata.get(REPLACEMENT_SOURCE_INDEX);
-                    IndexMetadata downsampleSourceIndex = metadata.index(actualDownsamplingSource);
-                    if (downsampleSourceIndex != null) {
-                        affectedIndices.add(downsampleSourceIndex.getIndex());
-                        // delete downsampling source index (that's not part of the data stream anymore) before doing any more
-                        // downsampling
-                        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(backingIndexDownsamplingSource).masterNodeTimeout(
-                            TimeValue.MAX_VALUE
-                        );
-                        transportActionsDeduplicator.executeOnce(
-                            deleteIndexRequest,
-                            new ErrorRecordingActionListener(backingIndexDownsamplingSource, errorStore),
-                            (req, reqListener) -> deleteIndex(
-                                deleteIndexRequest,
-                                "replacement with its downsampled index in the data stream",
-                                reqListener
-                            )
-                        );
-                        continue;
-                    }
-                }
+            // this index has matching downsample rounds and is read-only, so let's wait for an in-progress downsampling operation to
+            // succeed or trigger the corresponding one
+            // TODO add support for cancelling a current in-progress operation if another, later, round matches
+            DataStreamLifecycle.Downsampling.Round lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
 
-                // this index has matching downsample rounds and is read-only, so let's wait for an in-progress downsampling operation to
-                // succeed or trigger the corresponding one
-                // TODO add support for cancelling a current in-progress operation if another, later, round matches
-                DataStreamLifecycle.Downsampling.Round lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
-
-                for (DataStreamLifecycle.Downsampling.Round round : downsamplingRounds) {
-                    // the downsample index name for each round is deterministic
-                    String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
-                        DOWNSAMPLED_INDEX_PREFIX,
-                        backingIndex,
-                        round.config().getFixedInterval()
-                    );
-                    IndexMetadata downsampleIndexMeta = metadata.index(downsampleIndexName);
-                    if (downsampleIndexMeta != null) {
-                        IndexMetadata.DownsampleTaskStatus downsampleStatus = INDEX_DOWNSAMPLE_STATUS.get(
-                            downsampleIndexMeta.getSettings()
+            for (DataStreamLifecycle.Downsampling.Round round : downsamplingRounds) {
+                // the downsample index name for each round is deterministic
+                String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
+                    DOWNSAMPLED_INDEX_PREFIX,
+                    backingIndex,
+                    round.config().getFixedInterval()
+                );
+                IndexMetadata downsampleIndexMeta = metadata.index(downsampleIndexName);
+                if (downsampleIndexMeta != null) {
+                    IndexMetadata.DownsampleTaskStatus downsampleStatus = INDEX_DOWNSAMPLE_STATUS.get(downsampleIndexMeta.getSettings());
+                    if (downsampleStatus.equals(UNKNOWN) && round.equals(lastRound)) {
+                        // target downsampling index exists and is not a downsampling index (name clash?)
+                        // we fail now but perhaps we should just randomise the name?
+                        errorStore.recordError(
+                            backingIndex.getIndex().getName(),
+                            new ResourceAlreadyExistsException(downsampleIndexMeta.getIndex().getName())
                         );
-                        if (downsampleStatus.equals(UNKNOWN) && round.equals(lastRound)) {
-                            // target downsampling index exists and is not a downsampling index (name clash?)
-                            // we fail now but perhaps we should just randomise the name?
-                            errorStore.recordError(
-                                backingIndex.getIndex().getName(),
-                                new ResourceAlreadyExistsException(downsampleIndexMeta.getIndex().getName())
-                            );
-                        } else if (downsampleStatus.equals(STARTED)) {
-                            // we'll wait for this round to complete
-                            // TODO when cancelling support is added it'll go here, if there's a further round that can be started for
-                            // this index
+                    } else if (downsampleStatus.equals(STARTED)) {
+                        // we'll wait for this round to complete
+                        // TODO when cancelling support is added it'll go here, if there's a further round that can be started for
+                        // this index
+                        affectedIndices.add(backingIndex.getIndex());
+                        break;
+                    } else if (downsampleStatus.equals(SUCCESS)) {
+                        // at this point the source index is part of the data stream and the downsample index is complete but not
+                        // part of the data stream. we need to replace the source index with the downsample index in the data stream
+                        // and delete the source index.
+                        if (dataStream.getIndices().contains(downsampleIndexMeta.getIndex()) == false) {
                             affectedIndices.add(backingIndex.getIndex());
-                            break;
-                        } else if (downsampleStatus.equals(SUCCESS)) {
-                            // at this point the source index is part of the data stream and the downsample index is complete but not
-                            // part of the data stream. we need to replace the source index with the downsample index in the data stream
-                            // and delete the source index.
-                            if (dataStream.getIndices().contains(downsampleIndexMeta.getIndex()) == false) {
-                                affectedIndices.add(backingIndex.getIndex());
-                                clusterStateChangesDeduplicator.executeOnce(
+                            clusterStateChangesDeduplicator.executeOnce(
+                                new ReplaceSourceWithDownsampleIndexTask(dataStream.getName(), index.getName(), downsampleIndexName, null),
+                                new ErrorRecordingActionListener(indexName, errorStore),
+                                (req, reqListener) -> replaceSourceWithDownsampleIndexAndDeleteSource(
                                     new ReplaceSourceWithDownsampleIndexTask(
                                         dataStream.getName(),
                                         index.getName(),
                                         downsampleIndexName,
-                                        null
-                                    ),
-                                    new ErrorRecordingActionListener(indexName, errorStore),
-                                    (req, reqListener) -> replaceSourceWithDownsampleIndexAndDeleteSource(
-                                        new ReplaceSourceWithDownsampleIndexTask(
-                                            dataStream.getName(),
-                                            index.getName(),
-                                            downsampleIndexName,
-                                            reqListener
-                                        ),
                                         reqListener
-                                    )
-                                );
-                                break;
-                            }
+                                    ),
+                                    reqListener
+                                )
+                            );
+                            break;
                         }
-                    } else if (round.equals(lastRound)) {
-                        // no maintenance needed for previously started downsampling actions, so kick off the last matching round
-                        affectedIndices.add(index);
-                        DownsampleAction.Request request = new DownsampleAction.Request(
-                            indexName,
-                            downsampleIndexName,
-                            null,
-                            round.config()
-                        );
-                        transportActionsDeduplicator.executeOnce(
-                            request,
-                            new ErrorRecordingActionListener(indexName, errorStore),
-                            (req, reqListener) -> downsampleIndex(request, reqListener)
-                        );
                     }
+                } else if (round.equals(lastRound)) {
+                    // no maintenance needed for previously started downsampling actions, so kick off the last matching round
+                    affectedIndices.add(index);
+                    DownsampleAction.Request request = new DownsampleAction.Request(indexName, downsampleIndexName, null, round.config());
+                    transportActionsDeduplicator.executeOnce(
+                        request,
+                        new ErrorRecordingActionListener(indexName, errorStore),
+                        (req, reqListener) -> downsampleIndex(request, reqListener)
+                    );
                 }
             }
         }
         return affectedIndices;
     }
 
-    private static List<Index> getTargetIndices(DataStream dataStream, Set<Index> indicesToExcludeForRemainingRun) {
-        return dataStream.getIndices().stream().filter(index -> indicesToExcludeForRemainingRun.contains(index) == false).toList();
+    /**
+     * Returns the data stream lifecycle managed indices that are not part of the set of indices to exclude.
+     */
+    private static List<Index> getTargetIndices(
+        DataStream dataStream,
+        Set<Index> indicesToExcludeForRemainingRun,
+        Function<String, IndexMetadata> indexMetadataSupplier
+    ) {
+        return dataStream.getIndices()
+            .stream()
+            .filter(
+                index -> dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier)
+                    && indicesToExcludeForRemainingRun.contains(index) == false
+            )
+            .toList();
     }
 
     /**
@@ -565,50 +572,48 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * This method force merges the given indices in the datastream. It writes a timestamp in the cluster state upon completion of the
      * force merge.
      */
-    private Set<Index> maybeExecuteForceMerge(ClusterState state, DataStream dataStream, List<Index> indices) {
+    private Set<Index> maybeExecuteForceMerge(ClusterState state, List<Index> indices) {
         Metadata metadata = state.metadata();
         Set<Index> affectedIndices = new HashSet<>();
         for (Index index : indices) {
-            if (dataStream.isIndexManagedByDataStreamLifecycle(index, state.metadata()::index)) {
-                IndexMetadata backingIndex = metadata.index(index);
-                assert backingIndex != null : "the data stream backing indices must exist";
-                String indexName = index.getName();
-                boolean alreadyForceMerged = isForceMergeComplete(backingIndex);
-                if (alreadyForceMerged) {
-                    logger.trace("Already force merged {}", indexName);
-                    continue;
-                }
+            IndexMetadata backingIndex = metadata.index(index);
+            assert backingIndex != null : "the data stream backing indices must exist";
+            String indexName = index.getName();
+            boolean alreadyForceMerged = isForceMergeComplete(backingIndex);
+            if (alreadyForceMerged) {
+                logger.trace("Already force merged {}", indexName);
+                continue;
+            }
 
-                ByteSizeValue configuredFloorSegmentMerge = MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.get(
-                    backingIndex.getSettings()
+            ByteSizeValue configuredFloorSegmentMerge = MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.get(
+                backingIndex.getSettings()
+            );
+            Integer configuredMergeFactor = MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.get(backingIndex.getSettings());
+            if ((configuredFloorSegmentMerge == null || configuredFloorSegmentMerge.equals(targetMergePolicyFloorSegment) == false)
+                || (configuredMergeFactor == null || configuredMergeFactor.equals(targetMergePolicyFactor) == false)) {
+                UpdateSettingsRequest updateMergePolicySettingsRequest = new UpdateSettingsRequest();
+                updateMergePolicySettingsRequest.indices(indexName);
+                updateMergePolicySettingsRequest.settings(
+                    Settings.builder()
+                        .put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), targetMergePolicyFloorSegment)
+                        .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), targetMergePolicyFactor)
                 );
-                Integer configuredMergeFactor = MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.get(backingIndex.getSettings());
-                if ((configuredFloorSegmentMerge == null || configuredFloorSegmentMerge.equals(targetMergePolicyFloorSegment) == false)
-                    || (configuredMergeFactor == null || configuredMergeFactor.equals(targetMergePolicyFactor) == false)) {
-                    UpdateSettingsRequest updateMergePolicySettingsRequest = new UpdateSettingsRequest();
-                    updateMergePolicySettingsRequest.indices(indexName);
-                    updateMergePolicySettingsRequest.settings(
-                        Settings.builder()
-                            .put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), targetMergePolicyFloorSegment)
-                            .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), targetMergePolicyFactor)
-                    );
-                    updateMergePolicySettingsRequest.masterNodeTimeout(TimeValue.MAX_VALUE);
-                    affectedIndices.add(index);
-                    transportActionsDeduplicator.executeOnce(
-                        updateMergePolicySettingsRequest,
-                        new ErrorRecordingActionListener(indexName, errorStore),
-                        (req, reqListener) -> updateIndexSetting(updateMergePolicySettingsRequest, reqListener)
-                    );
-                } else {
-                    affectedIndices.add(index);
-                    ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indexName);
-                    // time to force merge the index
-                    transportActionsDeduplicator.executeOnce(
-                        new ForceMergeRequestWrapper(forceMergeRequest),
-                        new ErrorRecordingActionListener(indexName, errorStore),
-                        (req, reqListener) -> forceMergeIndex(forceMergeRequest, reqListener)
-                    );
-                }
+                updateMergePolicySettingsRequest.masterNodeTimeout(TimeValue.MAX_VALUE);
+                affectedIndices.add(index);
+                transportActionsDeduplicator.executeOnce(
+                    updateMergePolicySettingsRequest,
+                    new ErrorRecordingActionListener(indexName, errorStore),
+                    (req, reqListener) -> updateIndexSetting(updateMergePolicySettingsRequest, reqListener)
+                );
+            } else {
+                affectedIndices.add(index);
+                ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indexName);
+                // time to force merge the index
+                transportActionsDeduplicator.executeOnce(
+                    new ForceMergeRequestWrapper(forceMergeRequest),
+                    new ErrorRecordingActionListener(indexName, errorStore),
+                    (req, reqListener) -> forceMergeIndex(forceMergeRequest, reqListener)
+                );
             }
         }
         return affectedIndices;

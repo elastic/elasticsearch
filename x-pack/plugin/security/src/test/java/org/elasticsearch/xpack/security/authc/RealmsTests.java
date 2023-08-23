@@ -85,6 +85,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -1052,6 +1053,14 @@ public class RealmsTests extends ESTestCase {
         if (iterator.hasNext()) {
             fail("Expected no more realms, but found [" + iterator.next() + "]");
         }
+
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(
+            NativeRealmSettings.TYPE,
+            NativeRealmSettings.DEFAULT_NAME
+        );
+
+        // We still want a ref to the native realm so that transport actions can reference it (but the realm is disabled)
+        assertThat(realms.getRealmRefs(), hasKey(realmId));
     }
 
     public void testNativeRealmNotAvailableWhenNativeUsersDisabled() throws Exception {

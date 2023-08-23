@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.esql.formatter;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
@@ -14,8 +16,12 @@ import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
+import java.io.IOException;
+import java.io.Writer;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -33,7 +39,7 @@ public enum TextFormat implements MediaType {
      */
     PLAIN_TEXT() {
         @Override
-        public String format(RestRequest request, EsqlQueryResponse esqlResponse) {
+        public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
             return new TextFormatter(esqlResponse).format(hasHeader(request));
         }
 
@@ -272,19 +278,16 @@ public enum TextFormat implements MediaType {
     public static final String URL_PARAM_FORMAT = "format";
     public static final String URL_PARAM_DELIMITER = "delimiter";
 
-    public String format(RestRequest request, EsqlQueryResponse esqlResponse) {
-        StringBuilder sb = new StringBuilder();
-
+    public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
+        final var delimiter = delimiter(request);
+        return Iterators.concat(hasHeader(request) && esqlResponse.columns() != null ?
         // if the header is requested return the info
-        if (hasHeader(request) && esqlResponse.columns() != null) {
-            row(sb, esqlResponse.columns(), ColumnInfo::name, delimiter(request));
-        }
-
-        for (List<Object> row : esqlResponse.values()) {
-            row(sb, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter(request));
-        }
-
-        return sb.toString();
+            Iterators.single(writer -> row(writer, esqlResponse.columns(), ColumnInfo::name, delimiter)) : Collections.emptyIterator(),
+            Iterators.map(
+                esqlResponse.values().iterator(),
+                row -> writer -> row(writer, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter)
+            )
+        );
     }
 
     boolean hasHeader(RestRequest request) {
@@ -306,14 +309,14 @@ public enum TextFormat implements MediaType {
     }
 
     // utility method for consuming a row.
-    <F> void row(StringBuilder sb, List<F> row, Function<F, String> toString, Character delimiter) {
+    <F> void row(Writer writer, List<F> row, Function<F, String> toString, Character delimiter) throws IOException {
         for (int i = 0; i < row.size(); i++) {
-            sb.append(maybeEscape(toString.apply(row.get(i)), delimiter));
+            writer.append(maybeEscape(toString.apply(row.get(i)), delimiter));
             if (i < row.size() - 1) {
-                sb.append(delimiter);
+                writer.append(delimiter);
             }
         }
-        sb.append(eol());
+        writer.append(eol());
     }
 
     /**

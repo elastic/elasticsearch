@@ -106,9 +106,9 @@ public class JwkValidateUtil {
                 jwk.getKeyID()
             );
             if (logger.isTraceEnabled()) {
-                logger.trace(message, e);
+                logger.trace(message.get(), e);
             } else {
-                logger.debug(message);
+                logger.debug(message.get());
             }
         }
         return false;

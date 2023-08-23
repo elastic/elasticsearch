@@ -342,6 +342,9 @@ public abstract class AggregationContext implements Releasable {
         private final SearchExecutionContext context;
         private final PreallocatedCircuitBreakerService preallocatedBreakerService;
         private final BigArrays bigArrays;
+
+        private final ClusterSettings clusterSettings;
+
         private final Supplier<Query> topLevelQuery;
         private final AggregationProfiler profiler;
         private final int maxBuckets;
@@ -361,6 +364,7 @@ public abstract class AggregationContext implements Releasable {
             AnalysisRegistry analysisRegistry,
             SearchExecutionContext context,
             BigArrays bigArrays,
+            ClusterSettings clusterSettings,
             long bytesToPreallocate,
             Supplier<Query> topLevelQuery,
             @Nullable AggregationProfiler profiler,
@@ -376,6 +380,7 @@ public abstract class AggregationContext implements Releasable {
         ) {
             this.analysisRegistry = analysisRegistry;
             this.context = context;
+            this.clusterSettings = clusterSettings;
             if (bytesToPreallocate == 0) {
                 /*
                  * Its possible if a bit strange for the aggregations to ask
@@ -516,7 +521,7 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         public ClusterSettings getClusterSettings() {
-            return context.getClusterSettings();
+            return clusterSettings;
         }
 
         @Override

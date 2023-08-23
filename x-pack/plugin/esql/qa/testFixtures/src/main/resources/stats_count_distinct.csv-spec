@@ -101,7 +101,7 @@ COUNT_DISTINCT(ip0,80000):long | COUNT_DISTINCT(ip1,5):long
 ;
 
 countDistinctOfDates
-from employees | eval d = date_trunc(hire_date, 1 year) | stats h = count_distinct(d);  
+from employees | eval d = date_trunc(1 year, hire_date) | stats h = count_distinct(d);  
 
 h:long
 14

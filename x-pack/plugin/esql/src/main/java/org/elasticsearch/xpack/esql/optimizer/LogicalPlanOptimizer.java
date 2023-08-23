@@ -95,6 +95,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new FoldNull(),
             new SplitInWithFoldableValue(),
             new ConstantFolding(),
+            new PropagateEvalFoldables(),
             // boolean
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
@@ -299,6 +300,39 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         private static Expression trimAliases(Expression e) {
             return e.transformDown(Alias.class, Alias::child);
+        }
+    }
+
+    //
+    // Replace any reference attribute with its source, if it does not affect the result.
+    // This avoids ulterior look-ups between attributes and its source across nodes.
+    //
+    static class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            var collectRefs = new AttributeMap<Expression>();
+            // collect aliases
+            plan.forEachExpressionUp(Alias.class, a -> {
+                var c = a.child();
+                if (c.foldable()) {
+                    collectRefs.put(a.toAttribute(), c);
+                }
+            });
+            if (collectRefs.isEmpty()) {
+                return plan;
+            }
+            java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.resolve(r, r);
+
+            plan = plan.transformUp(p -> {
+                // Apply the replacement inside Filter and Eval (which shouldn't make a difference)
+                if (p instanceof Filter || p instanceof Eval) {
+                    p = p.transformExpressionsOnly(ReferenceAttribute.class, replaceReference);
+                }
+                return p;
+            });
+
+            return plan;
         }
     }
 
@@ -723,11 +757,10 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(OrderBy plan) {
-            var referencedAttributes = new ExpressionSet<Attribute>();
+            var referencedAttributes = new ExpressionSet<Order>();
             var order = new ArrayList<Order>();
             for (Order o : plan.order()) {
-                Attribute a = (Attribute) o.child();
-                if (referencedAttributes.add(a)) {
+                if (referencedAttributes.add(o)) {
                     order.add(o);
                 }
             }

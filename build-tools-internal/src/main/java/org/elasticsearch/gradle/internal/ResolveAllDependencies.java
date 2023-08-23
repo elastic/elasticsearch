@@ -52,7 +52,7 @@ public abstract class ResolveAllDependencies extends DefaultTask {
 
     @TaskAction
     void resolveAll() {
-        if(resolveJavaToolChain) {
+        if (resolveJavaToolChain) {
             resolveDefaultJavaToolChain();
         }
     }
@@ -62,10 +62,8 @@ public abstract class ResolveAllDependencies extends DefaultTask {
             String bundledVendor = VersionProperties.getBundledJdkVendor();
             String bundledJdkMajorVersion = VersionProperties.getBundledJdkMajorVersion();
             javaToolchainSpec.getLanguageVersion().set(JavaLanguageVersion.of(bundledJdkMajorVersion));
-                javaToolchainSpec.getVendor().set(
-                    bundledVendor.equals("openjdk") ?
-                JvmVendorSpec.ORACLE :
-                JvmVendorSpec.matching(bundledVendor));
+            javaToolchainSpec.getVendor()
+                .set(bundledVendor.equals("openjdk") ? JvmVendorSpec.ORACLE : JvmVendorSpec.matching(bundledVendor));
         }).get();
     }
 

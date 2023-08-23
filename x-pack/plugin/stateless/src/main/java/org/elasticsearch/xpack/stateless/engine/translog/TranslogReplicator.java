@@ -20,9 +20,15 @@ package co.elastic.elasticsearch.stateless.engine.translog;
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -44,8 +50,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -171,11 +175,11 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     }
 
     public Set<BlobTranslogFile> getActiveTranslogFiles() {
-        return Collections.unmodifiableSet(nodeState.activeTranslogFiles);
+        return Collections.unmodifiableSet(new HashSet<>(nodeState.activeTranslogFiles));
     }
 
     public Set<BlobTranslogFile> getTranslogFilesToDelete() {
-        return Collections.unmodifiableSet(nodeState.translogFilesToDelete);
+        return Collections.unmodifiableSet(new HashSet<>(nodeState.translogFilesToDelete));
     }
 
     public BigArrays bigArrays() {
@@ -512,13 +516,21 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     public abstract static class BlobTranslogFile extends AbstractRefCounted implements Comparable<BlobTranslogFile> {
 
         private final long generation;
+        private final String blobName;
+        private final Set<ShardId> includedShards;
 
-        BlobTranslogFile(long generation) {
+        BlobTranslogFile(long generation, String blobName, Set<ShardId> includedShards) {
             this.generation = generation;
+            this.blobName = blobName;
+            this.includedShards = includedShards;
         }
 
         long generation() {
             return generation;
+        }
+
+        public String blobName() {
+            return blobName;
         }
 
         @Override
@@ -530,7 +542,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private class BlobTranslogFileImpl extends BlobTranslogFile {
 
         private BlobTranslogFileImpl(CompoundTranslogMetadata compoundTranslog) {
-            super(compoundTranslog.generation());
+            super(compoundTranslog.generation(), compoundTranslog.name(), compoundTranslog.syncedLocations().keySet());
             int toInc = compoundTranslog.syncedLocations().size() - 1;
             for (int i = 0; i < toInc; ++i) {
                 incRef();
@@ -643,10 +655,48 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         }
 
         private void clusterStateValidateForDeleteFinished(BlobTranslogFile fileToDelete) {
-            // TODO: Validate that all relevant shards are green before deleting translog file
-            translogFilesToDelete.remove(fileToDelete);
-            // TODO: Schedule actual file delete
+            ClusterState state = consistencyService.state();
+            if (allShardsAtLeastYellow(fileToDelete, state)) {
+                translogFilesToDelete.remove(fileToDelete);
+                objectStoreService.asyncDeleteTranslogFile(fileToDelete.blobName);
+            } else {
+                ClusterStateObserver observer = new ClusterStateObserver(
+                    state.version(),
+                    consistencyService.clusterService().getClusterApplierService(),
+                    null,
+                    logger,
+                    threadPool.getThreadContext()
+                );
 
+                observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        assert allShardsAtLeastYellow(fileToDelete, state);
+                        translogFilesToDelete.remove(fileToDelete);
+                        objectStoreService.asyncDeleteTranslogFile(fileToDelete.blobName);
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        logger.info("wait for yellow shards to delete translog blob file cancelled due to shutdown");
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        assert false : "No timeout.";
+                    }
+                }, newState -> allShardsAtLeastYellow(fileToDelete, newState));
+            }
+        }
+
+        private static boolean allShardsAtLeastYellow(BlobTranslogFile fileToDelete, ClusterState state) {
+            for (ShardId shardId : fileToDelete.includedShards) {
+                if (new ClusterShardHealth(shardId.getId(), state.routingTable().shardRoutingTable(shardId))
+                    .getStatus() == ClusterHealthStatus.RED) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         public void close() {

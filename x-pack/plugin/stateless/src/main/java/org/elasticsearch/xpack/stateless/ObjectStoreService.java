@@ -54,12 +54,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -83,6 +85,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         "stateless.object_store.base_path",
         Setting.Property.NodeScope
     );
+    public static final int DELETE_BATCH_SIZE = 100;
 
     public enum ObjectStoreType {
         FS("location") {
@@ -174,6 +177,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     private final ThreadPool threadPool;
     private final PrioritizedThrottledTaskRunner<TranslogFileUploadTask> uploadTranslogTaskRunner;
     private final PrioritizedThrottledTaskRunner<ObjectStoreTask> uploadTaskRunner;
+    private final ConcurrentLinkedQueue<String> translogBlobsToDelete = new ConcurrentLinkedQueue<>();
+    private final Semaphore translogDeleteSchedulePermit = new Semaphore(1);
     private final Semaphore permits;
 
     private BlobStoreRepository objectStore;
@@ -340,29 +345,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         );
     }
 
-    public void uploadCommitFile(
-        ShardId shardId,
-        long primaryTerm,
-        long generation,
-        Directory directory,
-        String file,
-        long commitStartNanos,
-        ActionListener<BlobLocation> listener
-    ) {
-        enqueueTask(
-            listener,
-            uploadTaskRunner,
-            l -> new FileUploadTask(
-                shardId,
-                primaryTerm,
-                generation,
-                commitStartNanos,
-                file,
-                directory,
-                SearchDirectory.unwrapDirectory(directory).getBlobContainer(primaryTerm),
-                l
-            )
-        );
+    public void asyncDeleteTranslogFile(String fileToDelete) {
+        logger.debug("scheduling translog blob file for async delete [{}]", fileToDelete);
+        translogBlobsToDelete.add(fileToDelete);
+        if (translogDeleteSchedulePermit.tryAcquire()) {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new FileDeleteTask(this::getTranslogBlobContainer));
+        }
     }
 
     private <R, T extends AbstractRunnable & Comparable<T>> void enqueueTask(
@@ -627,6 +615,56 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             } finally {
                 if (compoundCommit != null) {
                     listener.onResponse(compoundCommit);
+                }
+            }
+        }
+    }
+
+    private class FileDeleteTask extends AbstractRunnable {
+
+        private final Supplier<BlobContainer> blobContainer;
+        private final ArrayList<String> toDeleteInThisTask;
+
+        private FileDeleteTask(Supplier<BlobContainer> blobContainer) {
+            this.toDeleteInThisTask = new ArrayList<>();
+            this.blobContainer = blobContainer;
+            for (int i = 0; i < DELETE_BATCH_SIZE; ++i) {
+                String polled = translogBlobsToDelete.poll();
+                if (polled != null) {
+                    toDeleteInThisTask.add(polled);
+                } else {
+                    break;
+                }
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            // Might be 100 files only log when debug enabled
+            if (logger.isDebugEnabled()) {
+                logger.warn(() -> format("exception while attempting to delete blob files [{}]", toDeleteInThisTask), e);
+            } else {
+                logger.warn("exception while attempting to delete blob files", e);
+            }
+        }
+
+        @Override
+        public void onAfter() {
+            translogDeleteSchedulePermit.release();
+            if (translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
+                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new FileDeleteTask(blobContainer));
+            }
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            boolean success = false;
+            try {
+                blobContainer.get().deleteBlobsIgnoringIfNotExists(toDeleteInThisTask.iterator());
+                success = true;
+            } finally {
+                if (success == false) {
+                    translogBlobsToDelete.addAll(toDeleteInThisTask);
                 }
             }
         }

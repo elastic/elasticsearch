@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 
 /**
  * Performs the get operation.
@@ -52,7 +53,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
             actionFilters,
             indexNameExpressionResolver,
             TermVectorsRequest::new,
-            ThreadPool.Names.GET
+            threadPool.executor(ThreadPool.Names.GET)
         );
         this.indicesService = indicesService;
 
@@ -114,10 +115,10 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     }
 
     @Override
-    protected String getExecutor(TermVectorsRequest request, ShardId shardId) {
+    protected Executor getExecutor(TermVectorsRequest request, ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         return indexService.getIndexSettings().isSearchThrottled()
-            ? ThreadPool.Names.SEARCH_THROTTLED
+            ? threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED)
             : super.getExecutor(request, shardId);
     }
 }

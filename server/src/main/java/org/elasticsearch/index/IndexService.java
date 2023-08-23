@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
@@ -1046,7 +1047,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                     && e instanceof ShardNotInPrimaryModeException == false) {
                                     logger.warn(() -> format("%s failed to execute %s sync", shard.shardId(), source), e);
                                 }
-                            }, ThreadPool.Names.SAME);
+                            }, EsExecutors.DIRECT_EXECUTOR_SERVICE);
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {
                             // the shard was closed concurrently, continue
                         }

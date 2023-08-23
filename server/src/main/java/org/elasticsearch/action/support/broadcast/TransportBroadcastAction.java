@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
@@ -62,20 +61,20 @@ public abstract class TransportBroadcastAction<
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Request> requestReader,
         Writeable.Reader<ShardRequest> shardRequestReader,
-        String executor
+        Executor executor
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(actionName, transportService, actionFilters, requestReader, ThreadPool.Names.SAME);
+        super(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.transportShardAction = actionName + "[s]";
-        this.executor = transportService.getThreadPool().executor(executor);
+        this.executor = executor;
         assert this.executor != EsExecutors.DIRECT_EXECUTOR_SERVICE : "O(#shards) work must always fork to an appropriate executor";
 
         transportService.registerRequestHandler(
             transportShardAction,
-            this.executor,
+            executor,
             shardRequestReader,
             (request, channel, task) -> ActionListener.completeWith(
                 new ChannelActionListener<>(channel),

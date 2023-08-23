@@ -38,7 +38,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -238,7 +237,7 @@ public class NetworkModuleTests extends ESTestCase {
             @Override
             public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
                 String action,
-                Executor executor,
+                String executor,
                 boolean forceExecution,
                 TransportRequestHandler<T> actualHandler
             ) {

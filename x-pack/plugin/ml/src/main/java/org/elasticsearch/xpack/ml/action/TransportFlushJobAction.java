@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -35,7 +36,7 @@ public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobActi
             actionFilters,
             FlushJobAction.Request::new,
             FlushJobAction.Response::new,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             processManager
         );
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread

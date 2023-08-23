@@ -973,8 +973,10 @@ public class TransportService extends AbstractLifecycleComponent
         // want handlers to worry about stack overflows. In the special case of running into a closing node we run on the current
         // thread on a best effort basis though.
         final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, failure);
-        final String executor = lifecycle.stoppedOrClosed() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
-        threadPool.executor(executor).execute(new AbstractRunnable() {
+        final Executor executor = lifecycle.stoppedOrClosed()
+            ? EsExecutors.DIRECT_EXECUTOR_SERVICE
+            : threadPool.executor(ThreadPool.Names.GENERIC);
+        executor.execute(new AbstractRunnable() {
             @Override
             public void onRejection(Exception e) {
                 // if we get rejected during node shutdown we don't wanna bubble it up
@@ -1300,8 +1302,10 @@ public class TransportService extends AbstractLifecycleComponent
         // want handlers to worry about stack overflows.
         // Execute on the current thread in the special case of a node shut down to notify the listener even when the threadpool has
         // already been shut down.
-        final String executor = lifecycle.stoppedOrClosed() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
-        threadPool.executor(executor).execute(new AbstractRunnable() {
+        final Executor executor = lifecycle.stoppedOrClosed()
+            ? EsExecutors.DIRECT_EXECUTOR_SERVICE
+            : threadPool.executor(ThreadPool.Names.GENERIC);
+        executor.execute(new AbstractRunnable() {
             @Override
             public void doRun() {
                 for (Transport.ResponseContext<?> holderToNotify : pruned) {

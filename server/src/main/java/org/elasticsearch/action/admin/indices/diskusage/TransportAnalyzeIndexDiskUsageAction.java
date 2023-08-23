@@ -70,7 +70,7 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
             indexNameExpressionResolver,
             AnalyzeIndexDiskUsageRequest::new,
             AnalyzeDiskUsageShardRequest::new,
-            ThreadPool.Names.ANALYZE
+            transportService.getThreadPool().executor(ThreadPool.Names.ANALYZE)
         );
         this.indicesService = indexServices;
         this.threadPool = transportService.getThreadPool();

@@ -105,7 +105,7 @@ public class EnrichLookupService {
         this.executor = transportService.getThreadPool().executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
         transportService.registerRequestHandler(
             LOOKUP_ACTION_NAME,
-            this.executor,
+            transportService.getThreadPool().executor(EsqlPlugin.ESQL_THREAD_POOL_NAME),
             LookupRequest::new,
             new TransportHandler()
         );

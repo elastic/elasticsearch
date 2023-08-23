@@ -54,7 +54,7 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<
             actionFilters,
             ClearRealmCacheRequest::new,
             ClearRealmCacheRequest.Node::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.realms = realms;
         this.authenticationService = authenticationService;

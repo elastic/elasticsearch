@@ -52,7 +52,7 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
             actionFilters,
             EsqlStatsRequest::new,
             EsqlStatsRequest.NodeStatsRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.planExecutor = planExecutor;
     }

@@ -37,6 +37,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.Releasable;
@@ -110,7 +111,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             ClusterService clusterService,
             RepositoriesService repositoriesService
         ) {
-            super(NAME, transportService, actionFilters, RepositoryAnalyzeAction.Request::new, ThreadPool.Names.SAME);
+            super(NAME, transportService, actionFilters, RepositoryAnalyzeAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.transportService = transportService;
             this.clusterService = clusterService;
             this.repositoriesService = repositoriesService;

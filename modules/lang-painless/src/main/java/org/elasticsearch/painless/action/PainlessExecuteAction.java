@@ -515,7 +515,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 // Creating a in-memory index is not light weight
                 // TODO: is MANAGEMENT TP the right TP? Right now this is an admin api (see action name).
                 Request::new,
-                ThreadPool.Names.MANAGEMENT
+                threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
             this.scriptService = scriptService;
             this.indicesServices = indicesServices;

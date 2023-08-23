@@ -73,7 +73,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             indexNameExpressionResolver,
             ValidateQueryRequest::new,
             ShardValidateQueryRequest::new,
-            ThreadPool.Names.SEARCH
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
         );
         this.searchService = searchService;
     }

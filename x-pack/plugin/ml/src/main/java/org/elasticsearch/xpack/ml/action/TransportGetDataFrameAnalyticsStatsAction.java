@@ -98,7 +98,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
             GetDataFrameAnalyticsStatsAction.Request::new,
             GetDataFrameAnalyticsStatsAction.Response::new,
             in -> new QueryPage<>(in, GetDataFrameAnalyticsStatsAction.Response.Stats::new),
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.client = client;
     }

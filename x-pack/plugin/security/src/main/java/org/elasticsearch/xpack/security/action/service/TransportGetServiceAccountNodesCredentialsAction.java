@@ -55,7 +55,7 @@ public class TransportGetServiceAccountNodesCredentialsAction extends TransportN
             actionFilters,
             GetServiceAccountCredentialsNodesRequest::new,
             GetServiceAccountCredentialsNodesRequest.Node::new,
-            ThreadPool.Names.GENERIC
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.fileServiceAccountTokenStore = fileServiceAccountTokenStore;
     }

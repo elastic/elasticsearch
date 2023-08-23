@@ -53,7 +53,7 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
             actionFilters,
             TrainedModelCacheInfoAction.Request::new,
             NodeModelCacheInfoRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.modelLoadingService = modelLoadingService;
     }

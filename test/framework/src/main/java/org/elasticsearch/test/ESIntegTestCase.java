@@ -174,7 +174,6 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -2175,7 +2174,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 @Override
                 public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
                     String action,
-                    Executor executor,
+                    String executor,
                     boolean forceExecution,
                     TransportRequestHandler<T> actualHandler
                 ) {

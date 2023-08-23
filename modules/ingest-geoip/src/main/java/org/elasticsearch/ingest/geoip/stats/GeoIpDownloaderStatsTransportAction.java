@@ -52,7 +52,7 @@ public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Re
             actionFilters,
             Request::new,
             NodeRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.transportService = transportService;
         this.registry = registry;

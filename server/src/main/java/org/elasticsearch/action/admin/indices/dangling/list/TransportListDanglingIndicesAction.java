@@ -54,7 +54,7 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
             actionFilters,
             ListDanglingIndicesRequest::new,
             NodeListDanglingIndicesRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.transportService = transportService;
         this.danglingIndicesState = danglingIndicesState;

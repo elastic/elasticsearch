@@ -40,7 +40,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
@@ -427,7 +426,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         @Override
         public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
             String action,
-            Executor executor,
+            String executor,
             boolean forceExecution,
             TransportRequestHandler<T> actualHandler
         ) {

@@ -47,7 +47,7 @@ public final class TransportRepositoriesStatsAction extends TransportNodesAction
             actionFilters,
             RepositoriesMeteringRequest::new,
             RepositoriesNodeStatsRequest::new,
-            ThreadPool.Names.GENERIC
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.repositoriesService = repositoriesService;
     }

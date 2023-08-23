@@ -1808,7 +1808,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testMockUnresponsiveRule() throws InterruptedException {
         serviceA.registerRequestHandler(
             "internal:sayHello",
-            ThreadPool.Names.GENERIC,
+            threadPool.executor(ThreadPool.Names.GENERIC),
             StringMessageRequest::new,
             (request, channel, task) -> {
                 assertThat("moshe", equalTo(request.message));
@@ -1860,7 +1860,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(2);
         final AtomicReference<InetSocketAddress> addressA = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> addressB = new AtomicReference<>();
-        serviceB.registerRequestHandler("internal:action1", ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
+        serviceB.registerRequestHandler("internal:action1", EsExecutors.DIRECT_EXECUTOR_SERVICE, TestRequest::new, (request, channel, task) -> {
             addressA.set(request.remoteAddress());
             channel.sendResponse(new TestResponse((String) null));
             latch.countDown();
@@ -1902,7 +1902,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testRejectEarlyIncomingRequests() throws Exception {
         try (TransportService service = buildService("TS_TEST", version0, transportVersion0, null, Settings.EMPTY, false, false)) {
             AtomicBoolean requestProcessed = new AtomicBoolean(false);
-            service.registerRequestHandler("internal:action", ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
+            service.registerRequestHandler("internal:action", EsExecutors.DIRECT_EXECUTOR_SERVICE, TestRequest::new, (request, channel, task) -> {
                 requestProcessed.set(true);
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             });
@@ -2145,19 +2145,19 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
         serviceB.registerRequestHandler(
             "internal:action1",
-            randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+            randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.executor(ThreadPool.Names.GENERIC)),
             TestRequest::new,
             new TestRequestHandler(serviceB)
         );
         serviceC.registerRequestHandler(
             "internal:action1",
-            randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+            randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.executor(ThreadPool.Names.GENERIC)),
             TestRequest::new,
             new TestRequestHandler(serviceC)
         );
         serviceA.registerRequestHandler(
             "internal:action1",
-            randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+            randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.executor(ThreadPool.Names.GENERIC)),
             TestRequest::new,
             new TestRequestHandler(serviceA)
         );
@@ -2166,7 +2166,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         class TestResponseHandler implements TransportResponseHandler<TestResponse> {
 
             private final int id;
-            private final String executor = randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+            private final Executor executor = randomBoolean() ? EsExecutors.DIRECT_EXECUTOR_SERVICE : threadPool.executor(ThreadPool.Names.GENERIC);
 
             TestResponseHandler(int id) {
                 this.id = id;
@@ -2195,7 +2195,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public Executor executor(ThreadPool threadPool) {
-                return threadPool.executor(executor);
+                return executor;
             }
         }
 
@@ -2231,7 +2231,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testRegisterHandlerTwice() {
         serviceB.registerRequestHandler(
             "internal:action1",
-            randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+            randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.executor(ThreadPool.Names.GENERIC)),
             TestRequest::new,
             (request, message, task) -> {
                 throw new AssertionError("boom");
@@ -2241,7 +2241,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             IllegalArgumentException.class,
             () -> serviceB.registerRequestHandler(
                 "internal:action1",
-                randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+                randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.executor(ThreadPool.Names.GENERIC)),
                 TestRequest::new,
                 (request, message, task) -> {
                     throw new AssertionError("boom");
@@ -2251,7 +2251,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         serviceA.registerRequestHandler(
             "internal:action1",
-            randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+            randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.executor(ThreadPool.Names.GENERIC)),
             TestRequest::new,
             (request, message, task) -> {
                 throw new AssertionError("boom");
@@ -2449,7 +2449,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testResponseHeadersArePreserved() throws InterruptedException {
         List<String> executors = new ArrayList<>(ThreadPool.THREAD_POOL_TYPES.keySet());
         CollectionUtil.timSort(executors); // makes sure it's reproducible
-        serviceA.registerRequestHandler("internal:action", ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
+        serviceA.registerRequestHandler("internal:action", EsExecutors.DIRECT_EXECUTOR_SERVICE, TestRequest::new, (request, channel, task) -> {
 
             threadPool.getThreadContext().putTransient("boom", new Object());
             threadPool.getThreadContext().addResponseHeader("foo.bar", "baz");
@@ -2512,7 +2512,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         List<String> executors = new ArrayList<>(ThreadPool.THREAD_POOL_TYPES.keySet());
         CollectionUtil.timSort(executors); // makes sure it's reproducible
         TransportService serviceC = buildService("TS_C", version0, transportVersion0, Settings.EMPTY);
-        serviceC.registerRequestHandler("internal:action", ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
+        serviceC.registerRequestHandler("internal:action", EsExecutors.DIRECT_EXECUTOR_SERVICE, TestRequest::new, (request, channel, task) -> {
             // do nothing
         });
         CountDownLatch latch = new CountDownLatch(1);
@@ -2576,7 +2576,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         MockTransportService serviceC = buildService("TS_C", version0, transportVersion0, Settings.EMPTY);
         CountDownLatch receivedLatch = new CountDownLatch(1);
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
-        serviceC.registerRequestHandler("internal:action", ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
+        serviceC.registerRequestHandler("internal:action", EsExecutors.DIRECT_EXECUTOR_SERVICE, TestRequest::new, (request, channel, task) -> {
             // don't block on a network thread here
             threadPool.generic().execute(new AbstractRunnable() {
                 @Override
@@ -2643,7 +2643,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         MockTransportService serviceC = buildService("TS_C", version0, transportVersion0, Settings.EMPTY);
         CountDownLatch receivedLatch = new CountDownLatch(1);
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
-        serviceB.registerRequestHandler("internal:action", ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
+        serviceB.registerRequestHandler("internal:action", EsExecutors.DIRECT_EXECUTOR_SERVICE, TestRequest::new, (request, channel, task) -> {
             // don't block on a network thread here
             threadPool.generic().execute(new AbstractRunnable() {
                 @Override
@@ -2755,7 +2755,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
         Exception ex = new RuntimeException("boom");
         ex.setStackTrace(new StackTraceElement[0]);
-        serviceB.registerRequestHandler("internal:action", ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
+        serviceB.registerRequestHandler("internal:action", EsExecutors.DIRECT_EXECUTOR_SERVICE, TestRequest::new, (request, channel, task) -> {
             // don't block on a network thread here
             threadPool.generic().execute(new AbstractRunnable() {
                 @Override
@@ -3120,7 +3120,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testChannelToString() {
         final String ACTION = "internal:action";
-        serviceA.registerRequestHandler(ACTION, ThreadPool.Names.SAME, TransportRequest.Empty::new, (request, channel, task) -> {
+        serviceA.registerRequestHandler(ACTION, EsExecutors.DIRECT_EXECUTOR_SERVICE, TransportRequest.Empty::new, (request, channel, task) -> {
             assertThat(
                 channel.toString(),
                 allOf(
@@ -3132,7 +3132,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(new ChannelActionListener<>(channel).toString(), containsString(channel.toString()));
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         });
-        serviceB.registerRequestHandler(ACTION, ThreadPool.Names.SAME, TransportRequest.Empty::new, (request, channel, task) -> {
+        serviceB.registerRequestHandler(ACTION, EsExecutors.DIRECT_EXECUTOR_SERVICE, TransportRequest.Empty::new, (request, channel, task) -> {
             assertThat(
                 channel.toString(),
                 allOf(
@@ -3233,7 +3233,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final var requestSize = between(0, ByteSizeUnit.MB.toIntBytes(1));
         final var responseSize = between(0, ByteSizeUnit.MB.toIntBytes(1));
 
-        serviceB.registerRequestHandler(ACTION, ThreadPool.Names.SAME, Request::new, (request, channel, task) -> {
+        serviceB.registerRequestHandler(ACTION, EsExecutors.DIRECT_EXECUTOR_SERVICE, Request::new, (request, channel, task) -> {
             assertEquals(requestSize, request.refSize);
             channel.sendResponse(new Response(responseSize));
         });

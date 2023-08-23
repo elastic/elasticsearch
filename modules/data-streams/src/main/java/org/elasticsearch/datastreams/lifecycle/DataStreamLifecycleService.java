@@ -810,25 +810,40 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     private void downsampleIndex(DownsampleAction.Request request, ActionListener<Void> listener) {
+        String sourceIndex = request.getSourceIndex();
+        String downsampleIndex = request.getTargetIndex();
         logger.info(
             "Data stream lifecycle issuing request to downsample index [{}] to index [{}]",
-            request.getSourceIndex(),
-            request.getTargetIndex()
+            sourceIndex,
+            downsampleIndex
         );
         client.execute(DownsampleAction.INSTANCE, request, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 logger.info(
                     "Data stream lifecycle successfully downsampled index [{}] to index [{}]",
-                    request.getSourceIndex(),
-                    request.getTargetIndex()
+                    sourceIndex,
+                    downsampleIndex
                 );
                 listener.onResponse(null);
             }
 
             @Override
             public void onFailure(Exception e) {
+                String previousError = errorStore.getError(sourceIndex);
+
                 listener.onFailure(e);
+                // To avoid spamming our logs, we only want to log the error once.
+                if (previousError == null || previousError.equals(errorStore.getError(sourceIndex)) == false) {
+                    logger.error(
+                        () -> Strings.format(
+                            "Data stream lifecycle encountered an error trying to downsample index [%s]. Data stream lifecycle will "
+                                + "attempt to downsample the index on its next run.",
+                            sourceIndex
+                        ),
+                        e
+                    );
+                }
             }
         });
     }

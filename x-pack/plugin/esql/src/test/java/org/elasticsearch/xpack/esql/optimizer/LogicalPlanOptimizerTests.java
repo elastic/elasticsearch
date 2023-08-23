@@ -17,6 +17,13 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RLike;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
@@ -27,11 +34,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -40,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -49,15 +55,12 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -86,8 +89,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.ql.TestUtils.relation;
-import static org.elasticsearch.xpack.ql.TestUtils.rlike;
-import static org.elasticsearch.xpack.ql.TestUtils.wildcardLike;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.contains;
@@ -338,7 +339,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testPushDownLikeRlikeFilter() {
         EsRelation relation = relation();
-        RLike conditionA = rlike(getFieldAttribute("a"), "foo");
+        org.elasticsearch.xpack.ql.expression.predicate.regex.RLike conditionA = rlike(getFieldAttribute("a"), "foo");
         WildcardLike conditionB = wildcardLike(getFieldAttribute("b"), "bar");
 
         Filter fa = new Filter(EMPTY, relation, conditionA);
@@ -748,7 +749,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort salary""");
 
         var topN = as(plan, TopN.class);
-        assertThat(topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("salary", "emp_no"));
+        assertThat(orderNames(topN), contains("salary", "emp_no"));
         as(topN.child(), EsRelation.class);
     }
 
@@ -760,7 +761,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort x""");
 
         var topN = as(plan, TopN.class);
-        assertThat(topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("x", "emp_no"));
+        assertThat(orderNames(topN), contains("x", "emp_no"));
         var eval = as(topN.child(), Eval.class);
         as(eval.child(), EsRelation.class);
     }
@@ -770,12 +771,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | sort emp_no
             | eval x = salary + 1, y = salary + 2
-            | sort x""");
+            | eval z = x * y
+            | sort z""");
 
         var topN = as(plan, TopN.class);
-        assertThat(topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("x", "emp_no"));
+        assertThat(orderNames(topN), contains("z", "emp_no"));
         var eval = as(topN.child(), Eval.class);
-        assertThat(eval.fields().stream().map(NamedExpression::name).toList(), contains("x", "y"));
+        assertThat(Expressions.names(eval.fields()), contains("z"));
+        eval = as(eval.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("x", "y"));
         as(eval.child(), EsRelation.class);
     }
 
@@ -787,7 +791,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort x""");
 
         var topN = as(plan, TopN.class);
-        assertThat(topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("x", "emp_no"));
+        assertThat(orderNames(topN), contains("x", "emp_no"));
         var dissect = as(topN.child(), Dissect.class);
         as(dissect.child(), EsRelation.class);
     }
@@ -800,7 +804,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort x""");
 
         var topN = as(plan, TopN.class);
-        assertThat(topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("x", "emp_no"));
+        assertThat(orderNames(topN), contains("x", "emp_no"));
         var grok = as(topN.child(), Grok.class);
         as(grok.child(), EsRelation.class);
     }
@@ -814,7 +818,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("salary", "emp_no"));
+        assertThat(orderNames(topN), contains("salary", "emp_no"));
         as(topN.child(), EsRelation.class);
     }
 
@@ -829,8 +833,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("salary", "emp_no"));
-        as(topN.child(), Eval.class);
+        assertThat(orderNames(topN), contains("salary", "emp_no"));
+        var eval = as(topN.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("e"));
+        as(eval.child(), EsRelation.class);
     }
 
     public void testCombineOrderByThroughProjectWithAlias() {
@@ -843,7 +849,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("salary", "emp_no"));
+        assertThat(orderNames(topN), contains("salary", "emp_no"));
         as(topN.child(), EsRelation.class);
     }
 
@@ -855,9 +861,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort salary""");
 
         var topN = as(plan, TopN.class);
-        assertThat(topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("salary", "emp_no"));
+        assertThat(orderNames(topN), contains("salary", "emp_no"));
         var filter = as(topN.child(), Filter.class);
         as(filter.child(), EsRelation.class);
+    }
+
+    private static List<String> orderNames(TopN topN) {
+        return topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList();
     }
 
     public void testCombineLimitWithOrderByThroughFilterAndEval() {
@@ -896,14 +906,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("emp_no", "first_name"));
+        assertThat(orderNames(topN), contains("emp_no", "first_name"));
         var filter = as(topN.child(), Filter.class);
         var topN2 = as(filter.child(), TopN.class);
-        assertThat(topN2.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("salary", "emp_no"));
+        assertThat(orderNames(topN2), contains("salary", "emp_no"));
         as(topN2.child(), EsRelation.class);
     }
 
-    public void testPruneRedundantSortClauses() {
+    public void testDontPruneSameFieldDifferentDirectionSortClauses() {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort salary nulls last, emp_no desc nulls first
@@ -917,30 +927,91 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(
             topN.order(),
             contains(
-                new org.elasticsearch.xpack.esql.expression.Order(
+                new Order(
                     EMPTY,
                     new ReferenceAttribute(EMPTY, "e", INTEGER, null, Nullability.TRUE, null, false),
                     Order.OrderDirection.ASC,
                     Order.NullsPosition.LAST
                 ),
-                new org.elasticsearch.xpack.esql.expression.Order(
+                new Order(
                     EMPTY,
                     new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
                     Order.OrderDirection.ASC,
                     Order.NullsPosition.LAST
                 ),
-                new org.elasticsearch.xpack.esql.expression.Order(
+                new Order(
                     EMPTY,
                     new FieldAttribute(EMPTY, "salary", mapping.get("salary")),
                     Order.OrderDirection.DESC,
                     Order.NullsPosition.FIRST
+                ),
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
+                    Order.OrderDirection.DESC,
+                    Order.NullsPosition.FIRST
+                ),
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "salary", mapping.get("salary")),
+                    Order.OrderDirection.ASC,
+                    Order.NullsPosition.LAST
                 )
             )
         );
         assertThat(topN.child().collect(OrderBy.class::isInstance), is(emptyList()));
     }
 
-    public void testPruneRedundantSortClausesUsingAlias() {
+    public void testPruneRedundantSortClauses() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort salary desc nulls last, emp_no desc nulls first
+            | where salary > 2
+            | eval e = emp_no * 2
+            | keep salary, emp_no, e
+            | sort e, emp_no desc, salary desc, emp_no desc nulls last""");
+
+        var project = as(plan, Project.class);
+        var topN = as(project.child(), TopN.class);
+        assertThat(
+            topN.order(),
+            contains(
+                new Order(
+                    EMPTY,
+                    new ReferenceAttribute(EMPTY, "e", INTEGER, null, Nullability.TRUE, null, false),
+                    Order.OrderDirection.ASC,
+                    Order.NullsPosition.LAST
+                ),
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
+                    Order.OrderDirection.DESC,
+                    Order.NullsPosition.FIRST
+                ),
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "salary", mapping.get("salary")),
+                    Order.OrderDirection.DESC,
+                    Order.NullsPosition.FIRST
+                ),
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
+                    Order.OrderDirection.DESC,
+                    Order.NullsPosition.LAST
+                ),
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "salary", mapping.get("salary")),
+                    Order.OrderDirection.DESC,
+                    Order.NullsPosition.LAST
+                )
+            )
+        );
+        assertThat(topN.child().collect(OrderBy.class::isInstance), is(emptyList()));
+    }
+
+    public void testDontPruneSameFieldDifferentDirectionSortClauses_UsingAlias() {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no desc
@@ -953,11 +1024,40 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(
             topN.order(),
             contains(
-                new org.elasticsearch.xpack.esql.expression.Order(
+                new Order(
                     EMPTY,
                     new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
                     Order.OrderDirection.ASC,
                     Order.NullsPosition.LAST
+                ),
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
+                    Order.OrderDirection.DESC,
+                    Order.NullsPosition.FIRST
+                )
+            )
+        );
+    }
+
+    public void testPruneRedundantSortClausesUsingAlias() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no desc
+            | rename emp_no as e
+            | keep e
+            | sort e desc""");
+
+        var project = as(plan, Project.class);
+        var topN = as(project.child(), TopN.class);
+        assertThat(
+            topN.order(),
+            contains(
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
+                    Order.OrderDirection.DESC,
+                    Order.NullsPosition.FIRST
                 )
             )
         );
@@ -1091,6 +1191,55 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(limit.child(), EsRelation.class);
     }
 
+    public void testFoldInEval() {
+        var plan = optimizedPlan("""
+            from test
+            | eval a = 1, b = a + 1, c = b + a
+            | where c > 10
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(LocalSupplier.EMPTY));
+    }
+
+    public void testFoldFromRow() {
+        var plan = optimizedPlan("""
+              row a = 1, b = 2, c = 3
+            | where c > 10
+            """);
+
+        as(plan, LocalRelation.class);
+    }
+
+    public void testFoldFromRowInEval() {
+        var plan = optimizedPlan("""
+              row a = 1, b = 2, c = 3
+            | eval x = c
+            | where x > 10
+            """);
+
+        as(plan, LocalRelation.class);
+    }
+
+    public void testInvalidFoldDueToReplacement() {
+        var plan = optimizedPlan("""
+              from test
+            | eval x = 1
+            | eval x = emp_no
+            | where x > 10
+            | keep x
+            """);
+
+        var project = as(plan, EsqlProject.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var eval = as(filter.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertThat(Expressions.name(alias.child()), is("emp_no"));
+        var source = as(eval.child(), EsRelation.class);
+    }
+
     public void testEnrich() {
         LogicalPlan plan = optimizedPlan("""
             from test
@@ -1138,7 +1287,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | eval x = to_string(languages)
             | enrich languages_idx on x
-            | where not is_null(language_name)
+            | where language_name is not null
             | limit 10
             """);
         var limit = as(plan, Limit.class);
@@ -1315,6 +1464,179 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(sortField.name(), equalTo("job.raw"));
     }
 
+    public void testPruneUnusedEval() {
+        var plan = plan("""
+              from test
+            | eval garbage = salary + 3
+            | keep salary
+            """);
+
+        var keep = as(plan, Project.class);
+        var limit = as(keep.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
+    public void testPruneChainedEval() {
+        var plan = plan("""
+              from test
+            | eval garbage_a = salary + 3
+            | eval garbage_b = emp_no / garbage_a, garbage_c = garbage_a
+            | eval garbage_x = 1 - garbage_b/garbage_c
+            | keep salary
+            """);
+        var keep = as(plan, Project.class);
+        var limit = as(keep.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
+    public void testPruneEvalDueToStats() {
+        var plan = plan("""
+              from test
+            | eval garbage_a = salary + 3, x = salary
+            | eval garbage_b = x + 3
+            | stats c = count(x)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.aggregates(), hasSize(1));
+        var alias = as(aggregate.aggregates().get(0), Alias.class);
+        var count = as(alias.child(), Count.class);
+        var eval = as(aggregate.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var field = as(eval.fields().get(0), Alias.class);
+        assertThat(field.name(), is("x"));
+        var source = as(eval.child(), EsRelation.class);
+    }
+
+    public void testPruneUnusedAggSimple() {
+        var plan = plan("""
+              from test
+            | stats c = count(salary), max = max(salary), min = min(salary)
+            | keep c
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.groupings(), hasSize(0));
+        assertThat(agg.aggregates(), hasSize(1));
+        var aggOne = as(agg.aggregates().get(0), Alias.class);
+        assertThat(aggOne.name(), is("c"));
+        var count = as(aggOne.child(), Count.class);
+        var source = as(agg.child(), EsRelation.class);
+    }
+
+    public void testPruneUnusedAggMixedWithEval() {
+        var plan = plan("""
+              from test
+            | stats c = count(salary), max = max(salary), min = min(salary)
+            | eval x = c
+            | keep x
+            """);
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.groupings(), hasSize(0));
+        assertThat(agg.aggregates(), hasSize(1));
+        var aggOne = as(agg.aggregates().get(0), Alias.class);
+        assertThat(aggOne.name(), is("c"));
+        var count = as(aggOne.child(), Count.class);
+        var source = as(agg.child(), EsRelation.class);
+    }
+
+    public void testPruneUnusedAggsChainedAgg() {
+        var plan = plan("""
+              from test
+            | stats c = count(salary), max = max(salary), min = min(salary)
+            | eval x = max + min + c
+            | eval y = min
+            | eval z = c
+            | keep c
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.groupings(), hasSize(0));
+        var aggs = agg.aggregates();
+        assertThat(aggs, hasSize(1));
+        assertThat(Expressions.names(aggs), contains("c"));
+        var source = as(agg.child(), EsRelation.class);
+    }
+
+    public void testPruneMixedAggInsideUnusedEval() {
+        var plan = plan("""
+              from test
+            | stats c = count(salary), max = max(salary), min = min(salary)
+            | eval x = max + min + c
+            | eval y = min
+            | where y > 10
+            | eval z = c
+            | keep c
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var eval = as(filter.child(), Eval.class);
+        var agg = as(eval.child(), Aggregate.class);
+        assertThat(agg.groupings(), hasSize(0));
+        var aggs = agg.aggregates();
+        assertThat(aggs, hasSize(2));
+        assertThat(Expressions.names(aggs), contains("c", "min"));
+        var source = as(agg.child(), EsRelation.class);
+    }
+
+    public void testNoPruningWhenDealingJustWithEvals() {
+        var plan = plan("""
+              from test
+            | stats c = count(salary), max = max(salary), min = min(salary)
+            | eval x = max + min + c
+            | eval y = min
+            | eval z = c
+            """);
+
+        var eval = as(plan, Eval.class);
+        eval = as(eval.child(), Eval.class);
+        eval = as(eval.child(), Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+    }
+
+    public void testNoPruningWhenChainedEvals() {
+        var plan = plan("""
+              from test
+            | eval x = emp_no, y = x + 1, z = y
+            | keep z
+            """);
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("x", "y", "z"));
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
+    public void testPruningDuplicateEvals() {
+        var plan = plan("""
+              from test
+            | eval x = emp_no, x = salary
+            | eval y = salary
+            | eval y = emp_no
+            | keep x, y
+            """);
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("y"));
+        eval = as(eval.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("x"));
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
     private LogicalPlan optimizedPlan(String query) {
         return plan(query);
     }
@@ -1340,4 +1662,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static FieldAttribute getFieldAttribute(String name, DataType dataType) {
         return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
+
+    public static WildcardLike wildcardLike(Expression left, String exp) {
+        return new WildcardLike(EMPTY, left, new WildcardPattern(exp));
+    }
+
+    public static RLike rlike(Expression left, String exp) {
+        return new RLike(EMPTY, left, new RLikePattern(exp));
+    }
+
 }

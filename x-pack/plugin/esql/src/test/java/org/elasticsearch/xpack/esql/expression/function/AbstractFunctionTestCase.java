@@ -15,7 +15,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.planner.EvalMapper;
+import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -30,6 +30,7 @@ import org.hamcrest.Matcher;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -77,18 +78,39 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         /**
          * The expected output type for the case being tested
          */
-        DataType exptectedType;
+        DataType expectedType;
         /**
          * A matcher to validate the output of the function run on the given input data
          */
         private Matcher<Object> matcher;
 
+        /**
+         * Warnings this test is expected to produce
+         */
+        private String[] expectedWarnings;
+
         public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
             this.source = Source.EMPTY;
             this.data = data;
             this.evaluatorToString = evaluatorToString;
-            this.exptectedType = expectedType;
+            this.expectedType = expectedType;
             this.matcher = matcher;
+            this.expectedWarnings = null;
+        }
+
+        public TestCase(
+            List<TypedData> data,
+            String evaluatorToString,
+            DataType expectedType,
+            Matcher<Object> matcher,
+            String... expectedWarnings
+        ) {
+            this.source = Source.EMPTY;
+            this.data = data;
+            this.evaluatorToString = evaluatorToString;
+            this.expectedType = expectedType;
+            this.matcher = matcher;
+            this.expectedWarnings = expectedWarnings;
         }
 
         public Source getSource() {
@@ -114,12 +136,21 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         public Matcher<Object> getMatcher() {
             return matcher;
         }
+
+        public TestCase withWarning(String warning) {
+            if (expectedWarnings != null) {
+                String[] newWarngings = Arrays.copyOf(this.expectedWarnings, this.expectedWarnings.length + 1);
+                newWarngings[this.expectedWarnings.length] = warning;
+                return new TestCase(this.data, this.evaluatorToString, this.expectedType, this.matcher, newWarngings);
+            }
+            return new TestCase(this.data, this.evaluatorToString, this.expectedType, this.matcher, warning);
+        }
     }
 
     /**
      * This class exists to give a human-readable string representation of the test case.
      */
-    protected static class TestCaseSupplier implements Supplier<TestCase> {
+    public static class TestCaseSupplier implements Supplier<TestCase> {
 
         private String name;
         private final Supplier<TestCase> wrapped;
@@ -201,9 +232,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             e = new Literal(e.source(), e.fold(), e.dataType());
         }
         Layout.Builder builder = new Layout.Builder();
-        // Hack together a layout by scanning for Fields.
-        // Those will show up in the layout in whatever order a depth first traversal finds them.
         buildLayout(builder, e);
+        assertTrue(e.resolved());
         return EvalMapper.toEvaluator(e, builder.build());
     }
 
@@ -211,7 +241,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return new Page(BlockUtils.fromListRow(values));
     }
 
-    private void buildLayout(Layout.Builder builder, Expression e) {
+    /**
+     * Hack together a layout by scanning for Fields.
+     * Those will show up in the layout in whatever order a depth first traversal finds them.
+     */
+    protected void buildLayout(Layout.Builder builder, Expression e) {
         if (e instanceof FieldAttribute f) {
             builder.appendChannel(f.id());
             return;
@@ -228,10 +262,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public final void testSimple() {
         Expression expression = buildFieldExpression(testCase);
-        assertThat(expression.dataType(), equalTo(testCase.exptectedType));
+        assertThat(expression.dataType(), equalTo(testCase.expectedType));
         // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
         Object result = toJavaObject(evaluator(expression).get().eval(row(testCase.getDataValues())), 0);
         assertThat(result, testCase.getMatcher());
+        if (testCase.expectedWarnings != null) {
+            assertWarnings(testCase.expectedWarnings);
+        }
     }
 
     public final void testSimpleWithNulls() {
@@ -285,14 +322,19 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluatorSimpleToString() {
-        assertThat(evaluator(buildFieldExpression(testCase)).get().toString(), equalTo(testCase.evaluatorToString));
+        var supplier = evaluator(buildFieldExpression(testCase));
+        var ev = supplier.get();
+        assertThat(ev.toString(), equalTo(testCase.evaluatorToString));
     }
 
     public final void testSimpleConstantFolding() {
         Expression e = buildLiteralExpression(testCase);
-        assertThat(e.dataType(), equalTo(testCase.exptectedType));
+        assertThat(e.dataType(), equalTo(testCase.expectedType));
         assertTrue(e.foldable());
         assertThat(e.fold(), testCase.getMatcher());
+        if (testCase.expectedWarnings != null) {
+            assertWarnings(testCase.expectedWarnings);
+        }
     }
 
     public void testSerializationOfSimple() {

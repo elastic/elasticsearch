@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -54,8 +54,10 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
+import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -98,6 +100,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new FoldNull(),
             new SplitInWithFoldableValue(),
             new ConstantFolding(),
+            new PropagateEvalFoldables(),
             // boolean
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
@@ -110,6 +113,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new SimplifyComparisonsArithmetics(EsqlDataTypes::areCompatible),
             // prune/elimination
             new PruneFilters(),
+            new PruneColumns(),
             new PruneLiteralsInOrderBy(),
             new PushDownAndCombineLimits(),
             new PushDownAndCombineFilters(),
@@ -301,6 +305,39 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         private static Expression trimAliases(Expression e) {
             return e.transformDown(Alias.class, Alias::child);
+        }
+    }
+
+    //
+    // Replace any reference attribute with its source, if it does not affect the result.
+    // This avoids ulterior look-ups between attributes and its source across nodes.
+    //
+    static class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            var collectRefs = new AttributeMap<Expression>();
+            // collect aliases
+            plan.forEachExpressionUp(Alias.class, a -> {
+                var c = a.child();
+                if (c.foldable()) {
+                    collectRefs.put(a.toAttribute(), c);
+                }
+            });
+            if (collectRefs.isEmpty()) {
+                return plan;
+            }
+            java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.resolve(r, r);
+
+            plan = plan.transformUp(p -> {
+                // Apply the replacement inside Filter and Eval (which shouldn't make a difference)
+                if (p instanceof Filter || p instanceof Eval) {
+                    p = p.transformExpressionsOnly(ReferenceAttribute.class, replaceReference);
+                }
+                return p;
+            });
+
+            return plan;
         }
     }
 
@@ -608,6 +645,90 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
+    /**
+     * Remove unused columns created in the plan, in fields inside eval or aggregations inside stats.
+     */
+    static class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            var used = new AttributeSet();
+            // don't remove Evals without any Project/Aggregate (which might not occur as the last node in the plan)
+            var seenProjection = new Holder<>(Boolean.FALSE);
+
+            // start top-to-bottom
+            // and track used references
+            var pl = plan.transformDown(p -> {
+                // skip nodes that simply pass the input through
+                if (p instanceof Limit) {
+                    return p;
+                }
+
+                // remember used
+                boolean recheck;
+                // analyze the unused items against dedicated 'producer' nodes such as Eval and Aggregate
+                // perform a loop to retry checking if the current node is completely eliminated
+                do {
+                    recheck = false;
+                    if (p instanceof Aggregate aggregate) {
+                        var remaining = seenProjection.get() ? removeUnused(aggregate.aggregates(), used) : null;
+                        // no aggregates, no need
+                        if (remaining != null) {
+                            if (remaining.isEmpty()) {
+                                recheck = true;
+                                p = aggregate.child();
+                            } else {
+                                p = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), remaining);
+                            }
+                        }
+
+                        seenProjection.set(Boolean.TRUE);
+                    } else if (p instanceof Eval eval) {
+                        var remaining = seenProjection.get() ? removeUnused(eval.fields(), used) : null;
+                        // no fields, no eval
+                        if (remaining != null) {
+                            if (remaining.isEmpty()) {
+                                p = eval.child();
+                                recheck = true;
+                            } else {
+                                p = new Eval(eval.source(), eval.child(), remaining);
+                            }
+                        }
+                    } else if (p instanceof Project) {
+                        seenProjection.set(Boolean.TRUE);
+                    }
+                } while (recheck);
+
+                used.addAll(p.references());
+
+                // preserve the state before going to the next node
+                return p;
+            });
+
+            return pl;
+        }
+
+        /**
+         * Prunes attributes from the list not found in the given set.
+         * Returns null if no changed occurred.
+         */
+        private static <N extends NamedExpression> List<N> removeUnused(List<N> named, AttributeSet used) {
+            var clone = new ArrayList<>(named);
+            var it = clone.listIterator(clone.size());
+
+            // due to Eval, go in reverse
+            while (it.hasPrevious()) {
+                N prev = it.previous();
+                if (used.contains(prev.toAttribute()) == false) {
+                    it.remove();
+                } else {
+                    used.addAll(prev.references());
+                }
+            }
+            return clone.size() != named.size() ? clone : null;
+        }
+    }
+
     static class PruneOrderByBeforeStats extends OptimizerRules.OptimizerRule<Aggregate> {
 
         @Override
@@ -641,11 +762,10 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(OrderBy plan) {
-            var referencedAttributes = new ExpressionSet<Attribute>();
+            var referencedAttributes = new ExpressionSet<Order>();
             var order = new ArrayList<Order>();
             for (Order o : plan.order()) {
-                Attribute a = (Attribute) o.child();
-                if (referencedAttributes.add(a)) {
+                if (referencedAttributes.add(o)) {
                     order.add(o);
                 }
             }
@@ -667,7 +787,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
             return project.replaceChild(expressionsWithResolvedAliases.replaceChild(project.child()));
         } else {
-            throw new UnsupportedOperationException("Expected child to be instance of Project");
+            throw new EsqlIllegalArgumentException("Expected child to be instance of Project");
         }
     }
 
@@ -708,11 +828,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
     public static class ReplaceRegexMatch extends OptimizerRules.ReplaceRegexMatch {
 
         protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
-            return new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals(
-                regexMatch.source(),
-                regexMatch.field(),
-                literal
-            );
+            return new Equals(regexMatch.source(), regexMatch.field(), literal);
         }
     }
 
@@ -720,7 +836,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            if (plan instanceof Drop) {
+            if (plan instanceof LocalRelation || plan instanceof Drop) {
                 return plan;
             } else if (plan instanceof Project proj) {
                 return plan.transformExpressionsOnlyUp(FieldAttribute.class, x -> toExactAlias(x, proj.projections()));

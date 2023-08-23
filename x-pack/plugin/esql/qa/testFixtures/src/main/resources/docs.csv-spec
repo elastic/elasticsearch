@@ -5,7 +5,7 @@ FROM employees
 // end::dropheight[]
 | LIMIT 0;
 
-avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.long:long | still_hired:boolean
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean
 ;
 
 docsDropHeightWithWildcard
@@ -15,7 +15,7 @@ FROM employees
 // end::dropheightwithwildcard[]
 | LIMIT 0;
 
-avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.long:long | still_hired:boolean
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean
 ;
 
 docsEval
@@ -101,7 +101,7 @@ FROM employees
 // end::keepDoubleWildcard[]
 | LIMIT 0;
 
-height:double | height.float:double | height.half_float:double | height.scaled_float:double |       hire_date:date | avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.long:long | still_hired:boolean
+height:double | height.float:double | height.half_float:double | height.scaled_float:double |       hire_date:date | avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long |still_hired:boolean
 ;
 
 docsRename
@@ -397,38 +397,6 @@ Arumugam       |Ossenbruggen   |2.1          |6.9
 Kwee           |Schusler       |2.1          |6.9
 Saniya         |Kalloufi       |2.1          |6.9
 // end::round-result[]
-;
-
-docsIsNull
-// tag::isNull[]
-FROM employees
-| KEEP first_name, last_name
-| WHERE IS_NULL(first_name)
-// end::isNull[]
-| LIMIT 3;
-
-// tag::isNull-result[]
-first_name:keyword | last_name:keyword
-null           |Demeyer
-null           |Joslin
-null           |Reistad
-// end::isNull-result[]
-;
-
-docsNotIsNull
-// tag::notIsNull[]
-FROM employees
-| KEEP first_name, last_name
-| WHERE NOT IS_NULL(first_name)
-// end::notIsNull[]
-| LIMIT 3;
-
-// tag::notIsNull-result[]
-first_name:keyword | last_name:keyword
-Georgi         |Facello
-Bezalel        |Simmel
-Parto          |Bamford
-// end::notIsNull-result[]
 ;
 
 dateParse

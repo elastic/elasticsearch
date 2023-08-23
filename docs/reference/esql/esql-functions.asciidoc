@@ -16,6 +16,7 @@ these functions:
 * <<esql-auto_bucket>>
 * <<esql-case>>
 * <<esql-cidr_match>>
+* <<esql-coalesce>>
 * <<esql-concat>>
 * <<esql-cos>>
 * <<esql-cosh>>
@@ -25,12 +26,15 @@ these functions:
 * <<esql-date_trunc>>
 * <<esql-e>>
 * <<esql-floor>>
+* <<esql-greatest>>
 * <<esql-is_finite>>
 * <<esql-is_infinite>>
 * <<esql-is_nan>>
-* <<esql-is_null>>
+* <<esql-least>>
 * <<esql-length>>
 * <<esql-log10>>
+* <<esql-ltrim>>
+* <<esql-rtrim>>
 * <<esql-mv_avg>>
 * <<esql-mv_concat>>
 * <<esql-mv_count>>
@@ -72,6 +76,7 @@ include::functions/atan2.asciidoc[]
 include::functions/auto_bucket.asciidoc[]
 include::functions/case.asciidoc[]
 include::functions/cidr_match.asciidoc[]
+include::functions/coalesce.asciidoc[]
 include::functions/concat.asciidoc[]
 include::functions/cos.asciidoc[]
 include::functions/cosh.asciidoc[]
@@ -81,12 +86,15 @@ include::functions/date_parse.asciidoc[]
 include::functions/date_trunc.asciidoc[]
 include::functions/e.asciidoc[]
 include::functions/floor.asciidoc[]
+include::functions/greatest.asciidoc[]
 include::functions/is_finite.asciidoc[]
 include::functions/is_infinite.asciidoc[]
 include::functions/is_nan.asciidoc[]
-include::functions/is_null.asciidoc[]
+include::functions/least.asciidoc[]
 include::functions/length.asciidoc[]
 include::functions/log10.asciidoc[]
+include::functions/ltrim.asciidoc[]
+include::functions/rtrim.asciidoc[]
 include::functions/mv_avg.asciidoc[]
 include::functions/mv_concat.asciidoc[]
 include::functions/mv_count.asciidoc[]
@@ -102,6 +110,7 @@ include::functions/round.asciidoc[]
 include::functions/sin.asciidoc[]
 include::functions/sinh.asciidoc[]
 include::functions/split.asciidoc[]
+include::functions/sqrt.asciidoc[]
 include::functions/starts_with.asciidoc[]
 include::functions/substring.asciidoc[]
 include::functions/tan.asciidoc[]

@@ -13,6 +13,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
+import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
@@ -22,11 +28,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -35,10 +42,6 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -72,6 +75,8 @@ public class EvalMapperTests extends ESTestCase {
             new Sub(Source.EMPTY, DOUBLE1, DOUBLE2),
             new Mul(Source.EMPTY, DOUBLE1, DOUBLE2),
             new Div(Source.EMPTY, DOUBLE1, DOUBLE2),
+            new Mod(Source.EMPTY, DOUBLE1, DOUBLE2),
+            new Neg(Source.EMPTY, DOUBLE1),
             new Abs(Source.EMPTY, DOUBLE1),
             new Equals(Source.EMPTY, DOUBLE1, DOUBLE2),
             new GreaterThan(Source.EMPTY, DOUBLE1, DOUBLE2, null),
@@ -99,7 +104,7 @@ public class EvalMapperTests extends ESTestCase {
             new DateFormat(Source.EMPTY, literal, datePattern, TEST_CONFIG),
             new StartsWith(Source.EMPTY, literal, literal),
             new Substring(Source.EMPTY, literal, LONG, LONG),
-            new DateTrunc(Source.EMPTY, DATE, dateInterval) }) {
+            new DateTrunc(Source.EMPTY, dateInterval, DATE) }) {
             params.add(new Object[] { e.nodeString(), e });
         }
 

@@ -1432,7 +1432,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public String toString() {
-            return getClass().getName() + "/" + delegate.toString();
+            return getClass().getSimpleName() + "[" + delegate.toString() + "]";
         }
 
         void setTimeoutHandler(TimeoutHandler timeoutHandler) {

@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
@@ -53,6 +55,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
@@ -64,15 +67,17 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 
 import java.util.Locale;
 
@@ -111,15 +116,18 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Cosh.class, Cosh::new, "cosh"),
                 def(E.class, E::new, "e"),
                 def(Floor.class, Floor::new, "floor"),
+                def(Greatest.class, Greatest::new, "greatest"),
                 def(IsFinite.class, IsFinite::new, "is_finite"),
                 def(IsInfinite.class, IsInfinite::new, "is_infinite"),
                 def(IsNaN.class, IsNaN::new, "is_nan"),
                 def(Log10.class, Log10::new, "log10"),
+                def(Least.class, Least::new, "least"),
                 def(Pi.class, Pi::new, "pi"),
                 def(Pow.class, Pow::new, "pow"),
                 def(Round.class, Round::new, "round"),
                 def(Sin.class, Sin::new, "sin"),
                 def(Sinh.class, Sinh::new, "sinh"),
+                def(Sqrt.class, Sqrt::new, "sqrt"),
                 def(Tan.class, Tan::new, "tan"),
                 def(Tanh.class, Tanh::new, "tanh"),
                 def(Tau.class, Tau::new, "tau") },
@@ -128,6 +136,8 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Length.class, Length::new, "length"),
                 def(Substring.class, Substring::new, "substring"),
                 def(Concat.class, Concat::new, "concat"),
+                def(LTrim.class, LTrim::new, "ltrim"),
+                def(RTrim.class, RTrim::new, "rtrim"),
                 def(Trim.class, Trim::new, "trim"),
                 def(StartsWith.class, StartsWith::new, "starts_with") },
             // date
@@ -138,7 +148,9 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(DateTrunc.class, DateTrunc::new, "date_trunc"),
                 def(Now.class, Now::new, "now") },
             // conditional
-            new FunctionDefinition[] { def(Case.class, Case::new, "case"), def(IsNull.class, IsNull::new, "is_null"), },
+            new FunctionDefinition[] { def(Case.class, Case::new, "case") },
+            // null
+            new FunctionDefinition[] { def(Coalesce.class, Coalesce::new, "coalesce"), },
             // IP
             new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
             // conversion functions

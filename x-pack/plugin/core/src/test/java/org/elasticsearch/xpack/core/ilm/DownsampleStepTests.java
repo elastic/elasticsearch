@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -19,7 +20,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.mockito.Mockito;
@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.action.downsample.DownsampleConfig.generateDownsampleIndexName;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.common.IndexNameGenerator.generateValidIndexName;
@@ -96,7 +97,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         lifecycleState.setAction(step.getKey().action());
         lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
-        lifecycleState.setDownsampleIndexName(DownsamplePrepareLifeCycleStateStep.generateDownsampleIndexName(im, step.getFixedInterval()));
+        lifecycleState.setDownsampleIndexName(generateDownsampleIndexName(DOWNSAMPLED_INDEX_PREFIX, im, step.getFixedInterval()));
         return IndexMetadata.builder(im).putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap()).build();
     }
 
@@ -105,7 +106,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         assertThat(request.getSourceIndex(), equalTo(sourceIndex));
         assertThat(
             request.getTargetIndex(),
-            equalTo(DOWNSAMPLED_INDEX_PREFIX + sourceIndex + "-" + request.getDownsampleConfig().getFixedInterval())
+            equalTo(DOWNSAMPLED_INDEX_PREFIX + request.getDownsampleConfig().getFixedInterval() + "-" + sourceIndex)
         );
     }
 
@@ -185,10 +186,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        String downsampleIndex = DownsamplePrepareLifeCycleStateStep.generateDownsampleIndexName(
-            sourceIndexMetadata,
-            step.getFixedInterval()
-        );
+        String downsampleIndex = generateDownsampleIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexMetadata, step.getFixedInterval());
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase(step.getKey().phase());
         lifecycleState.setAction(step.getKey().action());

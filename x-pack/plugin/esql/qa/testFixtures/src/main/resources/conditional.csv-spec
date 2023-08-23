@@ -89,29 +89,3 @@ M              |10
 M              |10           
 M              |10           
 ;
-
-isNull
-from employees
-| where is_null(gender)
-| sort first_name
-| keep first_name, gender
-| limit 3;
-
-first_name:keyword|gender:keyword
-Berni             |null
-Cristinel         |null
-Duangkaew         |null
-;
-
-notIsNull
-from employees
-| where not is_null(gender)
-| sort first_name
-| keep first_name, gender
-| limit 3;
-
-first_name:keyword|gender:keyword
-Alejandro         |F
-Amabile           |M
-Anneke            |F
-;

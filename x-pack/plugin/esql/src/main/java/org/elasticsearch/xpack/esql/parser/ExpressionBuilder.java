@@ -12,15 +12,21 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RLike;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.regex.RLike;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -34,12 +40,8 @@ import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mod;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
@@ -336,6 +338,13 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             ? new Equals(source, expressions.get(0), expressions.get(1))
             : new In(source, expressions.get(0), expressions.subList(1, expressions.size()));
         return ctx.NOT() == null ? e : new Not(source, e);
+    }
+
+    @Override
+    public Object visitIsNull(EsqlBaseParser.IsNullContext ctx) {
+        Expression exp = expression(ctx.valueExpression());
+        Source source = source(ctx.valueExpression(), ctx);
+        return ctx.NOT() != null ? new IsNotNull(source, exp) : new IsNull(source, exp);
     }
 
     @Override

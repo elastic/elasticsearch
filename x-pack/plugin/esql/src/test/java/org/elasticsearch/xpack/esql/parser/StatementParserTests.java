@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.regex.RLike;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RLike;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
@@ -34,7 +35,6 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -546,6 +546,17 @@ public class StatementParserTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    public void testDeprecatedIsNullFunction() {
+        expectError(
+            "from test | eval x = is_null(f)",
+            "line 1:23: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
+        );
+        expectError(
+            "row x = is_null(f)",
+            "line 1:10: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
+        );
     }
 
     public void testMetadataFieldOnOtherSources() {

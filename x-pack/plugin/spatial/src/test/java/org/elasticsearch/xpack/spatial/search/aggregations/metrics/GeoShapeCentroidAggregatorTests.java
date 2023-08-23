@@ -70,7 +70,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                 Map.of()
             );
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalGeoCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
@@ -86,7 +86,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
             document.add(new LatLonDocValuesField("field", 10, 10));
             w.addDocument(document);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 MappedFieldType fieldType = new GeoShapeWithDocValuesFieldType(
                     "another_field",
@@ -130,7 +130,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
             document.add(new LatLonDocValuesField("field", 10, 10));
             w.addDocument(document);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 MappedFieldType fieldType = new GeoShapeWithDocValuesFieldType(
                     "another_field",
@@ -219,7 +219,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
         );
         GeoCentroidAggregationBuilder aggBuilder = new GeoCentroidAggregationBuilder("my_agg").field("field");
         try (IndexReader reader = w.getReader()) {
-            IndexSearcher searcher = new IndexSearcher(reader);
+            IndexSearcher searcher = newSearcher(reader);
             InternalGeoCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
 
             assertEquals("my_agg", result.getName());

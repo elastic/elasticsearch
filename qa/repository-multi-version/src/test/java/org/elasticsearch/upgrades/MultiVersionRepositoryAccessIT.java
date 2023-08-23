@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.is;
  * </ul>
  */
 @SuppressWarnings("removal")
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94459")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98454")
 public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private enum TestStep {

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.rest.RestResponseUtils.getTextBodyContent;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.arrayWithSize;
 
@@ -69,7 +70,7 @@ public class TextFormatterTests extends ESTestCase {
      * column size.
      */
     public void testFormatWithHeader() {
-        String[] result = formatter.format(true).split("\n");
+        String[] result = getTextBodyContent(formatter.format(true)).split("\n");
         assertThat(result, arrayWithSize(4));
         assertEquals(
             "      foo      |      bar      |15charwidename!|  null_field1  |superduperwidename!!!|      baz      |"
@@ -120,7 +121,7 @@ public class TextFormatterTests extends ESTestCase {
             randomBoolean()
         );
 
-        String[] result = new TextFormatter(response).format(false).split("\n");
+        String[] result = getTextBodyContent(new TextFormatter(response).format(false)).split("\n");
         assertThat(result, arrayWithSize(2));
         assertEquals(
             "doggie         |4              |1.0            |null           |77.0                 |wombat         |"
@@ -132,12 +133,5 @@ public class TextFormatterTests extends ESTestCase {
                 + "2231-12-31T23:59:59.999Z|null           ",
             result[1]
         );
-    }
-
-    /**
-     * Ensure that our estimates are perfect in at least some cases.
-     */
-    public void testEstimateSize() {
-        assertEquals(formatter.format(true).length(), formatter.estimateSize(esqlResponse.values().size() + 2));
     }
 }

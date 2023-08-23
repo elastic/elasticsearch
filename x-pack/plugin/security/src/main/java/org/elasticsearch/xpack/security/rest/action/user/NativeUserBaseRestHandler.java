@@ -26,11 +26,7 @@ abstract class NativeUserBaseRestHandler extends SecurityBaseRestHandler {
     }
 
     @Override
-    protected Exception checkFeatureAvailable(RestRequest request) {
-        Exception failedFeature = super.checkFeatureAvailable(request);
-        if (failedFeature != null) {
-            return failedFeature;
-        }
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
         final Boolean nativeUserEnabled = settings.getAsBoolean(NativeRealmSettings.NATIVE_USERS_ENABLED, true);
         if (nativeUserEnabled == false) {
             logger.debug(

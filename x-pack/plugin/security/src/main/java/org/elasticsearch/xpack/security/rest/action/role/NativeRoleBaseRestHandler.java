@@ -26,11 +26,7 @@ abstract class NativeRoleBaseRestHandler extends SecurityBaseRestHandler {
     }
 
     @Override
-    protected Exception checkFeatureAvailable(RestRequest request) {
-        Exception failedFeature = super.checkFeatureAvailable(request);
-        if (failedFeature != null) {
-            return failedFeature;
-        }
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
         final Boolean nativeRolesEnabled = settings.getAsBoolean(NativeRolesStore.NATIVE_ROLES_ENABLED, true);
         if (nativeRolesEnabled == false) {
             logger.debug(

@@ -281,6 +281,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
     // with an empty cache gets closed. In that particular case, the eviction
     // callback is called with a number of evicted entries equal to 0
     // see https://github.com/elastic/elasticsearch/issues/15043
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98776")
     public void testStatsOnEviction() throws IOException {
         Directory dir1 = newDirectory();
         IndexWriter w1 = new IndexWriter(dir1, newIndexWriterConfig());
@@ -289,7 +290,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         w1.close();
         ShardId shard1 = new ShardId("index", "_na_", 0);
         r1 = ElasticsearchDirectoryReader.wrap(r1, shard1);
-        IndexSearcher s1 = newSearcher(r1);
+        IndexSearcher s1 = newSearcher(r1, false);
         s1.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
 
         Directory dir2 = newDirectory();
@@ -299,7 +300,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         w2.close();
         ShardId shard2 = new ShardId("index", "_na_", 1);
         r2 = ElasticsearchDirectoryReader.wrap(r2, shard2);
-        IndexSearcher s2 = newSearcher(r2);
+        IndexSearcher s2 = newSearcher(r2, false);
         s2.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
 
         Settings settings = Settings.builder()
@@ -374,7 +375,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         w.close();
         ShardId shard = new ShardId("index", "_na_", 0);
         r = ElasticsearchDirectoryReader.wrap(r, shard);
-        IndexSearcher s = newSearcher(r);
+        IndexSearcher s = newSearcher(r, false);
         s.setQueryCachingPolicy(TrivialQueryCachingPolicy.NEVER);
 
         Settings settings = Settings.builder()

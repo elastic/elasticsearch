@@ -298,7 +298,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> restarting the stopped nodes");
         internalCluster().startNode(Settings.builder().put("node.name", nodes.get(0)).put(node0DataPathSettings).build());
         internalCluster().startNode(Settings.builder().put("node.name", nodes.get(1)).put(node1DataPathSettings).build());
-        ensureStableCluster(3);
 
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();
@@ -612,7 +611,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     public void testRebalancingNotAllowed() throws Exception {
         logger.info("--> starting a single node");
         internalCluster().startNode();
-        ensureStableCluster(1);
 
         prepareIndex(5, 0);
 
@@ -621,7 +619,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         logger.info("--> starting another node, with rebalancing disabled, it should get no shards");
         internalCluster().startNode();
-        ensureStableCluster(2);
 
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();
@@ -720,7 +717,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     public void testWorseBalance() throws Exception {
         logger.info("--> starting a single node");
         internalCluster().startNode();
-        ensureStableCluster(1);
 
         prepareIndex(5, 0);
 
@@ -729,7 +725,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         logger.info("--> starting another node, with the rebalance threshold so high, it should not get any shards");
         internalCluster().startNode();
-        ensureStableCluster(2);
 
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();
@@ -820,7 +815,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     public void testBetterBalanceButCannotAllocate() throws Exception {
         logger.info("--> starting a single node");
         String firstNode = internalCluster().startNode();
-        ensureStableCluster(1);
 
         prepareIndex(5, 0);
 
@@ -829,7 +823,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         logger.info("--> starting another node, with filtering not allowing allocation to the new node, it should not get any shards");
         internalCluster().startNode();
-        ensureStableCluster(2);
 
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();

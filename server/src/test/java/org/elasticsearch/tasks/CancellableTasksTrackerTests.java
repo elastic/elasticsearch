@@ -146,7 +146,7 @@ public class CancellableTasksTrackerTests extends ESTestCase {
             () -> new TaskId(randomAlphaOfLength(5), randomNonNegativeLong())
         );
 
-        final CancellableTasksTracker<String> tracker = new CancellableTasksTracker<>(new String[0]);
+        final CancellableTasksTracker<String> tracker = new CancellableTasksTracker<>();
         final TestTask[] tasks = new TestTask[between(1, 100)];
 
         final Runnable awaitStart = new Runnable() {

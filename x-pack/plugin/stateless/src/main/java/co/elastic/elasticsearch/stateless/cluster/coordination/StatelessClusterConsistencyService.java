@@ -112,4 +112,8 @@ public class StatelessClusterConsistencyService {
     public ClusterState state() {
         return clusterService.state();
     }
+
+    public ClusterService clusterService() {
+        return clusterService;
+    }
 }

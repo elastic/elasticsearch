@@ -25,6 +25,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public class ShardSyncStateTests extends ESTestCase {
 
@@ -35,7 +36,11 @@ public class ShardSyncStateTests extends ESTestCase {
         shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
         ShardSyncState.SyncMarker syncMarker = shardSyncState.pollBufferForSync().syncMarker();
 
-        TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(2) {
+        TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
+            2,
+            "",
+            Collections.singleton(shardId)
+        ) {
             @Override
             protected void closeInternal() {}
         };
@@ -57,7 +62,11 @@ public class ShardSyncStateTests extends ESTestCase {
         shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
         ShardSyncState.SyncMarker syncMarker = shardSyncState.pollBufferForSync().syncMarker();
 
-        TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(2) {
+        TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
+            2,
+            "",
+            Collections.singleton(shardId)
+        ) {
             @Override
             protected void closeInternal() {}
         };
@@ -78,7 +87,11 @@ public class ShardSyncStateTests extends ESTestCase {
         shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
         ShardSyncState.SyncMarker syncMarker = shardSyncState.pollBufferForSync().syncMarker();
 
-        TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(2) {
+        TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
+            2,
+            "",
+            Collections.singleton(shardId)
+        ) {
             @Override
             protected void closeInternal() {}
         };
@@ -99,7 +112,11 @@ public class ShardSyncStateTests extends ESTestCase {
         shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
         ShardSyncState.SyncMarker syncMarker = shardSyncState.pollBufferForSync().syncMarker();
 
-        TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(2) {
+        TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
+            2,
+            "",
+            Collections.singleton(shardId)
+        ) {
             @Override
             protected void closeInternal() {}
         };

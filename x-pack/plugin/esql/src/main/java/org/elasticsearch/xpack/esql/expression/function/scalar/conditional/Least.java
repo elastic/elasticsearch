@@ -142,7 +142,7 @@ public class Least extends ScalarFunction implements EvaluatorMapper, OptionalAr
                 suppliers.get().map(MvMinBytesRefEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
             );
         }
-        throw ExceptionUtils.illegalDataType(dataType);
+        throw ExceptionUtils.deadCode(ExceptionUtils.unsupportedDataType(dataType));
     }
 
     @Evaluator(extraName = "Boolean")

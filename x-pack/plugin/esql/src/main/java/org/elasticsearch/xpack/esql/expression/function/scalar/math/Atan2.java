@@ -11,6 +11,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.util.ExceptionUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -94,7 +95,7 @@ public class Atan2 extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new EsqlUnsupportedOperationException("functions do not support scripting");
+        throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("functions do not support scripting"));
     }
 
     public Expression y() {

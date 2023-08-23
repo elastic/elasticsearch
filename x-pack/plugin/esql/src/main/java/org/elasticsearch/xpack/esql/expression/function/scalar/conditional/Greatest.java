@@ -142,7 +142,7 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
                 suppliers.get().map(MvMaxBytesRefEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
             );
         }
-        throw ExceptionUtils.illegalDataType(dataType);
+        throw ExceptionUtils.deadCode(ExceptionUtils.unsupportedDataType(dataType));
     }
 
     @Evaluator(extraName = "Boolean")

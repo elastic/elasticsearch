@@ -19,6 +19,7 @@ public class ExceptionUtils {
      * @see ExceptionUtils#illegalDataType(String)
      *
      * @param dataType the illegal data type that was encountered
+     * @return an exception with a predetermined error message.
      */
     public static EsqlIllegalArgumentException illegalDataType(DataType dataType) {
         return illegalDataType(dataType.typeName());
@@ -28,6 +29,7 @@ public class ExceptionUtils {
      * Create a {@link EsqlIllegalArgumentException} whose cause is an illegal data type.
      *
      * @param dataTypeName the name of the  illegal data type that was encountered
+     * @return an exception with a predetermined error message.
      */
     public static EsqlIllegalArgumentException illegalDataType(String dataTypeName) {
         return new EsqlIllegalArgumentException("illegal data type [" + dataTypeName + "]");
@@ -35,6 +37,7 @@ public class ExceptionUtils {
 
     /**
      * Create a {@link EsqlUnsupportedOperationException} whose cause is a missing method implementation.
+     * @return an exception with a predetermined error message.
      */
     public static EsqlUnsupportedOperationException methodNotImplemented() {
         return new EsqlUnsupportedOperationException("method not implemented");
@@ -44,6 +47,7 @@ public class ExceptionUtils {
      * @see ExceptionUtils#unsupportedDataType(String)
      *
      * @param dataType the unsupported data type that was encountered
+     * @return an exception with a predetermined error message.
      */
     public static EsqlUnsupportedOperationException unsupportedDataType(DataType dataType) {
         return unsupportedDataType(dataType.typeName());
@@ -56,8 +60,21 @@ public class ExceptionUtils {
      * expression evaluator that requires the child expressions to resolve to certain data types).
      *
      * @param dataTypeName the unsupported data type that was encountered
+     * @return an exception with a predetermined error message.
      */
     public static EsqlUnsupportedOperationException unsupportedDataType(String dataTypeName) {
         return new EsqlUnsupportedOperationException("unsupported data type [" + dataTypeName + "]");
+    }
+
+    /**
+     * For code sections that should never be reached. Results in an error if assertions are enabled, otherwise just returns the given
+     * exception, so it can be thrown. Use this so that reaching unreachable code leads to errors during tests but does not crash the server
+     * in production.
+     * @param e the exception to throw if this is reached with disabled assertions
+     * @return the same exception obtained as argument
+     */
+    public static RuntimeException deadCode(RuntimeException e) {
+        assert false : e.getMessage();
+        return e;
     }
 }

@@ -123,7 +123,7 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
             Mul mul = new Mul(source(), floor, rounding);
             return toEvaluator.apply(mul);
         }
-        throw ExceptionUtils.unsupportedDataType(field.dataType());
+        throw ExceptionUtils.deadCode(ExceptionUtils.unsupportedDataType(field.dataType()));
     }
 
     private record DateRoundingPicker(int buckets, long from, long to) {
@@ -215,7 +215,7 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new EsqlUnsupportedOperationException("functions do not support scripting");
+        throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("functions do not support scripting"));
     }
 
     @Override

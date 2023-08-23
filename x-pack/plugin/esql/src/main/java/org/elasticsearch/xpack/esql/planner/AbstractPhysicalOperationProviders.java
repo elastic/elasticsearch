@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.esql.util.ExceptionUtils;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -163,7 +164,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
         if (operatorFactory != null) {
             return source.with(operatorFactory, layout.build());
         }
-        throw new EsqlUnsupportedOperationException("no operator factory");
+        throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("no operator factory"));
     }
 
     /***

@@ -14,6 +14,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.util.ExceptionUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
@@ -52,7 +53,9 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
             ChronoField chrono = chronoField();
             if (chrono == null) {
                 BytesRef field = (BytesRef) children().get(1).fold();
-                throw new EsqlUnsupportedOperationException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
+                throw ExceptionUtils.deadCode(
+                    new EsqlUnsupportedOperationException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString())
+                );
             }
             return () -> new DateExtractConstantEvaluator(fieldEvaluator.get(), chrono, configuration().zoneId());
         }
@@ -103,7 +106,7 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
 
     @Override
     public ScriptTemplate asScript() {
-        throw new EsqlUnsupportedOperationException("functions do not support scripting");
+        throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("functions do not support scripting"));
     }
 
     @Override

@@ -204,7 +204,7 @@ public class LocalExecutionPlanner {
             return planExchangeSink(exchangeSink, context);
         }
 
-        throw new EsqlUnsupportedOperationException("unknown physical plan node [" + node.nodeName() + "]");
+        throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("unknown physical plan node [" + node.nodeName() + "]"));
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
@@ -258,7 +258,7 @@ public class LocalExecutionPlanner {
         if (dataType == DataTypes.BOOLEAN) {
             return ElementType.BOOLEAN;
         }
-        throw ExceptionUtils.unsupportedDataType(dataType);
+        throw ExceptionUtils.deadCode(ExceptionUtils.unsupportedDataType(dataType));
     }
 
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
@@ -298,7 +298,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planExchange(ExchangeExec exchangeExec, LocalExecutionPlannerContext context) {
-        throw new EsqlUnsupportedOperationException("Exchange needs to be replaced with a sink/source");
+        throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("Exchange needs to be replaced with a sink/source"));
     }
 
     private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {
@@ -366,7 +366,7 @@ public class LocalExecutionPlanner {
         if (topNExec.limit() instanceof Literal literal) {
             limit = Integer.parseInt(literal.value().toString());
         } else {
-            throw new EsqlUnsupportedOperationException("limit only supported with literal values");
+            throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("limit only supported with literal values"));
         }
 
         // TODO Replace page size with passing estimatedRowSize down

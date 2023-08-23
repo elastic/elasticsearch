@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.util.ExceptionUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Collections;
@@ -21,6 +22,6 @@ public abstract class LeafExec extends PhysicalPlan {
 
     @Override
     public final LeafExec replaceChildren(List<PhysicalPlan> newChildren) {
-        throw new EsqlUnsupportedOperationException("this type of node doesn't have any children to replace");
+        throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("this type of node doesn't have any children to replace"));
     }
 }

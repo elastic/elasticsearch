@@ -46,7 +46,7 @@ public class MvSum extends AbstractMultivalueFunction {
                 ? () -> new MvSumUnsignedLongEvaluator(source(), fieldEval.get())
                 : () -> new MvSumLongEvaluator(source(), fieldEval.get());
             case NULL -> () -> EvalOperator.CONSTANT_NULL;
-            default -> throw ExceptionUtils.unsupportedDataType(field().dataType());
+            default -> throw ExceptionUtils.deadCode(ExceptionUtils.unsupportedDataType(field().dataType()));
         };
     }
 

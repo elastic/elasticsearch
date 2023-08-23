@@ -113,7 +113,7 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         this.longs = longs;
         this.doubles = doubles;
         this.keywords = keywords;
-        this.bools = (lhs, rhs) -> { throw ExceptionUtils.unsupportedDataType(DataTypes.BOOLEAN); };
+        this.bools = (lhs, rhs) -> { throw ExceptionUtils.deadCode(ExceptionUtils.unsupportedDataType(DataTypes.BOOLEAN)); };
     }
 
     @Override
@@ -146,7 +146,7 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         if (leftType == DataTypes.DATETIME) {
             return () -> longs.apply(leftEval.get(), rightEval.get());
         }
-        throw new EsqlUnsupportedOperationException("resolved type for [" + bc + "] but didn't implement mapping");
+        throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("resolved type for [" + bc + "] but didn't implement mapping"));
     }
 
     public static Supplier<EvalOperator.ExpressionEvaluator> castToEvaluator(

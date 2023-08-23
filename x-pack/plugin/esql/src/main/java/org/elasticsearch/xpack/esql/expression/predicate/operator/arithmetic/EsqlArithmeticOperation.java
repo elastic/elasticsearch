@@ -52,17 +52,17 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
 
         @Override
         public String getWriteableName() {
-            throw ExceptionUtils.methodNotImplemented();
+            throw ExceptionUtils.deadCode(ExceptionUtils.methodNotImplemented());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            throw ExceptionUtils.methodNotImplemented();
+            throw ExceptionUtils.deadCode(ExceptionUtils.methodNotImplemented());
         }
 
         @Override
         public Object doApply(Object o, Object o2) {
-            throw ExceptionUtils.methodNotImplemented();
+            throw ExceptionUtils.deadCode(ExceptionUtils.methodNotImplemented());
         }
 
         @Override

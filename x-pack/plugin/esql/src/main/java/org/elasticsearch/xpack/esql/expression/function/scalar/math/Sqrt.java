@@ -52,7 +52,7 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
             return () -> new SqrtUnsignedLongEvaluator(eval);
         }
 
-        throw ExceptionUtils.unsupportedDataType(fieldType);
+        throw ExceptionUtils.deadCode(ExceptionUtils.unsupportedDataType(fieldType));
     }
 
     @Evaluator(extraName = "Double")

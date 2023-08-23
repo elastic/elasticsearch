@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.util.ExceptionUtils;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -107,7 +108,7 @@ public class Mapper {
             return plan;
         }
 
-        throw new EsqlUnsupportedOperationException("unsupported logical plan node [" + p.nodeName() + "]");
+        throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("unsupported logical plan node [" + p.nodeName() + "]"));
     }
 
     private static boolean isPipelineBreaker(LogicalPlan p) {
@@ -173,7 +174,7 @@ public class Mapper {
             return map(aggregate, child);
         }
 
-        throw new EsqlUnsupportedOperationException("unsupported unary logical plan node [" + p.nodeName() + "]");
+        throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("unsupported unary logical plan node [" + p.nodeName() + "]"));
     }
 
     private PhysicalPlan map(Aggregate aggregate, PhysicalPlan child) {

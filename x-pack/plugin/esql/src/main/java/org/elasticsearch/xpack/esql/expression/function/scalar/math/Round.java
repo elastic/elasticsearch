@@ -138,7 +138,7 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
 
     @Override
     public ScriptTemplate asScript() {
-        throw new EsqlUnsupportedOperationException("functions do not support scripting");
+        throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("functions do not support scripting"));
     }
 
     @Override
@@ -158,7 +158,7 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
         if (fieldType == DataTypes.UNSIGNED_LONG) {
             return toEvaluator(toEvaluator, Function.identity(), RoundUnsignedLongEvaluator::new);
         }
-        throw ExceptionUtils.unsupportedDataType(fieldType);
+        throw ExceptionUtils.deadCode(ExceptionUtils.unsupportedDataType(fieldType));
     }
 
     private Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(

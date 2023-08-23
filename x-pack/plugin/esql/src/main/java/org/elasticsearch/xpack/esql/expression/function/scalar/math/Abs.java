@@ -63,7 +63,7 @@ public class Abs extends UnaryScalarFunction implements EvaluatorMapper {
         if (dataType() == DataTypes.INTEGER) {
             return () -> new AbsIntEvaluator(field.get());
         }
-        throw ExceptionUtils.unsupportedDataType(dataType());
+        throw ExceptionUtils.deadCode(ExceptionUtils.unsupportedDataType(dataType()));
     }
 
     @Override

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.util.ExceptionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,7 +75,7 @@ public class PlanNameRegistry {
         V read(PlanStreamInput in, String name) throws IOException;
 
         default V read(PlanStreamInput in) throws IOException {
-            throw new EsqlUnsupportedOperationException("should not reach here");
+            throw ExceptionUtils.deadCode(new EsqlUnsupportedOperationException("should not reach here"));
         }
     }
 

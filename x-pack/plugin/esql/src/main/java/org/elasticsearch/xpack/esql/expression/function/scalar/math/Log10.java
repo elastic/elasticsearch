@@ -52,7 +52,7 @@ public class Log10 extends UnaryScalarFunction implements EvaluatorMapper {
             return () -> new Log10UnsignedLongEvaluator(eval);
         }
 
-        throw ExceptionUtils.unsupportedDataType(fieldType);
+        throw ExceptionUtils.deadCode(ExceptionUtils.unsupportedDataType(fieldType));
     }
 
     @Evaluator(extraName = "Double")

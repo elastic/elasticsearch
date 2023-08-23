@@ -34,15 +34,15 @@ public class InboundDecoder implements Releasable {
     private int bytesConsumed = 0;
     private boolean isCompressed = false;
     private boolean isClosed = false;
-    private final ByteSizeValue maxVariableHeaderSize;
+    private final ByteSizeValue maxHeaderSize;
 
     public InboundDecoder(Recycler<BytesRef> recycler) {
         this(recycler, new ByteSizeValue(2, ByteSizeUnit.GB));
     }
 
-    public InboundDecoder(Recycler<BytesRef> recycler, ByteSizeValue maxVariableHeaderSize) {
+    public InboundDecoder(Recycler<BytesRef> recycler, ByteSizeValue maxHeaderSize) {
         this.recycler = recycler;
-        this.maxVariableHeaderSize = maxVariableHeaderSize;
+        this.maxHeaderSize = maxHeaderSize;
     }
 
     public int decode(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
@@ -64,7 +64,7 @@ public class InboundDecoder implements Releasable {
                 fragmentConsumer.accept(PING);
                 return 6;
             } else {
-                int headerBytesToRead = headerBytesToRead(reference, maxVariableHeaderSize);
+                int headerBytesToRead = headerBytesToRead(reference, maxHeaderSize);
                 if (headerBytesToRead == 0) {
                     return 0;
                 } else {
@@ -156,7 +156,7 @@ public class InboundDecoder implements Releasable {
         return bytesConsumed == totalNetworkSize;
     }
 
-    private static int headerBytesToRead(BytesReference reference, ByteSizeValue maxVariableHeaderSize) throws StreamCorruptedException {
+    private static int headerBytesToRead(BytesReference reference, ByteSizeValue maxHeaderSize) throws StreamCorruptedException {
         if (reference.length() < TcpHeader.BYTES_REQUIRED_FOR_VERSION) {
             return 0;
         }
@@ -172,9 +172,9 @@ public class InboundDecoder implements Releasable {
             if (variableHeaderSize < 0) {
                 throw new StreamCorruptedException("invalid negative variable header size: " + variableHeaderSize);
             }
-            if (variableHeaderSize > maxVariableHeaderSize.getBytes() - fixedHeaderSize) {
+            if (variableHeaderSize > maxHeaderSize.getBytes() - fixedHeaderSize) {
                 throw new StreamCorruptedException(
-                    "header size [" + (fixedHeaderSize + variableHeaderSize) + "] exceeds limit of [" + maxVariableHeaderSize + "]"
+                    "header size [" + (fixedHeaderSize + variableHeaderSize) + "] exceeds limit of [" + maxHeaderSize + "]"
                 );
             }
             int totalHeaderSize = fixedHeaderSize + variableHeaderSize;

@@ -1835,6 +1835,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                   "properties": {
                     "field2": {
                       "type": "object",
+                                  "subobjects": false,
                       "properties": {
                         "foo": {
                           "type": "integer"
@@ -1857,7 +1858,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             {
                   "properties": {
                     "field2": {
-                      "type": "text"
+                                  "type": "object",
+                                  "subobjects": true
                     }
                   }
                 }"""), null), randomBoolean() ? Arrays.asList("c1", "c2") : Arrays.asList("c2", "c1"), 0L, 1L, null, null, null);
@@ -1877,10 +1879,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(e.getCause().getMessage(), containsString("invalid composite mappings for [my-template]"));
 
         assertNotNull(e.getCause().getCause());
-        assertThat(
-            e.getCause().getCause().getMessage(),
-            containsString("can't merge a non object mapping [field2] with an object mapping")
-        );
+        assertThat(e.getCause().getCause().getMessage(), containsString("contradicting subobjects settings provided for field: field2"));
     }
 
     /**
@@ -1926,6 +1925,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
               "properties": {
                 "field2": {
                   "type": "object",
+                                  "subobjects": false,
                   "properties": {
                     "foo": {
                       "type": "integer"
@@ -1964,7 +1964,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             {
               "properties": {
                 "field2": {
-                  "type": "text"
+                                  "type": "object",
+                                  "subobjects": true
                 }
               }
             }
@@ -1990,7 +1991,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(e.getCause().getCause().getCause());
         assertThat(
             e.getCause().getCause().getCause().getMessage(),
-            containsString("can't merge a non object mapping [field2] with an object mapping")
+                containsString("contradicting subobjects settings provided for field: field2")
         );
     }
 

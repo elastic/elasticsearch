@@ -40,10 +40,12 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -392,38 +394,90 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (mergedRawMapping == null) {
                 mergedRawMapping = rawMapping;
             } else {
-                XContentHelper.merge(type, mergedRawMapping, rawMapping, ((parent, key, oldValue, newValue) -> {
-                    switch (key) {
-                        case "type" -> {
-                            // todo: verify this check is valid
-                            if (oldValue.equals(newValue) == false) {
-                                if (oldValue.equals(ObjectMapper.CONTENT_TYPE) || newValue.equals(ObjectMapper.CONTENT_TYPE)) {
-                                    MapperErrors.throwObjectMappingConflictError(parent);
-                                } else if (oldValue.equals(NestedObjectMapper.CONTENT_TYPE)
-                                    || newValue.equals(NestedObjectMapper.CONTENT_TYPE)) {
-                                        MapperErrors.throwNestedMappingConflictError(parent);
-                                    }
-                            }
-                        }
-                        case "subobjects" -> {
-                            if (oldValue.equals(newValue) == false) {
-                                throw new MapperParsingException("contradicting subobjects settings provided for field: " + parent);
-                            }
-                        }
-                        case "required" -> {
-                            if ("_routing".equals(parent) && oldValue != newValue) {
-                                throw new MapperParsingException("contradicting `_routing.required` settings");
-                            }
-                        }
-                    }
-                    return newValue;
-                }));
+                XContentHelper.merge(type, mergedRawMapping, rawMapping, RawFieldMappingMerge.INSTANCE);
             }
         }
         if (mergedRawMapping != null && mergedRawMapping.size() > 1) {
             throw new MapperParsingException("cannot merge mapping sources with different roots");
         }
         return (mergedRawMapping != null) ? doMerge(type, reason, mergedRawMapping) : null;
+    }
+
+    private static class RawFieldMappingMerge implements XContentHelper.CustomMerge {
+        private static final XContentHelper.CustomMerge INSTANCE = new RawFieldMappingMerge();
+
+        private static final Set<String> MERGEABLE_OBJECT_TYPES = Set.of(ObjectMapper.CONTENT_TYPE, NestedObjectMapper.CONTENT_TYPE);
+
+        private RawFieldMappingMerge() {}
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public Object merge(String parent, String key, Object oldValue, Object newValue) {
+            if (oldValue instanceof Map && newValue instanceof Map) {
+                if ("properties".equals(parent)) {
+                    // merging two mappings of the same field, where "key" is the field name
+                    Map<String, Object> baseMap = (Map<String, Object>) oldValue;
+                    Map<String, Object> mapToMerge = (Map<String, Object>) newValue;
+                    if (shouldMergeFieldMappings(baseMap, mapToMerge)) {
+                        // if two field mappings are to be merged, we only want to keep some specific entries from the base mapping and
+                        // let all others be overridden by the second mapping
+                        Map<String, Object> mergedMappings = new HashMap<>();
+                        if (baseMap.containsKey("properties")) {
+                            mergedMappings.put("properties", new HashMap<>((Map<String, Object>) baseMap.get("properties")));
+                        }
+                        if (baseMap.containsKey("subobjects")) {
+                            mergedMappings.put("subobjects", baseMap.get("subobjects"));
+                        }
+                        // recursively merge these two field mappings
+                        XContentHelper.merge(key, mergedMappings, mapToMerge, INSTANCE);
+                        return mergedMappings;
+                    } else {
+                        // non-mergeable types - replace the entire mapping subtree for this field
+                        return mapToMerge;
+                    }
+                }
+                // anything else (e.g. "_doc", "_meta", "properties") - no custom merge, rely on caller merge logic
+                // field mapping entries of Map type (like "fields" and "meta") are handled above and should never reach here
+                return null;
+            } else {
+                switch (key) {
+                    case "subobjects" -> {
+                        if (oldValue.equals(newValue) == false) {
+                            throw new MapperParsingException("contradicting subobjects settings provided for field: " + parent);
+                        }
+                    }
+                    case "required" -> {
+                        if ("_routing".equals(parent) && oldValue != newValue) {
+                            throw new MapperParsingException("contradicting `_routing.required` settings");
+                        }
+                    }
+                }
+                return newValue;
+            }
+        }
+
+        /**
+         * Normally, we don't want to merge raw field mappings, however there are cases where we do, for example - two
+         * "object" (or "nested") mappings.
+         *
+         * @param mappings1 first mapping of a field
+         * @param mappings2 second mapping of a field
+         * @return true if mapping
+         */
+        private boolean shouldMergeFieldMappings(Map<String, Object> mappings1, Map<String, Object> mappings2) {
+            String type1 = (String) mappings1.get("type");
+            if (type1 == null && mappings1.get("properties") != null) {
+                type1 = ObjectMapper.CONTENT_TYPE;
+            }
+            String type2 = (String) mappings2.get("type");
+            if (type2 == null && mappings2.get("properties") != null) {
+                type2 = ObjectMapper.CONTENT_TYPE;
+            }
+            if (type1 == null || type2 == null) {
+                return false;
+            }
+            return MERGEABLE_OBJECT_TYPES.contains(type1) && MERGEABLE_OBJECT_TYPES.contains(type2);
+        }
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {

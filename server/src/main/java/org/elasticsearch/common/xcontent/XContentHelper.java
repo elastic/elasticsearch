@@ -446,18 +446,31 @@ public class XContentHelper {
     ) {
         for (Map.Entry<String, Object> toMergeEntry : second.entrySet()) {
             if (first.containsKey(toMergeEntry.getKey()) == false) {
-                // copy it over, it does not exists in the content
+                // copy it over, it does not exist in the content
                 first.put(toMergeEntry.getKey(), toMergeEntry.getValue());
             } else {
                 // has values in both maps, merge compound ones (maps)
                 Object baseValue = first.get(toMergeEntry.getKey());
                 if (baseValue instanceof Map && toMergeEntry.getValue() instanceof Map) {
-                    merge(
-                        toMergeEntry.getKey(),
-                        (Map<String, Object>) baseValue,
-                        (Map<String, Object>) toMergeEntry.getValue(),
-                        customMerge
-                    );
+                    Map<String, Object> mergedValue = null;
+                    if (customMerge != null) {
+                        Object tmp = customMerge.merge(parent, toMergeEntry.getKey(), baseValue, toMergeEntry.getValue());
+                        if (tmp != null && tmp instanceof Map == false) {
+                            throw new IllegalStateException("merging of values for [" + toMergeEntry.getKey() + "] must yield a map");
+                        }
+                        mergedValue = (Map<String, Object>) tmp;
+                    }
+                    if (mergedValue != null) {
+                        first.put(toMergeEntry.getKey(), mergedValue);
+                    } else {
+                        // if custom merge does not yield a value to be used, continue recursive merge
+                        merge(
+                            toMergeEntry.getKey(),
+                            (Map<String, Object>) baseValue,
+                            (Map<String, Object>) toMergeEntry.getValue(),
+                            customMerge
+                        );
+                    }
                 } else if (baseValue instanceof List && toMergeEntry.getValue() instanceof List) {
                     List<Object> listToMerge = (List<Object>) toMergeEntry.getValue();
                     List<Object> baseList = (List<Object>) baseValue;
@@ -520,13 +533,13 @@ public class XContentHelper {
     @FunctionalInterface
     public interface CustomMerge {
         /**
-         * Based on the provided arguments, decide which value to use for the given key.
+         * Based on the provided arguments, compute a value to use for the given key as a merge result.
          * This method doesn't throw a checked exception, but it is expected that illegal merges will result in a {@link RuntimeException}.
          * @param parent merged field's parent
          * @param key merged field's name
          * @param oldValue original value of the provided key
          * @param newValue the new value of the provided key which is to be merged with the original
-         * @return the merged value to use for the given key
+         * @return the merged value to use for the given key, or {@code null} if there is no custom merge required for it
          */
         Object merge(String parent, String key, Object oldValue, Object newValue);
     }

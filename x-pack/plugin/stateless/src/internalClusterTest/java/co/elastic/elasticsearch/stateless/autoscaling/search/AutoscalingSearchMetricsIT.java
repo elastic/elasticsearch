@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
+import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
@@ -116,7 +117,7 @@ public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
         });
 
         // extend boost window to 2 weeks
-        updateClusterSettings(Settings.builder().put(ShardSizesCollector.BOOST_WINDOW_SETTING.getKey(), TimeValue.timeValueDays(14)));
+        updateClusterSettings(Settings.builder().put(ServerlessSharedSettings.BOOST_WINDOW_SETTING.getKey(), TimeValue.timeValueDays(14)));
 
         assertBusy(() -> {
             var metrics = searchMetricsService.getSearchTierMetrics();

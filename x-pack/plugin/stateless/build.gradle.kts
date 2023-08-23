@@ -25,6 +25,7 @@ configurations {
 dependencies {
     compileOnly(xpackModule("core"))
     compileOnly(xpackModule("blob-cache"))
+    compileOnly(project(":libs:serverless-shared-constants"))
     internalClusterTestImplementation(testArtifact(xpackModule("core")))
     testImplementation(testArtifact(xpackModule("searchable-snapshots")))
     testImplementation("com.amazonaws:aws-java-sdk-core")

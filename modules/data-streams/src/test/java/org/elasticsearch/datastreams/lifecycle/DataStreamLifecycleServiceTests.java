@@ -1086,7 +1086,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(clientSeenRequests.size(), is(4));
     }
 
-    public void testDownsamplingWhenTargetIndexNameClassYieldsException() throws Exception {
+    public void testDownsamplingWhenTargetIndexNameClashYieldsException() throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 2;
         Metadata.Builder builder = Metadata.builder();

@@ -435,10 +435,20 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 if (downsampleStatus.equals(UNKNOWN) && round.equals(lastRound)) {
                     // target downsampling index exists and is not a downsampling index (name clash?)
                     // we fail now but perhaps we should just randomise the name?
-                    errorStore.recordError(
-                        backingIndex.getIndex().getName(),
-                        new ResourceAlreadyExistsException(targetDownsampleIndexMeta.getIndex().getName())
-                    );
+                    String previousError = errorStore.getError(indexName);
+
+                    errorStore.recordError(indexName, new ResourceAlreadyExistsException(targetDownsampleIndexMeta.getIndex().getName()));
+                    // To avoid spamming our logs, we only want to log the error once.
+                    if (previousError == null || previousError.equals(errorStore.getError(indexName)) == false) {
+                        logger.error(
+                            "Data stream lifecycle service is unable to downsample backing index [{}] for data stream [{}] and "
+                                + "donwsampling round [{}] because the target downsample index [{}] already exists",
+                            indexName,
+                            dataStream.getName(),
+                            round,
+                            downsampleIndexName
+                        );
+                    }
                     break;
                 } else if (downsampleStatus.equals(STARTED)) {
                     // we'll wait for this round to complete

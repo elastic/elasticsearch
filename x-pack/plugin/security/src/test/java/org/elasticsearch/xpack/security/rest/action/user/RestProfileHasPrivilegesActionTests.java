@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.security.Security;
@@ -45,10 +44,10 @@ public class RestProfileHasPrivilegesActionTests extends ESTestCase {
         final boolean featureAllowed = randomBoolean();
         when(licenseState.isAllowed(Security.USER_PROFILE_COLLABORATION_FEATURE)).thenReturn(featureAllowed);
         if (featureAllowed) {
-            assertThat(restProfileHasPrivilegesAction.checkFeatureAvailable(new FakeRestRequest()), nullValue());
+            assertThat(restProfileHasPrivilegesAction.checkFeatureAvailable(), nullValue());
             verify(licenseState).featureUsed(Security.USER_PROFILE_COLLABORATION_FEATURE);
         } else {
-            final Exception e = restProfileHasPrivilegesAction.checkFeatureAvailable(new FakeRestRequest());
+            final Exception e = restProfileHasPrivilegesAction.checkFeatureAvailable();
             assertThat(e, instanceOf(ElasticsearchSecurityException.class));
             assertThat(e.getMessage(), containsString("current license is non-compliant for [user-profile-collaboration]"));
             assertThat(((ElasticsearchSecurityException) e).status(), equalTo(RestStatus.FORBIDDEN));

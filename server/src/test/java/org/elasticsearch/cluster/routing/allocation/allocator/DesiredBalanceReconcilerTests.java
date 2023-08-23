@@ -92,6 +92,7 @@ import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAll
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -1047,6 +1048,30 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().node("data-node-2"), notNullValue());
         // shard is kept wherever until balance is recalculated
         assertThat(allocation.routingNodes().node("data-node-2").getByShardId(shardId), notNullValue());
+    }
+
+    public void testDoNotAllocateIgnoredShards() {
+
+        final var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().localNodeId("node-1").masterNodeId("node-1").add(newNode("node-1")))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
+            .build();
+
+        final var allocation = createRoutingAllocationFrom(clusterState);
+        final var balance = new DesiredBalance(
+            1,
+            Map.of(shardId, new ShardAssignment(Set.of(), 1, 1, 1)) // shard is ignored
+        );
+
+        reconcile(allocation, balance);
+
+        assertThat(allocation.routingNodes().node("node-1").size(), equalTo(0));
+        assertThat(allocation.routingNodes().unassigned().ignored(), hasSize(1));
     }
 
     public void testRebalanceDoesNotCauseHotSpots() {

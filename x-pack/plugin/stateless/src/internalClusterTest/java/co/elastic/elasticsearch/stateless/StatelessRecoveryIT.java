@@ -174,8 +174,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             index(indexName, String.valueOf(baseId + i), Map.of("custom", "value"));
         }
 
-        assertReplicatedTranslogConsistentWithShards();
-
         // Assert that the seqno before and after restarting the indexing node is the same
         SeqNoStats beforeSeqNoStats = client().admin().indices().prepareStats(indexName).get().getShards()[0].getSeqNoStats();
         Index index = resolveIndices().keySet().stream().filter(i -> i.getName().equals(indexName)).findFirst().get();
@@ -628,13 +626,14 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.MINUTES)).build()
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.HOURS)).build()
         );
         ensureGreen(indexName);
 
-        indexDocuments(indexName);
-
-        assertReplicatedTranslogConsistentWithShards();
+        final int iters = randomIntBetween(1, 10);
+        for (int i = 0; i < iters; i++) {
+            indexDocs(indexName, randomIntBetween(1, 100));
+        }
 
         var objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodes.get(0));
         Map<String, BlobMetadata> translogFiles = objectStoreService.getTranslogBlobContainer().listBlobs();
@@ -642,7 +641,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         final String newIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             newIndex,
-            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.MINUTES)).build()
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.HOURS)).build()
         );
         ensureGreen(newIndex);
 

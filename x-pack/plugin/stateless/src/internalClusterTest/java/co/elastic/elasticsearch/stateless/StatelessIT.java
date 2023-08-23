@@ -267,7 +267,11 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         final int numberOfShards = randomIntBetween(1, 5);
         startIndexNodes(numberOfShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(numberOfShards, 0).build());
+        createIndex(
+            indexName,
+            indexSettings(numberOfShards, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1L))
+                .build()
+        );
         ensureGreen(indexName);
 
         assertObjectStoreConsistentWithIndexShards();

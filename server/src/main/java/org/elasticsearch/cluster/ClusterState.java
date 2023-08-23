@@ -834,6 +834,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return Collections.unmodifiableMap(this.transportVersions);
         }
 
+        public Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> systemIndexMappingsVersions() {
+            return Collections.unmodifiableMap(this.systemIndexMappingsVersions);
+        }
+
         public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
             return routingTable(routingTableBuilder.build());
         }

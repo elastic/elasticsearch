@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.ArrayList;
@@ -121,6 +122,9 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
         Map<String, TransportVersion> transportVersions = new HashMap<>(newState.transportVersions());
+        Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> allSystemIndexMappingsVersions = new HashMap<>(
+            newState.systemIndexMappingsVersions()
+        );
 
         assert nodesBuilder.isLocalNodeElectedMaster();
 
@@ -140,6 +144,8 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 } else {
                     try {
                         TransportVersion transportVersion = nodeJoinTask.transportVersion();
+                        Map<String, SystemIndexDescriptor.MappingsVersion> systemIndexMappingsVersions = nodeJoinTask.systemIndices()
+                            .getMappingsVersions();
                         // TODO[wrb]: add system index versions to version barrier?
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
@@ -152,6 +158,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         ensureIndexCompatibility(node.getMinIndexVersion(), node.getMaxIndexVersion(), initialState.getMetadata());
                         nodesBuilder.add(node);
                         transportVersions.put(node.getId(), transportVersion);
+                        allSystemIndexMappingsVersions.put(node.getId(), systemIndexMappingsVersions);
                         nodesChanged = true;
                         minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                         maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
@@ -246,6 +253,13 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         return clusterState.transportVersions();
     }
 
+    @SuppressForbidden(reason = "maintaining ClusterState#systemIndexMappingsVersions requires reading them")
+    private static Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> getSystemIndexMappingsVersions(
+        ClusterState clusterState
+    ) {
+        return clusterState.systemIndexMappingsVersions();
+    }
+
     protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(
         ClusterState currentState,
         List<? extends TaskContext<JoinTask>> taskContexts,
@@ -268,9 +282,11 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         DiscoveryNodes currentNodes = currentState.nodes();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
         Map<String, TransportVersion> transportVersions = new HashMap<>(getTransportVersions(currentState));
+        Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> systemIndexMappingsVersions = new HashMap<>(
+            getSystemIndexMappingsVersions(currentState)
+        );
         nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
 
-        // TODO[wrb]: handle system index versions
         for (final var taskContext : taskContexts) {
             for (final var joiningNode : taskContext.getTask().nodes()) {
                 final DiscoveryNode nodeWithSameId = nodesBuilder.get(joiningNode.getId());
@@ -278,6 +294,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameId, joiningNode);
                     nodesBuilder.remove(nodeWithSameId.getId());
                     transportVersions.remove(nodeWithSameId.getId());
+                    systemIndexMappingsVersions.remove(nodeWithSameId.getId());
                 }
                 final DiscoveryNode nodeWithSameAddress = currentNodes.findByAddress(joiningNode.getAddress());
                 if (nodeWithSameAddress != null && nodeWithSameAddress.equals(joiningNode) == false) {
@@ -288,16 +305,17 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     );
                     nodesBuilder.remove(nodeWithSameAddress.getId());
                     transportVersions.remove(nodeWithSameAddress.getId());
+                    systemIndexMappingsVersions.remove(nodeWithSameAddress.getId());
                 }
             }
         }
 
-        // TODO[wrb]: handle system index versions
         // now trim any left over dead nodes - either left there when the previous master stepped down
         // or removed by us above
         ClusterState tmpState = ClusterState.builder(currentState)
             .nodes(nodesBuilder)
             .transportVersions(transportVersions)
+            .systemIndexMappingsVersions(systemIndexMappingsVersions)
             .blocks(ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ID))
             .metadata(
                 Metadata.builder(currentState.metadata())

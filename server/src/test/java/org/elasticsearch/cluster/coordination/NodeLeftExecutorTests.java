@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -72,9 +73,12 @@ public class NodeLeftExecutorTests extends ESTestCase {
             protected ClusterState remainingNodesClusterState(
                 ClusterState currentState,
                 DiscoveryNodes.Builder remainingNodesBuilder,
-                Map<String, TransportVersion> transportVersions
+                Map<String, TransportVersion> transportVersions,
+                Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> systemIndexMappingsVersions
             ) {
-                remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder, transportVersions));
+                remainingNodesClusterState.set(
+                    super.remainingNodesClusterState(currentState, remainingNodesBuilder, transportVersions, systemIndexMappingsVersions)
+                );
                 return remainingNodesClusterState.get();
             }
         };

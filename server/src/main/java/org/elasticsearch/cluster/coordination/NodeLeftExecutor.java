@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.HashMap;
@@ -55,12 +56,22 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
         return clusterState.transportVersions();
     }
 
+    @SuppressForbidden(reason = "maintaining ClusterState#systemIndexMappingsVersions requires reading them")
+    private static Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> getSystemIndexMappingsVersions(
+        ClusterState clusterState
+    ) {
+        return clusterState.systemIndexMappingsVersions();
+    }
+
     @Override
     public ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) throws Exception {
         ClusterState initialState = batchExecutionContext.initialState();
         DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(initialState.nodes());
         // TODO[wrb]: system index version
         Map<String, TransportVersion> transportVersions = new HashMap<>(getTransportVersions(initialState));
+        Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> allSystemIndexMappingsVersions = new HashMap<>(
+            getSystemIndexMappingsVersions(initialState)
+        );
         boolean removed = false;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             final var task = taskContext.getTask();
@@ -68,6 +79,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
             if (initialState.nodes().nodeExists(task.node())) {
                 remainingNodesBuilder.remove(task.node());
                 transportVersions.remove(task.node().getId());
+                allSystemIndexMappingsVersions.remove(task.node().getId());
                 removed = true;
                 reason = task.reason();
             } else {
@@ -90,8 +102,12 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
         try (var ignored = batchExecutionContext.dropHeadersContext()) {
             // suppress deprecation warnings e.g. from reroute()
 
-            // TODO[wrb]: system indices as well
-            final var remainingNodesClusterState = remainingNodesClusterState(initialState, remainingNodesBuilder, transportVersions);
+            final var remainingNodesClusterState = remainingNodesClusterState(
+                initialState,
+                remainingNodesBuilder,
+                transportVersions,
+                allSystemIndexMappingsVersions
+            );
             final var ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
             return allocationService.disassociateDeadNodes(
                 ptasksDisassociatedState,
@@ -104,13 +120,17 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
     // visible for testing
     // hook is used in testing to ensure that correct cluster state is used to test whether a
     // rejoin or reroute is needed
-    // TODO[wrb]: system indices
     protected ClusterState remainingNodesClusterState(
         ClusterState currentState,
         DiscoveryNodes.Builder remainingNodesBuilder,
-        Map<String, TransportVersion> transportVersions
+        Map<String, TransportVersion> transportVersions,
+        Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> systemIndexMappingsVersions
     ) {
-        return ClusterState.builder(currentState).nodes(remainingNodesBuilder).transportVersions(transportVersions).build();
+        return ClusterState.builder(currentState)
+            .nodes(remainingNodesBuilder)
+            .transportVersions(transportVersions)
+            .systemIndexMappingsVersions(systemIndexMappingsVersions)
+            .build();
     }
 
 }

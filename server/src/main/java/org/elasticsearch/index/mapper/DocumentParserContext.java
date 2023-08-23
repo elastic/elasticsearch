@@ -103,6 +103,7 @@ public abstract class DocumentParserContext {
     private String id;
     private Field version;
     private SeqNoFieldMapper.SequenceIDFields seqID;
+    private Set<String> fieldsAppliedFromTemplates;
 
     private DocumentParserContext(
         MappingLookup mappingLookup,
@@ -118,7 +119,8 @@ public abstract class DocumentParserContext {
         SeqNoFieldMapper.SequenceIDFields seqID,
         DocumentDimensions dimensions,
         ObjectMapper parent,
-        ObjectMapper.Dynamic dynamic
+        ObjectMapper.Dynamic dynamic,
+        Set<String> fieldsAppliedFromTemplates
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
@@ -134,6 +136,7 @@ public abstract class DocumentParserContext {
         this.dimensions = dimensions;
         this.parent = parent;
         this.dynamic = dynamic;
+        this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -151,7 +154,8 @@ public abstract class DocumentParserContext {
             in.seqID,
             in.dimensions,
             parent,
-            dynamic
+            dynamic,
+            in.fieldsAppliedFromTemplates
         );
     }
 
@@ -176,7 +180,8 @@ public abstract class DocumentParserContext {
             null,
             DocumentDimensions.fromIndexSettings(mappingParserContext.getIndexSettings()),
             parent,
-            dynamic
+            dynamic,
+            new HashSet<>()
         );
     }
 
@@ -282,6 +287,14 @@ public abstract class DocumentParserContext {
 
     public ObjectMapper.Dynamic dynamic() {
         return dynamic;
+    }
+
+    public void markFieldAsAppliedFromTemplate(String fieldName) {
+        fieldsAppliedFromTemplates.add(fieldName);
+    }
+
+    public boolean fieldAppliedFromTemplate(String name) {
+        return fieldsAppliedFromTemplates.contains(name);
     }
 
     /**
@@ -547,7 +560,7 @@ public abstract class DocumentParserContext {
             Map<String, Long> dynamicDenseVectorFieldNameToDimCount = dynamicMappers.stream()
                 .filter(subClassObj -> subClassObj instanceof NumberFieldMapper)
                 .map(NumberFieldMapper.class::cast)
-                .filter(m -> "float".equals(m.typeName()))
+                .filter(m -> "float".equals(m.typeName()) && fieldAppliedFromTemplate(m.name()) == false)
                 .collect(Collectors.groupingBy(FieldMapper::name, Collectors.counting()))
                 .entrySet()
                 .stream()

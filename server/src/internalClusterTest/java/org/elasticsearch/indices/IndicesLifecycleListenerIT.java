@@ -9,9 +9,6 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -123,10 +120,10 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
         var state = clusterAdmin().prepareState().get().getState();
         logger.info("Final routing is {}", state.getRoutingNodes().toString());
-        var shard = findShard(state, "index1");
+        var shard = state.routingTable().index("index1").shard(0).primaryShard();
         assertThat(shard, notNullValue());
         assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
-        assertThat(findNodeById(state, shard.currentNodeId()).getName(), equalTo(node1));
+        assertThat(state.nodes().get(shard.currentNodeId()).getName(), equalTo(node1));
     }
 
     public void testRelocationFailureNotRetriedForever() {
@@ -147,18 +144,10 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
         var state = clusterAdmin().prepareState().get().getState();
         logger.info("Final routing is {}", state.getRoutingNodes().toString());
-        var shard = findShard(state, "index1");
+        var shard = state.routingTable().index("index1").shard(0).primaryShard();
         assertThat(shard, notNullValue());
         assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
-        assertThat(findNodeById(state, shard.currentNodeId()).getName(), equalTo(node1));
-    }
-
-    private static ShardRouting findShard(ClusterState state, String name) {
-        return state.routingTable().index(name).shard(0).primaryShard();
-    }
-
-    private static DiscoveryNode findNodeById(ClusterState state, String id) {
-        return state.nodes().get(id);
+        assertThat(state.nodes().get(shard.currentNodeId()).getName(), equalTo(node1));
     }
 
     public void testIndexStateShardChanged() throws Throwable {

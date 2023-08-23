@@ -234,6 +234,7 @@ public class RestEsqlTestCase extends ESRestTestCase {
         assertEquals("keyword0,0\r\n", actual);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98719")
     public void testWarningHeadersOnFailedConversions() throws IOException {
         int count = randomFrom(10, 40, 60);
         bulkLoadTestData(count);

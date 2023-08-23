@@ -384,7 +384,9 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         final Set<String> disabledBasicRealmTypes = findDisabledBasicRealmTypes(realmConfigs);
         final Set<String> realmTypes = realms.stream().map(Realm::type).collect(Collectors.toUnmodifiableSet());
         // Add native realm first so that file realm will be added before it
-        if (false == disabledBasicRealmTypes.contains(NativeRealmSettings.TYPE) && false == realmTypes.contains(NativeRealmSettings.TYPE)) {
+        if (false == disabledBasicRealmTypes.contains(NativeRealmSettings.TYPE)
+            && false == realmTypes.contains(NativeRealmSettings.TYPE)
+            && settings.getAsBoolean(NativeRealmSettings.NATIVE_USERS_ENABLED, true)) {
             ensureRealmNameIsAvailable(realms, NativeRealmSettings.DEFAULT_NAME);
             var nativeRealmId = new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, NativeRealmSettings.DEFAULT_NAME);
             var realmConfig = new RealmConfig(

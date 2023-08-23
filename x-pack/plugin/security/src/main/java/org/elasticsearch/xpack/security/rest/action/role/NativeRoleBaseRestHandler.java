@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.rest.action.user;
+package org.elasticsearch.xpack.security.rest.action.role;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -14,14 +14,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
-abstract class NativeUserBaseRestHandler extends SecurityBaseRestHandler {
+abstract class NativeRoleBaseRestHandler extends SecurityBaseRestHandler {
 
-    private final Logger logger = LogManager.getLogger(NativeUserBaseRestHandler.class);
+    private final Logger logger = LogManager.getLogger(NativeRoleBaseRestHandler.class);
 
-    NativeUserBaseRestHandler(Settings settings, XPackLicenseState licenseState) {
+    NativeRoleBaseRestHandler(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
 
@@ -31,17 +31,17 @@ abstract class NativeUserBaseRestHandler extends SecurityBaseRestHandler {
         if (failedFeature != null) {
             return failedFeature;
         }
-        final Boolean nativeUserEnabled = settings.getAsBoolean(NativeRealmSettings.NATIVE_USERS_ENABLED, true);
-        if (nativeUserEnabled == false) {
+        final Boolean nativeRolesEnabled = settings.getAsBoolean(NativeRolesStore.NATIVE_ROLES_ENABLED, true);
+        if (nativeRolesEnabled == false) {
             logger.debug(
                 "Attempt to call [{} {}] but [{}] is [{}]",
                 request.method(),
                 request.rawPath(),
-                NativeRealmSettings.NATIVE_USERS_ENABLED,
-                settings.get(NativeRealmSettings.NATIVE_USERS_ENABLED)
+                NativeRolesStore.NATIVE_ROLES_ENABLED,
+                settings.get(NativeRolesStore.NATIVE_ROLES_ENABLED)
             );
             return new ElasticsearchStatusException(
-                "Native user management is not enabled in this Elasticsearch instance",
+                "Native role management is not enabled in this Elasticsearch instance",
                 RestStatus.GONE
             );
         } else {

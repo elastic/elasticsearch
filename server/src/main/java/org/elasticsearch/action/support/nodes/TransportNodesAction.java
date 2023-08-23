@@ -75,7 +75,8 @@ public abstract class TransportNodesAction<
         Writeable.Reader<NodeRequest> nodeRequest,
         String executor
     ) {
-        super(actionName, transportService, actionFilters, request);
+        // coordination can run on SAME because it's only O(#nodes) work
+        super(actionName, transportService, actionFilters, request, ThreadPool.Names.SAME);
         assert executor.equals(ThreadPool.Names.SAME) == false : "TransportNodesAction must always fork off the transport thread";
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);
@@ -105,13 +106,17 @@ public abstract class TransportNodesAction<
                     nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                 }
 
-                transportService.sendRequest(
-                    discoveryNode,
-                    transportNodeAction,
-                    nodeRequest,
-                    transportRequestOptions,
-                    new ActionListenerResponseHandler<>(listener, nodeResponseReader(discoveryNode), finalExecutor)
-                );
+                try {
+                    transportService.sendRequest(
+                        discoveryNode,
+                        transportNodeAction,
+                        nodeRequest,
+                        transportRequestOptions,
+                        new ActionListenerResponseHandler<>(listener, nodeResponseReader(discoveryNode), finalExecutor)
+                    );
+                } finally {
+                    nodeRequest.decRef();
+                }
             }
 
             @Override

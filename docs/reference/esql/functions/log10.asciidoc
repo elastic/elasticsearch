@@ -1,0 +1,15 @@
+[[esql-log10]]
+=== `LOG10`
+Returns the log base 10.  The input can be any numeric value, the return value
+is always a double.
+
+Logs of negative numbers are NaN. Logs of infinites are infinite, as is the log of 0.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=log10]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=log10-result]
+|===

@@ -1,0 +1,12 @@
+[[esql-tau]]
+=== `TAU`
+The https://tauday.com/tau-manifesto[ratio] of a circle's circumference to its radius.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=tau]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=tau-result]
+|===

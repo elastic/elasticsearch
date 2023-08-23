@@ -122,10 +122,10 @@ public class MasterHistory implements ClusterStateListener {
     }
 
     /**
-      * Returns true if for the life of this MasterHistory (30 minutes) non-null masters have transitioned to null n times.
-      * @param n The number of times a non-null master must have switched to null
-      * @return True if non-null masters have transitioned to null n or more times.
-      */
+     * Returns true if for the life of this MasterHistory (30 minutes) non-null masters have transitioned to null n times.
+     * @param n The number of times a non-null master must have switched to null
+     * @return True if non-null masters have transitioned to null n or more times.
+     */
     public boolean hasMasterGoneNullAtLeastNTimes(int n) {
         return hasMasterGoneNullAtLeastNTimes(getNodes(), n);
     }

@@ -526,7 +526,7 @@ public class Security extends Plugin
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 
-    private final Settings settings;
+    private Settings settings;
     private final boolean enabled;
     private final SecuritySystemIndices systemIndices;
     private final ListenableFuture<Void> nodeStartedListenable;
@@ -667,6 +667,10 @@ public class Security extends Plugin
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null, null, null));
         }
 
+        // The settings in `environment` may have additional values over what was provided during construction
+        // See Plugin#additionalSettings()
+        this.settings = environment.settings();
+
         systemIndices.init(client, clusterService);
 
         scriptServiceReference.set(scriptService);
@@ -780,9 +784,7 @@ public class Security extends Plugin
         );
         components.add(privilegeStore);
 
-        final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(
-            Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(environment.settings()))
-        );
+        final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(settings)));
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
         final FileRolesStore fileRolesStore = new FileRolesStore(
@@ -905,7 +907,7 @@ public class Security extends Plugin
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms, extensionComponents);
 
         // operator privileges are enabled either explicitly via the setting or if running serverless
-        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(environment.settings()) || DiscoveryNode.isServerless();
+        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings) || DiscoveryNode.isServerless();
 
         if (operatorPrivilegesEnabled) {
             logger.info("operator privileges are enabled");

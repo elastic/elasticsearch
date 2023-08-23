@@ -153,7 +153,7 @@ public class DeploymentManager {
         ActionListener<TrainedModelDeploymentTask> failedDeploymentListener = ActionListener.wrap(finalListener::onResponse, failure -> {
             ProcessContext failedContext = processContextByAllocation.remove(task.getId());
             if (failedContext != null) {
-                failedContext.forciblyStopProcess();
+                failedContext.forcefullyStopProcess();
             }
             finalListener.onFailure(failure);
         });
@@ -246,7 +246,7 @@ public class DeploymentManager {
         ProcessContext processContext = processContextByAllocation.remove(task.getId());
         if (processContext != null) {
             logger.info("[{}] Stopping deployment, reason [{}]", task.getDeploymentId(), task.stoppedReason().orElse("unknown"));
-            processContext.forciblyStopProcess();
+            processContext.forcefullyStopProcess();
         } else {
             logger.warn("[{}] No process context to stop", task.getDeploymentId());
         }
@@ -460,8 +460,8 @@ public class DeploymentManager {
             executorServiceForProcess.submit(priorityProcessWorker::start);
         }
 
-        synchronized void forciblyStopProcess() {
-            logger.debug(() -> format("[%s] Forcibly stopping process", task.getDeploymentId()));
+        synchronized void forcefullyStopProcess() {
+            logger.debug(() -> format("[%s] Forcefully stopping process", task.getDeploymentId()));
             prepareInternalStateForShutdown();
 
             if (priorityProcessWorker.isShutdown()) {

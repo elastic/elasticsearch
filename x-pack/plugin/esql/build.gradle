@@ -45,6 +45,10 @@ tasks.named("compileJava").configure {
   options.compilerArgs.addAll(["-s", "${projectDir}/src/main/java/generated"])
 }
 
+tasks.named("javadoc").configure {
+  include("${projectDir}/src/main/java/generated")
+}
+
 sourceSets.main.java {
   exclude 'generated/**'
 }

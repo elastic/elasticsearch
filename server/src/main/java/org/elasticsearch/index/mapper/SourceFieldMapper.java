@@ -86,10 +86,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             .setMergeValidator(
                 (previous, current, conflicts) -> (previous.value() == current.value()) || (previous.value() && current.value() == false)
             );
+
+        /*
+         * The default mode for TimeSeries is left empty on purpose, so that mapping printings include the synthetic
+         * source mode.
+         */
         private final Parameter<Mode> mode = new Parameter<>(
             "mode",
             true,
-            () -> getIndexMode() == IndexMode.TIME_SERIES ? Mode.SYNTHETIC : null,
+            () -> null,
             (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
             m -> toType(m).enabled.explicit() ? null : toType(m).mode,
             (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
@@ -136,10 +141,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         public SourceFieldMapper build() {
-            if (enabled.getValue().explicit() && mode.get() != null) {
+            if (enabled.getValue().explicit()) {
                 if (indexMode == IndexMode.TIME_SERIES) {
                     throw new MapperParsingException("Time series indices only support synthetic source");
-                } else {
+                }
+                if (mode.get() != null) {
                     throw new MapperParsingException("Cannot set both [mode] and [enabled] parameters");
                 }
             }
@@ -217,7 +223,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.sourceFilter = buildSourceFilter(includes, excludes);
         this.includes = includes;
         this.excludes = excludes;
-        if (this.sourceFilter != null && mode == Mode.SYNTHETIC) {
+        if (this.sourceFilter != null && (mode == Mode.SYNTHETIC || indexMode == IndexMode.TIME_SERIES)) {
             throw new IllegalArgumentException("filtering the stored _source is incompatible with synthetic source");
         }
         this.complete = stored() && sourceFilter == null;

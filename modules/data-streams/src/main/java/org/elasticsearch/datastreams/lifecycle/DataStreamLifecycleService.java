@@ -377,82 +377,87 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 affectedIndices.add(index);
                 addIndexBlockOnce(indexName);
                 continue;
-            }
-
-            if (org.elasticsearch.common.Strings.hasText(backingIndexDownsamplingSource)
+            } else if (org.elasticsearch.common.Strings.hasText(backingIndexDownsamplingSource)
                 && backingIndexDownsamplingStatus.equals(SUCCESS)) {
-                // if the backing index is a downsample index itself, let's check if its source index still exists as we must delete it
-                Map<String, String> lifecycleMetadata = backingIndex.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
-                if (lifecycleMetadata == null || lifecycleMetadata.containsKey(REPLACEMENT_SOURCE_INDEX) == false) {
-                    // this is a downsampling index that was not added by data stream lifecycle in this data stream
-                    continue;
+                    // if the backing index is a downsample index itself, let's check if its source index still exists as we must delete it
+                    Map<String, String> lifecycleMetadata = backingIndex.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
+                    if (lifecycleMetadata == null || lifecycleMetadata.containsKey(REPLACEMENT_SOURCE_INDEX) == false) {
+                        // this is a downsampling index that was not added by data stream lifecycle in this data stream
+                        continue;
+                    }
+                    String actualDownsamplingSource = lifecycleMetadata.get(REPLACEMENT_SOURCE_INDEX);
+                    IndexMetadata downsampleSourceIndex = metadata.index(actualDownsamplingSource);
+                    if (downsampleSourceIndex != null) {
+                        affectedIndices.add(downsampleSourceIndex.getIndex());
+                        // delete downsampling source index (that's not part of the data stream anymore) before doing any more
+                        // downsampling
+                        deleteIndexOnce(backingIndexDownsamplingSource, "replacement with its downsampled index in the data stream");
+                        continue;
+                    }
                 }
-                String actualDownsamplingSource = lifecycleMetadata.get(REPLACEMENT_SOURCE_INDEX);
-                IndexMetadata downsampleSourceIndex = metadata.index(actualDownsamplingSource);
-                if (downsampleSourceIndex != null) {
-                    affectedIndices.add(downsampleSourceIndex.getIndex());
-                    // delete downsampling source index (that's not part of the data stream anymore) before doing any more
-                    // downsampling
-                    deleteIndexOnce(backingIndexDownsamplingSource, "replacement with its downsampled index in the data stream");
-                    continue;
-                }
-            }
 
-            // this index has matching downsample rounds and is read-only, so let's wait for an in-progress downsampling operation to
-            // succeed or trigger the corresponding one
-            // TODO add support for cancelling a current in-progress operation if another, later, round matches
-            DataStreamLifecycle.Downsampling.Round lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
+            // this index has matching downsample rounds and is read-only, so let's wait for an in-progress downsampling operation
+            // to succeed or trigger the last matching round
+            affectedIndices.addAll(
+                checkEarlyRoundsForMaintenanceOrDownsampleLastRound(dataStream, backingIndex, downsamplingRounds, metadata)
+            );
+        }
 
-            for (DataStreamLifecycle.Downsampling.Round round : downsamplingRounds) {
-                // the downsample index name for each round is deterministic
-                String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
-                    DOWNSAMPLED_INDEX_PREFIX,
-                    backingIndex,
-                    round.config().getFixedInterval()
-                );
-                IndexMetadata targetDownsampleIndexMeta = metadata.index(downsampleIndexName);
-                boolean targetDownsampleIndexExists = targetDownsampleIndexMeta != null;
+        return affectedIndices;
+    }
 
-                if (targetDownsampleIndexExists) {
-                    IndexMetadata.DownsampleTaskStatus downsampleStatus = INDEX_DOWNSAMPLE_STATUS.get(
-                        targetDownsampleIndexMeta.getSettings()
+    private Set<Index> checkEarlyRoundsForMaintenanceOrDownsampleLastRound(
+        DataStream dataStream,
+        IndexMetadata backingIndex,
+        List<DataStreamLifecycle.Downsampling.Round> downsamplingRounds,
+        Metadata metadata
+    ) {
+        assert dataStream.getIndices().contains(backingIndex.getIndex())
+            : "the provided backing index must be part of data stream:" + dataStream.getName();
+        assert downsamplingRounds.isEmpty() == false : "the index should be managed and have matching downsampling rounds";
+        Set<Index> affectedIndices = new HashSet<>();
+        DataStreamLifecycle.Downsampling.Round lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
+
+        Index index = backingIndex.getIndex();
+        String indexName = index.getName();
+        for (DataStreamLifecycle.Downsampling.Round round : downsamplingRounds) {
+            // the downsample index name for each round is deterministic
+            String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
+                DOWNSAMPLED_INDEX_PREFIX,
+                backingIndex,
+                round.config().getFixedInterval()
+            );
+            IndexMetadata targetDownsampleIndexMeta = metadata.index(downsampleIndexName);
+            boolean targetDownsampleIndexExists = targetDownsampleIndexMeta != null;
+
+            if (targetDownsampleIndexExists) {
+                IndexMetadata.DownsampleTaskStatus downsampleStatus = INDEX_DOWNSAMPLE_STATUS.get(targetDownsampleIndexMeta.getSettings());
+                if (downsampleStatus.equals(UNKNOWN) && round.equals(lastRound)) {
+                    // target downsampling index exists and is not a downsampling index (name clash?)
+                    // we fail now but perhaps we should just randomise the name?
+                    errorStore.recordError(
+                        backingIndex.getIndex().getName(),
+                        new ResourceAlreadyExistsException(targetDownsampleIndexMeta.getIndex().getName())
                     );
-                    if (downsampleStatus.equals(UNKNOWN) && round.equals(lastRound)) {
-                        // target downsampling index exists and is not a downsampling index (name clash?)
-                        // we fail now but perhaps we should just randomise the name?
-                        errorStore.recordError(
-                            backingIndex.getIndex().getName(),
-                            new ResourceAlreadyExistsException(targetDownsampleIndexMeta.getIndex().getName())
-                        );
-                    } else if (downsampleStatus.equals(STARTED)) {
-                        // we'll wait for this round to complete
-                        // TODO when cancelling support is added it'll go here, if there's a further round that can be started for
-                        // this index
-                        affectedIndices.add(backingIndex.getIndex());
+                    break;
+                } else if (downsampleStatus.equals(STARTED)) {
+                    // we'll wait for this round to complete
+                    // TODO add support for cancelling a current in-progress operation if another, later, round matches
+                    affectedIndices.add(index);
+                    break;
+                } else if (downsampleStatus.equals(SUCCESS)
+                    && dataStream.getIndices().contains(targetDownsampleIndexMeta.getIndex()) == false) {
+                        // at this point the source index is part of the data stream and the downsample index is complete but not
+                        // part of the data stream. we need to replace the source index with the downsample index in the data stream
+                        // and delete the source index.
+                        affectedIndices.add(index);
+                        replaceBackingIndexWithDownsampleIndexOnce(dataStream, indexName, downsampleIndexName);
                         break;
-                    } else if (downsampleStatus.equals(SUCCESS)
-                        && dataStream.getIndices().contains(targetDownsampleIndexMeta.getIndex()) == false) {
-                            // at this point the source index is part of the data stream and the downsample index is complete but not
-                            // part of the data stream. we need to replace the source index with the downsample index in the data stream
-                            // and delete the source index.
-                            affectedIndices.add(backingIndex.getIndex());
-                            clusterStateChangesDeduplicator.executeOnce(
-                                new ReplaceSourceWithDownsampleIndexTask(dataStream.getName(), index.getName(), downsampleIndexName, null),
-                                new ErrorRecordingActionListener(indexName, errorStore),
-                                (req, reqListener) -> replaceSourceWithDownsampleIndexAndDeleteSource(
-                                    new ReplaceSourceWithDownsampleIndexTask(
-                                        dataStream.getName(),
-                                        index.getName(),
-                                        downsampleIndexName,
-                                        reqListener
-                                    ),
-                                    reqListener
-                                )
-                            );
-                            break;
-                        }
-                } else if (round.equals(lastRound)) {
-                    // no maintenance needed for previously started downsampling actions, so kick off the last matching round
+                    }
+            } else {
+                if (round.equals(lastRound)) {
+                    // no maintenance needed for previously started downsampling actions and we are on the last matching round so it's time
+                    // to kick off downsampling
                     affectedIndices.add(index);
                     DownsampleAction.Request request = new DownsampleAction.Request(indexName, downsampleIndexName, null, round.config());
                     transportActionsDeduplicator.executeOnce(
@@ -466,25 +471,28 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         return affectedIndices;
     }
 
-    private void deleteIndexOnce(String indexName, String reason) {
-        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName).masterNodeTimeout(
-            TimeValue.MAX_VALUE
-        );
-        transportActionsDeduplicator.executeOnce(
-            deleteIndexRequest,
-            new ErrorRecordingActionListener(indexName, errorStore),
-            (req, reqListener) -> deleteIndex(
-                deleteIndexRequest,
-                reason,
+    private void replaceBackingIndexWithDownsampleIndexOnce(DataStream dataStream, String backingIndexName, String downsampleIndexName) {
+        clusterStateChangesDeduplicator.executeOnce(
+            new ReplaceSourceWithDownsampleIndexTask(dataStream.getName(), backingIndexName, downsampleIndexName, null),
+            new ErrorRecordingActionListener(backingIndexName, errorStore),
+            (req, reqListener) -> replaceSourceWithDownsampleIndexAndDeleteSource(
+                new ReplaceSourceWithDownsampleIndexTask(dataStream.getName(), backingIndexName, downsampleIndexName, reqListener),
                 reqListener
             )
         );
     }
 
-    private void addIndexBlockOnce(String indexName) {
-        AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(
-            TimeValue.MAX_VALUE
+    private void deleteIndexOnce(String indexName, String reason) {
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE);
+        transportActionsDeduplicator.executeOnce(
+            deleteIndexRequest,
+            new ErrorRecordingActionListener(indexName, errorStore),
+            (req, reqListener) -> deleteIndex(deleteIndexRequest, reason, reqListener)
         );
+    }
+
+    private void addIndexBlockOnce(String indexName) {
+        AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(TimeValue.MAX_VALUE);
         transportActionsDeduplicator.executeOnce(
             addIndexBlockRequest,
             new ErrorRecordingActionListener(indexName, errorStore),

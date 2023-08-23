@@ -466,6 +466,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
+import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX;
@@ -2056,7 +2057,7 @@ public class MachineLearning extends Plugin
         });
 
         ActionListener<ListTasksResponse> afterWaitingForTasks = ActionListener.wrap(listTasksResponse -> {
-            logger.error("Jon---before clear memory tracker");
+            logger.error(format("Jon---before clear memory tracker list task response: %s", listTasksResponse));
 
             listTasksResponse.rethrowFailures("Waiting for indexing requests for .ml-* indices");
             if (results.values().stream().allMatch(b -> b)) {
@@ -2101,15 +2102,16 @@ public class MachineLearning extends Plugin
                     .prepareListTasks()
                     // This waits for all xpack actions including: allocations, anomaly detections, analytics
                     .setActions("xpack/ml/*")
-                    .setWaitForCompletion(true)
+                    .setWaitForCompletion(false)
                     .execute(ActionListener.wrap(listMlTasks -> {
+                        logger.error(format("Jon--- ml tasks %s", listMlTasks));
                         listMlTasks.rethrowFailures("Waiting for machine learning tasks");
                         client.admin()
                             .cluster()
                             .prepareListTasks()
                             .setActions("indices:data/write/bulk")
                             .setDetailed(true)
-                            .setWaitForCompletion(true)
+                            .setWaitForCompletion(false)
                             .setDescriptions("*.ml-*")
                             .execute(afterWaitingForTasks);
                     }, unsetResetModeListener::onFailure));

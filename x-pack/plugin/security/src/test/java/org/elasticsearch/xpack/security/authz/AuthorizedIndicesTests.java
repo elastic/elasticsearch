@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -70,7 +70,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("b").privileges("READ").build() },
             null
         );
-        Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
@@ -152,7 +152,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             .add(IndexPrivilege.ALL, "*")
             .cluster(Set.of("all"), Set.of())
             .build();
-        Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
@@ -190,7 +190,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             .add(FieldPermissions.DEFAULT, null, IndexPrivilege.ALL, true, "*")
             .cluster(Set.of("all"), Set.of())
             .build();
-        Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
@@ -244,7 +244,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("b").privileges("READ").build() },
             null
         );
-        Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
@@ -327,7 +327,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("b").privileges("READ").build() },
             null
         );
-        Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7

@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -38,11 +37,15 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
                 DataTypes.DOUBLE,
                 equalTo(Math.log10(arg))
             );
+        }), new TestCaseSupplier("Log10(negative)", () -> {
+            double arg = randomIntBetween(Integer.MIN_VALUE, -1); // it's inclusive
+            return new TestCase(
+                List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
+                "Log10DoubleEvaluator[val=Attribute[channel=0]]",
+                DataTypes.DOUBLE,
+                equalTo(Double.NaN)
+            );
         })));
-    }
-
-    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
-        return equalTo(Math.log10((Double) typedData.get(0).data()));
     }
 
     @Override

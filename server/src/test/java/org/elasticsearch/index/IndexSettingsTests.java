@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -731,7 +730,7 @@ public class IndexSettingsTests extends ESTestCase {
 
         settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
             Settings.builder()
-                .put("index.version.created", Version.CURRENT.id) // private setting
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()) // private setting
                 .put("index.unknown", "foo")
                 .put("index.refresh_interval", "2s")
                 .build(),
@@ -743,7 +742,7 @@ public class IndexSettingsTests extends ESTestCase {
         );
 
         assertEquals("foo", settings.get("archived.index.unknown"));
-        assertEquals(Integer.toString(Version.CURRENT.id), settings.get("index.version.created"));
+        assertEquals(IndexVersion.current().toString(), settings.get(IndexMetadata.SETTING_VERSION_CREATED));
         assertEquals("2s", settings.get("index.refresh_interval"));
     }
 

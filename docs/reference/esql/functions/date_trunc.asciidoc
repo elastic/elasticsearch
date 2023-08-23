@@ -6,7 +6,7 @@ Rounds down a date to the closest interval. Intervals can be expressed using the
 [source,esql]
 ----
 FROM employees
-| EVAL year_hired = DATE_TRUNC(hire_date, 1 year)
+| EVAL year_hired = DATE_TRUNC(1 year, hire_date)
 | STATS count(emp_no) BY year_hired
 | SORT year_hired
 ----

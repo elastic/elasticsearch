@@ -19,6 +19,7 @@ import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -30,6 +31,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.Header;
+import org.elasticsearch.transport.HeaderValidationException;
 import org.elasticsearch.transport.InboundAggregator;
 import org.elasticsearch.transport.InboundDecoder;
 import org.elasticsearch.transport.InboundPipeline;
@@ -163,7 +166,18 @@ public class SecurityNetty4Transport extends Netty4Transport {
                 : new InboundDecoder(recycler),
             new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
             this::inboundMessage
-        );
+        ) {
+            @Override
+            protected void headerReceived(Header header) {
+                // TODO maybe stash the thread context
+                // start authn asynchronously
+                crossClusterAccessAuthenticationService.tryAuthenticate(header.getRequestHeaders(), ActionListener.wrap(aVoid -> {
+                    // NOOP
+                }, e -> uncaughtExceptionReference.set(new HeaderValidationException(header, e))));
+                // go on with the message parts
+                super.headerReceived(header);
+            }
+        };
     }
 
     @Override

@@ -112,6 +112,17 @@ public class CrossClusterAccessAuthenticationService {
         }
     }
 
+    public void tryAuthenticate(Map<String, String> headers, ActionListener<Void> listener) {
+        final ApiKeyService.ApiKeyCredentials credentials;
+        try {
+            credentials = extractApiKeyCredentialsFromHeaders(headers);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        tryAuthenticate(credentials, listener);
+    }
+
     public void tryAuthenticate(ApiKeyService.ApiKeyCredentials credentials, ActionListener<Void> listener) {
         Objects.requireNonNull(credentials);
         apiKeyService.tryAuthenticate(clusterService.threadPool().getThreadContext(), credentials, ActionListener.wrap(authResult -> {

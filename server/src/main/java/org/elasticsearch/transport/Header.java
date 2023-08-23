@@ -77,6 +77,11 @@ public class Header {
         return compressionScheme;
     }
 
+    public Map<String, String> getRequestHeaders() {
+        var allHeaders = getHeaders();
+        return allHeaders == null ? null : allHeaders.v1();
+    }
+
     boolean needsToReadVariableHeader() {
         return headers == null;
     }

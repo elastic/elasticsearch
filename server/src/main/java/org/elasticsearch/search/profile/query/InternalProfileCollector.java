@@ -55,16 +55,9 @@ public class InternalProfileCollector extends ProfilerCollector {
     protected String deriveCollectorName(Collector c) {
         String s = c.getClass().getSimpleName();
 
-        // MultiCollector which wraps multiple BucketCollectors is generated
-        // via an anonymous class, so this corrects the lack of a name by
-        // asking the enclosingClass
-        if (s.equals("")) {
-            s = c.getClass().getEnclosingClass().getSimpleName();
-        }
-
         // Aggregation collector toString()'s include the user-defined agg name
         if (getReason().equals(CollectorResult.REASON_AGGREGATION) || getReason().equals(CollectorResult.REASON_AGGREGATION_GLOBAL)) {
-            s += ": [" + c + "]";
+            s += ": " + c;
         }
         return s;
     }

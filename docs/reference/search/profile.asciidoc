@@ -740,7 +740,7 @@ The API returns the following result:
                     "time_in_nanos": 22577
                   },
                   {
-                    "name": "BucketCollectorWrapper: [BucketCollectorWrapper[bucketCollector=[my_scoped_agg, my_global_agg]]]",
+                    "name": "AggregatorCollector: [my_scoped_agg, my_global_agg]",
                     "reason": "aggregation",
                     "time_in_nanos": 867617
                   }

@@ -15,6 +15,7 @@ import org.apache.lucene.search.ScoreMode;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /** Collector that controls the life cycle of an aggregation document collection. */
@@ -48,5 +49,14 @@ public class AggregatorCollector implements Collector {
             // release the aggregator to claim the used bytes as we don't need it anymore
             aggregator.releaseAggregations();
         }
+    }
+
+    @Override
+    public String toString() {
+        String[] aggNames = new String[aggregators.length];
+        for (int i = 0; i < aggregators.length; i++) {
+            aggNames[i] = aggregators[i].name();
+        }
+        return Arrays.toString(aggNames);
     }
 }

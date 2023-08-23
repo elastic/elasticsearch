@@ -128,15 +128,15 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                     // otherwise expect a Fragment
                     if (child instanceof FragmentExec fragmentExec) {
                         var logicalFragment = fragmentExec.fragment();
-                        var skipProject = false;
+
                         // no need for projection when dealing with aggs
-                        if (logicalFragment instanceof Aggregate) {
-                            skipProject = true;
-                        }
-                        var selectAll = projectAll.get();
-                        if (skipProject == false) {
+                        if (logicalFragment instanceof Aggregate == false) {
+                            var selectAll = projectAll.get();
                             var output = selectAll ? exec.child().output() : new ArrayList<>(attributes);
-                            // a physical plan cannot be empty - return a constant instead
+                            // if all the fields are filtered out, it's only the count that matters
+                            // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)
+                            // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
+                            // to avoid the block from being trimmed
                             if (output.isEmpty()) {
                                 var alias = new Alias(logicalFragment.source(), "<all-fields-projected>", null, Literal.NULL, null, true);
                                 List<NamedExpression> fields = singletonList(alias);

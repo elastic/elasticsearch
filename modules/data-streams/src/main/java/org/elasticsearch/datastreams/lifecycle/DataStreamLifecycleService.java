@@ -810,7 +810,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     private void downsampleIndex(DownsampleAction.Request request, ActionListener<Void> listener) {
-        logger.trace(
+        logger.info(
             "Data stream lifecycle issuing request to downsample index [{}] to index [{}]",
             request.getSourceIndex(),
             request.getTargetIndex()
@@ -842,7 +842,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         assert forceMergeRequest.indices() != null && forceMergeRequest.indices().length == 1
             : "Data stream lifecycle force merges one index at a time";
         final String targetIndex = forceMergeRequest.indices()[0];
-        logger.trace("Data stream lifecycle is issuing a request to force merge index [{}]", targetIndex);
+        logger.info("Data stream lifecycle is issuing a request to force merge index [{}]", targetIndex);
         client.admin().indices().forceMerge(forceMergeRequest, new ActionListener<>() {
             @Override
             public void onResponse(ForceMergeResponse forceMergeResponse) {

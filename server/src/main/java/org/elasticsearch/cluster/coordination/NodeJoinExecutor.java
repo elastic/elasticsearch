@@ -140,6 +140,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 } else {
                     try {
                         TransportVersion transportVersion = nodeJoinTask.transportVersion();
+                        // TODO[wrb]: add system index versions to version barrier?
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
                             ensureTransportVersionBarrier(transportVersion, transportVersions.values());
@@ -220,6 +221,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 }
             }
 
+            // TODO[wrb]: system index versions
             final ClusterState clusterStateWithNewNodesAndDesiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(
                 newState.nodes(nodesBuilder).transportVersions(transportVersions).build()
             );
@@ -268,6 +270,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         Map<String, TransportVersion> transportVersions = new HashMap<>(getTransportVersions(currentState));
         nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
 
+        // TODO[wrb]: handle system index versions
         for (final var taskContext : taskContexts) {
             for (final var joiningNode : taskContext.getTask().nodes()) {
                 final DiscoveryNode nodeWithSameId = nodesBuilder.get(joiningNode.getId());
@@ -289,6 +292,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             }
         }
 
+        // TODO[wrb]: handle system index versions
         // now trim any left over dead nodes - either left there when the previous master stepped down
         // or removed by us above
         ClusterState tmpState = ClusterState.builder(currentState)

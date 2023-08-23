@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.tasks.TaskManager;
@@ -90,7 +91,8 @@ public class JoinHelperTests extends ESTestCase {
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
             Function.identity(),
-            (listener, term) -> listener.onResponse(null)
+            (listener, term) -> listener.onResponse(null),
+            EmptySystemIndices.INSTANCE
         );
         transportService.start();
 
@@ -256,7 +258,8 @@ public class JoinHelperTests extends ESTestCase {
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
             Function.identity(),
-            (listener, term) -> listener.onResponse(null)
+            (listener, term) -> listener.onResponse(null),
+            EmptySystemIndices.INSTANCE
         );
         transportService.start();
 
@@ -331,7 +334,8 @@ public class JoinHelperTests extends ESTestCase {
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
             Function.identity(),
-            (listener, term) -> listener.onFailure(new ElasticsearchException("simulated"))
+            (listener, term) -> listener.onFailure(new ElasticsearchException("simulated")),
+            EmptySystemIndices.INSTANCE
         );
 
         final var joinAccumulator = joinHelper.new CandidateJoinAccumulator();

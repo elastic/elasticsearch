@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.gateway.GatewayMetaState;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
@@ -113,7 +114,8 @@ public class DiscoveryModuleTests extends ESTestCase {
             gatewayMetaState,
             mock(RerouteService.class),
             null,
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            EmptySystemIndices.INSTANCE
         );
     }
 

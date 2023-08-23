@@ -63,6 +63,7 @@ import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.discovery.TransportAddressConnector;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
@@ -185,8 +186,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private final LeaderHeartbeatService leaderHeartbeatService;
 
     /**
-     * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
+     * @param nodeName         The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the
+     *                         {@link SeedHostsResolver}.
      * @param onJoinValidators A collection of join validators to restrict which nodes may join the cluster.
+     * @param systemIndices
      */
     public Coordinator(
         String nodeName,
@@ -208,7 +211,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         CircuitBreakerService circuitBreakerService,
         Reconfigurator reconfigurator,
         LeaderHeartbeatService leaderHeartbeatService,
-        PreVoteCollector.Factory preVoteCollectorFactory
+        PreVoteCollector.Factory preVoteCollectorFactory,
+        SystemIndices systemIndices
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -232,7 +236,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             joinReasonService,
             circuitBreakerService,
             reconfigurator::maybeReconfigureAfterNewMasterIsElected,
-            this::getLatestStoredStateAfterWinningAnElection
+            this::getLatestStoredStateAfterWinningAnElection,
+            systemIndices
         );
         this.joinValidationService = new JoinValidationService(
             settings,

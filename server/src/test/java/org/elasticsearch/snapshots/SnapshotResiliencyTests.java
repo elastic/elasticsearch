@@ -2211,7 +2211,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new NoneCircuitBreakerService(),
                     new Reconfigurator(clusterService.getSettings(), clusterService.getClusterSettings()),
                     LeaderHeartbeatService.NO_OP,
-                    StatefulPreVoteCollector::new
+                    StatefulPreVoteCollector::new,
+                    EmptySystemIndices.INSTANCE
                 );
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.indices.SystemIndices;
 
 import java.util.List;
 import java.util.Objects;
@@ -28,9 +29,10 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
         TransportVersion transportVersion,
         JoinReason reason,
         ActionListener<Void> listener,
-        long term
+        long term,
+        SystemIndices systemIndices
     ) {
-        return new JoinTask(List.of(new NodeJoinTask(node, transportVersion, reason, listener)), false, term, null);
+        return new JoinTask(List.of(new NodeJoinTask(node, transportVersion, reason, listener, systemIndices)), false, term, null);
     }
 
     public static JoinTask completingElection(Stream<NodeJoinTask> nodeJoinTaskStream, long term) {
@@ -75,13 +77,26 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
         return new JoinTask(nodeJoinTasks, isBecomingMaster, term, latestState);
     }
 
-    public record NodeJoinTask(DiscoveryNode node, TransportVersion transportVersion, JoinReason reason, ActionListener<Void> listener) {
+    public record NodeJoinTask(
+        DiscoveryNode node,
+        TransportVersion transportVersion,
+        JoinReason reason,
+        ActionListener<Void> listener,
+        SystemIndices systemIndices
+    ) {
 
-        public NodeJoinTask(DiscoveryNode node, TransportVersion transportVersion, JoinReason reason, ActionListener<Void> listener) {
+        public NodeJoinTask(
+            DiscoveryNode node,
+            TransportVersion transportVersion,
+            JoinReason reason,
+            ActionListener<Void> listener,
+            SystemIndices systemIndices
+        ) {
             this.node = Objects.requireNonNull(node);
             this.transportVersion = Objects.requireNonNull(transportVersion);
             this.reason = reason;
             this.listener = listener;
+            this.systemIndices = systemIndices;
         }
 
         @Override

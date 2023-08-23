@@ -59,6 +59,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
     public ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) throws Exception {
         ClusterState initialState = batchExecutionContext.initialState();
         DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(initialState.nodes());
+        // TODO[wrb]: system index version
         Map<String, TransportVersion> transportVersions = new HashMap<>(getTransportVersions(initialState));
         boolean removed = false;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
@@ -89,6 +90,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
         try (var ignored = batchExecutionContext.dropHeadersContext()) {
             // suppress deprecation warnings e.g. from reroute()
 
+            // TODO[wrb]: system indices as well
             final var remainingNodesClusterState = remainingNodesClusterState(initialState, remainingNodesBuilder, transportVersions);
             final var ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
             return allocationService.disassociateDeadNodes(
@@ -102,6 +104,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
     // visible for testing
     // hook is used in testing to ensure that correct cluster state is used to test whether a
     // rejoin or reroute is needed
+    // TODO[wrb]: system indices
     protected ClusterState remainingNodesClusterState(
         ClusterState currentState,
         DiscoveryNodes.Builder remainingNodesBuilder,

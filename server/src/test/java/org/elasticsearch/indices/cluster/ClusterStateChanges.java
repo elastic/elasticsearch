@@ -404,7 +404,7 @@ public class ClusterStateChanges {
             clusterState,
             List.of(JoinTask.singleNode(discoveryNode, transportVersion, DUMMY_REASON, ActionListener.running(() -> {
                 throw new AssertionError("should not complete publication");
-            }), clusterState.term()))
+            }), clusterState.term(), EmptySystemIndices.INSTANCE))
         );
     }
 
@@ -417,7 +417,7 @@ public class ClusterStateChanges {
                     nodes.stream()
                         .map(node -> new JoinTask.NodeJoinTask(node, transportVersion, DUMMY_REASON, ActionListener.running(() -> {
                             throw new AssertionError("should not complete publication");
-                        }))),
+                        }), EmptySystemIndices.INSTANCE)),
                     clusterState.term() + between(1, 10)
                 )
             )

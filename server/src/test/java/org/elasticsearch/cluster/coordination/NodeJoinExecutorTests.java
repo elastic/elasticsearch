@@ -33,6 +33,7 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -249,7 +250,16 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterState,
             executor,
-            List.of(JoinTask.singleNode(actualNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, 0L))
+            List.of(
+                JoinTask.singleNode(
+                    actualNode,
+                    TransportVersion.current(),
+                    TEST_REASON,
+                    NOT_COMPLETED_LISTENER,
+                    0L,
+                    EmptySystemIndices.INSTANCE
+                )
+            )
         );
 
         assertThat(resultingState.getNodes().get(actualNode.getId()).getRoles(), equalTo(actualNode.getRoles()));
@@ -280,12 +290,25 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     executor,
                     randomBoolean()
                         ? List.of(
-                            JoinTask.singleNode(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm)
+                            JoinTask.singleNode(
+                                masterNode,
+                                TransportVersion.current(),
+                                TEST_REASON,
+                                NOT_COMPLETED_LISTENER,
+                                executorTerm,
+                                EmptySystemIndices.INSTANCE
+                            )
                         )
                         : List.of(
                             JoinTask.completingElection(
                                 Stream.of(
-                                    new JoinTask.NodeJoinTask(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER)
+                                    new JoinTask.NodeJoinTask(
+                                        masterNode,
+                                        TransportVersion.current(),
+                                        TEST_REASON,
+                                        NOT_COMPLETED_LISTENER,
+                                        EmptySystemIndices.INSTANCE
+                                    )
                                 ),
                                 executorTerm
                             )
@@ -331,12 +354,25 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     executor,
                     randomBoolean()
                         ? List.of(
-                            JoinTask.singleNode(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm)
+                            JoinTask.singleNode(
+                                masterNode,
+                                TransportVersion.current(),
+                                TEST_REASON,
+                                NOT_COMPLETED_LISTENER,
+                                executorTerm,
+                                EmptySystemIndices.INSTANCE
+                            )
                         )
                         : List.of(
                             JoinTask.completingElection(
                                 Stream.of(
-                                    new JoinTask.NodeJoinTask(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER)
+                                    new JoinTask.NodeJoinTask(
+                                        masterNode,
+                                        TransportVersion.current(),
+                                        TEST_REASON,
+                                        NOT_COMPLETED_LISTENER,
+                                        EmptySystemIndices.INSTANCE
+                                    )
                                 ),
                                 executorTerm
                             )
@@ -372,7 +408,16 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 () -> ClusterStateTaskExecutorUtils.executeHandlingResults(
                     clusterState,
                     executor,
-                    List.of(JoinTask.singleNode(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm)),
+                    List.of(
+                        JoinTask.singleNode(
+                            masterNode,
+                            TransportVersion.current(),
+                            TEST_REASON,
+                            NOT_COMPLETED_LISTENER,
+                            executorTerm,
+                            EmptySystemIndices.INSTANCE
+                        )
+                    ),
                     t -> fail("should not succeed"),
                     (t, e) -> assertThat(e, instanceOf(NotMasterException.class))
                 )
@@ -416,8 +461,20 @@ public class NodeJoinExecutorTests extends ESTestCase {
             List.of(
                 JoinTask.completingElection(
                     Stream.of(
-                        new JoinTask.NodeJoinTask(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER),
-                        new JoinTask.NodeJoinTask(otherNodeNew, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER)
+                        new JoinTask.NodeJoinTask(
+                            masterNode,
+                            TransportVersion.current(),
+                            TEST_REASON,
+                            NOT_COMPLETED_LISTENER,
+                            EmptySystemIndices.INSTANCE
+                        ),
+                        new JoinTask.NodeJoinTask(
+                            otherNodeNew,
+                            TransportVersion.current(),
+                            TEST_REASON,
+                            NOT_COMPLETED_LISTENER,
+                            EmptySystemIndices.INSTANCE
+                        )
                     ),
                     executorTerm
                 )
@@ -438,8 +495,22 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 afterElectionClusterState,
                 executor,
                 List.of(
-                    JoinTask.singleNode(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm),
-                    JoinTask.singleNode(otherNodeOld, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm)
+                    JoinTask.singleNode(
+                        masterNode,
+                        TransportVersion.current(),
+                        TEST_REASON,
+                        NOT_COMPLETED_LISTENER,
+                        executorTerm,
+                        EmptySystemIndices.INSTANCE
+                    ),
+                    JoinTask.singleNode(
+                        otherNodeOld,
+                        TransportVersion.current(),
+                        TEST_REASON,
+                        NOT_COMPLETED_LISTENER,
+                        executorTerm,
+                        EmptySystemIndices.INSTANCE
+                    )
                 )
             ).nodes().get(otherNodeNew.getId()).getEphemeralId(),
             equalTo(otherNodeNew.getEphemeralId())
@@ -489,8 +560,20 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 List.of(
                     JoinTask.completingElection(
                         Stream.of(
-                            new JoinTask.NodeJoinTask(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER),
-                            new JoinTask.NodeJoinTask(otherNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER)
+                            new JoinTask.NodeJoinTask(
+                                masterNode,
+                                TransportVersion.current(),
+                                TEST_REASON,
+                                NOT_COMPLETED_LISTENER,
+                                EmptySystemIndices.INSTANCE
+                            ),
+                            new JoinTask.NodeJoinTask(
+                                otherNode,
+                                TransportVersion.current(),
+                                TEST_REASON,
+                                NOT_COMPLETED_LISTENER,
+                                EmptySystemIndices.INSTANCE
+                            )
                         ),
                         executorTerm
                     )
@@ -502,7 +585,15 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 executor,
                 List.of(
                     JoinTask.completingElection(
-                        Stream.of(new JoinTask.NodeJoinTask(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER)),
+                        Stream.of(
+                            new JoinTask.NodeJoinTask(
+                                masterNode,
+                                TransportVersion.current(),
+                                TEST_REASON,
+                                NOT_COMPLETED_LISTENER,
+                                EmptySystemIndices.INSTANCE
+                            )
+                        ),
                         executorTerm
                     )
                 )
@@ -510,7 +601,16 @@ public class NodeJoinExecutorTests extends ESTestCase {
             clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
                 clusterState,
                 executor,
-                List.of(JoinTask.singleNode(otherNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm))
+                List.of(
+                    JoinTask.singleNode(
+                        otherNode,
+                        TransportVersion.current(),
+                        TEST_REASON,
+                        NOT_COMPLETED_LISTENER,
+                        executorTerm,
+                        EmptySystemIndices.INSTANCE
+                    )
+                )
             );
         }
 
@@ -575,7 +675,16 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final var desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
 
         var tasks = joiningNodes.stream()
-            .map(node -> JoinTask.singleNode(node, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, 0L))
+            .map(
+                node -> JoinTask.singleNode(
+                    node,
+                    TransportVersion.current(),
+                    TEST_REASON,
+                    NOT_COMPLETED_LISTENER,
+                    0L,
+                    EmptySystemIndices.INSTANCE
+                )
+            )
             .toList();
 
         final var updatedClusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(clusterState, executor, tasks);
@@ -611,7 +720,15 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final var completingElectionTask = JoinTask.completingElection(
             clusterState.nodes()
                 .stream()
-                .map(node -> new JoinTask.NodeJoinTask(node, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER)),
+                .map(
+                    node -> new JoinTask.NodeJoinTask(
+                        node,
+                        TransportVersion.current(),
+                        TEST_REASON,
+                        NOT_COMPLETED_LISTENER,
+                        EmptySystemIndices.INSTANCE
+                    )
+                ),
             1L
         );
 
@@ -663,7 +780,11 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 PlainActionFuture.<Void, RuntimeException>get(
                     future -> clusterService.getMasterService()
                         .createTaskQueue("test", Priority.NORMAL, executor)
-                        .submitTask("test", JoinTask.singleNode(node1, TransportVersion.current(), TEST_REASON, future, 0L), null),
+                        .submitTask(
+                            "test",
+                            JoinTask.singleNode(node1, TransportVersion.current(), TEST_REASON, future, 0L, EmptySystemIndices.INSTANCE),
+                            null
+                        ),
                     10,
                     TimeUnit.SECONDS
                 )
@@ -688,7 +809,18 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 PlainActionFuture.<Void, RuntimeException>get(
                     future -> clusterService.getMasterService()
                         .createTaskQueue("test", Priority.NORMAL, executor)
-                        .submitTask("test", JoinTask.singleNode(node2, TransportVersion.current(), testReasonWithLink, future, 0L), null),
+                        .submitTask(
+                            "test",
+                            JoinTask.singleNode(
+                                node2,
+                                TransportVersion.current(),
+                                testReasonWithLink,
+                                future,
+                                0L,
+                                EmptySystemIndices.INSTANCE
+                            ),
+                            null
+                        ),
                     10,
                     TimeUnit.SECONDS
                 )
@@ -709,9 +841,17 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
     private static JoinTask createRandomTask(DiscoveryNode node, long term) {
         return randomBoolean()
-            ? JoinTask.singleNode(node, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, term)
+            ? JoinTask.singleNode(node, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, term, EmptySystemIndices.INSTANCE)
             : JoinTask.completingElection(
-                Stream.of(new JoinTask.NodeJoinTask(node, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER)),
+                Stream.of(
+                    new JoinTask.NodeJoinTask(
+                        node,
+                        TransportVersion.current(),
+                        TEST_REASON,
+                        NOT_COMPLETED_LISTENER,
+                        EmptySystemIndices.INSTANCE
+                    )
+                ),
                 term
             );
     }

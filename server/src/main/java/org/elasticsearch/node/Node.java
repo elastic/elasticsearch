@@ -924,6 +924,7 @@ public class Node implements Closeable {
             );
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
+            // TODO[wrb]: for node join approach, "runtime" versions need to go in here
             final DiscoveryModule discoveryModule = new DiscoveryModule(
                 settings,
                 transportService,
@@ -940,7 +941,8 @@ public class Node implements Closeable {
                 gatewayMetaState,
                 rerouteService,
                 fsHealthService,
-                circuitBreakerService
+                circuitBreakerService,
+                systemIndices
             );
             this.nodeService = new NodeService(
                 settings,

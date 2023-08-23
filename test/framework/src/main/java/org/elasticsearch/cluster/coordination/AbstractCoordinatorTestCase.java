@@ -71,6 +71,7 @@ import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
@@ -1162,7 +1163,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     new NoneCircuitBreakerService(),
                     coordinationServices.getReconfigurator(),
                     coordinationServices.getLeaderHeartbeatService(),
-                    coordinationServices.getPreVoteCollectorFactory()
+                    coordinationServices.getPreVoteCollectorFactory(),
+                    EmptySystemIndices.INSTANCE
                 );
                 coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                     clusterService,

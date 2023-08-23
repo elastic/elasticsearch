@@ -32,6 +32,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
@@ -80,6 +81,7 @@ public class JoinHelper {
     private final Map<Tuple<DiscoveryNode, JoinRequest>, PendingJoinInfo> pendingOutgoingJoins = ConcurrentCollections.newConcurrentMap();
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
     private final Map<DiscoveryNode, Releasable> joinConnections = new HashMap<>(); // synchronized on itself
+    private final SystemIndices systemIndices;
 
     JoinHelper(
         AllocationService allocationService,
@@ -94,7 +96,8 @@ public class JoinHelper {
         JoinReasonService joinReasonService,
         CircuitBreakerService circuitBreakerService,
         Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection,
-        ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier
+        ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier,
+        SystemIndices systemIndices
     ) {
         this.joinTaskQueue = masterService.createTaskQueue(
             "node-join",
@@ -108,6 +111,7 @@ public class JoinHelper {
         this.nodeHealthService = nodeHealthService;
         this.joinReasonService = joinReasonService;
         this.latestStoredStateSupplier = latestStoredStateSupplier;
+        this.systemIndices = systemIndices;
 
         transportService.registerRequestHandler(
             JOIN_ACTION_NAME,
@@ -414,7 +418,8 @@ public class JoinHelper {
                 transportVersion,
                 joinReasonService.getJoinReason(sender, Mode.LEADER),
                 joinListener,
-                currentTermSupplier.getAsLong()
+                currentTermSupplier.getAsLong(),
+                systemIndices
             );
             joinTaskQueue.submitTask("node-join", task, null);
         }
@@ -477,7 +482,8 @@ public class JoinHelper {
                         discoveryNode,
                         data.v1(),
                         joinReasonService.getJoinReason(discoveryNode, Mode.CANDIDATE),
-                        data.v2()
+                        data.v2(),
+                        systemIndices
                     );
                 }), joiningTerm);
                 latestStoredStateSupplier.accept(new ActionListener<>() {

@@ -1,0 +1,10 @@
+steps:
+  - label: ":pipeline::kibana::seedling: Trigger Elasticsearch Tests for ${ENVIRONMENT}"
+    command: echo "replace me with Elasticsearch specific tests"
+    agent:
+      image: "docker.elastic.co/ci-agent-images/basic-buildkite-agent:1688566364"
+
+  - label: ":pipeline::kibana::seedling: Trigger Elasticsearch Tests for ${ENVIRONMENT}"
+    command: echo "replace me with Enterprise Search specific tests"
+    agent:
+      image: "docker.elastic.co/ci-agent-images/basic-buildkite-agent:1688566364"

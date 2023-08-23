@@ -1,0 +1,30 @@
+steps:
+  - label: ":pipeline::kibana::seedling: Trigger Elasticsearch Tests for ${ENVIRONMENT}"
+    command: echo "replace me with Elasticsearch specific tests"
+    agent:
+      image: "docker.elastic.co/ci-agent-images/basic-buildkite-agent:1688566364"
+
+  - label: ":pipeline::kibana::seedling: Trigger Elasticsearch Tests for ${ENVIRONMENT}"
+    command: echo "replace me with Enterprise Search specific tests"
+    agent:
+      image: "docker.elastic.co/ci-agent-images/basic-buildkite-agent:1688566364"
+
+  - label: ":pipeline::kibana::seedling: Trigger Observability Elasticsearch Tests for ${ENVIRONMENT}"
+    command: echo "replace me with Observability specific tests"
+    agent:
+      image: "docker.elastic.co/ci-agent-images/basic-buildkite-agent:1688566364"
+
+  - label: ":pipeline::fleet::seedling: Trigger Fleet Elasticsearch Tests for ${ENVIRONMENT}"
+    command: echo "replace me with Fleet specific Elasticsearch tests"
+    agent:
+      image: "docker.elastic.co/ci-agent-images/basic-buildkite-agent:1688566364"
+
+  - label: ":pipeline::lock::seedling: Trigger Security Elasticsearch Tests for ${ENVIRONMENT}"
+    command: echo "replace me with Security specific Elasticsearch tests"
+    agent:
+      image: "docker.elastic.co/ci-agent-images/basic-buildkite-agent:1688566364"
+
+  - label: ":pipeline::lock::seedling: Trigger Control Plane Elasticsearch Tests for ${ENVIRONMENT}"
+    command: echo "replace me with Security specific Elasticsearch tests"
+    agent:
+      image: "docker.elastic.co/ci-agent-images/basic-buildkite-agent:1688566364"

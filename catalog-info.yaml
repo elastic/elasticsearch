@@ -269,3 +269,45 @@ spec:
           branch: lucene_snapshot
           cronline: "0 9,12,15,18 * * * America/New_York"
           message: "Runs tests against lucene_snapshot branch several times per day"
+---
+
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: elasticsearch-tests-pipeline
+  description: Definition of the elasticsearch pipeline
+  links:
+    - title: Pipeline
+      url: https://buildkite.com/elastic/elasticsearch-tests
+spec:
+  type: buildkite-pipeline
+  owner: group:elasticsearch-team
+  system: buildkite
+  implementation:
+    apiVersion: buildkite.elastic.dev/v1
+    kind: Pipeline
+    metadata:
+      name: elasticsearch-tests
+      description: Pipeline that tests the service integration in various environments
+    spec:
+      repository: elastic/elasticsearch
+      pipeline_file: ./.buildkite/pipelines/quality-gates/pipeline.elasticsearch-tests.yaml
+      provider_settings:
+        trigger_mode: none
+      teams:
+        elasticsearch-team:
+          access_level: MANAGE_BUILD_AND_READ
+        enterprise-search:
+          access_level: BUILD_AND_READ
+        cloud-observability:
+          access_level: BUILD_AND_READ
+        control-plane-serverless:
+          access_level: BUILD_AND_READ
+        security-engineering-productivity:
+          access_level: BUILD_AND_READ
+        fleet:
+          access_level: BUILD_AND_READ
+        cloud-tooling:
+          access_level: BUILD_AND_READ
+        everyone:
+          access_level: READ_ONLY

@@ -151,6 +151,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 createDocument("keyword", "c")
             )
         );
+
+        // Only aggregate on unmapped field, no missing bucket => no results
         testSearchCase(
             Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")),
             dataset,
@@ -158,6 +160,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             (result) -> { assertEquals(0, result.getBuckets().size()); }
         );
 
+        // Only aggregate on unmapped field, missing bucket => one null bucket with all values
         testSearchCase(
             Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")),
             dataset,
@@ -173,6 +176,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             }
         );
 
+        // Only aggregate on the unmapped field, after key for that field is set as `null` => no results
         testSearchCase(
             Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")),
             dataset,
@@ -183,6 +187,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             (result) -> { assertEquals(0, result.getBuckets().size()); }
         );
 
+        // Mapped field first, then unmapped, no missing bucket => no results
         testSearchCase(
             Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")),
             dataset,
@@ -196,6 +201,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             (result) -> { assertEquals(0, result.getBuckets().size()); }
         );
 
+        // Mapped + unmapped, include missing => 3 buckets
         testSearchCase(
             Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")),
             dataset,
@@ -216,6 +222,91 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals("{keyword=d, unmapped=null}", result.getBuckets().get(2).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(2).getDocCount());
             }
+        );
+
+        // Unmapped field, keyword after key, unmapped sorts after, include unmapped => 1 bucket
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true).missingOrder(MissingOrder.LAST)
+                )
+            ).aggregateAfter(Collections.singletonMap("unmapped", "cat")),
+            (InternalComposite result) -> {
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{unmapped=null}", result.afterKey().toString());
+                assertEquals("{unmapped=null}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(5L, result.getBuckets().get(0).getDocCount());
+            }
+        );
+
+        // Unmapped field, keyword after key, unmapped sorts before, include unmapped => 0 buckets
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true).missingOrder(MissingOrder.FIRST)
+                )
+            ).aggregateAfter(Collections.singletonMap("unmapped", "cat")),
+            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+        );
+
+        // Unmapped field, number after key, unmapped sorts after, include unmapped => 1 bucket
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true).missingOrder(MissingOrder.LAST)
+                )
+            ).aggregateAfter(Collections.singletonMap("unmapped", 42)),
+            (InternalComposite result) -> {
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{unmapped=null}", result.afterKey().toString());
+                assertEquals("{unmapped=null}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(5L, result.getBuckets().get(0).getDocCount());
+            }
+        );
+
+        // Unmapped field, number after key, unmapped sorts before, include unmapped => 0 buckets
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true).missingOrder(MissingOrder.FIRST)
+                )
+            ).aggregateAfter(Collections.singletonMap("unmapped", 42)),
+            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+        );
+
+    }
+
+    public void testUnmappedTermsLongAfter() throws Exception {
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+        dataset.addAll(
+            Arrays.asList(
+                createDocument("keyword", "a"),
+                createDocument("keyword", "c"),
+                createDocument("keyword", "a"),
+                createDocument("keyword", "d"),
+                createDocument("keyword", "c")
+            )
+        );
+
+        // Unmapped field, number after key, no missing bucket => 0 buckets
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")),
+            dataset,
+            () -> new CompositeAggregationBuilder("name", Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped")))
+                .aggregateAfter(Collections.singletonMap("unmapped", 42)),
+            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
         );
     }
 

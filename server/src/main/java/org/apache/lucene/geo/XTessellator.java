@@ -814,23 +814,26 @@ public final class XTessellator {
      * Determines whether a diagonal between two polygon nodes lies within a polygon interior. (This determines the validity of the ray.)
      **/
     private static boolean isValidDiagonal(final Node a, final Node b) {
-        if (isVertexEquals(a, b)) {
-            // If points are equal then use it if they are valid polygons
-            return isCWPolygon(a, b);
+        if (a.next.idx == b.idx || a.previous.idx == b.idx
+        // check next edges are locally visible
+            || isLocallyInside(a.previous, b) == false
+            || isLocallyInside(b.next, a) == false
+            // check polygons are CCW in both sides
+            || isCWPolygon(a, b) == false
+            || isCWPolygon(b, a) == false) {
+            return false;
         }
-        return a.next.idx != b.idx
-            && a.previous.idx != b.idx
-            && isIntersectingPolygon(a, a.getX(), a.getY(), b.getX(), b.getY()) == false
-            && isLocallyInside(a, b)
-            && isLocallyInside(b, a)
-            && isLocallyInside(a.previous, b)
-            && isLocallyInside(b.next, a)
-            && middleInsert(a, a.getX(), a.getY(), b.getX(), b.getY())
-            // make sure we don't introduce collinear lines
+        if (isVertexEquals(a, b)) {
+            return true;
+        }
+        return isLocallyInside(a, b) && isLocallyInside(b, a) && middleInsert(a, a.getX(), a.getY(), b.getX(), b.getY())
+        // make sure we don't introduce collinear lines
             && area(a.previous.getX(), a.previous.getY(), a.getX(), a.getY(), b.getX(), b.getY()) != 0
             && area(a.getX(), a.getY(), b.getX(), b.getY(), b.next.getX(), b.next.getY()) != 0
             && area(a.next.getX(), a.next.getY(), a.getX(), a.getY(), b.getX(), b.getY()) != 0
-            && area(a.getX(), a.getY(), b.getX(), b.getY(), b.previous.getX(), b.previous.getY()) != 0;
+            && area(a.getX(), a.getY(), b.getX(), b.getY(), b.previous.getX(), b.previous.getY()) != 0
+            // this call is expensive so do it last
+            && isIntersectingPolygon(a, a.getX(), a.getY(), b.getX(), b.getY()) == false;
     }
 
     /** Determine whether the polygon defined between node start and node end is CW */

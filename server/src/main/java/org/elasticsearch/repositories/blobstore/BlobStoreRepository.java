@@ -1289,7 +1289,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return allSnapshotIds.contains(foundUUID) == false;
             } else if (blob.startsWith(INDEX_FILE_PREFIX)) {
                 // TODO: Include the current generation here once we remove keeping index-(N-1) around from #writeIndexGen
-                return repositoryData.getGenId() > Long.parseLong(blob.substring(INDEX_FILE_PREFIX.length()));
+                try {
+                    return repositoryData.getGenId() > Long.parseLong(blob.substring(INDEX_FILE_PREFIX.length()));
+                } catch (NumberFormatException nfe) {
+                    // odd case of an extra file with the index- prefix that we can't identify
+                    return false;
+                }
             }
             return false;
         }).collect(Collectors.toList());

@@ -1,5 +1,0 @@
-pr: 96034
-summary: Fix Azure `InputStream#read` method
-area: Snapshot/Restore
-type: bug
-issues: []

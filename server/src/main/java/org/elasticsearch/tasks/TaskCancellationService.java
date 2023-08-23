@@ -44,11 +44,12 @@ public class TaskCancellationService {
     private static final Logger logger = LogManager.getLogger(TaskCancellationService.class);
     private final TransportService transportService;
     private final TaskManager taskManager;
-    private final ResultDeduplicator<CancelRequest, Void> deduplicator = new ResultDeduplicator<>();
+    private final ResultDeduplicator<CancelRequest, Void> deduplicator;
 
     public TaskCancellationService(TransportService transportService) {
         this.transportService = transportService;
         this.taskManager = transportService.getTaskManager();
+        this.deduplicator = new ResultDeduplicator<>(transportService.getThreadPool().getThreadContext());
         transportService.registerRequestHandler(
             BAN_PARENT_ACTION_NAME,
             ThreadPool.Names.SAME,

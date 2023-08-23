@@ -783,7 +783,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     private void downsampleIndex(DownsampleAction.Request request, ActionListener<Void> listener) {
         logger.trace(
-            "Data stream lifecycle issues request to downsample index [{}] to index [{}]",
+            "Data stream lifecycle issuing request to downsample index [{}] to index [{}]",
             request.getSourceIndex(),
             request.getTargetIndex()
         );

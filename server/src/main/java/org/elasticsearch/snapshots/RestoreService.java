@@ -1055,7 +1055,12 @@ public class RestoreService implements ClusterStateApplier {
                 boolean changed = false;
                 for (RestoreInProgress.Entry entry : currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
                     if (entry.state().completed()) {
-                        logger.log(entry.quiet() ? Level.DEBUG : Level.INFO, "completed restore of snapshot [{}]", entry.snapshot());
+                        logger.log(
+                            entry.quiet() ? Level.DEBUG : Level.INFO,
+                            "completed restore of snapshot [{}] with state [{}]",
+                            entry.snapshot(),
+                            entry.state()
+                        );
                         changed = true;
                     } else {
                         restoreInProgressBuilder.add(entry);

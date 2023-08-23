@@ -20,12 +20,12 @@ In order to diagnose the unassigned shards, follow the next steps:
 . Log in to the {ess-console}[{ecloud} console].
 +
 
-. On the **Elasticsearch Service** panel, click the name of your deployment. 
+. On the **Elasticsearch Service** panel, click the name of your deployment.
 +
 
 NOTE: If the name of your deployment is disabled your {kib} instances might be
 unhealthy, in which case please contact https://support.elastic.co[Elastic Support].
-If your deployment doesn't include {kib}, all you need to do is 
+If your deployment doesn't include {kib}, all you need to do is
 {cloud}/ec-access-kibana.html[enable it first].
 
 . Open your deployment's side navigation menu (placed under the Elastic logo in the upper left corner)
@@ -106,6 +106,7 @@ The response will look like this:
       "node_id" : "8qt2rY-pT6KNZB3-hGfLnw",
       "node_name" : "node-0",
       "transport_address" : "127.0.0.1:9401",
+      "roles": ["data_content", "data_hot"],
       "node_attributes" : {},
       "node_decision" : "no",                     <4>
       "weight_ranking" : 1,
@@ -151,7 +152,7 @@ settings>> and <<cluster-update-settings,cluster update settings>> APIs to the
 correct values in order to allow the index to be allocated.
 
 For more guidance on fixing the most common causes for unassinged shards please follow
-<<fix-red-yellow-cluster-status, this guide>> or contact https://support.elastic.co[Elastic Support]. 
+<<fix-red-yellow-cluster-status, this guide>> or contact https://support.elastic.co[Elastic Support].
 
 //end::kibana-api-ex[]
 // end::cloud[]
@@ -231,6 +232,7 @@ The response will look like this:
       "node_id" : "8qt2rY-pT6KNZB3-hGfLnw",
       "node_name" : "node-0",
       "transport_address" : "127.0.0.1:9401",
+      "roles": ["data_content", "data_hot"]
       "node_attributes" : {},
       "node_decision" : "no",                     <4>
       "weight_ranking" : 1,
@@ -276,7 +278,7 @@ settings>> and <<cluster-update-settings,cluster update settings>> APIs to the
 correct values in order to allow the index to be allocated.
 
 For more guidance on fixing the most common causes for unassinged shards please follow
-<<fix-red-yellow-cluster-status, this guide>>. 
+<<fix-red-yellow-cluster-status, this guide>>.
 
 // end::self-managed[]
 

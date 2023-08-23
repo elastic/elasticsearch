@@ -30,7 +30,6 @@ import org.elasticsearch.transport.TcpHeader;
 import org.elasticsearch.transport.TestRequest;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -59,10 +58,6 @@ public final class SecurityNetty4HeaderSizeLimitTests extends ESTestCase {
     private final BigArrays bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), CircuitBreaker.REQUEST);
     private final Settings settings = Settings.builder()
         .put("node.name", "SecurityNetty4HeaderSizeLimitTests")
-        .put(RemoteClusterPortSettings.BIND_HOST.getKey(), "127.0.0.1")
-        .put(RemoteClusterPortSettings.PORT.getKey(), 0)
-        .put(TransportSettings.BIND_HOST.getKey(), "127.0.0.1")
-        .put(TransportSettings.PORT.getKey(), 0)
         .put(RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.getKey(), maxHeaderSize + "b")
         .put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), "false")
         .put(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED.getKey(), "false")
@@ -138,7 +133,7 @@ public final class SecurityNetty4HeaderSizeLimitTests extends ESTestCase {
     public void testThatAcceptableHeaderSizeGoesThroughTheRemoteClusterPort() throws Exception {
         int messageLength = randomIntBetween(128, 256);
         long requestId = randomLongBetween(1L, 1000L);
-        int acceptableHeaderSize = randomIntBetween(0, maxHeaderSize - 23); // 23 is the internal fixed header size
+        int acceptableHeaderSize = randomIntBetween(0, maxHeaderSize - TcpHeader.headerSize(TransportVersion.current()));
         try (
             ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(
                 messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE,
@@ -162,7 +157,10 @@ public final class SecurityNetty4HeaderSizeLimitTests extends ESTestCase {
     public void testThatLargerHeaderSizeClosesTheRemoteClusterPort() throws Exception {
         int messageLength = randomIntBetween(128, 256);
         long requestId = randomLongBetween(1L, 1000L);
-        int largeHeaderSize = randomIntBetween(maxHeaderSize - 23 + 1, messageLength); // 23 is the internal fixed header size
+        int largeHeaderSize = randomIntBetween(
+            maxHeaderSize - TcpHeader.headerSize(TransportVersion.current()) + 1,
+            messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE - TcpHeader.headerSize(TransportVersion.current())
+        );
         try (
             ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(
                 messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE,
@@ -186,7 +184,10 @@ public final class SecurityNetty4HeaderSizeLimitTests extends ESTestCase {
     public void testThatLargerHeaderSizeIsAcceptableForDefaultTransportPort() throws Exception {
         int messageLength = randomIntBetween(128, 256);
         long requestId = randomLongBetween(1L, 1000L);
-        int largeHeaderSize = randomIntBetween(maxHeaderSize - 23 + 1, messageLength); // 23 is the internal fixed header size
+        int largeHeaderSize = randomIntBetween(
+            maxHeaderSize - TcpHeader.headerSize(TransportVersion.current()) + 1,
+            messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE - TcpHeader.headerSize(TransportVersion.current())
+        );
         try (
             ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(
                 messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE,
@@ -210,7 +211,7 @@ public final class SecurityNetty4HeaderSizeLimitTests extends ESTestCase {
     private void assembleDummyRequest(BytesStreamOutput out, int messageLength, long requestId, int variableHeaderSize) throws IOException {
         out.writeByte((byte) 'E');
         out.writeByte((byte) 'S');
-        out.writeInt(messageLength);
+        out.writeInt(messageLength); // message length must not be higher than the bytes array length that's sent on the socket
         out.writeLong(requestId); // request id
         out.writeByte((byte) 0); // status byte (request)
         out.writeInt(TransportVersion.current().id());
@@ -218,6 +219,6 @@ public final class SecurityNetty4HeaderSizeLimitTests extends ESTestCase {
         out.writeMap(Map.of()); // request headers
         out.writeMap(Map.of()); // response headers
         out.writeString("internal:test"); // action name in header
+        out.writeVInt(-1); // make sure request is malformed (it's also possibly malformed for other reasons)
     }
-
 }

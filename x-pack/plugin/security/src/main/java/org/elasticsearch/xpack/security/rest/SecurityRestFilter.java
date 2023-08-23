@@ -10,14 +10,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.http.netty4.Netty4HttpRequest;
+import org.elasticsearch.http.nio.NioHttpRequest;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -25,14 +26,12 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
-import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 public class SecurityRestFilter implements RestHandler {
 
@@ -42,23 +41,20 @@ public class SecurityRestFilter implements RestHandler {
     private final AuthenticationService authenticationService;
     private final SecondaryAuthenticator secondaryAuthenticator;
     private final XPackLicenseState licenseState;
-    private final ThreadContext threadContext;
-    private final boolean extractClientCertificate;
+    private final AuditTrailService auditTrailService;
 
     public SecurityRestFilter(
         XPackLicenseState licenseState,
-        ThreadContext threadContext,
         AuthenticationService authenticationService,
         SecondaryAuthenticator secondaryAuthenticator,
-        RestHandler restHandler,
-        boolean extractClientCertificate
+        AuditTrailService auditTrailService,
+        RestHandler restHandler
     ) {
         this.licenseState = licenseState;
-        this.threadContext = threadContext;
         this.authenticationService = authenticationService;
         this.secondaryAuthenticator = secondaryAuthenticator;
+        this.auditTrailService = auditTrailService;
         this.restHandler = restHandler;
-        this.extractClientCertificate = extractClientCertificate;
     }
 
     @Override
@@ -70,27 +66,30 @@ public class SecurityRestFilter implements RestHandler {
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (licenseState.isSecurityEnabled() && request.method() != Method.OPTIONS) {
             // CORS - allow for preflight unauthenticated OPTIONS request
-            if (extractClientCertificate) {
-                HttpChannel httpChannel = request.getHttpChannel();
-                SSLEngineUtils.extractClientCertificates(logger, threadContext, httpChannel);
-            }
 
             final String requestUri = request.uri();
-            authenticationService.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(authentication -> {
-                if (authentication == null) {
-                    logger.trace("No authentication available for REST request [{}]", requestUri);
-                } else {
-                    logger.trace("Authenticated REST request [{}] as {}", requestUri, authentication);
-                }
-                secondaryAuthenticator.authenticateAndAttachToContext(request, ActionListener.wrap(secondaryAuthentication -> {
+            final RestRequest wrappedRequest = maybeWrapRestRequest(request);
+            authenticateOnlyNioHttpRequests(wrappedRequest.getHttpRequest(), ActionListener.wrap(ignored -> {
+                auditTrailService.get().authenticationSuccess(wrappedRequest);
+                secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
                     if (secondaryAuthentication != null) {
                         logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, requestUri);
                     }
-                    RemoteHostHeader.process(request, threadContext);
                     restHandler.handleRequest(request, channel, client);
                 }, e -> handleException("Secondary authentication", request, channel, e)));
             }, e -> handleException("Authentication", request, channel, e)));
         } else {
+            // requests with the OPTIONS method should be handled elsewhere, and not by calling {@code RestHandler#handleRequest}
+            // authn is bypassed for HTTP reqs with the OPTIONS method, so this sanity check prevents dispatching unauthenticated reqs
+            if (licenseState.isSecurityEnabled()) {
+                handleException(
+                    "Options with body",
+                    request,
+                    channel,
+                    new ElasticsearchSecurityException("Cannot dispatch OPTIONS request, as they are not authenticated")
+                );
+                return;
+            }
             if (request.method() != Method.OPTIONS) {
                 HeaderWarning.addWarning(
                     "Elasticsearch built-in security features are not enabled. Without "
@@ -106,29 +105,26 @@ public class SecurityRestFilter implements RestHandler {
         }
     }
 
+    private void authenticateOnlyNioHttpRequests(HttpRequest request, ActionListener<Void> listener) {
+        if (request instanceof HttpPipelinedRequest) {
+            request = ((HttpPipelinedRequest) request).getDelegateRequest();
+        }
+        if (request instanceof NioHttpRequest) {
+            this.authenticationService.authenticate(
+                request,
+                ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
+            );
+        } else {
+            assert request instanceof Netty4HttpRequest;
+            // this type of request is authenticated elsewhere, see: {@code Security#getHttpServerTransportWithHeadersValidator}
+            listener.onResponse(null);
+        }
+    }
+
     private void handleException(String actionType, RestRequest request, RestChannel channel, Exception e) {
         logger.debug(new ParameterizedMessage("{} failed for REST request [{}]", actionType, request.uri()), e);
-        final RestStatus restStatus = ExceptionsHelper.status(e);
         try {
-            channel.sendResponse(new BytesRestResponse(channel, restStatus, e) {
-
-                @Override
-                protected boolean skipStackTrace() {
-                    return restStatus == RestStatus.UNAUTHORIZED;
-                }
-
-                @Override
-                public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
-                    if (headers.containsKey("Warning")) {
-                        headers = Maps.copyMapWithRemovedEntry(headers, "Warning");
-                    }
-                    if (headers.containsKey("X-elastic-product")) {
-                        headers = Maps.copyMapWithRemovedEntry(headers, "X-elastic-product");
-                    }
-                    return headers;
-                }
-
-            });
+            channel.sendResponse(new BytesRestResponse(channel, e));
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error(

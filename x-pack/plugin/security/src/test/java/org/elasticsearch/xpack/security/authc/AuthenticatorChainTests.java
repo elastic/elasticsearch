@@ -113,10 +113,10 @@ public class AuthenticatorChainTests extends ESTestCase {
     }
 
     public void testAuthenticateFailsIfExistingAuthenticationFoundForRestRequest() throws IOException {
-        final AuthenticationService.AuditableRestRequest auditableRestRequest = mock(AuthenticationService.AuditableRestRequest.class);
+        final AuthenticationService.AuditableHttpRequest auditableHttpRequest = mock(AuthenticationService.AuditableHttpRequest.class);
         final ElasticsearchSecurityException e = new ElasticsearchSecurityException("fail");
-        when(auditableRestRequest.tamperedRequest()).thenReturn(e);
-        final Authenticator.Context context = createAuthenticatorContext(auditableRestRequest);
+        when(auditableHttpRequest.tamperedRequest()).thenReturn(e);
+        final Authenticator.Context context = createAuthenticatorContext(auditableHttpRequest);
         when(authenticationContextSerializer.readFromContext(any())).thenReturn(mock(Authentication.class));
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();

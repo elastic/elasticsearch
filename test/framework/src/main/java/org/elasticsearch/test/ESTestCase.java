@@ -1827,6 +1827,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    protected static boolean isTurkishLocale() {
+        return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
+            || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
+    }
+
     public static void safeAwait(CyclicBarrier barrier) {
         try {
             barrier.await(10, TimeUnit.SECONDS);

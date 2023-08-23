@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -39,6 +40,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
@@ -113,7 +115,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         if (pages.isEmpty()) {
             valuesIt = Collections.emptyIterator();
         } else if (columnar) {
-            valuesIt = Iterators.flatten(
+            valuesIt = Iterators.flatMap(
                 Iterators.forRange(
                     0,
                     columns().size(),
@@ -122,7 +124,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                         Iterators.flatMap(pages.iterator(), page -> {
                             ColumnInfo.PositionToXContent toXContent = columns.get(column)
                                 .positionToXContent(page.getBlock(column), scratch);
-                            return Iterators.<ToXContent>forRange(
+                            return Iterators.forRange(
                                 0,
                                 page.getPositionCount(),
                                 position -> (builder, params) -> toXContent.positionToXContent(builder, params, position)
@@ -130,7 +132,8 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                         }),
                         ChunkedToXContentHelper.endArray()
                     )
-                )
+                ),
+                Function.identity()
             );
         } else {
             valuesIt = Iterators.flatMap(pages.iterator(), page -> {
@@ -239,7 +242,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
-            default -> throw new UnsupportedOperationException("unsupported data type [" + dataType + "]");
+            default -> throw EsqlUnsupportedOperationException.unsupportedDataType(dataType);
         };
     }
 
@@ -272,7 +275,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                     case "boolean" -> ((BooleanBlock.Builder) builder).appendBoolean(((Boolean) value));
                     case "null" -> builder.appendNull();
                     case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(value.toString()).toBytesRef());
-                    default -> throw new UnsupportedOperationException("unsupported data type [" + dataTypes.get(c) + "]");
+                    default -> throw EsqlUnsupportedOperationException.unsupportedDataType(dataTypes.get(c));
                 }
             }
         }

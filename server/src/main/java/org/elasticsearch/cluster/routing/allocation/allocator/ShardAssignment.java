@@ -24,10 +24,6 @@ public record ShardAssignment(Set<String> nodeIds, int total, int unassigned, in
         assert nodeIds.size() + unassigned == total : "Shard assignment should account for all shards";
     }
 
-    public boolean isIgnored(boolean primary) {
-        return primary ? total == ignored : ignored > 0;
-    }
-
     public int assigned() {
         return nodeIds.size();
     }

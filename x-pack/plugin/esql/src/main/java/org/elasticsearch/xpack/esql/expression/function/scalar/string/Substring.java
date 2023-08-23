@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
@@ -128,7 +129,7 @@ public class Substring extends ScalarFunction implements OptionalArgument, Evalu
 
     @Override
     public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException();
+        throw new EsqlUnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

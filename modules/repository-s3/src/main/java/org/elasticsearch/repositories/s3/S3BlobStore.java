@@ -24,6 +24,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -125,6 +126,10 @@ class S3BlobStore implements BlobStore {
                 stats.abortCount.addAndGet(getRequestCount(request));
             }
         };
+    }
+
+    public TimeValue getCompareAndExchangeTimeToLive() {
+        return service.compareAndExchangeTimeToLive;
     }
 
     // metrics collector that ignores null responses that we interpret as the request not reaching the S3 endpoint due to a network

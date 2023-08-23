@@ -23,6 +23,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.http.HttpHeadersValidationException;
@@ -939,8 +940,17 @@ public class RestControllerTests extends ESTestCase {
         });
         final Consumer<List<String>> checkProtected = paths -> paths.forEach(path -> {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
-            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.NOT_FOUND);
+            AssertingChannel channel = new AssertingChannel(request, true, RestStatus.GONE);
             restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+
+            RestResponse restResponse = channel.getRestResponse();
+            Map<String, Object> map = XContentHelper.convertToMap(restResponse.content(), false, XContentType.JSON).v2();
+            assertEquals(410, map.get("status"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> error = (Map<String, Object>) map.get("error");
+            assertEquals("api_not_available_exception", error.get("type"));
+            assertTrue(error.get("reason").toString().contains("not available when running in serverless mode"));
+
         });
 
         List<String> accessiblePaths = List.of("/public", "/internal");

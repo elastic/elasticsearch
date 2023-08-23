@@ -24,6 +24,8 @@ module org.elasticsearch.stateless {
     requires org.elasticsearch.logging;
     requires org.elasticsearch.xcontent;
 
+    requires org.elasticsearch.serverless.constants;
+
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
 

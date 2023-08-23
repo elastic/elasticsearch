@@ -103,7 +103,7 @@ public abstract class DocumentParserContext {
     private String id;
     private Field version;
     private SeqNoFieldMapper.SequenceIDFields seqID;
-    private Set<String> fieldsAppliedFromTemplates;
+    private final Set<String> fieldsAppliedFromTemplates;
 
     private DocumentParserContext(
         MappingLookup mappingLookup,

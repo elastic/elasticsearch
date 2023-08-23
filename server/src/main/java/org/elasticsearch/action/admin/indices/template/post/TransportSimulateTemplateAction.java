@@ -166,7 +166,7 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             systemIndices,
             indexSettingProviders
         );
-        if (request.includeDefaults() && DataStreamLifecycle.isFeatureEnabled()) {
+        if (request.includeDefaults()) {
             listener.onResponse(
                 new SimulateIndexTemplateResponse(
                     template,

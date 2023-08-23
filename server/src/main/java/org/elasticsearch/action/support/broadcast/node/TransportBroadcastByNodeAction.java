@@ -456,7 +456,7 @@ public abstract class TransportBroadcastByNodeAction<
 
             @Override
             public String toString() {
-                return actionName;
+                return transportNodeBroadcastAction;
             }
         }.run(task, shards.iterator(), listener);
     }
@@ -534,6 +534,11 @@ public abstract class TransportBroadcastByNodeAction<
         @Override
         public boolean hasReferences() {
             return indicesLevelRequest.hasReferences();
+        }
+
+        @Override
+        public String toString() {
+            return "[" + transportNodeBroadcastAction + "][" + nodeId + "][" + indicesLevelRequest + "]";
         }
     }
 

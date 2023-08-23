@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 public class EsqlIllegalArgumentException extends QlIllegalArgumentException {
     public EsqlIllegalArgumentException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
@@ -32,5 +33,13 @@ public class EsqlIllegalArgumentException extends QlIllegalArgumentException {
 
     public EsqlIllegalArgumentException(Throwable cause) {
         super(cause);
+    }
+
+    public static EsqlIllegalArgumentException illegalDataType(DataType dataType) {
+        return EsqlIllegalArgumentException.illegalDataType(dataType.typeName());
+    }
+
+    public static EsqlIllegalArgumentException illegalDataType(String dataTypeName) {
+        return new EsqlIllegalArgumentException("illegal data type [" + dataTypeName + "]");
     }
 }

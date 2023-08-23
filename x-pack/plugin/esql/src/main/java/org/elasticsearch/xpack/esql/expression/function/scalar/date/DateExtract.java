@@ -12,8 +12,8 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
-public class DateExtract extends ConfigurationFunction implements Mappable {
+public class DateExtract extends ConfigurationFunction implements EvaluatorMapper {
 
     private ChronoField chronoField;
 
@@ -52,7 +52,7 @@ public class DateExtract extends ConfigurationFunction implements Mappable {
             ChronoField chrono = chronoField();
             if (chrono == null) {
                 BytesRef field = (BytesRef) children().get(1).fold();
-                throw new EsqlIllegalArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
+                throw new EsqlUnsupportedOperationException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
             }
             return () -> new DateExtractConstantEvaluator(fieldEvaluator.get(), chrono, configuration().zoneId());
         }
@@ -103,7 +103,7 @@ public class DateExtract extends ConfigurationFunction implements Mappable {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException();
+        throw new EsqlUnsupportedOperationException("functions do not support scripting");
     }
 
     @Override
@@ -130,7 +130,7 @@ public class DateExtract extends ConfigurationFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
 }

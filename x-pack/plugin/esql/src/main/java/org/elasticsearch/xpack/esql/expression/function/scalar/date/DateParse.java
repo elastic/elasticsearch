@@ -13,7 +13,8 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC;
 
-public class DateParse extends ScalarFunction implements OptionalArgument, Mappable {
+public class DateParse extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
 
     public static final DateFormatter DEFAULT_FORMATTER = toFormatter(new BytesRef("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"), UTC);
     private final Expression field;
@@ -80,7 +81,7 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Mappa
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Evaluator(extraName = "Constant", warnExceptions = { IllegalArgumentException.class })
@@ -111,7 +112,7 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Mappa
                 DateFormatter formatter = toFormatter(format.fold(), zone);
                 return () -> new DateParseConstantEvaluator(source(), fieldEvaluator.get(), formatter);
             } catch (IllegalArgumentException e) {
-                throw new EsqlIllegalArgumentException(e, "invalid date patter for [{}]: {}", sourceText(), e.getMessage());
+                throw new EsqlIllegalArgumentException(e, "invalid date pattern for [{}]: {}", sourceText(), e.getMessage());
             }
         }
         Supplier<EvalOperator.ExpressionEvaluator> formatEvaluator = toEvaluator.apply(format);
@@ -134,6 +135,6 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Mappa
 
     @Override
     public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException();
+        throw new EsqlUnsupportedOperationException("functions do not support scripting");
     }
 }

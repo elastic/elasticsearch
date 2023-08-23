@@ -89,6 +89,13 @@ emp_no:integer | first_name:keyword
          10033 | X
 ;
 
+coalesceOnce
+ROW a=1 | EVAL a = COALESCE(a);
+
+a:integer
+        1
+;
+
 coalesceBackwards
 FROM employees
 | EVAL first_name = COALESCE("X", first_name)

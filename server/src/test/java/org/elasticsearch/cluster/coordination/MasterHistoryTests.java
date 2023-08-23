@@ -244,7 +244,51 @@ public class MasterHistoryTests extends ESTestCase {
             masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
         }
         assertThat(masterHistory.getNodes().size(), lessThanOrEqualTo(MasterHistory.MAX_HISTORY_SIZE));
+    }
 
+    public void testGetNodesAndGetRawNodes() {
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        AtomicReference<ClusterState> clusterStateReference = new AtomicReference<>(createClusterState((DiscoveryNode) null));
+        when(clusterService.state()).thenAnswer((Answer<ClusterState>) invocation -> clusterStateReference.get());
+        ThreadPool threadPool = mock(ThreadPool.class);
+        MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
+
+        assertThat(masterHistory.getRawNodes().size(), equalTo(0));
+        assertThat(masterHistory.getNodes().size(), equalTo(0));
+
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        assertThat(masterHistory.getRawNodes().size(), equalTo(1));
+        assertThat(masterHistory.getRawNodes().get(0).getEphemeralId(), equalTo(node1.getEphemeralId()));
+        assertThat(masterHistory.getNodes().size(), equalTo(0));
+
+        clusterStateReference.set(createClusterState(node1));
+        assertThat(masterHistory.getRawNodes().size(), equalTo(1));
+        assertThat(masterHistory.getRawNodes().get(0).getEphemeralId(), equalTo(node1.getEphemeralId()));
+        assertThat(masterHistory.getNodes().size(), equalTo(1));
+        assertThat(masterHistory.getNodes().get(0).getEphemeralId(), equalTo(node1.getEphemeralId()));
+
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, nullMasterClusterState));
+        assertThat(masterHistory.getRawNodes().size(), equalTo(2));
+        assertThat(masterHistory.getRawNodes().get(0).getEphemeralId(), equalTo(node1.getEphemeralId()));
+        assertThat(masterHistory.getRawNodes().get(1).getEphemeralId(), equalTo(node2.getEphemeralId()));
+        assertThat(masterHistory.getNodes().size(), equalTo(1));
+        assertThat(masterHistory.getNodes().get(0).getEphemeralId(), equalTo(node1.getEphemeralId()));
+
+        clusterStateReference.set(createClusterState(node2));
+        assertThat(masterHistory.getRawNodes().size(), equalTo(2));
+        assertThat(masterHistory.getRawNodes().get(0).getEphemeralId(), equalTo(node1.getEphemeralId()));
+        assertThat(masterHistory.getRawNodes().get(1).getEphemeralId(), equalTo(node2.getEphemeralId()));
+        assertThat(masterHistory.getNodes().size(), equalTo(1));
+        assertThat(masterHistory.getNodes().get(0).getEphemeralId(), equalTo(node2.getEphemeralId()));
+
+        clusterStateReference.set(createClusterState(node1, node2, node3));
+        assertThat(masterHistory.getRawNodes().size(), equalTo(2));
+        assertThat(masterHistory.getRawNodes().get(0).getEphemeralId(), equalTo(node1.getEphemeralId()));
+        assertThat(masterHistory.getRawNodes().get(1).getEphemeralId(), equalTo(node2.getEphemeralId()));
+        assertThat(masterHistory.getNodes().size(), equalTo(2));
+        assertThat(masterHistory.getNodes().get(0).getEphemeralId(), equalTo(node1.getEphemeralId()));
+        assertThat(masterHistory.getNodes().get(1).getEphemeralId(), equalTo(node2.getEphemeralId()));
     }
 
     private static String randomNodeId() {

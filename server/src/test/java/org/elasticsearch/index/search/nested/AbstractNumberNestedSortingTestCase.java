@@ -47,6 +47,7 @@ public abstract class AbstractNumberNestedSortingTestCase extends AbstractFieldD
         return true;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98789")
     public void testNestedSorting() throws Exception {
         List<Document> docs = new ArrayList<>();
         Document document = new Document();

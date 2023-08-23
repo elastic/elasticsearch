@@ -21,7 +21,7 @@ public class ExceptionUtils {
      * @param dataType the illegal data type that was encountered
      */
     public static EsqlIllegalArgumentException illegalDataType(DataType dataType) {
-        return EsqlIllegalArgumentException.illegalDataType(dataType.typeName());
+        return illegalDataType(dataType.typeName());
     }
 
     /**
@@ -46,7 +46,7 @@ public class ExceptionUtils {
      * @param dataType the unsupported data type that was encountered
      */
     public static EsqlUnsupportedOperationException unsupportedDataType(DataType dataType) {
-        return EsqlUnsupportedOperationException.unsupportedDataType(dataType.typeName());
+        return unsupportedDataType(dataType.typeName());
     }
 
     /**

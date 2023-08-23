@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.util.ExceptionUtils;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -257,7 +258,7 @@ public class LocalExecutionPlanner {
         if (dataType == DataTypes.BOOLEAN) {
             return ElementType.BOOLEAN;
         }
-        throw EsqlUnsupportedOperationException.unsupportedDataType(dataType);
+        throw ExceptionUtils.unsupportedDataType(dataType);
     }
 
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {

@@ -12,10 +12,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
+import org.elasticsearch.xpack.esql.util.ExceptionUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
@@ -52,17 +52,17 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
 
         @Override
         public String getWriteableName() {
-            throw EsqlUnsupportedOperationException.methodNotImplemented();
+            throw ExceptionUtils.methodNotImplemented();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            throw EsqlUnsupportedOperationException.methodNotImplemented();
+            throw ExceptionUtils.methodNotImplemented();
         }
 
         @Override
         public Object doApply(Object o, Object o2) {
-            throw EsqlUnsupportedOperationException.methodNotImplemented();
+            throw ExceptionUtils.methodNotImplemented();
         }
 
         @Override

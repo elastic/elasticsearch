@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
+import org.elasticsearch.xpack.esql.util.ExceptionUtils;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
@@ -112,7 +113,7 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         this.longs = longs;
         this.doubles = doubles;
         this.keywords = keywords;
-        this.bools = (lhs, rhs) -> { throw EsqlUnsupportedOperationException.unsupportedDataType(DataTypes.BOOLEAN); };
+        this.bools = (lhs, rhs) -> { throw ExceptionUtils.unsupportedDataType(DataTypes.BOOLEAN); };
     }
 
     @Override

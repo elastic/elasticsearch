@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.util.ExceptionUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -122,7 +123,7 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
             Mul mul = new Mul(source(), floor, rounding);
             return toEvaluator.apply(mul);
         }
-        throw EsqlUnsupportedOperationException.unsupportedDataType(field.dataType());
+        throw ExceptionUtils.unsupportedDataType(field.dataType());
     }
 
     private record DateRoundingPicker(int buckets, long from, long to) {

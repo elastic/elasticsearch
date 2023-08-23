@@ -29,9 +29,9 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.esql.util.ExceptionUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -242,7 +242,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
-            default -> throw EsqlUnsupportedOperationException.unsupportedDataType(dataType);
+            default -> throw ExceptionUtils.unsupportedDataType(dataType);
         };
     }
 
@@ -275,7 +275,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                     case "boolean" -> ((BooleanBlock.Builder) builder).appendBoolean(((Boolean) value));
                     case "null" -> builder.appendNull();
                     case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(value.toString()).toBytesRef());
-                    default -> throw EsqlUnsupportedOperationException.unsupportedDataType(dataTypes.get(c));
+                    default -> throw ExceptionUtils.unsupportedDataType(dataTypes.get(c));
                 }
             }
         }

@@ -11,6 +11,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.util.ExceptionUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -157,7 +158,7 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
         if (fieldType == DataTypes.UNSIGNED_LONG) {
             return toEvaluator(toEvaluator, Function.identity(), RoundUnsignedLongEvaluator::new);
         }
-        throw EsqlUnsupportedOperationException.unsupportedDataType(fieldType);
+        throw ExceptionUtils.unsupportedDataType(fieldType);
     }
 
     private Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(

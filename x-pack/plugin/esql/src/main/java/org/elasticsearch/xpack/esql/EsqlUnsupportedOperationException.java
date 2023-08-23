@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.xpack.ql.QlServerException;
-import org.elasticsearch.xpack.ql.type.DataType;
 
 public class EsqlUnsupportedOperationException extends QlServerException {
     public EsqlUnsupportedOperationException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
@@ -33,17 +32,5 @@ public class EsqlUnsupportedOperationException extends QlServerException {
 
     public EsqlUnsupportedOperationException(Throwable cause) {
         super(cause);
-    }
-
-    public static EsqlUnsupportedOperationException methodNotImplemented() {
-        return new EsqlUnsupportedOperationException("method not implemented");
-    }
-
-    public static EsqlUnsupportedOperationException unsupportedDataType(DataType dataType) {
-        return EsqlUnsupportedOperationException.unsupportedDataType(dataType.typeName());
-    }
-
-    public static EsqlUnsupportedOperationException unsupportedDataType(String dataTypeName) {
-        return new EsqlUnsupportedOperationException("unsupported data type [" + dataTypeName + "]");
     }
 }

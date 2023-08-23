@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxBooleanEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxBytesRefEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxDoubleEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxIntEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxLongEvaluator;
+import org.elasticsearch.xpack.esql.util.ExceptionUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -142,7 +142,7 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
                 suppliers.get().map(MvMaxBytesRefEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
             );
         }
-        throw EsqlIllegalArgumentException.illegalDataType(dataType);
+        throw ExceptionUtils.illegalDataType(dataType);
     }
 
     @Evaluator(extraName = "Boolean")

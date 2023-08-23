@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -168,7 +169,7 @@ public abstract class TransportReplicationAction<
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
         Writeable.Reader<ReplicaRequest> replicaRequestReader,
-        String executor,
+        String executorName,
         boolean syncGlobalCheckpointAfterOperation,
         boolean forceExecutionOnPrimary
     ) {
@@ -178,7 +179,7 @@ public abstract class TransportReplicationAction<
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.shardStateAction = shardStateAction;
-        this.executor = executor;
+        this.executor = executorName;
 
         this.transportPrimaryAction = actionName + "[p]";
         this.transportReplicaAction = actionName + "[r]";
@@ -187,11 +188,16 @@ public abstract class TransportReplicationAction<
         this.retryTimeout = REPLICATION_RETRY_TIMEOUT.get(settings);
         this.forceExecutionOnPrimary = forceExecutionOnPrimary;
 
-        transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
+        transportService.registerRequestHandler(
+            actionName,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            requestReader,
+            this::handleOperationRequest
+        );
 
         transportService.registerRequestHandler(
             transportPrimaryAction,
-            executor,
+            threadPool.executor(executorName),
             forceExecutionOnPrimary,
             true,
             in -> new ConcreteShardRequest<>(requestReader, in),
@@ -201,7 +207,7 @@ public abstract class TransportReplicationAction<
         // we must never reject on because of thread pool capacity on replicas
         transportService.registerRequestHandler(
             transportReplicaAction,
-            executor,
+            threadPool.executor(executorName),
             true,
             true,
             in -> new ConcreteReplicaRequest<>(replicaRequestReader, in),

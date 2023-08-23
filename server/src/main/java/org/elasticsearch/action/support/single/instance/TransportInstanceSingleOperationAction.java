@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -33,7 +34,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -72,7 +72,7 @@ public abstract class TransportInstanceSingleOperationAction<
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.shardActionName = actionName + "[s]";
-        transportService.registerRequestHandler(shardActionName, Names.SAME, request, new ShardTransportHandler());
+        transportService.registerRequestHandler(shardActionName, EsExecutors.DIRECT_EXECUTOR_SERVICE, request, new ShardTransportHandler());
     }
 
     @Override

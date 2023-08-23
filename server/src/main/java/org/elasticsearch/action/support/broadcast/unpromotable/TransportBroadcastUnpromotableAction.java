@@ -60,7 +60,12 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
         this.transportUnpromotableAction = actionName + "[u]";
         this.executor = transportService.getThreadPool().executor(executor);
 
-        transportService.registerRequestHandler(transportUnpromotableAction, executor, requestReader, new UnpromotableTransportHandler());
+        transportService.registerRequestHandler(
+            transportUnpromotableAction,
+            this.executor,
+            requestReader,
+            new UnpromotableTransportHandler()
+        );
     }
 
     protected abstract void unpromotableShardOperation(Task task, Request request, ActionListener<Response> listener);

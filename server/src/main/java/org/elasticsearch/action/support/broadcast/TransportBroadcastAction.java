@@ -75,7 +75,7 @@ public abstract class TransportBroadcastAction<
 
         transportService.registerRequestHandler(
             transportShardAction,
-            executor,
+            this.executor,
             shardRequestReader,
             (request, channel, task) -> ActionListener.completeWith(
                 new ChannelActionListener<>(channel),

@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -188,7 +189,7 @@ public final class TransportActionProxy {
         RequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandler(action);
         service.registerRequestHandler(
             getProxyAction(action),
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             true,
             false,
             in -> cancellable

@@ -389,6 +389,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -1578,7 +1579,7 @@ public class Security extends Plugin
             @Override
             public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
                 String action,
-                String executor,
+                Executor executor,
                 boolean forceExecution,
                 TransportRequestHandler<T> actualHandler
             ) {

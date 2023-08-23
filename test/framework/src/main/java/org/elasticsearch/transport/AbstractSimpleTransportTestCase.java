@@ -58,6 +58,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -312,7 +313,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testHelloWorld() {
         serviceA.registerRequestHandler(
             "internal:sayHello",
-            ThreadPool.Names.GENERIC,
+            threadPool.executor(ThreadPool.Names.GENERIC),
             StringMessageRequest::new,
             (request, channel, task) -> {
                 assertThat("moshe", equalTo(request.message));
@@ -396,7 +397,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         serviceA.registerRequestHandler(
             "internal:ping_pong",
-            ThreadPool.Names.GENERIC,
+            threadPool.executor(ThreadPool.Names.GENERIC),
             StringMessageRequest::new,
             (request, channel, task) -> {
                 assertEquals("ping_user", threadPool.getThreadContext().getHeader("test.ping.user"));
@@ -459,7 +460,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final AtomicReference<Exception> exception = new AtomicReference<>();
         serviceA.registerRequestHandler(
             "internal:localNode",
-            ThreadPool.Names.GENERIC,
+            threadPool.executor(ThreadPool.Names.GENERIC),
             StringMessageRequest::new,
             (request, channel, task) -> {
                 try {
@@ -518,8 +519,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
         };
         final String ACTION = "internal:action";
-        serviceA.registerRequestHandler(ACTION, ThreadPool.Names.GENERIC, TransportRequest.Empty::new, requestHandler);
-        serviceB.registerRequestHandler(ACTION, ThreadPool.Names.GENERIC, TransportRequest.Empty::new, requestHandler);
+        serviceA.registerRequestHandler(ACTION, threadPool.executor(ThreadPool.Names.GENERIC), TransportRequest.Empty::new, requestHandler);
+        serviceB.registerRequestHandler(ACTION, threadPool.executor(ThreadPool.Names.GENERIC), TransportRequest.Empty::new, requestHandler);
 
         class CountingListener implements TransportMessageListener {
             AtomicInteger requestsReceived = new AtomicInteger();
@@ -638,7 +639,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try (MockTransportService serviceC = buildService("TS_C", version0, transportVersion0, Settings.EMPTY)) {
             serviceA.registerRequestHandler(
                 "internal:sayHello",
-                ThreadPool.Names.GENERIC,
+                threadPool.executor(ThreadPool.Names.GENERIC),
                 TransportRequest.Empty::new,
                 (request, channel, task) -> {
                     try {
@@ -694,7 +695,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try (MockTransportService serviceC = buildService("TS_C", version0, transportVersion0, Settings.EMPTY)) {
             serviceA.registerRequestHandler(
                 "internal:sayHello",
-                ThreadPool.Names.GENERIC,
+                threadPool.executor(ThreadPool.Names.GENERIC),
                 StringMessageRequest::new,
                 (request, channel, task) -> {
                     assertThat("moshe", equalTo(request.message));
@@ -764,8 +765,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     fail(e.getMessage());
                 }
             };
-            serviceA.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new, handler);
-            serviceC.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new, handler);
+            serviceA.registerRequestHandler("internal:sayHello", threadPool.executor(ThreadPool.Names.GENERIC), StringMessageRequest::new, handler);
+            serviceC.registerRequestHandler("internal:sayHello", threadPool.executor(ThreadPool.Names.GENERIC), StringMessageRequest::new, handler);
 
             Settings settingsWithCompress = Settings.builder()
                 .put(TransportSettings.TRANSPORT_COMPRESS.getKey(), Compression.Enabled.INDEXING_DATA)
@@ -829,7 +830,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testErrorMessage() throws InterruptedException {
         serviceA.registerRequestHandler(
             "internal:sayHelloException",
-            ThreadPool.Names.GENERIC,
+            threadPool.executor(ThreadPool.Names.GENERIC),
             StringMessageRequest::new,
             (request, channel, task) -> {
                 assertThat("moshe", equalTo(request.message));
@@ -892,7 +893,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Set<Exception> responseErrors = ConcurrentCollections.newConcurrentSet();
         serviceA.registerRequestHandler(
             "internal:test",
-            randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC,
+            threadPool.executor(randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC),
             TestRequest::new,
             (request, channel, task) -> {
                 try {
@@ -911,7 +912,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 logger.trace("caught exception while responding from node B", e);
             }
         };
-        serviceB.registerRequestHandler("internal:test", ThreadPool.Names.SAME, TestRequest::new, ignoringRequestHandler);
+        serviceB.registerRequestHandler("internal:test", EsExecutors.DIRECT_EXECUTOR_SERVICE, TestRequest::new, ignoringRequestHandler);
 
         int halfSenders = scaledRandomIntBetween(3, 10);
         final CyclicBarrier go = new CyclicBarrier(halfSenders * 2 + 1);
@@ -1002,7 +1003,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 // simulate restart of nodeB
                 serviceB.close();
                 MockTransportService newService = buildService("TS_B_" + i, version1, transportVersion1, Settings.EMPTY);
-                newService.registerRequestHandler("internal:test", ThreadPool.Names.SAME, TestRequest::new, ignoringRequestHandler);
+                newService.registerRequestHandler("internal:test", EsExecutors.DIRECT_EXECUTOR_SERVICE, TestRequest::new, ignoringRequestHandler);
                 serviceB = newService;
                 nodeB = newService.getLocalDiscoNode();
                 connectToNode(serviceB, nodeA);
@@ -1026,7 +1027,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try {
             serviceA.registerRequestHandler(
                 "internal:foobar",
-                ThreadPool.Names.GENERIC,
+                threadPool.executor(ThreadPool.Names.GENERIC),
                 StringMessageRequest::new,
                 (request, channel, task) -> {
                     try {
@@ -1059,7 +1060,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testTimeoutSendExceptionWithNeverSendingBackResponse() throws Exception {
         serviceA.registerRequestHandler(
             "internal:sayHelloTimeoutNoResponse",
-            ThreadPool.Names.GENERIC,
+            threadPool.executor(ThreadPool.Names.GENERIC),
             StringMessageRequest::new,
             (request, channel, task) -> assertThat("moshe", equalTo(request.message))
         ); // don't send back a response
@@ -1104,7 +1105,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Semaphore inFlight = new Semaphore(Integer.MAX_VALUE);
         serviceA.registerRequestHandler(
             "internal:sayHelloTimeoutDelayedResponse",
-            ThreadPool.Names.GENERIC,
+            threadPool.executor(ThreadPool.Names.GENERIC),
             StringMessageRequest::new,
             (request, channel, task) -> {
                 String message = request.message;
@@ -1249,12 +1250,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             public void handleException(TransportException exp) {}
         };
 
-        serviceA.registerRequestHandler("internal:test", ThreadPool.Names.SAME, StringMessageRequest::new, handler);
-        serviceA.registerRequestHandler("internal:testNotSeen", ThreadPool.Names.SAME, StringMessageRequest::new, handler);
-        serviceA.registerRequestHandler("internal:testError", ThreadPool.Names.SAME, StringMessageRequest::new, handlerWithError);
-        serviceB.registerRequestHandler("internal:test", ThreadPool.Names.SAME, StringMessageRequest::new, handler);
-        serviceB.registerRequestHandler("internal:testNotSeen", ThreadPool.Names.SAME, StringMessageRequest::new, handler);
-        serviceB.registerRequestHandler("internal:testError", ThreadPool.Names.SAME, StringMessageRequest::new, handlerWithError);
+        serviceA.registerRequestHandler("internal:test", EsExecutors.DIRECT_EXECUTOR_SERVICE, StringMessageRequest::new, handler);
+        serviceA.registerRequestHandler("internal:testNotSeen", EsExecutors.DIRECT_EXECUTOR_SERVICE, StringMessageRequest::new, handler);
+        serviceA.registerRequestHandler("internal:testError", EsExecutors.DIRECT_EXECUTOR_SERVICE, StringMessageRequest::new, handlerWithError);
+        serviceB.registerRequestHandler("internal:test", EsExecutors.DIRECT_EXECUTOR_SERVICE, StringMessageRequest::new, handler);
+        serviceB.registerRequestHandler("internal:testNotSeen", EsExecutors.DIRECT_EXECUTOR_SERVICE, StringMessageRequest::new, handler);
+        serviceB.registerRequestHandler("internal:testError", EsExecutors.DIRECT_EXECUTOR_SERVICE, StringMessageRequest::new, handlerWithError);
 
         String includeSettings;
         String excludeSettings;
@@ -1569,7 +1570,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testVersionFrom0to1() throws Exception {
-        serviceB.registerRequestHandler("internal:version", ThreadPool.Names.SAME, Version1Request::new, (request, channel, task) -> {
+        serviceB.registerRequestHandler("internal:version", EsExecutors.DIRECT_EXECUTOR_SERVICE, Version1Request::new, (request, channel, task) -> {
             assertThat(request.value1, equalTo(1));
             assertThat(request.value2, equalTo(0)); // not set, coming from service A
             Version1Response response = new Version1Response(1, 2);
@@ -1612,7 +1613,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testVersionFrom1to0() throws Exception {
-        serviceA.registerRequestHandler("internal:version", ThreadPool.Names.SAME, Version0Request::new, (request, channel, task) -> {
+        serviceA.registerRequestHandler("internal:version", EsExecutors.DIRECT_EXECUTOR_SERVICE, Version0Request::new, (request, channel, task) -> {
             assertThat(request.value1, equalTo(1));
             Version0Response response = new Version0Response(1);
             channel.sendResponse(response);
@@ -1657,7 +1658,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testVersionFrom1to1() throws Exception {
-        serviceB.registerRequestHandler("internal:version", ThreadPool.Names.SAME, Version1Request::new, (request, channel, task) -> {
+        serviceB.registerRequestHandler("internal:version", EsExecutors.DIRECT_EXECUTOR_SERVICE, Version1Request::new, (request, channel, task) -> {
             assertThat(request.value1, equalTo(1));
             assertThat(request.value2, equalTo(2));
             Version1Response response = new Version1Response(1, 2);
@@ -1705,7 +1706,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testVersionFrom0to0() throws Exception {
-        serviceA.registerRequestHandler("internal:version", ThreadPool.Names.SAME, Version0Request::new, (request, channel, task) -> {
+        serviceA.registerRequestHandler("internal:version", EsExecutors.DIRECT_EXECUTOR_SERVICE, Version0Request::new, (request, channel, task) -> {
             assertThat(request.value1, equalTo(1));
             Version0Response response = new Version0Response(1);
             channel.sendResponse(response);
@@ -1751,7 +1752,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testMockFailToSendNoConnectRule() throws Exception {
         serviceA.registerRequestHandler(
             "internal:sayHello",
-            ThreadPool.Names.GENERIC,
+            threadPool.executor(ThreadPool.Names.GENERIC),
             StringMessageRequest::new,
             (request, channel, task) -> {
                 assertThat("moshe", equalTo(request.message));

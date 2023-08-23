@@ -62,7 +62,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         );
         transportService.registerRequestHandler(
             PRE_SYNCED_FLUSH_ACTION_NAME,
-            ThreadPool.Names.FLUSH,
+            transportService.getThreadPool().executor(ThreadPool.Names.FLUSH),
             PreShardSyncedFlushRequest::new,
             new PreSyncedFlushTransportHandler(indicesService)
         );

@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -103,13 +104,13 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
         try {
             newService.registerRequestHandler(
                 SearchShardsAction.NAME,
-                ThreadPool.Names.SAME,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchShardsRequest::new,
                 (request, channel, task) -> {
                     channel.sendResponse(new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap()));
                 }
             );
-            newService.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new, (request, channel, task) -> {
+            newService.registerRequestHandler(SearchAction.NAME, EsExecutors.DIRECT_EXECUTOR_SERVICE, SearchRequest::new, (request, channel, task) -> {
                 InternalSearchResponse response = new InternalSearchResponse(
                     new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                     InternalAggregations.EMPTY,
@@ -133,7 +134,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             });
             newService.registerRequestHandler(
                 ClusterStateAction.NAME,
-                ThreadPool.Names.SAME,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 ClusterStateRequest::new,
                 (request, channel, task) -> {
                     DiscoveryNodes.Builder builder = DiscoveryNodes.builder();

@@ -40,7 +40,7 @@ public class DriverTaskRunner {
     public DriverTaskRunner(TransportService transportService, String executorName) {
         this.transportService = transportService;
         this.executor = transportService.getThreadPool().executor(executorName);
-        transportService.registerRequestHandler(ACTION_NAME, executorName, DriverRequest::new, new DriverRequestHandler(executor));
+        transportService.registerRequestHandler(ACTION_NAME, this.executor, DriverRequest::new, new DriverRequestHandler(executor));
     }
 
     public void executeDrivers(Task parentTask, List<Driver> drivers, ActionListener<Void> listener) {

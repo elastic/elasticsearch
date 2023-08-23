@@ -103,7 +103,7 @@ public abstract class TransportBroadcastByNodeAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Request> request,
-        String executor,
+        String executorName,
         boolean canTripCircuitBreaker
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
@@ -112,14 +112,14 @@ public abstract class TransportBroadcastByNodeAction<
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.executor = transportService.getThreadPool().executor(executor);
+        this.executor = transportService.getThreadPool().executor(executorName);
         assert this.executor != EsExecutors.DIRECT_EXECUTOR_SERVICE : "O(#shards) work must always fork to an appropriate executor";
 
         transportNodeBroadcastAction = actionName + "[n]";
 
         transportService.registerRequestHandler(
             transportNodeBroadcastAction,
-            executor,
+            this.executor,
             false,
             canTripCircuitBreaker,
             NodeRequest::new,

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -24,8 +25,8 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
 
     private final ZoneId zoneId;
 
-    protected BinaryDateTimeFunction(Source source, Expression timestamp, Expression argument) {
-        super(source, timestamp, argument);
+    protected BinaryDateTimeFunction(Source source, Expression argument, Expression timestamp) {
+        super(source, argument, timestamp);
         zoneId = DEFAULT_TZ;
     }
 
@@ -35,7 +36,7 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
     }
 
     public Expression timestampField() {
-        return left();
+        return right();
     }
 
     public ZoneId zoneId() {
@@ -44,7 +45,7 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException();
+        throw new EsqlUnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

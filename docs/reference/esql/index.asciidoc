@@ -46,7 +46,7 @@ POST /_query
 {
   "query": """
     FROM library
-    | EVAL year = DATE_TRUNC(release_date, 1 YEARS)
+    | EVAL year = DATE_TRUNC(1 YEARS, release_date)
     | STATS MAX(page_count) BY year
     | SORT year
     | LIMIT 5
@@ -83,7 +83,7 @@ POST /_query?format=txt
 {
   "query": """
     FROM library
-    | EVAL year = DATE_TRUNC(release_date, 1 YEARS)
+    | EVAL year = DATE_TRUNC(1 YEARS, release_date)
     | STATS MAX(page_count) BY year
     | SORT year
     | LIMIT 5

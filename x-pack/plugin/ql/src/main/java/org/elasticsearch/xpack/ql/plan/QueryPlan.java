@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ql.plan;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -25,6 +26,8 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
     private AttributeSet lazyOutputSet;
     private AttributeSet lazyInputSet;
+    private List<Expression> lazyExpressions;
+    private AttributeSet lazyReferences;
 
     public QueryPlan(Source source, List<PlanType> children) {
         super(source, children);
@@ -48,6 +51,28 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
             lazyInputSet = new AttributeSet(attrs);
         }
         return lazyInputSet;
+    }
+
+    /**
+     * Returns the top-level expressions for this query plan node.
+     * In other words the node properties.
+     */
+    public List<Expression> expressions() {
+        if (lazyExpressions == null) {
+            lazyExpressions = new ArrayList<>();
+            forEachPropertyOnly(Object.class, e -> doForEachExpression(e, lazyExpressions::add));
+        }
+        return lazyExpressions;
+    }
+
+    /**
+     * Returns the expressions referenced on this query plan node.
+     */
+    public AttributeSet references() {
+        if (lazyReferences == null) {
+            lazyReferences = Expressions.references(expressions());
+        }
+        return lazyReferences;
     }
 
     //

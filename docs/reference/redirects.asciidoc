@@ -1885,46 +1885,22 @@ Refer to <<fix-watermark-errors>>.
 [role="exclude",id="dlm-delete-lifecycle"]
 === Delete the lifecycle of a data stream
 
-ifeval::["{release-state}"=="unreleased"]
 Refer to <<data-streams-delete-lifecycle,Delete data stream lifecycle API>>.
-
-endif::[]
-ifeval::["{release-state}"=="unreleased"]
-This feature has not been released yet
-endif::[]
 
 [role="exclude",id="dlm-explain-lifecycle"]
 === Explain the lifecycle of a data stream
 
-ifeval::["{release-state}"=="unreleased"]
 Refer to <<data-streams-explain-lifecycle,Explain data stream lifecycle API>>.
-
-endif::[]
-ifeval::["{release-state}"=="unreleased"]
-This feature has not been released yet
-endif::[]
 
 [role="exclude",id="dlm-get-lifecycle"]
 === Get the lifecycle of a data stream
 
-ifeval::["{release-state}"=="unreleased"]
 Refer to <<data-streams-get-lifecycle,Get data stream lifecycle API>>.
-
-endif::[]
-ifeval::["{release-state}"=="unreleased"]
-This feature has not been released yet
-endif::[]
 
 [role="exclude",id="dlm-put-lifecycle"]
 === Update the lifecycle of a data stream
 
-ifeval::["{release-state}"=="unreleased"]
 Refer to <<data-streams-delete-lifecycle,Update data stream lifecycle API>>.
-
-endif::[]
-ifeval::["{release-state}"=="unreleased"]
-This feature has not been released yet
-endif::[]
 
 [role="exclude",id="get-synonyms"]
 === Get synonyms set API

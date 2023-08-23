@@ -39,6 +39,7 @@ import java.util.TreeMap;
  * to be merged must be updated with the next free version first. Without the unique id string, git will happily merge the two versions
  * together, resulting in the same transport version being used across multiple commits, causing problems when you try to upgrade between
  * those two merged commits.
+ *
  * <h2>Version compatibility</h2>
  * The earliest compatible version is hardcoded in the {@link #MINIMUM_COMPATIBLE} field. Previously, this was dynamically calculated from
  * the major/minor versions of {@link Version}, but {@code TransportVersion} does not have separate major/minor version numbers. So the
@@ -47,15 +48,7 @@ import java.util.TreeMap;
  * <p>
  * The earliest CCS compatible version is hardcoded at {@link #MINIMUM_CCS_VERSION}, as the transport version used by the previous minor
  * release. This should be updated appropriately whenever a minor release happens.
- * <h2>Adding a new version</h2>
- * A new transport version should be added <em>every time</em> a change is made to the serialization protocol of one or more classes. Each
- * transport version should only be used in a single merged commit (apart from BwC versions copied from {@link Version}).
- * <p>
- * To add a new transport version, add a new constant at the bottom of the list that is one greater than the current highest version, ensure
- * it has a unique id, and update the {@link CurrentHolder#CURRENT} constant to point to the new version.
- * <h2>Reverting a transport version</h2>
- * If you revert a commit with a transport version change, you <em>must</em> ensure there is a <em>new</em> transport version representing
- * the reverted change. <em>Do not</em> let the transport version go backwards, it must <em>always</em> be incremented.
+ *
  * <h2>Scope of usefulness of {@link TransportVersion}</h2>
  * {@link TransportVersion} is a property of the transport connection between a pair of nodes, and should not be used as an indication of
  * the version of any single node. The {@link TransportVersion} of a connection is negotiated between the nodes via some logic that is not
@@ -71,6 +64,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      * This map is used during class construction, referenced by the registerTransportVersion method.
      * When all the transport version constants have been registered, the map is cleared & never touched again.
      */
+    @SuppressWarnings("UnusedAssignment")
     private static Map<String, Integer> IDS = new HashMap<>();
 
     private static TransportVersion registerTransportVersion(int id, String uniqueId) {
@@ -125,7 +119,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     public static final TransportVersion V_8_8_1 = registerTransportVersion(8_08_01_99, "291c71bb-5b0a-4b7e-a407-6e53bc128d0f");
 
     /*
-     * READ THE JAVADOC ABOVE BEFORE ADDING NEW TRANSPORT VERSIONS
+     * READ THE COMMENT BELOW THiS BLOCK OF DECLARATIONS BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here.
      */
     public static final TransportVersion V_8_500_010 = registerTransportVersion(8_500_010, "9818C628-1EEC-439B-B943-468F61460675");
@@ -135,14 +129,11 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     public static final TransportVersion V_8_500_014 = registerTransportVersion(8_500_014, "D115A2E1-1739-4A02-AB7B-64F6EA157EFB");
     public static final TransportVersion V_8_500_015 = registerTransportVersion(8_500_015, "651216c9-d54f-4189-9fe1-48d82d276863");
     public static final TransportVersion V_8_500_016 = registerTransportVersion(8_500_016, "492C94FB-AAEA-4C9E-8375-BDB67A398584");
-
     public static final TransportVersion V_8_500_017 = registerTransportVersion(8_500_017, "0EDCB5BA-049C-443C-8AB1-5FA58FB996FB");
     public static final TransportVersion V_8_500_018 = registerTransportVersion(8_500_018, "827C32CE-33D9-4AC3-A773-8FB768F59EAF");
     public static final TransportVersion V_8_500_019 = registerTransportVersion(8_500_019, "09bae57f-cab8-423c-aab3-c9778509ffe3");
-    // 8.9.0
     public static final TransportVersion V_8_500_020 = registerTransportVersion(8_500_020, "ECB42C26-B258-42E5-A835-E31AF84A76DE");
     public static final TransportVersion V_8_500_021 = registerTransportVersion(8_500_021, "102e0d84-0c08-402c-a696-935f3a3da873");
-    // Introduced for stateless plugin
     public static final TransportVersion V_8_500_022 = registerTransportVersion(8_500_022, "4993c724-7a81-4955-84e7-403484610091");
     public static final TransportVersion V_8_500_023 = registerTransportVersion(8_500_023, "01b06435-5d73-42ff-a121-3b36b771375e");
     public static final TransportVersion V_8_500_024 = registerTransportVersion(8_500_024, "db337007-f823-4dbd-968e-375383814c17");
@@ -157,7 +148,6 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     public static final TransportVersion V_8_500_033 = registerTransportVersion(8_500_033, "193ab7c4-a751-4cbd-a66a-2d7d56ccbc10");
     public static final TransportVersion V_8_500_034 = registerTransportVersion(8_500_034, "16871c8b-88ba-4432-980a-10fd9ecad2dc");
     public static final TransportVersion V_8_500_035 = registerTransportVersion(8_500_035, "664dd6ce-3487-4fbd-81a9-af778b28be45");
-    // Introduced for stateless plugin
     public static final TransportVersion V_8_500_036 = registerTransportVersion(8_500_036, "3343c64f-d7ac-4f02-9262-3e1acfc56f89");
     public static final TransportVersion V_8_500_037 = registerTransportVersion(8_500_037, "d76a4f22-8878-43e0-acfa-15e452195fa7");
     public static final TransportVersion V_8_500_038 = registerTransportVersion(8_500_038, "9ef93580-feae-409f-9989-b49e411ca7a9");
@@ -165,7 +155,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     public static final TransportVersion V_8_500_040 = registerTransportVersion(8_500_040, "8F3AA068-A608-4A16-9683-2412A75BF2DD");
     public static final TransportVersion V_8_500_041 = registerTransportVersion(8_500_041, "5b6a0fd0-ac0b-443f-baae-cffec140905c");
     public static final TransportVersion V_8_500_042 = registerTransportVersion(8_500_042, "763b4801-a4fc-47c4-aff5-7f5a757b8a07");
-    public static final TransportVersion V_8_500_043 = registerTransportVersion(8_500_043, "50baabd14-7f5c-4f8c-9351-94e0d397aabc");
+    public static final TransportVersion V_8_500_043 = registerTransportVersion(8_500_043, "50babd14-7f5c-4f8c-9351-94e0d397aabc");
     public static final TransportVersion V_8_500_044 = registerTransportVersion(8_500_044, "96b83320-2317-4e9d-b735-356f18c1d76a");
     public static final TransportVersion V_8_500_045 = registerTransportVersion(8_500_045, "24a596dd-c843-4c0a-90b3-759697d74026");
     public static final TransportVersion V_8_500_046 = registerTransportVersion(8_500_046, "61666d4c-a4f0-40db-8a3d-4806718247c5");
@@ -181,9 +171,38 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     public static final TransportVersion V_8_500_056 = registerTransportVersion(8_500_056, "afa8c4be-29c9-48ab-b1ed-7182415c1b71");
     public static final TransportVersion V_8_500_057 = registerTransportVersion(8_500_057, "80c088c6-358d-43b2-8d9c-1ea3c6c2b9fd");
     public static final TransportVersion V_8_500_058 = registerTransportVersion(8_500_058, "41d9c98a-1de2-4dc1-86f1-abd4cc1bef57");
+    public static final TransportVersion V_8_500_059 = registerTransportVersion(8_500_059, "2f2090c0-7cd0-4a10-8f02-63d26073604f");
+    public static final TransportVersion V_8_500_060 = registerTransportVersion(8_500_060, "ec065a44-b468-4f8a-aded-7b90ca8d792b");
+    // 8.10.0 release version is:
+    public static final TransportVersion V_8_500_061 = registerTransportVersion(8_500_061, "4e07f830-8be4-448c-851e-62b3d2f0bf0a");
+    public static final TransportVersion V_8_500_062 = registerTransportVersion(8_500_062, "09CD9C9B-3207-4B40-8756-B7A12001A885");
+    public static final TransportVersion V_8_500_063 = registerTransportVersion(8_500_063, "31dedced-0055-4f34-b952-2f6919be7488");
+    public static final TransportVersion V_8_500_064 = registerTransportVersion(8_500_064, "3a795175-5e6f-40ff-90fe-5571ea8ab04e");
+    public static final TransportVersion V_8_500_065 = registerTransportVersion(8_500_065, "4e253c58-1b3d-11ee-be56-0242ac120002");
+
+    /*
+     * STOP! READ THIS FIRST! No, really,
+     *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
+     *       / ___|_   _/ _ \|  _ \| |      |  _ \| ____|  / \  |  _ \  |_   _| | | |_ _/ ___|  |  ___|_ _|  _ \/ ___|_   _| |
+     *       \___ \ | || | | | |_) | |      | |_) |  _|   / _ \ | | | |   | | | |_| || |\___ \  | |_   | || |_) \___ \ | | | |
+     *        ___) || || |_| |  __/|_|      |  _ <| |___ / ___ \| |_| |   | | |  _  || | ___) | |  _|  | ||  _ < ___) || | |_|
+     *       |____/ |_| \___/|_|   (_)      |_| \_\_____/_/   \_\____/    |_| |_| |_|___|____/  |_|   |___|_| \_\____/ |_| (_)
+     *
+     * A new transport version should be added EVERY TIME a change is made to the serialization protocol of one or more classes. Each
+     * transport version should only be used in a single merged commit (apart from the BwC versions copied from o.e.Version, ≤V_8_8_1).
+     *
+     * To add a new transport version, add a new constant at the bottom of the list, above this comment, which is one greater than the
+     * current highest version, ensure it has a fresh UUID, and update CurrentHolder#CURRENT to point to the new version. Don't add other
+     * lines, comments, etc.
+     *
+     * REVERTING A TRANSPORT VERSION
+     *
+     * If you revert a commit with a transport version change, you MUST ensure there is a NEW transport version representing the reverted
+     * change. DO NOT let the transport version go backwards, it must ALWAYS be incremented.
+     */
 
     private static class CurrentHolder {
-        private static final TransportVersion CURRENT = findCurrent(V_8_500_058);
+        private static final TransportVersion CURRENT = findCurrent(V_8_500_065);
 
         // finds the pluggable current version, or uses the given fallback
         private static TransportVersion findCurrent(TransportVersion fallback) {
@@ -207,7 +226,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_500_020;
+    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_500_061;
 
     static {
         // see comment on IDS field

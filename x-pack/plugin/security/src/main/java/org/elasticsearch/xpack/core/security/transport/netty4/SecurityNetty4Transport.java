@@ -30,6 +30,9 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.InboundAggregator;
+import org.elasticsearch.transport.InboundDecoder;
+import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportSettings;
@@ -51,7 +54,6 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED;
@@ -67,7 +69,6 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private final SslConfiguration defaultSslConfiguration;
     private final Map<String, SslConfiguration> profileConfigurations;
     private final boolean transportSslEnabled;
-    private final boolean remoteClusterPortEnabled;
     private final boolean remoteClusterServerSslEnabled;
     private final SslConfiguration remoteClusterClientSslConfiguration;
     private final RemoteClusterClientBootstrapOptions remoteClusterClientBootstrapOptions;
@@ -96,7 +97,6 @@ public class SecurityNetty4Transport extends Netty4Transport {
         this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.sslService = sslService;
         this.transportSslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
-        this.remoteClusterPortEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         this.remoteClusterServerSslEnabled = REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings);
         this.profileConfigurations = Collections.unmodifiableMap(ProfileConfigurations.get(settings, sslService, true));
         this.defaultSslConfiguration = this.profileConfigurations.get(TransportSettings.DEFAULT_PROFILE);
@@ -147,6 +147,19 @@ public class SecurityNetty4Transport extends Netty4Transport {
     @Override
     protected ChannelHandler getClientChannelInitializer(DiscoveryNode node, ConnectionProfile connectionProfile) {
         return new SecurityClientChannelInitializer(node, connectionProfile);
+    }
+
+    @Override
+    protected InboundPipeline getInboundPipeline(boolean isRemoteClusterServerChannel) {
+        return new InboundPipeline(
+            getStatsTracker(),
+            threadPool::relativeTimeInMillis,
+            isRemoteClusterServerChannel
+                ? new InboundDecoder(recycler, RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.get(settings))
+                : new InboundDecoder(recycler),
+            new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
+            this::inboundMessage
+        );
     }
 
     @Override

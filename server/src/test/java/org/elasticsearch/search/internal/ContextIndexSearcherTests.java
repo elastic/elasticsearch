@@ -130,7 +130,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         iw.deleteDocuments(new Term("field1", "value3"));
         iw.close();
         DirectoryReader directoryReader = DirectoryReader.open(directory);
-        IndexSearcher searcher = new IndexSearcher(directoryReader);
+        IndexSearcher searcher = newSearcher(directoryReader);
         Weight weight = searcher.createWeight(
             new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term("field2", "value1"))), 3f),
             ScoreMode.COMPLETE,
@@ -212,63 +212,61 @@ public class ContextIndexSearcherTests extends ESTestCase {
      * Check that knn queries rewrite parallelizes on the number of segments
      */
     public void testConcurrentRewrite() throws Exception {
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
         try (Directory directory = newDirectory()) {
             indexDocs(directory);
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                AtomicInteger executeCalls = new AtomicInteger(0);
                 ContextIndexSearcher searcher = new ContextIndexSearcher(
                     directoryReader,
                     IndexSearcher.getDefaultSimilarity(),
                     IndexSearcher.getDefaultQueryCache(),
                     IndexSearcher.getDefaultQueryCachingPolicy(),
                     randomBoolean(),
-                    command -> {
-                        executeCalls.incrementAndGet();
-                        command.run();
-                    },
-                    randomIntBetween(1, Integer.MAX_VALUE),
-                    randomIntBetween(1, Integer.MAX_VALUE)
+                    executor,
+                    // create as many slices as possible
+                    Integer.MAX_VALUE,
+                    1
                 );
-                // check that we create one slice per segment
                 int numSegments = directoryReader.getContext().leaves().size();
                 assertEquals(numSegments, searcher.slices(directoryReader.getContext().leaves()).length);
                 KnnFloatVectorQuery vectorQuery = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, 10, null);
                 vectorQuery.rewrite(searcher);
-                // Note: we expect one execute calls less than segments since the last is executed on the caller thread.
-                // For details see QueueSizeBasedExecutor#processTask
-                assertEquals(numSegments - 1, executeCalls.get());
+                // Note: we expect one execute call less than segments since the last is executed on the caller thread, but no additional
+                // exceptions to the offloading of operations. For details see QueueSizeBasedExecutor#processTask.
+                assertBusy(() -> assertEquals(numSegments - 1, executor.getCompletedTaskCount()));
             }
+        } finally {
+            terminate(executor);
         }
     }
 
     /**
      * Test that collection starts one task per slice, all offloaded to the separate executor, none executed in the caller thread
      */
-    public void testConcurrentCollection() throws IOException {
+    public void testConcurrentCollection() throws Exception {
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
         try (Directory directory = newDirectory()) {
             int numDocs = indexDocs(directory);
-            int maxNumSlices = randomIntBetween(1, 100);
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                AtomicInteger executeCalls = new AtomicInteger(0);
                 ContextIndexSearcher searcher = new ContextIndexSearcher(
                     directoryReader,
                     IndexSearcher.getDefaultSimilarity(),
                     IndexSearcher.getDefaultQueryCache(),
                     IndexSearcher.getDefaultQueryCachingPolicy(),
                     randomBoolean(),
-                    command -> {
-                        executeCalls.incrementAndGet();
-                        command.run();
-                    },
-                    maxNumSlices,
+                    executor,
+                    // create as many slices as possible
+                    Integer.MAX_VALUE,
                     1
                 );
                 Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager());
                 assertEquals(numDocs, totalHits.intValue());
-                int numExpectedTasks = ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), maxNumSlices, 1).length;
+                int numExpectedTasks = ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), Integer.MAX_VALUE, 1).length;
                 // check that each slice goes to the executor, no matter the queue size or the number of slices
-                assertEquals(numExpectedTasks, executeCalls.get());
+                assertBusy(() -> assertEquals(numExpectedTasks, executor.getCompletedTaskCount()));
             }
+        } finally {
+            terminate(executor);
         }
     }
 
@@ -626,18 +624,13 @@ public class ContextIndexSearcherTests extends ESTestCase {
                             return null;
                         }
                     };
-                    RuntimeException executionException = expectThrows(
-                        RuntimeException.class,
-                        () -> contextIndexSearcher.search(query, collectorManager)
-                    );
+                    expectThrows(IOException.class, () -> contextIndexSearcher.search(query, collectorManager));
                     assertBusy(() -> {
                         // active count is approximate, wait until it converges to the expected number
                         if (executor.getActiveCount() > numBusyThreads) {
                             throw new AssertionError("no search tasks should be left running");
                         }
                     });
-
-                    assertThat(executionException.getCause(), instanceOf(IOException.class));
                 }
                 // as many tasks as slices have been created
                 assertEquals(leafSlices.length, newCollectorsCalls[0]);

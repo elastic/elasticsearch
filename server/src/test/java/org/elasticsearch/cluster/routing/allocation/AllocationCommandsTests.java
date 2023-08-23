@@ -713,9 +713,9 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("node-0", Version.V_8_10_0))
-                    .add(newNode("node-1", Version.V_8_9_0))
-                    .add(newNode("node-2", Version.V_8_9_0))
+                    .add(newNode("node-0", Version.V_8_10_0, IndexVersion.V_8_10_0))
+                    .add(newNode("node-1", Version.V_8_9_0, IndexVersion.V_8_9_0))
+                    .add(newNode("node-2", Version.V_8_9_0, IndexVersion.V_8_9_0))
             )
             .metadata(Metadata.builder().put(indexMetadata, false))
             .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(shardId.getIndex()).addShard(primary).addShard(replica)))

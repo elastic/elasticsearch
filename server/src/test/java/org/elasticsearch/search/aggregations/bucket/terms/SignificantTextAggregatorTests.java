@@ -202,7 +202,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
             SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler").subAggregation(sigAgg);
 
             try (IndexReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalSampler sampler = searchAndReduce(
                     searcher,
                     new AggTestConfig(aggBuilder, textFieldType).withQuery(new TermQuery(new Term("text", "odd")))
@@ -286,7 +286,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 StringTerms terms = searchAndReduce(searcher, new AggTestConfig(aggBuilder, textFieldType, keywordField("kwd")));
                 SignificantTerms sigOdd = terms.getBucketByKey("odd").getAggregations().get("sig_text");
@@ -348,7 +348,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
             sigAgg.sourceFieldNames(Arrays.asList(new String[] { "title", "text" }));
             try (IndexReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 searchAndReduce(searcher, new AggTestConfig(sigAgg, textFieldType).withQuery(new TermQuery(new Term("text", "foo"))));
                 // No significant results to be found in this test - only checking we don't end up
                 // with the internal exception discovered in issue https://github.com/elastic/elasticsearch/issues/25029

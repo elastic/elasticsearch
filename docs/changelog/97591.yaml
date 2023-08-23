@@ -1,0 +1,5 @@
+pr: 97591
+summary: Changing watcher to disable cookies in shared http client
+area: Watcher
+type: bug
+issues: []

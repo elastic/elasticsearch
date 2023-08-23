@@ -116,10 +116,10 @@ public class RestSuggestProfilesActionTests extends RestActionTestCase {
         final boolean featureAllowed = randomBoolean();
         when(licenseState.isAllowed(Security.USER_PROFILE_COLLABORATION_FEATURE)).thenReturn(featureAllowed);
         if (featureAllowed) {
-            assertThat(restSuggestProfilesAction.checkFeatureAvailable(new FakeRestRequest()), nullValue());
+            assertThat(restSuggestProfilesAction.checkFeatureAvailable(), nullValue());
             verify(licenseState).featureUsed(Security.USER_PROFILE_COLLABORATION_FEATURE);
         } else {
-            final Exception e = restSuggestProfilesAction.checkFeatureAvailable(new FakeRestRequest());
+            final Exception e = restSuggestProfilesAction.checkFeatureAvailable();
             assertThat(e, instanceOf(ElasticsearchSecurityException.class));
             assertThat(e.getMessage(), containsString("current license is non-compliant for [user-profile-collaboration]"));
             assertThat(((ElasticsearchSecurityException) e).status(), equalTo(RestStatus.FORBIDDEN));

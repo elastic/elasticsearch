@@ -57,11 +57,26 @@ class VectorTileUtils {
     }
 
     /**
+     * Adds the provided map into the feature as tags.
+     */
+    public static void addMapToFeature(VectorTile.Tile.Feature.Builder feature, MvtLayerProps layerProps, Map<?, ?> map) {
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (entry.getValue() != null) {
+                addPropertyToFeature(feature, layerProps, entry.getKey().toString(), entry.getValue());
+            }
+        }
+    }
+
+    /**
      * Adds the provided key / value pair into the feature as tags.
      */
     public static void addPropertyToFeature(VectorTile.Tile.Feature.Builder feature, MvtLayerProps layerProps, String key, Object value) {
         if (value == null) {
             // guard for null values
+            return;
+        }
+        if (value instanceof Map<?, ?> map) {
+            addMapToFeature(feature, layerProps, map);
             return;
         }
         if (value instanceof Byte || value instanceof Short) {

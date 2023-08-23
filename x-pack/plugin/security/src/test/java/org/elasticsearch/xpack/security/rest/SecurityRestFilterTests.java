@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.http.netty4.Netty4HttpRequest;
 import org.elasticsearch.http.nio.NioHttpRequest;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
@@ -105,15 +106,18 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcess() throws Exception {
-        RestRequest request = new FakeRestRequest();
+        RestRequest request = mock(RestRequest.class);
         when(channel.request()).thenReturn(request);
+        when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
+        HttpRequest httpRequest = mock(Netty4HttpRequest.class);
+        when(request.getHttpRequest()).thenReturn(httpRequest);
         Authentication authentication = mock(Authentication.class);
         doAnswer((i) -> {
             @SuppressWarnings("unchecked")
             ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(request.getHttpRequest()), anyActionListener());
+        }).when(authcService).authenticate(eq(httpRequest), anyActionListener());
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
         verifyNoMoreInteractions(channel);
@@ -123,7 +127,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         RestRequest request = mock(RestRequest.class);
         when(channel.request()).thenReturn(request);
         when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
-        HttpRequest httpRequest = mock(HttpRequest.class);
+        HttpRequest httpRequest = mock(Netty4HttpRequest.class);
         when(request.getHttpRequest()).thenReturn(httpRequest);
 
         Authentication primaryAuthentication = mock(Authentication.class);
@@ -293,11 +297,15 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcessFiltersBodyCorrectly() throws Exception {
-        FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
-            new BytesArray("{\"password\": \"" + SecuritySettingsSourceField.TEST_PASSWORD + "\", \"foo\": \"bar\"}"),
-            XContentType.JSON
-        ).build();
+        RestRequest restRequest = mock(RestRequest.class);
         when(channel.request()).thenReturn(restRequest);
+        when(restRequest.getHttpChannel()).thenReturn(mock(HttpChannel.class));
+        HttpRequest httpRequest = mock(Netty4HttpRequest.class);
+        when(restRequest.getHttpRequest()).thenReturn(httpRequest);
+        when(restRequest.hasContent()).thenReturn(true);
+        when(restRequest.content()).thenReturn(
+            new BytesArray("{\"password\": \"" + SecuritySettingsSourceField.TEST_PASSWORD + "\", " + "\"foo\": \"bar\"}")
+        );
         SetOnce<RestRequest> handlerRequest = new SetOnce<>();
         restHandler = new FilteredRestHandler() {
             @Override

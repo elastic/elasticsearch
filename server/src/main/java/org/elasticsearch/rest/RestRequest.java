@@ -90,7 +90,7 @@ public class RestRequest implements ToXContent.Params {
     ) {
         final XContentType xContentType;
         try {
-            xContentType = parseContentType(headers.get("Content-Type"));
+            xContentType = parseContentType(headers == null ? null : headers.get("Content-Type"));
         } catch (final IllegalArgumentException e) {
             throw new ContentTypeHeaderException(e);
         }
@@ -102,7 +102,7 @@ public class RestRequest implements ToXContent.Params {
         this.httpChannel = httpChannel;
         this.params = params;
         this.rawPath = path;
-        this.headers = Collections.unmodifiableMap(headers);
+        this.headers = headers == null ? null : Collections.unmodifiableMap(headers);
         this.requestId = requestId;
     }
 

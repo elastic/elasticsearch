@@ -50,8 +50,7 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
         doAnswer(invocation -> {
             taskCaptorGraceful.getValue().markAsStopped(reasonCaptorGraceful.getValue());
             return null;
-        }).when(nodeService)
-            .gracefullyStopDeploymentAndSetRoutingStopped(taskCaptorGraceful.capture(), reasonCaptorGraceful.capture(), any());
+        }).when(nodeService).gracefullyStopDeploymentAndNotify(taskCaptorGraceful.capture(), reasonCaptorGraceful.capture(), any());
 
         TrainedModelDeploymentTask task = new TrainedModelDeploymentTask(
             0,

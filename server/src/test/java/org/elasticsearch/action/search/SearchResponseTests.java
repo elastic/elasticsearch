@@ -629,25 +629,42 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     public void testClustersHasRemoteCluster() {
-        SearchResponse.Clusters c;
-        c = SearchResponse.Clusters.EMPTY;
-        assertFalse(c.hasRemoteClusters());
+        // local cluster search Clusters objects
+        assertFalse(SearchResponse.Clusters.EMPTY.hasRemoteClusters());
+        assertFalse(new SearchResponse.Clusters(1, 1, 0).hasRemoteClusters());
 
-        c = new SearchResponse.Clusters(1, 1, 0);
-        assertFalse(c.hasRemoteClusters());
+        // CCS search Cluster objects
 
-        Map<String, OriginalIndices> remoteClusterIndices = new HashMap<>();
-        remoteClusterIndices.put("remote1", new OriginalIndices(new String[] { "*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
-        c = new SearchResponse.Clusters(null, remoteClusterIndices, randomBoolean(), alias -> randomBoolean());
-        assertTrue(c.hasRemoteClusters());
+        // TODO: this variant of Clusters should not be allowed in a future ticket, but adding to test for now
+        assertTrue(new SearchResponse.Clusters(3, 2, 1).hasRemoteClusters());
+        {
+            Map<String, OriginalIndices> remoteClusterIndices = new HashMap<>();
+            remoteClusterIndices.put("remote1", new OriginalIndices(new String[] { "*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
 
-        OriginalIndices localIndices = new OriginalIndices(new String[] { "foo*" }, IndicesOptions.LENIENT_EXPAND_OPEN);
-        c = new SearchResponse.Clusters(localIndices, remoteClusterIndices, randomBoolean(), alias -> randomBoolean());
-        assertTrue(c.hasRemoteClusters());
+            var c = new SearchResponse.Clusters(null, remoteClusterIndices, randomBoolean(), alias -> randomBoolean());
+            assertTrue(c.hasRemoteClusters());
+        }
 
-        remoteClusterIndices.put("remote2", new OriginalIndices(new String[] { "a*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
-        remoteClusterIndices.put("remote3", new OriginalIndices(new String[] { "b*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
-        c = new SearchResponse.Clusters(localIndices, remoteClusterIndices, randomBoolean(), alias -> randomBoolean());
-        assertTrue(c.hasRemoteClusters());
+        {
+            OriginalIndices localIndices = new OriginalIndices(new String[] { "foo*" }, IndicesOptions.LENIENT_EXPAND_OPEN);
+
+            Map<String, OriginalIndices> remoteClusterIndices = new HashMap<>();
+            remoteClusterIndices.put("remote1", new OriginalIndices(new String[] { "*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
+
+            var c = new SearchResponse.Clusters(localIndices, remoteClusterIndices, randomBoolean(), alias -> randomBoolean());
+            assertTrue(c.hasRemoteClusters());
+        }
+
+        {
+            OriginalIndices localIndices = new OriginalIndices(new String[] { "foo*" }, IndicesOptions.LENIENT_EXPAND_OPEN);
+
+            Map<String, OriginalIndices> remoteClusterIndices = new HashMap<>();
+            remoteClusterIndices.put("remote1", new OriginalIndices(new String[] { "*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
+            remoteClusterIndices.put("remote2", new OriginalIndices(new String[] { "a*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
+            remoteClusterIndices.put("remote3", new OriginalIndices(new String[] { "b*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
+
+            var c = new SearchResponse.Clusters(localIndices, remoteClusterIndices, randomBoolean(), alias -> randomBoolean());
+            assertTrue(c.hasRemoteClusters());
+        }
     }
 }

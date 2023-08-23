@@ -493,8 +493,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             boolean ccsMinimizeRoundtrips,
             Predicate<String> skipUnavailablePredicate
         ) {
+            assert remoteClusterIndices.size() > 0 : "At least one remote cluster must be passed into this Cluster constructor";
             this.total = remoteClusterIndices.size() + (localIndices == null ? 0 : 1);
-            assert total >= 1 : "No local indices or remote clusters passed in";
             this.successful = 0; // calculated from clusterInfo map for minimize_roundtrips
             this.skipped = 0;    // calculated from clusterInfo map for minimize_roundtrips
             this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
@@ -521,7 +521,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          * @param skipped number of skipped clusters (skipped can only happen for remote clusters with skip_unavailable=true)
          */
         public Clusters(int total, int successful, int skipped) {
-            /// MP TODO: change assert to total == 1 or total = 0
+            // TODO: change assert to total == 1 or total = 0 - this should probably only be used for local searches now
             assert total >= 0 && successful >= 0 && skipped >= 0 && successful <= total
                 : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             assert skipped == total - successful : "total: " + total + " successful: " + successful + " skipped: " + skipped;
@@ -762,10 +762,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          *              This will be false for local-cluster (non-CCS) only searches.
          */
         public boolean hasRemoteClusters() {
-            if (clusterInfo.size() > 1) {
-                return true;
-            }
-            return clusterInfo.size() > 0 && clusterInfo.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false;
+            return total > 1 || clusterInfo.keySet().stream().anyMatch(alias -> alias != RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         }
     }
 
@@ -781,6 +778,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     public static class Cluster implements ToXContentFragment, Writeable {
         static final ParseField INDICES_FIELD = new ParseField("indices");
         static final ParseField STATUS_FIELD = new ParseField("status");
+
+        private static final boolean SKIP_UNAVAILABLE_DEFAULT = false;
 
         private final String clusterAlias;
         private final String indexExpression; // original index expression from the user for this cluster
@@ -843,6 +842,81 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this(clusterAlias, indexExpression, skipUnavailable, status, null, null, null, null, failures, null, false);
         }
 
+        /**
+         * TODO: DOCUMENT ME
+         */
+        public static class Builder {
+            private Status status;
+            private Integer totalShards;
+            private Integer successfulShards;
+            private Integer skippedShards;
+            private Integer failedShards;
+            private List<ShardSearchFailure> failures;
+            private TimeValue took;
+            private Boolean timedOut;
+            private Cluster original;
+
+            public Builder(Cluster copyFrom) {
+                this.original = copyFrom;
+            }
+
+            public Cluster build() {
+                return new Cluster(
+                    original.getClusterAlias(),
+                    original.getIndexExpression(),
+                    original.isSkipUnavailable(),
+                    status != null ? status : original.getStatus(),
+                    totalShards != null ? totalShards : original.getTotalShards(),
+                    successfulShards != null ? successfulShards : original.getSuccessfulShards(),
+                    skippedShards != null ? skippedShards : original.getSkippedShards(),
+                    failedShards != null ? failedShards : original.getFailedShards(),
+                    failures != null ? failures : original.getFailures(),
+                    took != null ? took : original.getTook(),
+                    timedOut != null ? timedOut : original.isTimedOut()
+                );
+            }
+
+            public Builder setStatus(Status status) {
+                this.status = status;
+                return this;
+            }
+
+            public Builder setTotalShards(Integer totalShards) {
+                this.totalShards = totalShards;
+                return this;
+            }
+
+            public Builder setSuccessfulShards(Integer successfulShards) {
+                this.successfulShards = successfulShards;
+                return this;
+            }
+
+            public Builder setSkippedShards(Integer skippedShards) {
+                this.skippedShards = skippedShards;
+                return this;
+            }
+
+            public Builder setFailedShards(Integer failedShards) {
+                this.failedShards = failedShards;
+                return this;
+            }
+
+            public Builder setFailures(List<ShardSearchFailure> failures) {
+                this.failures = failures;
+                return this;
+            }
+
+            public Builder setTook(TimeValue took) {
+                this.took = took;
+                return this;
+            }
+
+            public Builder setTimedOut(Boolean timedOut) {
+                this.timedOut = timedOut;
+                return this;
+            }
+        }
+
         public Cluster(
             String clusterAlias,
             String indexExpression,
@@ -891,7 +965,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_067)) {
                 this.skipUnavailable = in.readBoolean();
             } else {
-                this.skipUnavailable = false;
+                this.skipUnavailable = SKIP_UNAVAILABLE_DEFAULT;
             }
         }
 
@@ -1025,7 +1099,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             Integer skippedShardsFinal = skippedShards == -1 ? null : skippedShards;
             Integer failedShardsFinal = failedShards == -1 ? null : failedShards;
             TimeValue tookTimeValue = took == -1L ? null : new TimeValue(took);
-            boolean skipUnavailable = false;  // skipUnavailable is not exposed to XContent, so just default to false here
+            boolean skipUnavailable = SKIP_UNAVAILABLE_DEFAULT;  // skipUnavailable is not exposed to XContent, so just use default
 
             return new Cluster(
                 clusterName,

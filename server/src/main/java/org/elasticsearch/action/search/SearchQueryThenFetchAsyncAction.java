@@ -77,10 +77,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
         addReleasable(resultConsumer);
-
-        if (progressListener != SearchProgressListener.NOOP) {
-            notifyListShards(progressListener, clusters, request.source());
-        }
+        notifyListShards(progressListener, clusters, request.source());
     }
 
     protected void executePhaseOnShard(

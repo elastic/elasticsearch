@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -23,13 +24,10 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -49,8 +47,7 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        List<Class<? extends Plugin>> plugs = Arrays.asList(CrossClusterSearchIT.TestQueryBuilderPlugin.class);
-        return Stream.concat(super.nodePlugins(clusterAlias).stream(), plugs.stream()).collect(Collectors.toList());
+        return CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), CrossClusterSearchIT.TestQueryBuilderPlugin.class);
     }
 
     public static class TestQueryBuilderPlugin extends Plugin implements SearchPlugin {
@@ -117,7 +114,6 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
 
             if (includeLocalIndex) {
                 AtomicReference<SearchResponse.Cluster> localClusterRef = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                assertNotNull(localClusterRef);
                 assertNotNull(localClusterRef);
                 SearchResponse.Cluster localCluster = localClusterRef.get();
                 assertThat(localCluster.getTotalShards(), equalTo(1));
@@ -191,7 +187,6 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
 
             if (includeLocalIndex) {
                 AtomicReference<SearchResponse.Cluster> localClusterRef = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                assertNotNull(localClusterRef);
                 assertNotNull(localClusterRef);
                 SearchResponse.Cluster localCluster = localClusterRef.get();
                 assertThat(localCluster.getTotalShards(), equalTo(numShards));

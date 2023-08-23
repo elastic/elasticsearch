@@ -708,6 +708,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             new ActionListenerResponseHandler<>(singleListener, SearchShardsResponse::new, responseExecutor)
                         );
                     } else {
+                        logger.warn("JJJ ClusterSearchShardsRequest");
                         // does not do a can-match
                         ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices).indicesOptions(
                             indicesOptions

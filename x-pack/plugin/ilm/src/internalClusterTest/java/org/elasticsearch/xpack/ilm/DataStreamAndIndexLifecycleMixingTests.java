@@ -416,7 +416,6 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             List<String> backingIndices = getBackingIndices(dataStreamName);
             String firstGenerationIndex = backingIndices.get(0);
             String secondGenerationIndex = backingIndices.get(1);
-            ;
             String thirdGenerationIndex = backingIndices.get(2);
             String writeIndex = backingIndices.get(3);
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(

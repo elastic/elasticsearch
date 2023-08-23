@@ -58,7 +58,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = super.resolveType();
+        TypeResolution resolution = field().dataType() == DataTypes.TEXT ? TypeResolution.TYPE_RESOLVED : super.resolveType();
         if (resolution.unresolved() || precision == null) {
             return resolution;
         }

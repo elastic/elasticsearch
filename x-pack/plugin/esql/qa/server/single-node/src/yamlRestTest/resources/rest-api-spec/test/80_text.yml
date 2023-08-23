@@ -40,7 +40,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "text" }
+  - match: { columns.2.type: "keyword" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 
@@ -59,7 +59,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "text" }
+  - match: { columns.2.type: "keyword" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 
@@ -78,7 +78,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "text" }
+  - match: { columns.2.type: "keyword" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 
@@ -97,7 +97,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "text" }
+  - match: { columns.2.type: "keyword" }
   - match: { columns.3.name: "x" }
   - match: { columns.3.type: "text" }
 
@@ -116,7 +116,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "text" }
+  - match: { columns.2.type: "keyword" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 
@@ -135,7 +135,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "text" }
+  - match: { columns.2.type: "keyword" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 
@@ -154,7 +154,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "text" }
+  - match: { columns.2.type: "keyword" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 
@@ -174,7 +174,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "text" }
+  - match: { columns.2.type: "keyword" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 
@@ -195,7 +195,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "text" }
+  - match: { columns.2.type: "keyword" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 
@@ -215,7 +215,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "text" }
+  - match: { columns.2.type: "keyword" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 
@@ -237,3 +237,62 @@ setup:
   - length: { values: 2 }
   - match: { values.0: [ "Jenny - IT Director"] }
   - match: { values.1: [ "John - Payroll Specialist"] }
+
+
+---
+"stats text with raw":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats jobs = count(job) | keep jobs'
+
+  - match: { columns.0.name: "jobs" }
+  - match: { columns.0.type: "long" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 2 ] }
+
+
+---
+"stats text no raw":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats tags = count(tag) | keep tags'
+
+  - match: { columns.0.name: "tags" }
+  - match: { columns.0.type: "long" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 2 ] }
+
+
+---
+"stats by text with raw":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats names = count(name) by job | keep names'
+
+  - match: { columns.0.name: "names" }
+  - match: { columns.0.type: "long" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 1 ] }
+  - match: { values.0: [ 1 ] }
+
+
+---
+"stats by text no raw":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats names = count(name) by tag | keep names'
+
+  - match: { columns.0.name: "names" }
+  - match: { columns.0.type: "long" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 1 ] }
+  - match: { values.0: [ 1 ] }
+

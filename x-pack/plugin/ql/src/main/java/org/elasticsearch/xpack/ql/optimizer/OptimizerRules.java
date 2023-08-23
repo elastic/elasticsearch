@@ -1245,7 +1245,7 @@ public final class OptimizerRules {
                 found.forEach((k, v) -> {
                     ors.add(
                         v.size() == 1
-                            ? new Equals(k.source(), k, v.iterator().next(), finalZoneId)
+                            ? createEquals(k, v, finalZoneId)
                             : createIn(k, new ArrayList<>(v), finalZoneId)
                     );
                 });
@@ -1260,6 +1260,10 @@ public final class OptimizerRules {
             }
 
             return e;
+        }
+
+        protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
+            return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
         }
 
         protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {

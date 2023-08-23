@@ -57,4 +57,9 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
     public Nullability nullable() {
         return Nullability.FALSE;
     }
+
+    @Override
+    protected TypeResolution resolveType() {
+        return field().dataType() == DataTypes.TEXT ? TypeResolution.TYPE_RESOLVED : super.resolveType();
+    }
 }

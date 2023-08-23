@@ -1278,6 +1278,43 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(new LogicalPlanOptimizer.SplitInWithFoldableValue().rule(in), equalTo(expected));
     }
 
+    public void testReplaceFilterWithExact() {
+        var plan = plan("""
+              from test
+            | where job == "foo"
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        FieldAttribute left = as(equals.left(), FieldAttribute.class);
+        assertThat(left.name(), equalTo("job.raw"));
+    }
+
+    public void testReplaceExpressionWithExact() {
+        var plan = plan("""
+              from test
+            | eval x = job
+            """);
+
+        var eval = as(plan, Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        var field = as(alias.child(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("job.raw"));
+    }
+
+    public void testReplaceSortWithExact() {
+        var plan = plan("""
+              from test
+            | sort job
+            """);
+
+        var topN = as(plan, TopN.class);
+        assertThat(topN.order().size(), equalTo(1));
+        var sortField = as(topN.order().get(0).child(), FieldAttribute.class);
+        assertThat(sortField.name(), equalTo("job.raw"));
+    }
+
     private LogicalPlan optimizedPlan(String query) {
         return plan(query);
     }

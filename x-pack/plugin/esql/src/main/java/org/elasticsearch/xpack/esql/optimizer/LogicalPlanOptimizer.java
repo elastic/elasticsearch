@@ -12,7 +12,9 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.ExpressionSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -35,10 +38,7 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.StringPattern;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
@@ -55,16 +55,12 @@ import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -73,8 +69,6 @@ import java.util.function.Predicate;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
-import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.combineOr;
-import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitOr;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.FoldNull;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
@@ -96,6 +90,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         var operators = new Batch<>(
             "Operator Optimization",
+            new ReplaceAttributesWithExact(),
             new CombineProjections(),
             new PruneEmptyPlans(),
             new PropagateEmptyRelation(),
@@ -687,76 +682,14 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
      * This rule does NOT check for type compatibility as that phase has been
      * already be verified in the analyzer.
      */
-    public static class CombineDisjunctionsToIn extends OptimizerRules.OptimizerExpressionRule<Or> {
-        public CombineDisjunctionsToIn() {
-            super(TransformDirection.UP);
-        }
+    public static class CombineDisjunctionsToIn extends OptimizerRules.CombineDisjunctionsToIn {
 
-        @Override
-        protected Expression rule(Or or) {
-            Expression e = or;
-            // look only at equals and In
-            List<Expression> exps = splitOr(e);
-
-            Map<Expression, Set<Expression>> found = new LinkedHashMap<>();
-            ZoneId zoneId = null;
-            List<Expression> ors = new LinkedList<>();
-
-            for (Expression exp : exps) {
-                if (exp instanceof Equals eq) {
-                    // consider only equals against foldables
-                    if (eq.right().foldable()) {
-                        found.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
-                    } else {
-                        ors.add(exp);
-                    }
-                    if (zoneId == null) {
-                        zoneId = eq.zoneId();
-                    }
-                } else if (exp instanceof org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In in) {
-                    found.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(in.list());
-                    if (zoneId == null) {
-                        zoneId = in.zoneId();
-                    }
-                } else {
-                    ors.add(exp);
-                }
-            }
-
-            if (found.isEmpty() == false) {
-                // combine equals alongside the existing ors
-                final ZoneId finalZoneId = zoneId;
-                found.forEach((k, v) -> {
-                    ors.add(
-                        v.size() == 1
-                            ? new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals(
-                                k.source(),
-                                k,
-                                v.iterator().next(),
-                                finalZoneId
-                            )
-                            : createIn(k, new ArrayList<>(v), finalZoneId)
-                    );
-                });
-
-                Expression combineOr = combineOr(ors);
-                // check the result semantically since the result might different in order
-                // but be actually the same which can trigger a loop
-                // e.g. a == 1 OR a == 2 OR null --> null OR a in (1,2) --> literalsOnTheRight --> cycle
-                if (e.semanticEquals(combineOr) == false) {
-                    e = combineOr;
-                }
-            }
-
-            return e;
-        }
-
-        protected org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In createIn(
-            Expression key,
-            List<Expression> values,
-            ZoneId zoneId
-        ) {
+        protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
             return new In(key.source(), key, values);
+        }
+
+        protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
+            return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
         }
     }
 
@@ -772,27 +705,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    public static class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionRule<RegexMatch<?>> {
-
-        public ReplaceRegexMatch() {
-            super(TransformDirection.DOWN);
-        }
-
-        @Override
-        protected Expression rule(RegexMatch<?> regexMatch) {
-            Expression e = regexMatch;
-            StringPattern pattern = regexMatch.pattern();
-            if (pattern.matchesAll()) {
-                e = new IsNotNull(e.source(), regexMatch.field());
-            } else {
-                String match = pattern.exactMatch();
-                if (match != null) {
-                    Literal literal = new Literal(regexMatch.source(), match, DataTypes.KEYWORD);
-                    e = regexToEquals(regexMatch, literal);
-                }
-            }
-            return e;
-        }
+    public static class ReplaceRegexMatch extends OptimizerRules.ReplaceRegexMatch {
 
         protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
             return new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals(
@@ -800,6 +713,44 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 regexMatch.field(),
                 literal
             );
+        }
+    }
+
+    private static class ReplaceAttributesWithExact extends OptimizerRules.OptimizerRule<LogicalPlan> {
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            if (plan instanceof Drop) {
+                return plan;
+            } else if (plan instanceof Project proj) {
+                return plan.transformExpressionsOnlyUp(FieldAttribute.class, x -> toExactAlias(x, proj.projections()));
+            } else {
+                return plan.transformExpressionsOnly(FieldAttribute.class, ReplaceAttributesWithExact::toExact);
+            }
+        }
+
+        private NamedExpression toExactAlias(FieldAttribute e, List<? extends NamedExpression> projections) {
+
+            if (e.getExactInfo().hasExact() && e.exactAttribute() != e) {
+                FieldAttribute calculatedExact = toExact(e);
+
+                // avoid using multiple IDs just to load the same field twice
+                NamedExpression exact = projections.stream()
+                    .filter(x -> x.name().equals(calculatedExact.name()))
+                    .map(NamedExpression.class::cast)
+                    .findFirst()
+                    .orElse(calculatedExact);
+
+                return new Alias(e.source(), e.name(), exact);
+            }
+            return e;
+        }
+
+        private static FieldAttribute toExact(FieldAttribute fa) {
+            if (fa.getExactInfo().hasExact() && fa.exactAttribute() != fa) {
+                return fa.exactAttribute();
+            }
+            return fa;
         }
     }
 }

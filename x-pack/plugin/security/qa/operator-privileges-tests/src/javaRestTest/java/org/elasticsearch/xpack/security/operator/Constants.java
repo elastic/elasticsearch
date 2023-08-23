@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.security.operator;
 
 import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.synonyms.SynonymsAPI;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.util.Objects;
@@ -67,11 +69,11 @@ public class Constants {
         "cluster:admin/script_language/get",
         "cluster:admin/scripts/painless/context",
         "cluster:admin/scripts/painless/execute",
-        "cluster:admin/synonyms/delete",
-        "cluster:admin/synonyms/get",
-        "cluster:admin/synonyms/put",
-        "cluster:admin/synonyms_sets/get",
-        "cluster:admin/synonym_rules/put",
+        SynonymsAPI.isEnabled() ? "cluster:admin/synonyms/delete" : null,
+        SynonymsAPI.isEnabled() ? "cluster:admin/synonyms/get" : null,
+        SynonymsAPI.isEnabled() ? "cluster:admin/synonyms/put" : null,
+        SynonymsAPI.isEnabled() ? "cluster:admin/synonyms_sets/get" : null,
+        SynonymsAPI.isEnabled() ? "cluster:admin/synonym_rules/put" : null,
         "cluster:admin/settings/update",
         "cluster:admin/slm/delete",
         "cluster:admin/slm/execute",
@@ -190,9 +192,9 @@ public class Constants {
         "cluster:admin/xpack/ml/upgrade_mode",
         "cluster:admin/xpack/monitoring/bulk",
         "cluster:admin/xpack/monitoring/migrate/alerts",
-        "cluster:admin/xpack/query_rules/delete",
-        "cluster:admin/xpack/query_rules/get",
-        "cluster:admin/xpack/query_rules/put",
+        new FeatureFlag("query_rules").isEnabled() ? "cluster:admin/xpack/query_rules/delete" : null,
+        new FeatureFlag("query_rules").isEnabled() ? "cluster:admin/xpack/query_rules/get" : null,
+        new FeatureFlag("query_rules").isEnabled() ? "cluster:admin/xpack/query_rules/put" : null,
         "cluster:admin/xpack/rollup/delete",
         "cluster:admin/xpack/rollup/put",
         "cluster:admin/xpack/rollup/start",
@@ -375,7 +377,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/analytics",
         "cluster:monitor/xpack/usage/archive",
         "cluster:monitor/xpack/usage/ccr",
-        DataLifecycle.isEnabled() ? "cluster:monitor/xpack/usage/data_lifecycle" : null,
+        "cluster:monitor/xpack/usage/data_lifecycle",
         "cluster:monitor/xpack/usage/data_streams",
         "cluster:monitor/xpack/usage/data_tiers",
         "cluster:monitor/xpack/usage/enrich",

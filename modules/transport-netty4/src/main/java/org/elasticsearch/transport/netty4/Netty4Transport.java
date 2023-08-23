@@ -376,17 +376,17 @@ public class Netty4Transport extends TcpTransport {
         }
     }
 
-    private void setupPipeline(Channel ch, boolean isRemoteClusterChannel) {
+    private void setupPipeline(Channel ch, boolean isRemoteClusterServerChannel) {
         final var pipeline = ch.pipeline();
         pipeline.addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
         if (NetworkTraceFlag.TRACE_ENABLED) {
             pipeline.addLast("logging", ESLoggingHandler.INSTANCE);
         }
         pipeline.addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()));
-        pipeline.addLast("dispatcher", new Netty4MessageInboundHandler(this, getInboundPipeline(isRemoteClusterChannel)));
+        pipeline.addLast("dispatcher", new Netty4MessageInboundHandler(this, getInboundPipeline(isRemoteClusterServerChannel)));
     }
 
-    protected InboundPipeline getInboundPipeline(boolean isRemoteClusterChannel) {
+    protected InboundPipeline getInboundPipeline(boolean isRemoteClusterServerChannel) {
         return new InboundPipeline(
             getStatsTracker(),
             threadPool::relativeTimeInMillis,

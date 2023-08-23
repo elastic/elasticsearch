@@ -150,11 +150,11 @@ public class SecurityNetty4Transport extends Netty4Transport {
     }
 
     @Override
-    protected InboundPipeline getInboundPipeline(boolean isRemoteClusterChannel) {
+    protected InboundPipeline getInboundPipeline(boolean isRemoteClusterServerChannel) {
         return new InboundPipeline(
             getStatsTracker(),
             threadPool::relativeTimeInMillis,
-            isRemoteClusterChannel
+            isRemoteClusterServerChannel
                 ? new InboundDecoder(recycler, RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.get(settings))
                 : new InboundDecoder(recycler),
             new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),

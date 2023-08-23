@@ -72,6 +72,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
     public static final TransportVersion TRANSPORT_MINIMUM_VERSION = TransportVersion.V_8_8_0;
 
     public static final String ESQL_THREAD_POOL_NAME = "esql";
+    public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
     public static final Setting<Integer> QUERY_RESULT_TRUNCATION_MAX_SIZE = Setting.intSetting(
         "esql.query.result_truncation_max_size",
@@ -168,9 +169,19 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             new FixedExecutorBuilder(
                 settings,
                 ESQL_THREAD_POOL_NAME,
+                allocatedProcessors,
+                1000,
+                ESQL_THREAD_POOL_NAME,
+                EsExecutors.TaskTrackingConfig.DEFAULT
+            ),
+            // TODO: Maybe have two types of threadpools for workers: one for CPU-bound and one for I/O-bound tasks.
+            // And we should also reduce the number of threads of the CPU-bound threadpool to allocatedProcessors.
+            new FixedExecutorBuilder(
+                settings,
+                ESQL_WORKER_THREAD_POOL_NAME,
                 ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors),
                 1000,
-                "esql",
+                ESQL_WORKER_THREAD_POOL_NAME,
                 EsExecutors.TaskTrackingConfig.DEFAULT
             )
         );

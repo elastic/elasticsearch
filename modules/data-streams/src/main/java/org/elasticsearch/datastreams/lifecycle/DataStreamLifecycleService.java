@@ -375,14 +375,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 && state.blocks().indexBlocked(ClusterBlockLevel.WRITE, indexName) == false) {
                 // time to downsample, but first we have to mark the index as read-only
                 affectedIndices.add(index);
-                AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(
-                    TimeValue.MAX_VALUE
-                );
-                transportActionsDeduplicator.executeOnce(
-                    addIndexBlockRequest,
-                    new ErrorRecordingActionListener(indexName, errorStore),
-                    (req, reqListener) -> addIndexBlock(addIndexBlockRequest, reqListener)
-                );
+                addIndexBlockOnce(indexName);
                 continue;
             }
 
@@ -400,18 +393,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     affectedIndices.add(downsampleSourceIndex.getIndex());
                     // delete downsampling source index (that's not part of the data stream anymore) before doing any more
                     // downsampling
-                    DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(backingIndexDownsamplingSource).masterNodeTimeout(
-                        TimeValue.MAX_VALUE
-                    );
-                    transportActionsDeduplicator.executeOnce(
-                        deleteIndexRequest,
-                        new ErrorRecordingActionListener(backingIndexDownsamplingSource, errorStore),
-                        (req, reqListener) -> deleteIndex(
-                            deleteIndexRequest,
-                            "replacement with its downsampled index in the data stream",
-                            reqListener
-                        )
-                    );
+                    deleteIndexOnce(backingIndexDownsamplingSource, "replacement with its downsampled index in the data stream");
                     continue;
                 }
             }
@@ -428,15 +410,19 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     backingIndex,
                     round.config().getFixedInterval()
                 );
-                IndexMetadata downsampleIndexMeta = metadata.index(downsampleIndexName);
-                if (downsampleIndexMeta != null) {
-                    IndexMetadata.DownsampleTaskStatus downsampleStatus = INDEX_DOWNSAMPLE_STATUS.get(downsampleIndexMeta.getSettings());
+                IndexMetadata targetDownsampleIndexMeta = metadata.index(downsampleIndexName);
+                boolean targetDownsampleIndexExists = targetDownsampleIndexMeta != null;
+
+                if (targetDownsampleIndexExists) {
+                    IndexMetadata.DownsampleTaskStatus downsampleStatus = INDEX_DOWNSAMPLE_STATUS.get(
+                        targetDownsampleIndexMeta.getSettings()
+                    );
                     if (downsampleStatus.equals(UNKNOWN) && round.equals(lastRound)) {
                         // target downsampling index exists and is not a downsampling index (name clash?)
                         // we fail now but perhaps we should just randomise the name?
                         errorStore.recordError(
                             backingIndex.getIndex().getName(),
-                            new ResourceAlreadyExistsException(downsampleIndexMeta.getIndex().getName())
+                            new ResourceAlreadyExistsException(targetDownsampleIndexMeta.getIndex().getName())
                         );
                     } else if (downsampleStatus.equals(STARTED)) {
                         // we'll wait for this round to complete
@@ -444,11 +430,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                         // this index
                         affectedIndices.add(backingIndex.getIndex());
                         break;
-                    } else if (downsampleStatus.equals(SUCCESS)) {
-                        // at this point the source index is part of the data stream and the downsample index is complete but not
-                        // part of the data stream. we need to replace the source index with the downsample index in the data stream
-                        // and delete the source index.
-                        if (dataStream.getIndices().contains(downsampleIndexMeta.getIndex()) == false) {
+                    } else if (downsampleStatus.equals(SUCCESS)
+                        && dataStream.getIndices().contains(targetDownsampleIndexMeta.getIndex()) == false) {
+                            // at this point the source index is part of the data stream and the downsample index is complete but not
+                            // part of the data stream. we need to replace the source index with the downsample index in the data stream
+                            // and delete the source index.
                             affectedIndices.add(backingIndex.getIndex());
                             clusterStateChangesDeduplicator.executeOnce(
                                 new ReplaceSourceWithDownsampleIndexTask(dataStream.getName(), index.getName(), downsampleIndexName, null),
@@ -465,7 +451,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             );
                             break;
                         }
-                    }
                 } else if (round.equals(lastRound)) {
                     // no maintenance needed for previously started downsampling actions, so kick off the last matching round
                     affectedIndices.add(index);
@@ -479,6 +464,32 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
         }
         return affectedIndices;
+    }
+
+    private void deleteIndexOnce(String indexName, String reason) {
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName).masterNodeTimeout(
+            TimeValue.MAX_VALUE
+        );
+        transportActionsDeduplicator.executeOnce(
+            deleteIndexRequest,
+            new ErrorRecordingActionListener(indexName, errorStore),
+            (req, reqListener) -> deleteIndex(
+                deleteIndexRequest,
+                reason,
+                reqListener
+            )
+        );
+    }
+
+    private void addIndexBlockOnce(String indexName) {
+        AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(
+            TimeValue.MAX_VALUE
+        );
+        transportActionsDeduplicator.executeOnce(
+            addIndexBlockRequest,
+            new ErrorRecordingActionListener(indexName, errorStore),
+            (req, reqListener) -> addIndexBlock(addIndexBlockRequest, reqListener)
+        );
     }
 
     /**
@@ -552,14 +563,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
                 // let's start simple and reevaluate
                 String indexName = backingIndex.getIndex().getName();
-                DeleteIndexRequest deleteRequest = new DeleteIndexRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE);
-
-                // time to delete the index
-                transportActionsDeduplicator.executeOnce(
-                    deleteRequest,
-                    new ErrorRecordingActionListener(indexName, errorStore),
-                    (req, reqListener) -> deleteIndex(deleteRequest, "the lapsed [" + retention + "] retention period", reqListener)
-                );
+                deleteIndexOnce(indexName, "the lapsed [" + retention + "] retention period");
             }
         }
         return indicesToBeRemoved;

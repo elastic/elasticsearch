@@ -1991,7 +1991,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(e.getCause().getCause().getCause());
         assertThat(
             e.getCause().getCause().getCause().getMessage(),
-                containsString("contradicting subobjects settings provided for field: field2")
+            containsString("contradicting subobjects settings provided for field: field2")
         );
     }
 

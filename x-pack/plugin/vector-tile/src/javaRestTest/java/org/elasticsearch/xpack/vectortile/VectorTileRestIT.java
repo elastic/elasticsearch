@@ -929,6 +929,36 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertLayer(tile, META_LAYER, 4096, 1, 13);
     }
 
+    public void testPartialResult() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS_SHAPES + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("""
+            {
+              "query": {
+                "error_query": {
+                  "indices": [
+                    {
+                      "error_type": "exception",
+                      "message": "local shard failure message 123",
+                      "name": "index-points"
+                    }
+                  ]
+                }
+              }
+            }""");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        assertLayer(tile, HITS_LAYER, 4096, 1, 2);
+        assertLayer(tile, AGGS_LAYER, 4096, 65536, 2);
+        assertLayer(tile, META_LAYER, 4096, 1, 28);
+        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_index", INDEX_POLYGON);
+        assertStringTag(
+            getLayer(tile, META_LAYER),
+            getLayer(tile, META_LAYER).getFeatures(0),
+            "_shards.failures.0.reason.caused_by.reason",
+            "[index-points][0] local shard failure message 123"
+        );
+    }
+
     private String getHttpMethod() {
         return random().nextBoolean() ? HttpGet.METHOD_NAME : HttpPost.METHOD_NAME;
     }
@@ -961,36 +991,6 @@ public class VectorTileRestIT extends ESRestTestCase {
             );
         }
         assertThat("Feature " + featureIndex + " tag count does not match", feature.getTagsCount(), Matchers.equalTo(2 * tags.length));
-    }
-
-    public void testPartialResult() throws Exception {
-        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS_SHAPES + "/_mvt/location/" + z + "/" + x + "/" + y);
-        mvtRequest.setJsonEntity("""
-            {
-              "query": {
-                "error_query": {
-                  "indices": [
-                    {
-                      "error_type": "exception",
-                      "message": "local shard failure message 123",
-                      "name": "index-points"
-                    }
-                  ]
-                }
-              }
-            }""");
-        final VectorTile.Tile tile = execute(mvtRequest);
-        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
-        assertLayer(tile, HITS_LAYER, 4096, 1, 2);
-        assertLayer(tile, AGGS_LAYER, 4096, 65536, 2);
-        assertLayer(tile, META_LAYER, 4096, 1, 28);
-        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_index", INDEX_POLYGON);
-        assertStringTag(
-            getLayer(tile, META_LAYER),
-            getLayer(tile, META_LAYER).getFeatures(0),
-            "_shards.failures.0.reason.caused_by.reason",
-            "[index-points][0] local shard failure message 123"
-        );
     }
 
     private void assertLayer(VectorTile.Tile tile, String name, int extent, int numFeatures, int numTags, String... tags) {

@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdate;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
@@ -227,40 +228,38 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         loadingModels.addAll(loadingToRetry);
     }
 
-    /**
-     * Stop the deployment after waiting for the currently queued work to complete.
-     *
-     * @param task the deployment task to stop
-     * @param reason the reason the task is being stopped
-     * @param listener a listener to call once the native process and associated workers have stopped
-     */
     public void gracefullyStopDeploymentAndNotify(
         TrainedModelDeploymentTask task,
         String reason,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        deploymentIdToTask.remove(task.getDeploymentId());
+        logger.debug(() -> format("[%s] Gracefully stopping deployment due to reason %s", task.getDeploymentId(), reason));
 
-        logger.debug(() -> format("[%s] Gracefully stopping deployment", task.getDeploymentId()));
-        stopDeploymentAfterCompletingPendingWorkAsync(
-            task,
-            reason,
-            updateRoutingStateToStoppedListener(task.getDeploymentId(), reason, listener)
-        );
+        stopAndNotifyHelper(task, reason, listener, deploymentManager::stopAfterCompletingPendingWork);
     }
 
     public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason, ActionListener<AcknowledgedResponse> listener) {
+        logger.debug(() -> format("[%s] Forcefully stopping deployment due to reason %s", task.getDeploymentId(), reason));
+
+        stopAndNotifyHelper(task, reason, listener, deploymentManager::stopDeployment);
+    }
+
+    private void stopAndNotifyHelper(
+        TrainedModelDeploymentTask task,
+        String reason,
+        ActionListener<AcknowledgedResponse> listener,
+        Consumer<TrainedModelDeploymentTask> stopDeploymentFunc
+    ) {
         // Removing the entry from the map to avoid the possibility of a node shutdown triggering a concurrent graceful stopping of the
         // process while we are attempting to forcefully stop the native process
         // The graceful stopping will only occur if there is an entry in the map
         deploymentIdToTask.remove(task.getDeploymentId());
-
         ActionListener<Void> notifyDeploymentOfStopped = updateRoutingStateToStoppedListener(task.getDeploymentId(), reason, listener);
 
         updateStoredState(
             task.getDeploymentId(),
             RoutingInfoUpdate.updateStateAndReason(new RoutingStateAndReason(RoutingState.STOPPING, reason)),
-            ActionListener.wrap(success -> stopDeploymentAsync(task, reason, notifyDeploymentOfStopped), e -> {
+            ActionListener.wrap(success -> stopDeploymentHelper(task, reason, stopDeploymentFunc, notifyDeploymentOfStopped), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     logger.debug(
                         () -> format("[%s] failed to set routing state to stopping as assignment already removed", task.getDeploymentId()),
@@ -271,7 +270,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     // TODO this means requests may still be routed here, should we not stop deployment?
                     logger.warn(() -> "[" + task.getDeploymentId() + "] failed to set routing state to stopping due to error", e);
                 }
-                stopDeploymentAsync(task, reason, notifyDeploymentOfStopped);
+                stopDeploymentHelper(task, reason, stopDeploymentFunc, notifyDeploymentOfStopped);
             })
         );
     }
@@ -353,8 +352,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         for (TrainedModelAssignment trainedModelAssignment : modelAssignmentMetadata.allAssignments().values()) {
             RoutingInfo routingInfo = trainedModelAssignment.getNodeRoutingTable().get(currentNode);
             if (routingInfo != null) {
-                // Add new models to start loading
-                if (isNewAllocationSupported) {
+                // Add new models to start loading if the assignment is not stopping
+                if (isNewAllocationSupported && trainedModelAssignment.getAssignmentState() != AssignmentState.STOPPING) {
                     if (shouldAssignmentBeRestarted(routingInfo, trainedModelAssignment.getDeploymentId())) {
                         prepareAssignmentForRestart(trainedModelAssignment);
                     }
@@ -445,17 +444,37 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     }
 
     private void gracefullyStopDeployment(String deploymentId, String currentNode) {
+        logger.debug(() -> format("[%s] Gracefully stopping deployment for shutting down node %s", deploymentId, currentNode));
+
         TrainedModelDeploymentTask task = deploymentIdToTask.remove(deploymentId);
         if (task == null) {
+            logger.debug(
+                () -> format(
+                    "[%s] Unable to gracefully stop deployment for shutting down node %s because task does not exit",
+                    deploymentId,
+                    currentNode
+                )
+            );
             return;
         }
 
         ActionListener<AcknowledgedResponse> routingStateListener = ActionListener.wrap(
-            r -> logger.debug(() -> format("[%s] Gracefully stopped deployment for node %s", task.getDeploymentId(), currentNode)),
-            e -> logger.error(() -> format("[%s] Failed to gracefully stop deployment for node %s", task.getDeploymentId(), currentNode), e)
+            r -> logger.debug(
+                () -> format("[%s] Gracefully stopped deployment for shutting down node %s", task.getDeploymentId(), currentNode)
+            ),
+            e -> logger.error(
+                () -> format("[%s] Failed to gracefully stop deployment for shutting down node %s", task.getDeploymentId(), currentNode),
+                e
+            )
         );
 
-        gracefullyStopDeploymentAndNotify(task, NODE_IS_SHUTTING_DOWN, routingStateListener);
+        ActionListener<Void> notifyDeploymentOfStopped = updateRoutingStateToStoppedListener(
+            task.getDeploymentId(),
+            NODE_IS_SHUTTING_DOWN,
+            routingStateListener
+        );
+
+        stopDeploymentAfterCompletingPendingWorkAsync(task, NODE_IS_SHUTTING_DOWN, notifyDeploymentOfStopped);
     }
 
     private ActionListener<Void> updateRoutingStateToStoppedListener(
@@ -502,7 +521,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     private void stopDeploymentHelper(
         TrainedModelDeploymentTask task,
         String reason,
-        Consumer<TrainedModelDeploymentTask> stopDeployment,
+        Consumer<TrainedModelDeploymentTask> stopDeploymentFunc,
         ActionListener<Void> listener
     ) {
         if (stopped) {
@@ -512,7 +531,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
-                stopDeployment.accept(task);
+                stopDeploymentFunc.accept(task);
                 taskManager.unregister(task);
                 deploymentIdToTask.remove(task.getDeploymentId());
                 listener.onResponse(null);

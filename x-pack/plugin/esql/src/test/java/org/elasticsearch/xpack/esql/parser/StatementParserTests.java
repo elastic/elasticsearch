@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
@@ -27,7 +28,6 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;

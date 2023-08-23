@@ -29,6 +29,7 @@ import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -413,6 +414,7 @@ public class ExchangeServiceTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
+        service.getTaskManager().setTaskCancellationService(new TaskCancellationService(service));
         service.start();
         service.acceptIncomingRequests();
         return service;

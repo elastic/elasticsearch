@@ -12,7 +12,8 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 
-public class DateFormat extends ConfigurationFunction implements OptionalArgument, Mappable {
+public class DateFormat extends ConfigurationFunction implements OptionalArgument, EvaluatorMapper {
 
     private final Expression field;
     private final Expression format;
@@ -79,7 +80,7 @@ public class DateFormat extends ConfigurationFunction implements OptionalArgumen
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Evaluator(extraName = "Constant")
@@ -128,6 +129,6 @@ public class DateFormat extends ConfigurationFunction implements OptionalArgumen
 
     @Override
     public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException();
+        throw new EsqlUnsupportedOperationException("functions do not support scripting");
     }
 }

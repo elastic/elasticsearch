@@ -9,13 +9,15 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.util.List;
 import java.util.function.Function;
@@ -24,7 +26,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-public class Log10 extends UnaryScalarFunction implements Mappable {
+public class Log10 extends UnaryScalarFunction implements EvaluatorMapper {
     public Log10(Source source, Expression field) {
         super(source, field);
     }
@@ -46,8 +48,11 @@ public class Log10 extends UnaryScalarFunction implements Mappable {
         if (fieldType == DataTypes.LONG) {
             return () -> new Log10LongEvaluator(eval);
         }
+        if (fieldType == DataTypes.UNSIGNED_LONG) {
+            return () -> new Log10UnsignedLongEvaluator(eval);
+        }
 
-        throw new UnsupportedOperationException("Unsupported type " + fieldType);
+        throw EsqlUnsupportedOperationException.unsupportedDataType(fieldType);
     }
 
     @Evaluator(extraName = "Double")
@@ -58,6 +63,11 @@ public class Log10 extends UnaryScalarFunction implements Mappable {
     @Evaluator(extraName = "Long")
     static double process(long val) {
         return Math.log10(val);
+    }
+
+    @Evaluator(extraName = "UnsignedLong")
+    static double processUnsignedLong(long val) {
+        return Math.log10(NumericUtils.unsignedLongToDouble(val));
     }
 
     @Evaluator(extraName = "Int")
@@ -82,7 +92,7 @@ public class Log10 extends UnaryScalarFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Override

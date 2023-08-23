@@ -12,13 +12,15 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.Duration;
 import java.time.Period;
@@ -27,15 +29,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
-public class DateTrunc extends BinaryDateTimeFunction implements Mappable {
+public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper {
 
-    public DateTrunc(Source source, Expression field, Expression interval) {
-        super(source, field, interval);
+    public DateTrunc(Source source, Expression interval, Expression field) {
+        super(source, interval, field);
     }
 
     @Override
@@ -44,12 +47,27 @@ public class DateTrunc extends BinaryDateTimeFunction implements Mappable {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isDate(timestampField(), sourceText(), FIRST);
+        TypeResolution resolution = argumentTypesAreSwapped();
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        resolution = isDate(timestampField(), sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
 
         return isInterval(interval(), sourceText(), SECOND);
+    }
+
+    // TODO: drop check once 8.11 is released
+    private TypeResolution argumentTypesAreSwapped() {
+        DataType leftType = left().dataType();
+        DataType rightType = right().dataType();
+        if (leftType == DataTypes.DATETIME && (rightType == EsqlDataTypes.DATE_PERIOD || rightType == EsqlDataTypes.TIME_DURATION)) {
+            return new TypeResolution(format(null, "function definition has been updated, please swap arguments in [{}]", sourceText()));
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     private static TypeResolution isInterval(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
@@ -65,7 +83,7 @@ public class DateTrunc extends BinaryDateTimeFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Evaluator
@@ -80,11 +98,11 @@ public class DateTrunc extends BinaryDateTimeFunction implements Mappable {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, DateTrunc::new, timestampField(), interval());
+        return NodeInfo.create(this, DateTrunc::new, interval(), timestampField());
     }
 
     public Expression interval() {
-        return right();
+        return left();
     }
 
     static Rounding.Prepared createRounding(final Object interval) {

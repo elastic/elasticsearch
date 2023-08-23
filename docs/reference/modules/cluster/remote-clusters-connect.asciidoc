@@ -58,7 +58,7 @@ PUT /_cluster/settings
 }
 ----
 // TEST[setup:host]
-// TEST[s/127.0.0.1:{remote-interface-default-port}/\${transport_host}/]
+// TEST[s/127.0.0.1:\{remote-interface-default-port\}/\${transport_host}/]
 <1> The cluster alias of this remote cluster is `cluster_one`.
 <2> Specifies the hostname and {remote-interface} port of a seed node in the 
 remote cluster.
@@ -91,7 +91,7 @@ cluster with the cluster alias `cluster_one`:
   }
 }
 ----
-// TESTRESPONSE[s/127.0.0.1:{remote-interface-default-port}/$body.cluster_one.seeds.0/]
+// TESTRESPONSE[s/127.0.0.1:\{remote-interface-default-port\}/$body.cluster_one.seeds.0/]
 // TEST[s/"connected" : true/"connected" : $body.cluster_one.connected/]
 // TEST[s/"num_nodes_connected" : 1/"num_nodes_connected" : $body.cluster_one.num_nodes_connected/]
 <1> The number of nodes in the remote cluster the local cluster is
@@ -143,7 +143,9 @@ PUT _cluster/settings
 }
 ----
 // TEST[setup:host]
-// TEST[s/127.0.0.1:{remote-interface-default-port}/\${transport_host}/]
+// TEST[s/127.0.0.1:\{remote-interface-default-port\}/\${transport_host}/]
+// TEST[s/\{remote-interface-default-port-plus1\}/9301/]
+// TEST[s/\{remote-interface-default-port-plus2\}/9302/]
 
 You can dynamically update settings for a remote cluster after the initial
 configuration. The following request updates the compression settings for

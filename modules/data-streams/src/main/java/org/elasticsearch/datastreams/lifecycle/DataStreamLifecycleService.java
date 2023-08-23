@@ -371,7 +371,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             String indexName = index.getName();
             IndexMetadata.DownsampleTaskStatus backingIndexDownsamplingStatus = INDEX_DOWNSAMPLE_STATUS.get(backingIndex.getSettings());
-            String backingIndexDownsamplingSource = backingIndex.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
+            String backingIndexDownsamplingSource = IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(backingIndex.getSettings());
 
             // if the current index is not a downsample we want to mark the index as read-only before proceeding with downsampling
             if (org.elasticsearch.common.Strings.hasText(backingIndexDownsamplingSource) == false

@@ -159,6 +159,5 @@ org.elasticsearch.cluster.ClusterStateTaskExecutor$TaskContext#success(java.util
 @defaultMessage ClusterState#transportVersions are for internal use only. Use ClusterState#getMinTransportVersion or a different version. See TransportVersion javadocs for more info.
 org.elasticsearch.cluster.ClusterState#transportVersions()
 
-@defaultMessage ClusterState#systemIndexMappingsVersions are for internal use only. Use ClusterState#getMinSystemIndexMappingsVersion or a
-different version. See SystemIndexDescriptor javadocs for more info.
+@defaultMessage ClusterState#systemIndexMappingsVersions are for internal use only. Use ClusterState#getMinSystemIndexMappingsVersion or a different version. See SystemIndexDescriptor javadocs for more info.
 org.elasticsearch.cluster.ClusterState#systemIndexMappingsVersions()

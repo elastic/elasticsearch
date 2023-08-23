@@ -17,6 +17,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.http.netty4.Netty4HttpRequest;
 import org.elasticsearch.http.nio.NioHttpRequest;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -114,6 +115,8 @@ public class SecurityRestFilter implements RestHandler {
                 ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
             );
         } else {
+            assert request instanceof Netty4HttpRequest;
+            // this type of request is authenticated elsewhere, see: {@code Security#getHttpServerTransportWithHeadersValidator}
             listener.onResponse(null);
         }
     }

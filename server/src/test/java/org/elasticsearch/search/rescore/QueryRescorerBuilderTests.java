@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -137,7 +136,6 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             0,
             0,
             idxSettings,
-            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             null,
@@ -200,7 +198,6 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             0,
             0,
             idxSettings,
-            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             null,

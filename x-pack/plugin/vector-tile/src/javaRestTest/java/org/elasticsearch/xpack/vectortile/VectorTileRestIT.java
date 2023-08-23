@@ -949,7 +949,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 1, 2);
         assertLayer(tile, AGGS_LAYER, 4096, 65536, 2);
-        assertLayer(tile, META_LAYER, 4096, 1, 28);
+        assertLayer(tile, META_LAYER, 4096, 1, 22);
         assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_index", INDEX_POLYGON);
         assertStringTag(
             getLayer(tile, META_LAYER),

@@ -57,17 +57,6 @@ class VectorTileUtils {
     }
 
     /**
-     * Adds the provided map into the feature as tags.
-     */
-    public static void addMapToFeature(VectorTile.Tile.Feature.Builder feature, MvtLayerProps layerProps, Map<?, ?> map) {
-        for (Map.Entry<?, ?> entry : map.entrySet()) {
-            if (entry.getValue() != null) {
-                addPropertyToFeature(feature, layerProps, entry.getKey().toString(), entry.getValue());
-            }
-        }
-    }
-
-    /**
      * Adds the provided key / value pair into the feature as tags.
      */
     public static void addPropertyToFeature(VectorTile.Tile.Feature.Builder feature, MvtLayerProps layerProps, String key, Object value) {
@@ -76,7 +65,7 @@ class VectorTileUtils {
             return;
         }
         if (value instanceof Map<?, ?> map) {
-            addMapToFeature(feature, layerProps, map);
+            // maps should have been flattened already in Maps#flatten but still contains the original maps
             return;
         }
         if (value instanceof Byte || value instanceof Short) {

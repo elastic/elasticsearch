@@ -82,7 +82,7 @@ public class ReplaceBackingWithDownsampleIndexExecutor extends SimpleBatchedExec
                 } else {
                     LOGGER.error(
                         () -> Strings.format(
-                            "Data stream lifecycle encountered an error trying to delete index [%s]",
+                            "Data stream lifecycle encountered an error trying to delete index [%s]. It will retry on its next run.",
                             task.getSourceBackingIndex()
                         ),
                         e

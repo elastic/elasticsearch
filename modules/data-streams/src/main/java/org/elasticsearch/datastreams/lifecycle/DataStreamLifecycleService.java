@@ -763,7 +763,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             task.getDownsampleIndex(),
             task.getDataStreamName()
         );
-        swapSourceWithDownsampleIndexQueue.submitTask("data-stream-lifecycle-replace-source-with-downsample", task, null);
+        swapSourceWithDownsampleIndexQueue.submitTask(
+            "data-stream-lifecycle-replace-source[" + task.getSourceBackingIndex() + "]-with-[" + task.getDownsampleIndex() + "]",
+            task,
+            null
+        );
     }
 
     private void deleteIndex(DeleteIndexRequest deleteIndexRequest, String reason, ActionListener<Void> listener) {

@@ -101,10 +101,10 @@ setup:
   - exists: 'cluster_balance_stats.tiers.data_content.actual_disk_usage.std_dev'
   - exists: 'cluster_balance_stats.nodes'
   - exists: 'cluster_balance_stats.nodes.$node_name'
-  - exists: 'cluster_balance_stats.nodes.$node_name.shard_count'
-  - exists: 'cluster_balance_stats.nodes.$node_name.forecast_write_load'
-  - exists: 'cluster_balance_stats.nodes.$node_name.forecast_disk_usage_bytes'
-  - exists: 'cluster_balance_stats.nodes.$node_name.actual_disk_usage_bytes'
+  - gte: { 'cluster_balance_stats.nodes.$node_name.shard_count' : 0 }
+  - gte: { 'cluster_balance_stats.nodes.$node_name.forecast_write_load': 0.0 }
+  - gte: { 'cluster_balance_stats.nodes.$node_name.forecast_disk_usage_bytes' : 0 }
+  - gte: { 'cluster_balance_stats.nodes.$node_name.actual_disk_usage_bytes' : 0 }
 
 ---
 "Test cluster_info":
@@ -172,7 +172,7 @@ setup:
   - do:
       _internal.get_desired_balance: { }
 
-  - exists: 'stats.computed_shard_movements'
+  - gte: { stats.computed_shard_movements: 0 }
 
 ---
 "Test reset desired balance":

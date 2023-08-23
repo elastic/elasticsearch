@@ -150,10 +150,11 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     }
 
     /**
-     * Checks if any node has the role with the given {@code roleName}.
+     * Checks if any node has the role with the given {@code roleName}. Note that a role will not be available if all nodes with that role
+     * are marked as shutting down for removal, even if some of those nodes are still online and members of the cluster.
      *
      * @param roleName name to check
-     * @return true if any node has the role of the given name
+     * @return true if any available node has the role of the given name
      */
     public boolean isRoleAvailable(String roleName) {
         return availableRoles.contains(roleName);

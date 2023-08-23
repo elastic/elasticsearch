@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.cluster.routing.allocation;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.Strings;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -64,7 +66,12 @@ public final class DataTierAllocationDecider extends AllocationDecider {
     }
 
     public interface PreferredTierFunction {
-        Optional<String> apply(List<String> tierPreference, DiscoveryNodes nodes, DesiredNodes desiredNodes);
+        Optional<String> apply(
+            List<String> tierPreference,
+            DiscoveryNodes nodes,
+            DesiredNodes desiredNodes,
+            NodesShutdownMetadata shutdownMetadata
+        );
     }
 
     private static final Decision YES_PASSES = Decision.single(Decision.YES.type(), NAME, "node passes tier preference filters");
@@ -79,7 +86,12 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         if (tierPreference.isEmpty()) {
             return YES_PASSES;
         }
-        Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes(), allocation.desiredNodes());
+        Optional<String> tier = preferredTierFunction.apply(
+            tierPreference,
+            allocation.nodes(),
+            allocation.desiredNodes(),
+            allocation.getClusterState().metadata().nodeShutdowns()
+        );
         if (tier.isPresent()) {
             String tierName = tier.get();
             if (allocationAllowed(tierName, node)) {
@@ -136,14 +148,19 @@ public final class DataTierAllocationDecider extends AllocationDecider {
      * in order to know if there are planned topology changes in the cluster
      * that can remove a tier that's part of the cluster now.
      */
-    public static Optional<String> preferredAvailableTier(List<String> prioritizedTiers, DiscoveryNodes nodes, DesiredNodes desiredNodes) {
+    public static Optional<String> preferredAvailableTier(
+        List<String> prioritizedTiers,
+        DiscoveryNodes nodes,
+        DesiredNodes desiredNodes,
+        NodesShutdownMetadata shutdownMetadata
+    ) {
         final var desiredNodesPreferredTier = getPreferredTierFromDesiredNodes(prioritizedTiers, nodes, desiredNodes);
 
         if (desiredNodesPreferredTier.isPresent()) {
             return desiredNodesPreferredTier;
         }
 
-        return getPreferredAvailableTierFromClusterMembers(prioritizedTiers, nodes);
+        return getPreferredAvailableTierFromClusterMembers(prioritizedTiers, filterRemovingNodes(nodes, shutdownMetadata));
     }
 
     /**
@@ -243,5 +260,28 @@ public final class DataTierAllocationDecider extends AllocationDecider {
             }
         }
         return false;
+    }
+
+    /**
+     * Creates a new DiscoveryNodes object representing the state of the cluster without nodes that are shutting down for removal.
+     * @param nodes the nodes currently present in the cluster
+     * @param nodesShutdownMetadata shutdown metadata, so we know which nodes to filter
+     * @return the nodes in the cluster which are not currently marked for removal
+     */
+    private static DiscoveryNodes filterRemovingNodes(DiscoveryNodes nodes, NodesShutdownMetadata nodesShutdownMetadata) {
+        List<String> removingNodeIds = nodesShutdownMetadata.getAll()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().getType().isRemovalType())
+            .map(Map.Entry::getKey)
+            .toList();
+        if (removingNodeIds.isEmpty()) {
+            return nodes;
+        }
+        var builder = DiscoveryNodes.builder(nodes);
+        for (var node : removingNodeIds) {
+            builder.remove(node);
+        }
+        return builder.build();
     }
 }

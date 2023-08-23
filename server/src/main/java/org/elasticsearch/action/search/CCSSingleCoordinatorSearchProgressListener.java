@@ -9,13 +9,13 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.RemoteClusterAware;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -167,10 +167,8 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                 took = new TimeValue(timeProvider.buildTookInMillis());
             }
 
-            List<ShardSearchFailure> failures = new ArrayList<>();
-            failures.addAll(curr.getFailures());
-            failures.add(new ShardSearchFailure(e, shardTarget));
-
+            // creates a new unmodifiable list
+            List<ShardSearchFailure> failures = CollectionUtils.appendToCopy(curr.getFailures(), new ShardSearchFailure(e, shardTarget));
             SearchResponse.Cluster updated = new SearchResponse.Cluster.Builder(curr).setStatus(status)
                 .setFailedShards(numFailedShards)
                 .setFailures(failures)

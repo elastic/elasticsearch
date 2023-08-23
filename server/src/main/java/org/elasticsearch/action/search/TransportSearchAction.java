@@ -44,6 +44,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
@@ -782,22 +783,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         boolean swapped;
         do {
             SearchResponse.Cluster orig = clusterRef.get();
-            String clusterAlias = orig.getClusterAlias();
-            List<ShardSearchFailure> failures;
-            if (orig.getFailures() != null) {
-                failures = new ArrayList<>(orig.getFailures());
-            } else {
-                failures = new ArrayList<>(1);
-            }
-            failures.add(failure);
-            String indexExpression = orig.getIndexExpression();
-            SearchResponse.Cluster updated = new SearchResponse.Cluster(
-                clusterAlias,
-                indexExpression,
-                orig.isSkipUnavailable(),
-                status,
-                failures
-            );
+            // returns unmodifiable list based on the original one passed plus the appended failure
+            List<ShardSearchFailure> failures = CollectionUtils.appendToCopy(orig.getFailures(), failure);
+            SearchResponse.Cluster updated = new SearchResponse.Cluster.Builder(orig).setStatus(status).setFailures(failures).build();
             swapped = clusterRef.compareAndSet(orig, updated);
         } while (swapped == false);
     }
@@ -840,19 +828,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         boolean swapped;
         do {
             SearchResponse.Cluster orig = clusterRef.get();
-            SearchResponse.Cluster updated = new SearchResponse.Cluster(
-                orig.getClusterAlias(),
-                orig.getIndexExpression(),
-                orig.isSkipUnavailable(),
-                status,
-                searchResponse.getTotalShards(),
-                searchResponse.getSuccessfulShards(),
-                searchResponse.getSkippedShards(),
-                searchResponse.getFailedShards(),
-                Arrays.asList(searchResponse.getShardFailures()),
-                searchResponse.getTook(),
-                searchResponse.isTimedOut()
-            );
+            SearchResponse.Cluster updated = new SearchResponse.Cluster.Builder(orig).setStatus(status)
+                .setTotalShards(searchResponse.getTotalShards())
+                .setSuccessfulShards(searchResponse.getSuccessfulShards())
+                .setSkippedShards(searchResponse.getSkippedShards())
+                .setFailedShards(searchResponse.getFailedShards())
+                .setFailures(Arrays.asList(searchResponse.getShardFailures()))
+                .setTook(searchResponse.getTook())
+                .setTimedOut(searchResponse.isTimedOut())
+                .build();
             swapped = clusterRef.compareAndSet(orig, updated);
         } while (swapped == false);
     }
@@ -878,19 +862,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             boolean swapped;
             do {
                 SearchResponse.Cluster orig = clusterRef.get();
-                SearchResponse.Cluster updated = new SearchResponse.Cluster(
-                    orig.getClusterAlias(),
-                    orig.getIndexExpression(),
-                    orig.isSkipUnavailable(),
-                    SearchResponse.Cluster.Status.SUCCESSFUL,
-                    0,
-                    0,
-                    0,
-                    0,
-                    Collections.emptyList(),
-                    new TimeValue(timeProvider.buildTookInMillis()),
-                    false
-                );
+                SearchResponse.Cluster updated = new SearchResponse.Cluster.Builder(orig).setStatus(
+                    SearchResponse.Cluster.Status.SUCCESSFUL
+                )
+                    .setTotalShards(0)
+                    .setSuccessfulShards(0)
+                    .setSkippedShards(0)
+                    .setFailedShards(0)
+                    .setFailures(Collections.emptyList())
+                    .setTook(new TimeValue(timeProvider.buildTookInMillis()))
+                    .setTimedOut(false)
+                    .build();
                 swapped = clusterRef.compareAndSet(orig, updated);
                 assert swapped : "CAS swap should never fail in this location";
             } while (swapped == false);

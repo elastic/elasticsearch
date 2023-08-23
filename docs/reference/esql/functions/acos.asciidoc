@@ -1,0 +1,12 @@
+[[esql-acos]]
+=== `ACOS`
+Inverse https://en.wikipedia.org/wiki/Inverse_trigonometric_functions[cosine] trigonometric function.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/floats.csv-spec[tag=acos]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/floats.csv-spec[tag=acos-result]
+|===

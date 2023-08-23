@@ -8,14 +8,14 @@
 
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +38,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
 
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
 
         assertAcked(

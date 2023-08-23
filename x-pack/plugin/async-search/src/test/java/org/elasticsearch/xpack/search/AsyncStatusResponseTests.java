@@ -400,6 +400,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         assertEquals(successfulClusters, statusFromStoredSearch.getClusters().getSuccessful());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98706")
     public void testGetStatusFromStoredSearchWithNonEmptyClustersStillRunning() {
         String searchId = randomSearchId();
 

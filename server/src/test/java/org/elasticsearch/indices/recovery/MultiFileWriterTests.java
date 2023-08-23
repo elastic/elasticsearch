@@ -15,7 +15,7 @@ import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.store.Store;
@@ -104,7 +104,10 @@ public class MultiFileWriterTests extends IndexShardTestCase {
         CodecUtil.writeBELong(output, output.getChecksum());
         output.close();
 
-        return new FileAndMetadata(buffer.toArrayCopy(), new StoreFileMetadata(name, buffer.size(), checksum, Version.CURRENT.toString()));
+        return new FileAndMetadata(
+            buffer.toArrayCopy(),
+            new StoreFileMetadata(name, buffer.size(), checksum, IndexVersion.current().luceneVersion().toString())
+        );
     }
 
     private static StoreFileMetadata withWrongChecksum(StoreFileMetadata metadata) {

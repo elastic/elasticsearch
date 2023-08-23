@@ -1077,7 +1077,11 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         }
 
         // downsample was successful for this index, nothing else to have been executed here (still 4 witnessed reuqests as before)
-        affectedIndices = dataStreamLifecycleService.maybeExecuteDownsampling(clusterService.state(), dataStream, List.of(firstGenIndex));
+        affectedIndices = dataStreamLifecycleService.maybeExecuteDownsampling(
+            clusterService.state(),
+            dataStream,
+            List.of(downsampleMeta.getIndex())
+        );
         assertThat(affectedIndices, is(empty()));
         assertThat(clientSeenRequests.size(), is(4));
     }

@@ -475,7 +475,7 @@ public class XContentParserTests extends ESTestCase {
         }
     }
 
-    public void testFlatteringParserObject() throws IOException {
+    public void testFlatteningParserObject() throws IOException {
         String content = """
             {
               "parent": {
@@ -491,7 +491,7 @@ public class XContentParserTests extends ESTestCase {
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("parent", parser.currentName());
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-        XContentParser subParser = new FlatteringXContentParser(parser, parser.currentName());
+        XContentParser subParser = new FlatteningXContentParser(parser, parser.currentName());
         assertEquals(XContentParser.Token.FIELD_NAME, subParser.nextToken());
         assertEquals("parent.child1", subParser.currentName());
         assertEquals(XContentParser.Token.VALUE_NUMBER, subParser.nextToken());
@@ -499,7 +499,7 @@ public class XContentParserTests extends ESTestCase {
         String secondChildName = subParser.currentName();
         assertEquals("parent.child2", secondChildName);
         assertEquals(XContentParser.Token.START_OBJECT, subParser.nextToken());
-        XContentParser subSubParser = new FlatteringXContentParser(subParser, secondChildName);
+        XContentParser subSubParser = new FlatteningXContentParser(subParser, secondChildName);
         assertEquals(XContentParser.Token.FIELD_NAME, subSubParser.nextToken());
         assertEquals("parent.child2.grandChild", subSubParser.currentName());
         assertEquals(XContentParser.Token.VALUE_NUMBER, subSubParser.nextToken());

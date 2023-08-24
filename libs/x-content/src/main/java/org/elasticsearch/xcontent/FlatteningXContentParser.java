@@ -14,17 +14,17 @@ import java.io.IOException;
  * A subclass of XContentSubParser that provides the functionality to flatten
  * the field names by prefixing them with the provided parent name.
  */
-public class FlatteringXContentParser extends XContentSubParser {
+public class FlatteningXContentParser extends XContentSubParser {
     private final String parentName;
     private static final char DELIMITER = '.';
 
     /**
-     * Constructs a FlatteringXContentParser with the given parent name and wraps an existing XContentParser.
+     * Constructs a FlatteningXContentParser with the given parent name and wraps an existing XContentParser.
      *
      * @param parser The XContentParser to be wrapped and extended with flattening functionality.
      * @param parentName The parent name to be used as a prefix for immediate children.
      */
-    public FlatteringXContentParser(XContentParser parser, String parentName) {
+    public FlatteningXContentParser(XContentParser parser, String parentName) {
         super(parser);
         this.parentName = parentName;
     }

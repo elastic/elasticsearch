@@ -15,7 +15,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
-import org.elasticsearch.xcontent.FlatteringXContentParser;
+import org.elasticsearch.xcontent.FlatteningXContentParser;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -452,7 +452,7 @@ public abstract class DocumentParserContext {
      * @param fieldName   the name of the field to be flattened
      */
     public final DocumentParserContext createFlattenContext(String fieldName) {
-        XContentParser flatteningParser = new FlatteringXContentParser(parser(), fieldName);
+        XContentParser flatteningParser = new FlatteningXContentParser(parser(), fieldName);
         return new Wrapper(this.parent(), this) {
             @Override
             public XContentParser parser() {

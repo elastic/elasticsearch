@@ -82,7 +82,7 @@ public class Header {
         return allHeaders == null ? null : allHeaders.v1();
     }
 
-    public boolean needsToReadVariableHeader() {
+    boolean needsToReadVariableHeader() {
         return headers == null;
     }
 

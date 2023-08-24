@@ -35,14 +35,16 @@ public class InboundDecoder implements Releasable {
     private boolean isCompressed = false;
     private boolean isClosed = false;
     private final ByteSizeValue maxHeaderSize;
+    private final boolean acceptInboundResponses;
 
     public InboundDecoder(Recycler<BytesRef> recycler) {
-        this(recycler, new ByteSizeValue(2, ByteSizeUnit.GB));
+        this(recycler, new ByteSizeValue(2, ByteSizeUnit.GB), true);
     }
 
-    public InboundDecoder(Recycler<BytesRef> recycler, ByteSizeValue maxHeaderSize) {
+    public InboundDecoder(Recycler<BytesRef> recycler, ByteSizeValue maxHeaderSize, boolean acceptInboundResponses) {
         this.recycler = recycler;
         this.maxHeaderSize = maxHeaderSize;
+        this.acceptInboundResponses = acceptInboundResponses;
     }
 
     public int decode(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
@@ -70,7 +72,7 @@ public class InboundDecoder implements Releasable {
                 } else {
                     totalNetworkSize = messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
 
-                    Header header = readHeader(messageLength, reference);
+                    Header header = readHeader(messageLength, reference, acceptInboundResponses);
                     bytesConsumed += headerBytesToRead;
                     if (header.isCompressed()) {
                         isCompressed = true;
@@ -186,7 +188,7 @@ public class InboundDecoder implements Releasable {
         }
     }
 
-    private static Header readHeader(int networkMessageSize, BytesReference bytesReference) throws IOException {
+    private static Header readHeader(int networkMessageSize, BytesReference bytesReference, boolean acceptResponses) throws IOException {
         try (StreamInput streamInput = bytesReference.streamInput()) {
             streamInput.skip(TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
             long requestId = streamInput.readLong();
@@ -198,6 +200,9 @@ public class InboundDecoder implements Releasable {
                 checkHandshakeVersionCompatibility(header.getVersion());
             } else {
                 checkVersionCompatibility(header.getVersion());
+            }
+            if (acceptResponses == false && header.isResponse()) {
+                throw new IllegalArgumentException("this connection type does not accept inbound responses, closing");
             }
 
             if (header.getVersion().onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {

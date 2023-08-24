@@ -162,15 +162,15 @@ public class SecurityNetty4Transport extends Netty4Transport {
             getStatsTracker(),
             threadPool::relativeTimeInMillis,
             isRemoteClusterServerChannel
-                ? new InboundDecoder(recycler, RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.get(settings))
+                ? new InboundDecoder(recycler, RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.get(settings), false)
                 : new InboundDecoder(recycler),
             new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
             this::inboundMessage
         ) {
             @Override
             protected void headerReceived(Header header) {
-                if (isRemoteClusterServerChannel && header.isRequest() && header.isHandshake() == false) {
-                    assert header.needsToReadVariableHeader() == false;
+                if (isRemoteClusterServerChannel && header.isHandshake() == false) {
+                    assert header.isRequest();
                     // start authn asynchronously
                     // TODO maybe stash the thread context
                     crossClusterAccessAuthenticationService.tryAuthenticate(header.getRequestHeaders(), ActionListener.wrap(aVoid -> {

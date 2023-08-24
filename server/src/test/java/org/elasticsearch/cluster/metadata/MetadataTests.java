@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigE
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -2238,6 +2239,40 @@ public class MetadataTests extends ESTestCase {
             .filter(n -> (checkedForGlobalStateChanges.contains(n) || excludedFromGlobalStateCheck.contains(n)) == false)
             .collect(Collectors.toSet());
         assertThat(unclassifiedFields, empty());
+    }
+
+    public void testIsTimeSeriesTemplate() throws IOException {
+        var template = new Template(Settings.builder().put("index.mode", "time_series").build(), new CompressedXContent("{}"), null);
+        // Settings in component template:
+        {
+            var componentTemplate = new ComponentTemplate(template, null, null);
+            var indexTemplate = new ComposableIndexTemplate(
+                List.of("test-*"),
+                null,
+                List.of("component_template_1"),
+                null,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate()
+            );
+            Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
+            assertThat(m.isTimeSeriesTemplate(indexTemplate), is(true));
+        }
+        // Settings in composable index template:
+        {
+            var componentTemplate = new ComponentTemplate(new Template(null, null, null), null, null);
+            var indexTemplate = new ComposableIndexTemplate(
+                List.of("test-*"),
+                template,
+                List.of("component_template_1"),
+                null,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate()
+            );
+            Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
+            assertThat(m.isTimeSeriesTemplate(indexTemplate), is(true));
+        }
     }
 
     public static Metadata randomMetadata() {

@@ -223,6 +223,94 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
         assertTsdbDataStream();
     }
 
+    public void testTsbdDataStreamComponentTemplateWithAllSettingsAndMappings() throws Exception {
+        // Different component and index template. All settings and mapping are in component template.
+        final String COMPONENT_TEMPLATE_WITH_SETTINGS_AND_MAPPINGS = """
+        {
+            "template": {
+                "settings":{
+                    "index": {
+                        "mode": "time_series",
+                        "routing_path": ["metricset", "k8s.pod.uid"]
+                    }
+                },
+                "mappings":{
+                    "dynamic_templates": [
+                        {
+                            "labels": {
+                                "path_match": "pod.labels.*",
+                                "mapping": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        }
+                    ],
+                    "properties": {
+                        "@timestamp" : {
+                            "type": "date"
+                        },
+                        "metricset": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        },
+                        "k8s": {
+                            "properties": {
+                                "pod": {
+                                    "properties": {
+                                        "uid": {
+                                            "type": "keyword",
+                                            "time_series_dimension": true
+                                        },
+                                        "name": {
+                                            "type": "keyword"
+                                        },
+                                        "ip": {
+                                            "type": "ip"
+                                        },
+                                        "network": {
+                                            "properties": {
+                                                "tx": {
+                                                    "type": "long"
+                                                },
+                                                "rx": {
+                                                    "type": "long"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """;
+        final String DELEGATE_TEMPLATE = """
+        {
+            "index_patterns": ["k8s*"],
+            "composed_of": ["custom_template"],
+            "data_stream": {
+            }
+        }""";
+
+        // Delete and add new the templates:
+        var deleteRequest = new Request("DELETE", "/_index_template/1");
+        assertOK(client().performRequest(deleteRequest));
+        deleteRequest = new Request("DELETE", "/_component_template/custom_template");
+        assertOK(client().performRequest(deleteRequest));
+        var request = new Request("POST", "/_component_template/custom_template");
+        request.setJsonEntity(COMPONENT_TEMPLATE_WITH_SETTINGS_AND_MAPPINGS);
+        assertOK(client().performRequest(request));
+        request = new Request("POST", "/_index_template/1");
+        request.setJsonEntity(DELEGATE_TEMPLATE);
+        assertOK(client().performRequest(request));
+
+        // Ensure everything behaves the same, regardless of the fact that all settings and mappings are in component template:
+        assertTsdbDataStream();
+    }
+
     private void assertTsdbDataStream() throws IOException {
         var bulkRequest = new Request("POST", "/k8s/_bulk");
         bulkRequest.setJsonEntity(BULK.replace("$now", formatInstantNanos(Instant.now())));

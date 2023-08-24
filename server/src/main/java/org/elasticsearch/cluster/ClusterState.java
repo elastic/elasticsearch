@@ -142,6 +142,25 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             }
         };
 
+    // TODO[wrb]: mappings versions serializer?
+    private static final DiffableUtils.ValueSerializer<
+        String,
+        Map<String, SystemIndexDescriptor.MappingsVersion>> SYSTEM_INDEX_MAPPINGS_VERSION_SERIALIZER =
+            new DiffableUtils.NonDiffableValueSerializer<>() {
+                @Override
+                public void write(Map<String, SystemIndexDescriptor.MappingsVersion> value, StreamOutput out) throws IOException {
+                    out.writeMap(value, StreamOutput::writeString, (o, v) -> {
+                        out.writeInt(v.version());
+                        out.writeInt(v.hash());
+                    });
+                }
+
+                @Override
+                public Map<String, SystemIndexDescriptor.MappingsVersion> read(StreamInput in, String key) throws IOException {
+                    return in.readMap(StreamInput::readString, i -> new SystemIndexDescriptor.MappingsVersion(i.readInt(), i.readInt()));
+                }
+            };
+
     public static final String UNKNOWN_UUID = "_na_";
 
     public static final long UNKNOWN_VERSION = -1;
@@ -1037,6 +1056,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         @Nullable
         private final Diff<Map<String, TransportVersion>> transportVersions;
+        private final Diff<Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>>> systemIndexMappingsVersions;
 
         private final Diff<Metadata> metadata;
 
@@ -1056,6 +1076,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 after.transportVersions,
                 DiffableUtils.getStringKeySerializer(),
                 TRANSPORT_VERSION_VALUE_SERIALIZER
+            );
+            systemIndexMappingsVersions = DiffableUtils.diff(
+                before.systemIndexMappingsVersions,
+                after.systemIndexMappingsVersions,
+                DiffableUtils.getStringKeySerializer(),
+                SYSTEM_INDEX_MAPPINGS_VERSION_SERIALIZER
             );
             metadata = after.metadata.diff(before.metadata);
             blocks = after.blocks.diff(before.blocks);
@@ -1078,6 +1104,15 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             } else {
                 transportVersions = null;   // infer at application time
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersion.current())) {
+                systemIndexMappingsVersions = DiffableUtils.readJdkMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    SYSTEM_INDEX_MAPPINGS_VERSION_SERIALIZER
+                );
+            } else {
+                systemIndexMappingsVersions = DiffableUtils.emptyDiff();
+            }
             metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
             customs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
@@ -1096,6 +1131,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             nodes.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
                 out.writeOptionalWriteable(transportVersions);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersion.current())) {
+                out.writeWriteable(systemIndexMappingsVersions);
             }
             metadata.writeTo(out);
             blocks.writeTo(out);
@@ -1124,6 +1162,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             } else {
                 // infer the versions from discoverynodes for now
                 builder.nodes().getNodes().values().forEach(n -> builder.putTransportVersion(n.getId(), inferTransportVersion(n)));
+            }
+            if (systemIndexMappingsVersions != null) {
+                builder.systemIndexMappingsVersions(systemIndexMappingsVersions.apply(state.systemIndexMappingsVersions));
+            } else {
+                builder.systemIndexMappingsVersions(Map.of());
             }
             builder.metadata(metadata.apply(state.metadata));
             builder.blocks(blocks.apply(state.blocks));

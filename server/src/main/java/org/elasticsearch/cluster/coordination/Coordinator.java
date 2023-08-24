@@ -184,6 +184,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private final NodeHealthService nodeHealthService;
     private final List<PeerFinderListener> peerFinderListeners;
     private final LeaderHeartbeatService leaderHeartbeatService;
+    private final SystemIndices systemIndices;
 
     /**
      * @param nodeName         The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the
@@ -319,6 +320,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.peerFinderListeners = new CopyOnWriteArrayList<>();
         this.peerFinderListeners.add(clusterBootstrapService);
         this.leaderHeartbeatService = leaderHeartbeatService;
+        this.systemIndices = systemIndices;
     }
 
     /**
@@ -1072,6 +1074,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 )
                 .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
                 .putTransportVersion(getLocalNode().getId(), TransportVersion.current())
+                .putSystemIndexMappingsVersions(getLocalNode().getId(), systemIndices.getMappingsVersions())
                 .metadata(metadata)
                 .build();
             applierState = initialState;

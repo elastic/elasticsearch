@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -217,7 +218,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
         final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("node1").roles(Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)).build();
 
-        final ClusterState updatedState = setLocalNode(initialState, localNode, TransportVersion.current());
+        final ClusterState updatedState = setLocalNode(initialState, localNode, TransportVersion.current(), EmptySystemIndices.INSTANCE);
 
         assertMetadataEquals(initialState, updatedState);
         assertThat(updatedState.nodes().getLocalNode(), equalTo(localNode));
@@ -261,7 +262,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
             .build();
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("node1").roles(Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)).build();
         final ClusterState updatedState = Function.<ClusterState>identity()
-            .andThen(state -> setLocalNode(state, localNode, TransportVersion.current()))
+            .andThen(state -> setLocalNode(state, localNode, TransportVersion.current(), EmptySystemIndices.INSTANCE))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .apply(initialState);
 

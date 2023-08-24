@@ -1483,7 +1483,8 @@ public class Node implements Closeable {
             injector.getInstance(IndexMetadataVerifier.class),
             injector.getInstance(MetadataUpgrader.class),
             injector.getInstance(PersistedClusterStateService.class),
-            pluginsService.filterPlugins(ClusterCoordinationPlugin.class)
+            pluginsService.filterPlugins(ClusterCoordinationPlugin.class),
+            injector.getInstance(SystemIndices.class)
         );
         // TODO: Do not expect that the legacy metadata file is always present https://github.com/elastic/elasticsearch/issues/95211
         if (Assertions.ENABLED && DiscoveryNode.isStateless(settings()) == false) {

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.indices.SystemIndices;
 
 import java.util.Map;
 
@@ -29,10 +30,16 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 public class ClusterStateUpdaters {
     private static final Logger logger = LogManager.getLogger(ClusterStateUpdaters.class);
 
-    public static ClusterState setLocalNode(ClusterState clusterState, DiscoveryNode localNode, TransportVersion transportVersion) {
+    public static ClusterState setLocalNode(
+        ClusterState clusterState,
+        DiscoveryNode localNode,
+        TransportVersion transportVersion,
+        SystemIndices systemIndices
+    ) {
         return ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
             .putTransportVersion(localNode.getId(), transportVersion)
+            .putSystemIndexMappingsVersions(localNode.getId(), systemIndices.getMappingsVersions())
             .build();
     }
 

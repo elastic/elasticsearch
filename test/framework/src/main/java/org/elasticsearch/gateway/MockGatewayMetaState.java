@@ -19,6 +19,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -50,9 +52,14 @@ public class MockGatewayMetaState extends GatewayMetaState {
     }
 
     @Override
-    ClusterState prepareInitialClusterState(TransportService transportService, ClusterService clusterService, ClusterState clusterState) {
+    ClusterState prepareInitialClusterState(
+        TransportService transportService,
+        ClusterService clusterService,
+        ClusterState clusterState,
+        SystemIndices systemIndices
+    ) {
         // Just set localNode here, not to mess with ClusterService and IndicesService mocking
-        return ClusterStateUpdaters.setLocalNode(clusterState, localNode, TransportVersion.current());
+        return ClusterStateUpdaters.setLocalNode(clusterState, localNode, TransportVersion.current(), systemIndices);
     }
 
     public void start(Settings settings, NodeEnvironment nodeEnvironment, NamedXContentRegistry xContentRegistry) {
@@ -81,7 +88,8 @@ public class MockGatewayMetaState extends GatewayMetaState {
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L
             ),
-            List.of()
+            List.of(),
+            EmptySystemIndices.INSTANCE
         );
     }
 }

@@ -163,7 +163,7 @@ public class GatewayMetaStateTests extends ESTestCase {
             assertThat(
                 expectThrows(
                     IllegalStateException.class,
-                    () -> gatewayMetaState.start(null, null, null, null, null, null, null, List.of(duplicatePlugin, duplicatePlugin))
+                    () -> gatewayMetaState.start(null, null, null, null, null, null, null, List.of(duplicatePlugin, duplicatePlugin), null)
                 ).getMessage(),
                 containsString("multiple persisted-state factories")
             );
@@ -173,7 +173,7 @@ public class GatewayMetaStateTests extends ESTestCase {
                 public Optional<PersistedStateFactory> getPersistedStateFactory() {
                     return Optional.of((settings, transportService, persistedClusterStateService) -> testPersistedState);
                 }
-            }));
+            }), null);
             assertSame(testPersistedState, gatewayMetaState.getPersistedState());
         }
     }

@@ -36,6 +36,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -97,7 +98,8 @@ public class GatewayMetaState implements Closeable {
         IndexMetadataVerifier indexMetadataVerifier,
         MetadataUpgrader metadataUpgrader,
         PersistedClusterStateService persistedClusterStateService,
-        List<ClusterCoordinationPlugin> clusterCoordinationPlugins
+        List<ClusterCoordinationPlugin> clusterCoordinationPlugins,
+        SystemIndices systemIndices
     ) {
         assert persistedState.get() == null : "should only start once, but already have " + persistedState.get();
         try {
@@ -110,7 +112,8 @@ public class GatewayMetaState implements Closeable {
                     indexMetadataVerifier,
                     metadataUpgrader,
                     persistedClusterStateService,
-                    clusterCoordinationPlugins
+                    clusterCoordinationPlugins,
+                    systemIndices
                 )
             );
         } catch (IOException e) {
@@ -126,7 +129,8 @@ public class GatewayMetaState implements Closeable {
         IndexMetadataVerifier indexMetadataVerifier,
         MetadataUpgrader metadataUpgrader,
         PersistedClusterStateService persistedClusterStateService,
-        List<ClusterCoordinationPlugin> clusterCoordinationPlugins
+        List<ClusterCoordinationPlugin> clusterCoordinationPlugins,
+        SystemIndices systemIndices
     ) throws IOException {
         final var persistedStateFactories = clusterCoordinationPlugins.stream()
             .map(ClusterCoordinationPlugin::getPersistedStateFactory)
@@ -149,11 +153,19 @@ public class GatewayMetaState implements Closeable {
                 metaStateService,
                 indexMetadataVerifier,
                 metadataUpgrader,
-                persistedClusterStateService
+                persistedClusterStateService,
+                systemIndices
             );
         }
 
-        return createInMemoryPersistedState(settings, transportService, clusterService, metaStateService, persistedClusterStateService);
+        return createInMemoryPersistedState(
+            settings,
+            transportService,
+            clusterService,
+            metaStateService,
+            persistedClusterStateService,
+            systemIndices
+        );
     }
 
     private PersistedState createOnDiskPersistedState(
@@ -163,7 +175,8 @@ public class GatewayMetaState implements Closeable {
         MetaStateService metaStateService,
         IndexMetadataVerifier indexMetadataVerifier,
         MetadataUpgrader metadataUpgrader,
-        PersistedClusterStateService persistedClusterStateService
+        PersistedClusterStateService persistedClusterStateService,
+        SystemIndices systemIndices
     ) throws IOException {
         final PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState();
 
@@ -190,7 +203,8 @@ public class GatewayMetaState implements Closeable {
                 ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                     .version(lastAcceptedVersion)
                     .metadata(upgradeMetadataForNode(metadata, indexMetadataVerifier, metadataUpgrader))
-                    .build()
+                    .build(),
+                systemIndices
             );
             if (DiscoveryNode.isMasterNode(settings)) {
                 persistedState = new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState);
@@ -226,13 +240,15 @@ public class GatewayMetaState implements Closeable {
         TransportService transportService,
         ClusterService clusterService,
         MetaStateService metaStateService,
-        PersistedClusterStateService persistedClusterStateService
+        PersistedClusterStateService persistedClusterStateService,
+        SystemIndices systemIndices
     ) throws IOException {
         final long currentTerm = 0L;
         final ClusterState clusterState = prepareInitialClusterState(
             transportService,
             clusterService,
-            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings)).build()
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings)).build(),
+            systemIndices
         );
         if (persistedClusterStateService.getDataPaths().length > 0) {
             // write empty cluster state just so that we have a persistent node id. There is no need to write out global metadata with
@@ -252,12 +268,24 @@ public class GatewayMetaState implements Closeable {
     }
 
     // exposed so it can be overridden by tests
-    ClusterState prepareInitialClusterState(TransportService transportService, ClusterService clusterService, ClusterState clusterState) {
+    ClusterState prepareInitialClusterState(
+        TransportService transportService,
+        ClusterService clusterService,
+        ClusterState clusterState,
+        SystemIndices systemIndices
+    ) {
         assert clusterState.nodes().getLocalNode() == null : "prepareInitialClusterState must only be called once";
         assert transportService.getLocalNode() != null : "transport service is not yet started";
         return Function.<ClusterState>identity()
             .andThen(ClusterStateUpdaters::addStateNotRecoveredBlock)
-            .andThen(state -> ClusterStateUpdaters.setLocalNode(state, transportService.getLocalNode(), TransportVersion.current()))
+            .andThen(
+                state -> ClusterStateUpdaters.setLocalNode(
+                    state,
+                    transportService.getLocalNode(),
+                    TransportVersion.current(),
+                    systemIndices
+                )
+            )
             .andThen(state -> ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterService.getClusterSettings()))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .apply(clusterState);

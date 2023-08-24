@@ -563,7 +563,8 @@ public final class DocumentParser {
                     // );
                 }
 
-            } else if (context.dynamic() != ObjectMapper.Dynamic.RUNTIME) {
+            }
+            if (context.dynamic() != ObjectMapper.Dynamic.RUNTIME) {
                 context.addDynamicMapper(dynamicObjectMapper);
             }
             if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {

@@ -265,6 +265,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     // default visibility for testing purposes
     void run(ClusterState state) {
+        int affectedIndices = 0;
+        int affectedDataStreams = 0;
         for (DataStream dataStream : state.metadata().dataStreams().values()) {
             clearErrorStoreForUnmanagedIndices(dataStream);
             if (dataStream.getLifecycle() == null) {
@@ -333,11 +335,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
 
             try {
-                maybeExecuteDownsampling(
+                indicesToExcludeForRemainingRun.addAll(maybeExecuteDownsampling(
                     state,
                     dataStream,
                     getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata()::index)
-                );
+                ));
             } catch (Exception e) {
                 logger.error(
                     () -> String.format(
@@ -348,7 +350,15 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     e
                 );
             }
+
+            affectedIndices += indicesToExcludeForRemainingRun.size();
+            affectedDataStreams++;
         }
+        logger.trace(
+            "Data stream lifecycle service performed operations on [{}] indices, part of [{}] data streams",
+            affectedIndices,
+            affectedDataStreams
+        );
     }
 
     /**
@@ -409,6 +419,16 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             // downsampling
                             deleteIndexOnce(backingIndexDownsamplingSource, "replacement with its downsampled index in the data stream");
                         }
+                    } else {
+                        logger.trace(
+                            "Data stream lifecycle encountered managed index [{}] as part of data stream [{}] which was "
+                                + "downsampled from source [{} ]. This index was manually downsampled but data stream lifecycle service "
+                                + "only supports downsampled indices through the data stream lifecycle. This index will be ignored from "
+                                + "lifecycle donwsampling",
+                            indexName,
+                            dataStream,
+                            backingIndexDownsamplingSource
+                        );
                     }
                 }
 
@@ -418,7 +438,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 // - is read-only
                 // So let's wait for an in-progress downsampling operation to succeed or trigger the last matching round
                 affectedIndices.addAll(
-                    checkEarlyRoundsForMaintenanceOrDownsampleLastRound(dataStream, backingIndexMeta, downsamplingRounds, metadata)
+                    waitForInProgressOrTriggerDownsampling(dataStream, backingIndexMeta, downsamplingRounds, metadata)
                 );
             }
         }
@@ -430,7 +450,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Iterate over the matching downsampling rounds for the backing index (if any) and either wait for an early round to complete,
      * add an early completed downsampling round to the data stream, or otherwise trigger the last matching downsampling round.
      */
-    private Set<Index> checkEarlyRoundsForMaintenanceOrDownsampleLastRound(
+    private Set<Index> waitForInProgressOrTriggerDownsampling(
         DataStream dataStream,
         IndexMetadata backingIndex,
         List<DataStreamLifecycle.Downsampling.Round> downsamplingRounds,
@@ -477,6 +497,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 } else if (downsampleStatus.equals(STARTED)) {
                     // we'll wait for this round to complete
                     // TODO add support for cancelling a current in-progress operation if another, later, round matches
+                    logger.trace(
+                        "Data stream lifecycle service waits for index [{}] to be downsampled. Current status is [{}] and the "
+                            + "downsample index name is [{}]",
+                        indexName,
+                        STARTED,
+                        downsampleIndexName
+                    );
                     affectedIndices.add(index);
                     break;
                 } else if (downsampleStatus.equals(SUCCESS)
@@ -512,10 +539,19 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         clusterStateChangesDeduplicator.executeOnce(
             new ReplaceSourceWithDownsampleIndexTask(dataStream.getName(), backingIndexName, downsampleIndexName, null),
             new ErrorRecordingActionListener(backingIndexName, errorStore),
-            (req, reqListener) -> replaceSourceWithDownsampleIndexAndDeleteSource(
-                new ReplaceSourceWithDownsampleIndexTask(dataStream.getName(), backingIndexName, downsampleIndexName, reqListener),
-                reqListener
-            )
+            (req, reqListener) -> {
+                logger.trace(
+                    "Data stream lifecycle issues request to replace index [{}] with index [{}] in data stream [{}]",
+                    backingIndexName,
+                    downsampleIndexName,
+                    dataStream
+                );
+                swapSourceWithDownsampleIndexQueue.submitTask(
+                    "data-stream-lifecycle-replace-source[" + backingIndexName + "]-with-[" + downsampleIndexName + "]",
+                    new ReplaceSourceWithDownsampleIndexTask(dataStream.getName(), backingIndexName, downsampleIndexName, reqListener),
+                    null
+                );
+            }
         );
     }
 
@@ -787,20 +823,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 listener.onFailure(e);
             }
         });
-    }
-
-    private void replaceSourceWithDownsampleIndexAndDeleteSource(ReplaceSourceWithDownsampleIndexTask task, ActionListener<Void> listener) {
-        logger.trace(
-            "Data stream lifecycle issues request to replace index [{}] with index [{}] in data stream [{}]",
-            task.getSourceBackingIndex(),
-            task.getDownsampleIndex(),
-            task.getDataStreamName()
-        );
-        swapSourceWithDownsampleIndexQueue.submitTask(
-            "data-stream-lifecycle-replace-source[" + task.getSourceBackingIndex() + "]-with-[" + task.getDownsampleIndex() + "]",
-            task,
-            null
-        );
     }
 
     private void deleteIndex(DeleteIndexRequest deleteIndexRequest, String reason, ActionListener<Void> listener) {

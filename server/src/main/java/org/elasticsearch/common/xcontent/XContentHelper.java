@@ -509,7 +509,10 @@ public class XContentHelper {
                         first.put(toMergeEntry.getKey(), mergedList);
                     }
                 } else if (customMerge != null) {
-                    first.put(toMergeEntry.getKey(), customMerge.merge(parent, toMergeEntry.getKey(), baseValue, toMergeEntry.getValue()));
+                    Object mergedValue = customMerge.merge(parent, toMergeEntry.getKey(), baseValue, toMergeEntry.getValue());
+                    if (mergedValue != null) {
+                        first.put(toMergeEntry.getKey(), mergedValue);
+                    }
                 }
             }
         }
@@ -534,13 +537,23 @@ public class XContentHelper {
     public interface CustomMerge {
         /**
          * Based on the provided arguments, compute a value to use for the given key as a merge result.
+         * If this method returns a non-{@code null} value, then the merge result will replace the original value of the provided key in
+         * the base map.
+         * If this method returns {@code null}, then:
+         * <ul>
+         *     <li> if the values are of map types, the old and new values will be merged recursively
+         *     <li> otherwise, the original value will be maintained
+         * </ul>
          * This method doesn't throw a checked exception, but it is expected that illegal merges will result in a {@link RuntimeException}.
          * @param parent merged field's parent
          * @param key merged field's name
          * @param oldValue original value of the provided key
          * @param newValue the new value of the provided key which is to be merged with the original
-         * @return the merged value to use for the given key, or {@code null} if there is no custom merge required for it
+         * @return the merged value to use for the given key, or {@code null} if there is no custom merge result for it. If {@code null}
+         * is returned, the algorithm will live the original value as is, unless it is a map, in which case the new map will be merged
+         * into the old map recursively.
          */
+        @Nullable
         Object merge(String parent, String key, Object oldValue, Object newValue);
     }
 

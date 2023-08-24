@@ -79,7 +79,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.STARTED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.SUCCESS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.UNKNOWN;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DOWNSAMPLE_STATUS;
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
 import static org.elasticsearch.datastreams.lifecycle.downsampling.ReplaceSourceWithDownsampleIndexTask.REPLACEMENT_SOURCE_INDEX;
@@ -335,11 +334,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
 
             try {
-                indicesToExcludeForRemainingRun.addAll(maybeExecuteDownsampling(
-                    state,
-                    dataStream,
-                    getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata()::index)
-                ));
+                indicesToExcludeForRemainingRun.addAll(
+                    maybeExecuteDownsampling(
+                        state,
+                        dataStream,
+                        getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata()::index)
+                    )
+                );
             } catch (Exception e) {
                 logger.error(
                     () -> String.format(
@@ -437,9 +438,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 // - has matching downsample rounds
                 // - is read-only
                 // So let's wait for an in-progress downsampling operation to succeed or trigger the last matching round
-                affectedIndices.addAll(
-                    waitForInProgressOrTriggerDownsampling(dataStream, backingIndexMeta, downsamplingRounds, metadata)
-                );
+                affectedIndices.addAll(waitForInProgressOrTriggerDownsampling(dataStream, backingIndexMeta, downsamplingRounds, metadata));
             }
         }
 
@@ -449,6 +448,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     /**
      * Iterate over the matching downsampling rounds for the backing index (if any) and either wait for an early round to complete,
      * add an early completed downsampling round to the data stream, or otherwise trigger the last matching downsampling round.
+     *
+     * Returns the indices for which we triggered an action/operation.
      */
     private Set<Index> waitForInProgressOrTriggerDownsampling(
         DataStream dataStream,
@@ -475,46 +476,18 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             boolean targetDownsampleIndexExists = targetDownsampleIndexMeta != null;
 
             if (targetDownsampleIndexExists) {
-                IndexMetadata.DownsampleTaskStatus downsampleStatus = INDEX_DOWNSAMPLE_STATUS.get(targetDownsampleIndexMeta.getSettings());
-                if (downsampleStatus.equals(UNKNOWN) && round.equals(lastRound)) {
-                    // target downsampling index exists and is not a downsampling index (name clash?)
-                    // we fail now but perhaps we should just randomise the name?
-                    String previousError = errorStore.getError(indexName);
-
-                    errorStore.recordError(indexName, new ResourceAlreadyExistsException(targetDownsampleIndexMeta.getIndex().getName()));
-                    // To avoid spamming our logs, we only want to log the error once.
-                    if (previousError == null || previousError.equals(errorStore.getError(indexName)) == false) {
-                        logger.error(
-                            "Data stream lifecycle service is unable to downsample backing index [{}] for data stream [{}] and "
-                                + "donwsampling round [{}] because the target downsample index [{}] already exists",
-                            indexName,
-                            dataStream.getName(),
-                            round,
-                            downsampleIndexName
-                        );
-                    }
+                Set<Index> downsamplingNotComplete = evaluateDownsampleStatus(
+                    dataStream,
+                    INDEX_DOWNSAMPLE_STATUS.get(targetDownsampleIndexMeta.getSettings()),
+                    round,
+                    lastRound,
+                    index,
+                    targetDownsampleIndexMeta.getIndex()
+                );
+                if (downsamplingNotComplete.isEmpty() == false) {
+                    affectedIndices.addAll(downsamplingNotComplete);
                     break;
-                } else if (downsampleStatus.equals(STARTED)) {
-                    // we'll wait for this round to complete
-                    // TODO add support for cancelling a current in-progress operation if another, later, round matches
-                    logger.trace(
-                        "Data stream lifecycle service waits for index [{}] to be downsampled. Current status is [{}] and the "
-                            + "downsample index name is [{}]",
-                        indexName,
-                        STARTED,
-                        downsampleIndexName
-                    );
-                    affectedIndices.add(index);
-                    break;
-                } else if (downsampleStatus.equals(SUCCESS)
-                    && dataStream.getIndices().contains(targetDownsampleIndexMeta.getIndex()) == false) {
-                        // at this point the source index is part of the data stream and the downsample index is complete but not
-                        // part of the data stream. we need to replace the source index with the downsample index in the data stream
-                        // and delete the source index.
-                        affectedIndices.add(index);
-                        replaceBackingIndexWithDownsampleIndexOnce(dataStream, indexName, downsampleIndexName);
-                        break;
-                    }
+                }
             } else {
                 if (round.equals(lastRound)) {
                     // no maintenance needed for previously started downsampling actions and we are on the last matching round so it's time
@@ -530,6 +503,69 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
         }
         return affectedIndices;
+    }
+
+    /**
+     * Checks the status of the downsampling operations for the provided backing index and its corresponding downsample index.
+     * Depending on the status, we'll either error (if it's UNKNOWN and we've reached the last round), wait for it to complete (if it's
+     * STARTED), or replace the backing index with the downsample index in the data stream (if the status is SUCCESS).
+     */
+    private Set<Index> evaluateDownsampleStatus(
+        DataStream dataStream,
+        IndexMetadata.DownsampleTaskStatus downsampleStatus,
+        DataStreamLifecycle.Downsampling.Round currentRound,
+        DataStreamLifecycle.Downsampling.Round lastRound,
+        Index backingIndex,
+        Index downsampleIndex
+    ) {
+        Set<Index> affectedIndices = new HashSet<>();
+        String indexName = backingIndex.getName();
+        String downsampleIndexName = downsampleIndex.getName();
+        return switch (downsampleStatus) {
+            case UNKNOWN -> {
+                if (currentRound.equals(lastRound)) {
+                    // target downsampling index exists and is not a downsampling index (name clash?)
+                    // we fail now but perhaps we should just randomise the name?
+                    String previousError = errorStore.getError(indexName);
+
+                    errorStore.recordError(indexName, new ResourceAlreadyExistsException(downsampleIndexName));
+                    // To avoid spamming our logs, we only want to log the error once.
+                    if (previousError == null || previousError.equals(errorStore.getError(indexName)) == false) {
+                        logger.error(
+                            "Data stream lifecycle service is unable to downsample backing index [{}] for data stream [{}] and "
+                                + "donwsampling round [{}] because the target downsample index [{}] already exists",
+                            indexName,
+                            dataStream.getName(),
+                            currentRound,
+                            downsampleIndexName
+                        );
+                    }
+                }
+                yield affectedIndices;
+            }
+            case STARTED -> {
+                // we'll wait for this round to complete
+                // TODO add support for cancelling a current in-progress operation if another, later, round matches
+                logger.trace(
+                    "Data stream lifecycle service waits for index [{}] to be downsampled. Current status is [{}] and the "
+                        + "downsample index name is [{}]",
+                    indexName,
+                    STARTED,
+                    downsampleIndexName
+                );
+                affectedIndices.add(backingIndex);
+                yield affectedIndices;
+            }
+            case SUCCESS -> {
+                if (dataStream.getIndices().contains(downsampleIndex) == false) {
+                    // at this point the source index is part of the data stream and the downsample index is complete but not
+                    // part of the data stream. we need to replace the source index with the downsample index in the data stream
+                    affectedIndices.add(backingIndex);
+                    replaceBackingIndexWithDownsampleIndexOnce(dataStream, indexName, downsampleIndexName);
+                }
+                yield affectedIndices;
+            }
+        };
     }
 
     /**

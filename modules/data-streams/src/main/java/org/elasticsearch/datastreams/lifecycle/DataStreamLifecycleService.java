@@ -395,21 +395,20 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 && backingIndexDownsamplingStatus.equals(SUCCESS)) {
                     // if the backing index is a downsample index itself, let's check if its source index still exists as we must delete it
                     Map<String, String> lifecycleMetadata = backingIndex.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
-                    if (lifecycleMetadata == null || lifecycleMetadata.containsKey(REPLACEMENT_SOURCE_INDEX) == false) {
-                        // this is a downsampling index that was not added by data stream lifecycle in this data stream
-                        // TODO document that we don't handle downsample indices that were added to the data stream manually (because we
-                        // TODO currently can't reliably identify the source index to delete when multiple rounds of donwsampling are
-                        // TODO involved unless DSL stores the needed metadata in the index metadata)
-                        continue;
-                    }
-                    String actualDownsamplingSource = lifecycleMetadata.get(REPLACEMENT_SOURCE_INDEX);
-                    IndexMetadata downsampleSourceIndex = metadata.index(actualDownsamplingSource);
-                    if (downsampleSourceIndex != null) {
-                        affectedIndices.add(downsampleSourceIndex.getIndex());
-                        // delete downsampling source index (that's not part of the data stream anymore) before doing any more
-                        // downsampling
-                        deleteIndexOnce(backingIndexDownsamplingSource, "replacement with its downsampled index in the data stream");
-                        continue;
+
+                    // TODO document that we don't handle downsample indices that were added to the data stream manually (because we
+                    // TODO currently can't reliably identify the source index to delete when multiple rounds of donwsampling are
+                    // TODO involved unless DSL stores the needed metadata in the index metadata)
+                    if (lifecycleMetadata != null && lifecycleMetadata.containsKey(REPLACEMENT_SOURCE_INDEX)) {
+                        String actualDownsamplingSource = lifecycleMetadata.get(REPLACEMENT_SOURCE_INDEX);
+                        IndexMetadata downsampleSourceIndex = metadata.index(actualDownsamplingSource);
+                        if (downsampleSourceIndex != null) {
+                            affectedIndices.add(downsampleSourceIndex.getIndex());
+                            // delete downsampling source index (that's not part of the data stream anymore) before doing any more
+                            // downsampling
+                            deleteIndexOnce(backingIndexDownsamplingSource, "replacement with its downsampled index in the data stream");
+                            continue;
+                        }
                     }
                 }
 

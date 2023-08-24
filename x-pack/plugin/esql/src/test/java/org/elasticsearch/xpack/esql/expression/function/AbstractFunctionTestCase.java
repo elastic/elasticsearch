@@ -16,6 +16,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -540,6 +542,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     /**
      * Adds cases with {@code null} and asserts that the result is {@code null}.
+     * <p>
+     *     Note: This won't add more than a single null to any existing test case,
+     *     just to keep the number of test cases from exploding totally.
+     * </p>
+     * @param  entirelyNullPreservesType should a test case that only contains parameters
+     *                                   with the {@code null} type keep it's expected type?
+     *                                   This is <strong>mostly</strong> going to be {@code true}
+     *                                   except for functions that base their type entirely
+     *                                   on input types like {@link Greatest} or {@link Coalesce}.
      */
     protected static List<TestCaseSupplier> anyNullIsNull(boolean entirelyNullPreservesType, List<TestCaseSupplier> testCaseSuppliers) {
         for (TestCaseSupplier s : testCaseSuppliers) {

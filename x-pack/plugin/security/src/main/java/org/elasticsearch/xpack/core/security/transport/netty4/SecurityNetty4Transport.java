@@ -160,39 +160,44 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     @Override
     protected InboundPipeline getInboundPipeline(boolean isRemoteClusterServerChannel) {
-        return new InboundPipeline(
-            getStatsTracker(),
-            threadPool::relativeTimeInMillis,
-            isRemoteClusterServerChannel
-                ? new InboundDecoder(recycler, RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.get(settings), false)
-                : new InboundDecoder(recycler),
-            new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
-            this::inboundMessage
-        ) {
-            @Override
-            protected void headerReceived(TcpChannel channel, Header header) {
-                if (isRemoteClusterServerChannel && header.isHandshake() == false) {
-                    // eagerly (before buffering the full request) authenticate all request headers for this type of channel
-                    assert header.isRequest();
-                    // authn is mostly async, avoid buffering anymore data while authn is in progress
-                    boolean isNettyChannel = channel instanceof Netty4TcpChannel;
-                    if (isNettyChannel) {
-                        ((Netty4TcpChannel) channel).getNettyChannel().config().setAutoRead(false);
+        if (false == isRemoteClusterServerChannel) {
+            return super.getInboundPipeline(false);
+        } else {
+            return new InboundPipeline(
+                getStatsTracker(),
+                threadPool::relativeTimeInMillis,
+                new InboundDecoder(recycler, RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.get(settings), false),
+                new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
+                this::inboundMessage
+            ) {
+                @Override
+                protected void headerReceived(TcpChannel channel, Header header) {
+                    if (header.isHandshake() == false) {
+                        // eagerly (before buffering the full request) authenticate all request headers for this type of channel
+                        assert header.isRequest();
+                        // authn is mostly async, avoid buffering anymore data while authn is in progress
+                        boolean isNettyChannel = channel instanceof Netty4TcpChannel;
+                        if (isNettyChannel) {
+                            ((Netty4TcpChannel) channel).getNettyChannel().config().setAutoRead(false);
+                        }
+                        // this prevents thread-context changes to propagate beyond the validation, as netty worker threads are reused
+                        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
+                            crossClusterAccessAuthenticationService.tryAuthenticate(
+                                header.getRequestHeaders(),
+                                ActionListener.wrap(aVoid -> {
+                                    // authn is successful -> NOOP (the complete request will be subsequently authn & authz & audited)
+                                    if (isNettyChannel) {
+                                        ((Netty4TcpChannel) channel).getNettyChannel().config().setAutoRead(true);
+                                    }
+                                }, e -> uncaughtExceptionReference.set(new HeaderValidationException(header, e)))
+                            );
+                        }
                     }
-                    // this prevents thread-context changes to propagate beyond the validation, as netty worker threads are reused
-                    try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
-                        crossClusterAccessAuthenticationService.tryAuthenticate(header.getRequestHeaders(), ActionListener.wrap(aVoid -> {
-                            // authn is successful -> NOOP (the complete request will be subsequently authn & authz & audited)
-                            if (isNettyChannel) {
-                                ((Netty4TcpChannel) channel).getNettyChannel().config().setAutoRead(true);
-                            }
-                        }, e -> uncaughtExceptionReference.set(new HeaderValidationException(header, e))));
-                    }
+                    // go on with the message parts
+                    super.headerReceived(channel, header);
                 }
-                // go on with the message parts
-                super.headerReceived(channel, header);
-            }
-        };
+            };
+        }
     }
 
     @Override

@@ -12,7 +12,6 @@ import net.nextencia.rrdiagram.grammar.model.Repetition;
 import net.nextencia.rrdiagram.grammar.model.Rule;
 import net.nextencia.rrdiagram.grammar.model.Sequence;
 import net.nextencia.rrdiagram.grammar.rrdiagram.RRDiagram;
-
 import net.nextencia.rrdiagram.grammar.rrdiagram.RRDiagramToSVG;
 
 import org.apache.lucene.document.InetAddressPoint;

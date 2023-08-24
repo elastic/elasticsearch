@@ -1,7 +1,7 @@
 [[esql-cosh]]
 === `COSH`
 [.text-center]
-image::signature/cosh.svg[]
+image::signature/cosh.svg[Static,300]
 
 https://en.wikipedia.org/wiki/Hyperbolic_functions[Cosine] hyperbolic function.
 

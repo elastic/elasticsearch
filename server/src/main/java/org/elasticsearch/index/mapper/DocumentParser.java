@@ -400,12 +400,10 @@ public final class DocumentParser {
             parseObjectOrNested(context);
         } else if (mapper instanceof FieldMapper fieldMapper) {
             if (canToBeFlatten(context, fieldMapper)) {
-                // remove the last path and add it as suffix to the dottedFieldName
-                String suffix = context.path().remove();
-                // DocumentParserContextcontext.createFlattenContext(suffix);
-                // DocumentParserContext childContext = context.switchParser(new XContentFlatteningParser(context.parser(), suffix));
-                parseObjectOrNested(context.createFlattenContext(suffix));
-                context.path().add(suffix);
+                // remove the last path and add it as parentName to the new DocumentParserContext
+                String parentName = context.path().remove();
+                parseObjectOrNested(context.createFlattenContext(parentName));
+                context.path().add(parentName);
             } else {
                 fieldMapper.parse(context);
             }
@@ -489,8 +487,7 @@ public final class DocumentParser {
                 // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
                 dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
             } else {
-                Explicit<Boolean> subobjects = context.parent().subobjects() ? Explicit.EXPLICIT_TRUE : Explicit.EXPLICIT_FALSE;
-                dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName, subobjects);
+                dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
             }
             if (context.parent().subobjects() == false) {
                 if (dynamicObjectMapper instanceof NestedObjectMapper) {
@@ -504,6 +501,9 @@ public final class DocumentParser {
                     );
                 }
                 if (dynamicObjectMapper instanceof ObjectMapper) {
+                    // We have an ObjectMapper but subobjects are disallowed
+                    // therefore we create a new DocumentParserContext that
+                    // prepends currentFieldName to any immediate children.
                     parseObjectOrField(context.createFlattenContext(currentFieldName), dynamicObjectMapper);
                     return;
                 }

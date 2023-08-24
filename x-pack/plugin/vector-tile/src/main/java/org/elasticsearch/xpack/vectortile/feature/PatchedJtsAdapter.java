@@ -144,7 +144,7 @@ final class PatchedJtsAdapter {
                 final LineString exteriorRing = nextPoly.getExteriorRing();
 
                 // Area must be non-zero
-                final double exteriorArea = Area.ofRing(exteriorRing.getCoordinates());
+                final double exteriorArea = Area.ofRingSigned(exteriorRing.getCoordinates());
                 if (((int) Math.round(exteriorArea)) == 0) {
                     continue;
                 }
@@ -166,7 +166,7 @@ final class PatchedJtsAdapter {
                     final LineString nextInteriorRing = nextPoly.getInteriorRingN(ringIndex);
 
                     // Area must be non-zero
-                    final double interiorArea = Area.ofRing(nextInteriorRing.getCoordinates());
+                    final double interiorArea = Area.ofRingSigned(nextInteriorRing.getCoordinates());
                     if (((int) Math.round(interiorArea)) == 0) {
                         continue;
                     }

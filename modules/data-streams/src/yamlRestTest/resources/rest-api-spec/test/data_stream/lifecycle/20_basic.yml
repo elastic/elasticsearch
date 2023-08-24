@@ -1,8 +1,8 @@
 setup:
   - skip:
       features: allowed_warnings
-      version: " - 8.9.99"
-      reason: "Data stream lifecycles only supported in 8.10+"
+      version: " - 8.10.99"
+      reason: "Data stream lifecycles only supported in 8.11+"
   - do:
       allowed_warnings:
         - "index template [my-lifecycle] has index patterns [data-stream-with-lifecycle] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-lifecycle] will take precedence during new index creation"
@@ -65,9 +65,22 @@ setup:
   - do:
       indices.put_data_lifecycle:
         name: "*"
-        body:
-          data_retention: '30d'
-          enabled: false
+        body: >
+          {
+            "downsampling": [
+              {
+                "after": "10d",
+                 "fixed_interval": "1h"
+              },
+              {
+                "after": "100d",
+                "fixed_interval": "10h"
+              }
+            ],
+            "data_retention": "30d",
+            "enabled": false
+          }
+
   - is_true: acknowledged
 
   - do:

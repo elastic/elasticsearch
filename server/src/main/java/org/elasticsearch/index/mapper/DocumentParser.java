@@ -23,7 +23,6 @@ import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFlatteningParser;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -394,9 +393,7 @@ public final class DocumentParser {
 
     static void parseObjectOrField(DocumentParserContext context, Mapper mapper) throws IOException {
         if (mapper instanceof ObjectMapper objectMapper) {
-            if ((context.parser() instanceof XContentFlatteningParser) == false) {
-                context = context.createChildContext(objectMapper);
-            }
+            context = context.createChildContext(objectMapper);
             parseObjectOrNested(context);
         } else if (mapper instanceof FieldMapper fieldMapper) {
             if (canToBeFlatten(context, fieldMapper)) {
@@ -505,7 +502,7 @@ public final class DocumentParser {
                     // We have an ObjectMapper but subobjects are disallowed
                     // therefore we create a new DocumentParserContext that
                     // prepends currentFieldName to any immediate children.
-                    parseObjectOrField(context.createFlattenContext(currentFieldName), dynamicObjectMapper);
+                    parseObjectOrNested(context.createFlattenContext(currentFieldName));
                     return;
                 }
 

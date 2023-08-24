@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -170,12 +171,15 @@ public class SecurityNetty4Transport extends Netty4Transport {
             @Override
             protected void headerReceived(Header header) {
                 if (isRemoteClusterServerChannel && header.isHandshake() == false) {
+                    // eagerly (before buffering the full request) authenticate all request headers for this type of channel
+                    // authn is async
                     assert header.isRequest();
-                    // start authn asynchronously
-                    // TODO maybe stash the thread context
-                    crossClusterAccessAuthenticationService.tryAuthenticate(header.getRequestHeaders(), ActionListener.wrap(aVoid -> {
-                        // NOOP
-                    }, e -> uncaughtExceptionReference.set(new HeaderValidationException(header, e))));
+                    // this prevents thread-context changes to propagate beyond the validation, as netty worker threads are reused
+                    try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
+                        crossClusterAccessAuthenticationService.tryAuthenticate(header.getRequestHeaders(), ActionListener.wrap(aVoid -> {
+                            // authn is successful -> NOOP (the complete request will be subsequently authn & authz & audited)
+                        }, e -> uncaughtExceptionReference.set(new HeaderValidationException(header, e))));
+                    }
                 }
                 // go on with the message parts
                 super.headerReceived(header);

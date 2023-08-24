@@ -419,10 +419,13 @@ of the most recent snapshot for this job. Valid values range from `0` to
 jobs created before version 7.8.0, the default value matches
 `model_snapshot_retention_days`. For more information, refer to
 {ml-docs}/ml-ad-run-jobs.html#ml-ad-model-snapshots[Model snapshots].
++
+--
 NOTE: From {es} 8.10.0,  a new version number is used to
 track the configuration and state changes in the {ml} plugin. This new
 version number is decoupled from the product version and will increment
 independently.
+--
 end::daily-model-snapshot-retention-after-days[]
 
 tag::data-description[]

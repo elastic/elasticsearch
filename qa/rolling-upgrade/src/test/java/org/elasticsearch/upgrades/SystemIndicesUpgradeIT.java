@@ -8,13 +8,14 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.XContentTestUtils.JsonMapView;
 
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -116,8 +117,8 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
                 // If .tasks was created in a 7.x version, it should have an alias on it that we need to make sure got upgraded properly.
                 final String tasksCreatedVersionString = tasksIndex.get("settings.index.version.created");
                 assertThat(tasksCreatedVersionString, notNullValue());
-                final Version tasksCreatedVersion = Version.fromId(Integer.parseInt(tasksCreatedVersionString));
-                if (tasksCreatedVersion.before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
+                final IndexVersion tasksCreatedVersion = IndexVersion.fromId(Integer.parseInt(tasksCreatedVersionString));
+                if (tasksCreatedVersion.before(SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION)) {
                     // Verify that the alias survived the upgrade
                     Request getAliasRequest = new Request("GET", "/_alias/test-system-alias");
                     getAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {

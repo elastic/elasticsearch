@@ -19,7 +19,7 @@ import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.ql.type.DataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 
-public class Intersects extends BinaryScalarFunction implements Mappable {
+public class Intersects extends BinaryScalarFunction implements EvaluatorMapper {
 
     public Intersects(Source source, Expression timestamp, Expression argument) {
         super(source, timestamp, argument);
@@ -83,7 +83,7 @@ public class Intersects extends BinaryScalarFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Override

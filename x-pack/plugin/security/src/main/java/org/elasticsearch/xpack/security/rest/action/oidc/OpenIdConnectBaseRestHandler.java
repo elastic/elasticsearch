@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
@@ -29,7 +30,7 @@ public abstract class OpenIdConnectBaseRestHandler extends SecurityBaseRestHandl
     }
 
     @Override
-    protected Exception innerCheckFeatureAvailable() {
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
         if (Realms.isRealmTypeAvailable(licenseState, OIDC_REALM_TYPE)) {
             return null;
         } else {

@@ -68,6 +68,11 @@ import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
 
     public static final FeatureFlag FAILURE_STORE_FEATURE_FLAG = new FeatureFlag("failure_store");
+    public static final TransportVersion ADDED_FAILURE_STORE_TEMPLATE_OPTION = TransportVersion.V_8_500_069;
+
+    public static boolean isFailureStoreEnabled() {
+        return FAILURE_STORE_FEATURE_FLAG.isEnabled();
+    }
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
